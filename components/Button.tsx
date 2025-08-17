@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import { flattenStyles } from '~/utils/styles';
 
 type ButtonProps = {
   title?: string;
@@ -7,7 +8,7 @@ type ButtonProps = {
 
 export const Button = forwardRef<View, ButtonProps>(({ title, ...touchableProps }, ref) => {
   return (
-    <TouchableOpacity ref={ref} {...touchableProps} style={[styles.button, touchableProps.style]}>
+    <TouchableOpacity ref={ref} {...touchableProps} style={flattenStyles([styles.button, touchableProps.style])}>
       <Text style={styles.buttonText}>{title}</Text>
     </TouchableOpacity>
   );
