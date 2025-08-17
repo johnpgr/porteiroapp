@@ -7,9 +7,9 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 import { AuthProvider } from '../hooks/useAuth';
-import { notificationService } from '../services/notificationService';
-import { audioService } from '../services/audioService';
-import * as Notifications from 'expo-notifications';
+// import { notificationService } from '../services/notificationService'; // TEMPORARIAMENTE DESABILITADO
+// import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
+// import * as Notifications from 'expo-notifications'; // TEMPORARIAMENTE DESABILITADO
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -24,38 +24,37 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  useEffect(() => {
-    // Configurar listeners de notificação
-    const setupNotifications = () => {
-      notificationService.setupNotificationListeners(
-        // Quando uma notificação é recebida
-        (notification) => {
-          console.log('Notificação recebida:', notification);
-        },
-        // Quando o usuário toca na notificação
-        (response) => {
-          console.log('Notificação tocada:', response);
-          const data = response.notification.request.content.data;
+  // TEMPORARIAMENTE DESABILITADO - PUSH NOTIFICATIONS
+  // useEffect(() => {
+  //   const setupNotifications = () => {
+  //     notificationService.setupNotificationListeners(
+  //       (notification) => {
+  //         console.log('Notificação recebida:', notification);
+  //       },
+  //       (response) => {
+  //         const data = response.notification.request.content.data;
+  //         console.log('Resposta da notificação:', data);
+  //       }
+  //     );
+  //   };
 
-          // Navegar baseado no tipo de notificação
-          if (data.type === 'visitor') {
-            // Navegar para tela de visitantes
-          } else if (data.type === 'delivery') {
-            // Navegar para tela de encomendas
-          } else if (data.type === 'emergency') {
-            // Mostrar alerta de emergência
-          }
-        }
-      );
-    };
+  //   setupNotifications();
+  // }, []);
 
-    setupNotifications();
-
-    // Cleanup ao desmontar
-    return () => {
-      audioService.cleanup();
-    };
-  }, []);
+  // FUNÇÃO SETUPNOTIFICATIONS DESABILITADA TEMPORARIAMENTE
+  /*
+  const setupNotifications = () => {
+    notificationService.setupNotificationListeners(
+      (notification) => {
+        console.log('Notificação recebida:', notification);
+      },
+      (response) => {
+        const data = response.notification.request.content.data;
+        console.log('Resposta da notificação:', data);
+      }
+    );
+  };
+  */
 
   if (!loaded) {
     return null;

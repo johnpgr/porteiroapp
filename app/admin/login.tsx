@@ -1,41 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function AdminLogin() {
-  const [loading, setLoading] = useState(false);
   const { signIn, user } = useAuth();
 
-  const handleTestLogin = async () => {
-    await handleLogin('admin@teste.com', 'admin123');
-  };
 
-  const handleLogin = async (email: string, password: string) => {
-    setLoading(true);
+
+  useEffect(() => {
+    if (user && user.user_type === 'admin') {
+      router.replace('/admin');
+    }
+  }, [user]);
+
+  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await signIn(email, password);
+      const result = await signIn(email, password);
 
-      if (error) {
-        Alert.alert('Erro de Login', error);
-        return;
+      if (!result.success) {
+        Alert.alert('Erro de Login', result.error || 'Erro desconhecido');
+        return { success: false, error: result.error };
       }
 
-      // Verificar se o usuário é admin após o login
-      // Aguardar um momento para o estado ser atualizado
-      setTimeout(() => {
-        if (user?.user_type !== 'admin') {
-          Alert.alert('Acesso Negado', 'Apenas administradores podem acessar esta área');
-          return;
-        }
-        // Redirecionar para a área do admin após verificação
-        router.replace('/admin');
-      }, 100);
+      // O redirecionamento será feito pelo useEffect quando user for atualizado
+      return { success: true };
     } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro inesperado');
-    } finally {
-      setLoading(false);
+      const errorMessage = 'Ocorreu um erro inesperado';
+      Alert.alert('Erro', errorMessage);
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -50,12 +44,9 @@ export default function AdminLogin() {
         <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
       </View>
 
-      <AuthForm onSubmit={handleLogin} loading={loading} submitText="Entrar como Admin" />
+      <AuthForm onSubmit={handleLogin} submitText="Entrar como Admin" />
 
-      {/* Botão de Login de Teste - Apenas para Desenvolvimento */}
-      <TouchableOpacity style={styles.testButton} onPress={handleTestLogin} disabled={loading}>
-        <Text style={styles.testButtonText}>🧪 Login Teste (Dev)</Text>
-      </TouchableOpacity>
+
     </View>
   );
 }
@@ -94,17 +85,5 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  testButton: {
-    backgroundColor: '#FF9800',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
 });

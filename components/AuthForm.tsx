@@ -1,23 +1,53 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 
 interface AuthFormProps {
-  onSubmit: (email: string, password: string) => void;
+  onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loading?: boolean;
   submitText?: string;
+  userType?: 'admin' | 'porteiro' | 'morador';
 }
 
 export default function AuthForm({
   onSubmit,
   loading = false,
   submitText = 'Entrar',
+  userType,
 }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    onSubmit(email, password);
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   };
+
+  const handleSubmit = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Erro', 'Por favor, preencha todos os campos');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await onSubmit(email.trim().toLowerCase(), password);
+      if (!result.success && result.error) {
+        Alert.alert('Erro de Login', result.error);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Erro inesperado durante o login');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isLoading = loading || isSubmitting;
 
   return (
     <View style={styles.container}>
@@ -39,10 +69,10 @@ export default function AuthForm({
       />
 
       <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
+        style={[styles.button, isLoading && styles.buttonDisabled]}
         onPress={handleSubmit}
-        disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Entrando...' : submitText}</Text>
+        disabled={isLoading}>
+        <Text style={styles.buttonText}>{isLoading ? 'Entrando...' : submitText}</Text>
       </TouchableOpacity>
     </View>
   );
