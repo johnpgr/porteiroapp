@@ -37,21 +37,23 @@ export default function LogsScreen() {
       if (filter === 'all' || filter === 'visitor') {
         const { data: visitorLogs, error: visitorError } = await supabase
           .from('visitor_logs')
-          .select(`
+          .select(
+            `
             *,
             visitors!inner(
               name,
               document,
               apartment_number
             )
-          `)
+          `
+          )
           .eq('visitors.apartment_number', user.apartment_number)
           .order('timestamp', { ascending: false })
           .limit(50);
 
         if (visitorError) throw visitorError;
 
-        visitorLogs?.forEach(log => {
+        visitorLogs?.forEach((log) => {
           const visitor = log.visitors as any;
           logEntries.push({
             id: `visitor_${log.id}`,
@@ -61,7 +63,7 @@ export default function LogsScreen() {
             timestamp: log.timestamp,
             status: log.action,
             icon: getVisitorActionIcon(log.action),
-            color: getVisitorActionColor(log.action)
+            color: getVisitorActionColor(log.action),
           });
         });
       }
@@ -71,13 +73,15 @@ export default function LogsScreen() {
         const { data: communications, error: commError } = await supabase
           .from('communications')
           .select('*')
-          .or(`target_apartment.eq.${user.apartment_number},target_user_type.eq.morador,target_apartment.is.null`)
+          .or(
+            `target_apartment.eq.${user.apartment_number},target_user_type.eq.morador,target_apartment.is.null`
+          )
           .order('created_at', { ascending: false })
           .limit(50);
 
         if (commError) throw commError;
 
-        communications?.forEach(comm => {
+        communications?.forEach((comm) => {
           logEntries.push({
             id: `comm_${comm.id}`,
             type: 'communication',
@@ -86,14 +90,14 @@ export default function LogsScreen() {
             timestamp: comm.created_at,
             status: comm.type,
             icon: getCommunicationIcon(comm.type),
-            color: getCommunicationColor(comm.priority)
+            color: getCommunicationColor(comm.priority),
           });
         });
       }
 
       // Ordenar por timestamp
       logEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
+
       setLogs(logEntries);
     } catch (error) {
       console.error('Erro ao buscar logs:', error);
@@ -110,56 +114,56 @@ export default function LogsScreen() {
 
   const getVisitorActionDescription = (action: string, notes?: string) => {
     const descriptions: { [key: string]: string } = {
-      'pending': 'Aguardando autorização',
-      'approved': 'Visita aprovada',
-      'denied': 'Visita negada',
-      'entered': 'Entrou no prédio',
-      'left': 'Saiu do prédio',
-      'preregistered': 'Pré-cadastrado'
+      pending: 'Aguardando autorização',
+      approved: 'Visita aprovada',
+      denied: 'Visita negada',
+      entered: 'Entrou no prédio',
+      left: 'Saiu do prédio',
+      preregistered: 'Pré-cadastrado',
     };
     return notes || descriptions[action] || action;
   };
 
   const getVisitorActionIcon = (action: string) => {
     const icons: { [key: string]: string } = {
-      'pending': 'time',
-      'approved': 'checkmark-circle',
-      'denied': 'close-circle',
-      'entered': 'enter',
-      'left': 'exit',
-      'preregistered': 'person-add'
+      pending: 'time',
+      approved: 'checkmark-circle',
+      denied: 'close-circle',
+      entered: 'enter',
+      left: 'exit',
+      preregistered: 'person-add',
     };
     return icons[action] || 'person';
   };
 
   const getVisitorActionColor = (action: string) => {
     const colors: { [key: string]: string } = {
-      'pending': '#FF9800',
-      'approved': '#4CAF50',
-      'denied': '#F44336',
-      'entered': '#2196F3',
-      'left': '#9E9E9E',
-      'preregistered': '#4CAF50'
+      pending: '#FF9800',
+      approved: '#4CAF50',
+      denied: '#F44336',
+      entered: '#2196F3',
+      left: '#9E9E9E',
+      preregistered: '#4CAF50',
     };
     return colors[action] || '#666';
   };
 
   const getCommunicationIcon = (type: string) => {
     const icons: { [key: string]: string } = {
-      'general': 'information-circle',
-      'emergency': 'warning',
-      'maintenance': 'construct',
-      'event': 'calendar',
-      'visitor': 'person'
+      general: 'information-circle',
+      emergency: 'warning',
+      maintenance: 'construct',
+      event: 'calendar',
+      visitor: 'person',
     };
     return icons[type] || 'mail';
   };
 
   const getCommunicationColor = (priority: string) => {
     const colors: { [key: string]: string } = {
-      'high': '#F44336',
-      'medium': '#FF9800',
-      'low': '#4CAF50'
+      high: '#F44336',
+      medium: '#FF9800',
+      low: '#4CAF50',
     };
     return colors[priority] || '#2196F3';
   };
@@ -180,16 +184,13 @@ export default function LogsScreen() {
     }
   };
 
-  const filteredLogs = logs.filter(log => filter === 'all' || log.type === filter);
+  const filteredLogs = logs.filter((log) => filter === 'all' || log.type === filter);
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Histórico</Text>
@@ -198,28 +199,25 @@ export default function LogsScreen() {
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-          onPress={() => setFilter('all')}
-        >
+          onPress={() => setFilter('all')}>
           <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
             Todos
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.filterTab, filter === 'visitor' && styles.filterTabActive]}
-          onPress={() => setFilter('visitor')}
-        >
+          onPress={() => setFilter('visitor')}>
           <Text style={[styles.filterText, filter === 'visitor' && styles.filterTextActive]}>
             Visitantes
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.filterTab, filter === 'communication' && styles.filterTabActive]}
-          onPress={() => setFilter('communication')}
-        >
+          onPress={() => setFilter('communication')}>
           <Text style={[styles.filterText, filter === 'communication' && styles.filterTextActive]}>
             Comunicados
           </Text>
@@ -227,12 +225,9 @@ export default function LogsScreen() {
       </View>
 
       {/* Logs List */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando histórico...</Text>
@@ -261,10 +256,18 @@ export default function LogsScreen() {
                   </View>
                   <Text style={styles.logTime}>{formatTimestamp(log.timestamp)}</Text>
                 </View>
-                
+
                 <View style={styles.logFooter}>
-                  <View style={[styles.logType, { backgroundColor: log.type === 'visitor' ? '#E3F2FD' : '#F3E5F5' }]}>
-                    <Text style={[styles.logTypeText, { color: log.type === 'visitor' ? '#1976D2' : '#7B1FA2' }]}>
+                  <View
+                    style={[
+                      styles.logType,
+                      { backgroundColor: log.type === 'visitor' ? '#E3F2FD' : '#F3E5F5' },
+                    ]}>
+                    <Text
+                      style={[
+                        styles.logTypeText,
+                        { color: log.type === 'visitor' ? '#1976D2' : '#7B1FA2' },
+                      ]}>
                       {log.type === 'visitor' ? 'Visitante' : 'Comunicado'}
                     </Text>
                   </View>

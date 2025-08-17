@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -8,7 +16,8 @@ import { NotificationCard } from '../../components/NotificationCard';
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
-  const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
+  const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
+    useNotifications();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -26,24 +35,18 @@ export default function NotificationsScreen() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notificações</Text>
         {unreadCount > 0 && (
-          <TouchableOpacity 
-            style={styles.markAllButton}
-            onPress={handleMarkAllAsRead}
-          >
+          <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllAsRead}>
             <Text style={styles.markAllText}>Marcar todas</Text>
           </TouchableOpacity>
         )}
@@ -60,18 +63,17 @@ export default function NotificationsScreen() {
           <Text style={styles.statLabel}>Não lidas</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#4CAF50' }]}>{notifications.length - unreadCount}</Text>
+          <Text style={[styles.statNumber, { color: '#4CAF50' }]}>
+            {notifications.length - unreadCount}
+          </Text>
           <Text style={styles.statLabel}>Lidas</Text>
         </View>
       </View>
 
       {/* Notifications List */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando notificações...</Text>

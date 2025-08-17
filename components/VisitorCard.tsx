@@ -22,25 +22,31 @@ interface VisitorCardProps {
 export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }: VisitorCardProps) {
   const getStatusColor = () => {
     switch (visitor.status) {
-      case 'approved': return '#4CAF50';
-      case 'denied': return '#F44336';
-      default: return '#FF9800';
+      case 'approved':
+        return '#4CAF50';
+      case 'denied':
+        return '#F44336';
+      default:
+        return '#FF9800';
     }
   };
 
   const getStatusText = () => {
     switch (visitor.status) {
-      case 'approved': return '✅ Aprovado';
-      case 'denied': return '❌ Negado';
-      default: return '⏳ Pendente';
+      case 'approved':
+        return '✅ Aprovado';
+      case 'denied':
+        return '❌ Negado';
+      default:
+        return '⏳ Pendente';
     }
   };
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -56,17 +62,15 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
             </View>
           )}
         </View>
-        
+
         <View style={styles.info}>
           <Text style={styles.name}>{visitor.name}</Text>
           <Text style={styles.document}>Doc: {visitor.document}</Text>
           <Text style={styles.apartment}>Apt: {visitor.apartment_number}</Text>
         </View>
-        
+
         <View style={styles.statusContainer}>
-          <Text style={[styles.status, { color: getStatusColor() }]}>
-            {getStatusText()}
-          </Text>
+          <Text style={[styles.status, { color: getStatusColor() }]}>{getStatusText()}</Text>
           <Text style={styles.time}>{formatTime(visitor.created_at)}</Text>
         </View>
       </View>
@@ -82,15 +86,13 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.denyButton]}
-            onPress={() => onDeny?.(visitor.id)}
-          >
+            onPress={() => onDeny?.(visitor.id)}>
             <Text style={styles.actionButtonText}>❌ Negar</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.actionButton, styles.approveButton]}
-            onPress={() => onApprove?.(visitor.id)}
-          >
+            onPress={() => onApprove?.(visitor.id)}>
             <Text style={styles.actionButtonText}>✅ Aprovar</Text>
           </TouchableOpacity>
         </View>

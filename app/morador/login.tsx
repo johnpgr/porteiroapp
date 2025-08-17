@@ -5,12 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function PorteiroLogin() {
+export default function MoradorLogin() {
   const [loading, setLoading] = useState(false);
   const { signIn, user } = useAuth();
 
   const handleTestLogin = async () => {
-    await handleLogin('porteiro@teste.com', 'porteiro123');
+    await handleLogin('morador@teste.com', 'morador123');
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -23,14 +23,14 @@ export default function PorteiroLogin() {
         return;
       }
 
-      // Verificar se o usuário é porteiro após o login
+      // Verificar se o usuário é morador após o login
       setTimeout(() => {
-        if (user?.user_type !== 'porteiro') {
-          Alert.alert('Acesso Negado', 'Apenas porteiros podem acessar esta área');
+        if (user?.user_type !== 'morador') {
+          Alert.alert('Acesso Negado', 'Apenas moradores podem acessar esta área');
           return;
         }
-        // Redirecionar para a área do porteiro após verificação
-        router.replace('/porteiro');
+        // Redirecionar para a área do morador após verificação
+        router.replace('/morador');
       }, 100);
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro inesperado');
@@ -46,11 +46,11 @@ export default function PorteiroLogin() {
       </TouchableOpacity>
 
       <View style={styles.header}>
-        <Text style={styles.title}>🚪 Login Porteiro</Text>
-        <Text style={styles.subtitle}>Acesse o painel de controle da portaria</Text>
+        <Text style={styles.title}>🏠 Login Morador</Text>
+        <Text style={styles.subtitle}>Acesse sua área de morador</Text>
       </View>
 
-      <AuthForm onSubmit={handleLogin} loading={loading} submitText="Entrar como Porteiro" />
+      <AuthForm onSubmit={handleLogin} loading={loading} submitText="Entrar como Morador" />
 
       {/* Botão de Login de Teste - Apenas para Desenvolvimento */}
       <TouchableOpacity style={styles.testButton} onPress={handleTestLogin} disabled={loading}>

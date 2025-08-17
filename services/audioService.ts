@@ -114,7 +114,7 @@ class AudioService {
       this.recording = new Audio.Recording();
       await this.recording.prepareToRecordAsync(recordingOptions as any);
       await this.recording.startAsync();
-      
+
       this.isRecording = true;
       console.log('Gravação iniciada');
       return true;
@@ -138,10 +138,7 @@ class AudioService {
         await this.stopAudio();
       }
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, volume: 1.0 }
-      );
+      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true, volume: 1.0 });
 
       this.sound = sound;
       this.isPlaying = true;

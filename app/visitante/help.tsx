@@ -5,17 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function HelpScreen() {
   const handleCall = (number: string) => {
-    Alert.alert(
-      'Fazer Ligação',
-      `Deseja ligar para ${number}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Ligar', 
-          onPress: () => Linking.openURL(`tel:${number}`)
-        }
-      ]
-    );
+    Alert.alert('Fazer Ligação', `Deseja ligar para ${number}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Ligar',
+        onPress: () => Linking.openURL(`tel:${number}`),
+      },
+    ]);
   };
 
   const handleWhatsApp = (number: string, message: string) => {
@@ -33,10 +29,7 @@ export default function HelpScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajuda & Suporte</Text>
@@ -50,28 +43,17 @@ export default function HelpScreen() {
             <Ionicons name="warning" size={24} color="#F44336" />
             <Text style={styles.emergencyTitle}>🚨 Emergência</Text>
           </View>
-          <Text style={styles.emergencyText}>
-            Em caso de emergência, ligue imediatamente:
-          </Text>
+          <Text style={styles.emergencyText}>Em caso de emergência, ligue imediatamente:</Text>
           <View style={styles.emergencyButtons}>
-            <TouchableOpacity 
-              style={styles.emergencyButton}
-              onPress={() => handleCall('190')}
-            >
+            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('190')}>
               <Ionicons name="call" size={20} color="#fff" />
               <Text style={styles.emergencyButtonText}>Polícia - 190</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.emergencyButton}
-              onPress={() => handleCall('192')}
-            >
+            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('192')}>
               <Ionicons name="medical" size={20} color="#fff" />
               <Text style={styles.emergencyButtonText}>SAMU - 192</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.emergencyButton}
-              onPress={() => handleCall('193')}
-            >
+            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('193')}>
               <Ionicons name="flame" size={20} color="#fff" />
               <Text style={styles.emergencyButtonText}>Bombeiros - 193</Text>
             </TouchableOpacity>
@@ -81,7 +63,7 @@ export default function HelpScreen() {
         {/* How it Works */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>❓ Como Funciona</Text>
-          
+
           <View style={styles.stepCard}>
             <View style={styles.stepNumber}>
               <Text style={styles.stepNumberText}>1</Text>
@@ -89,8 +71,8 @@ export default function HelpScreen() {
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Registre sua Visita</Text>
               <Text style={styles.stepDescription}>
-                Preencha seus dados pessoais, número do apartamento e motivo da visita. 
-                Adicione uma foto para maior segurança.
+                Preencha seus dados pessoais, número do apartamento e motivo da visita. Adicione uma
+                foto para maior segurança.
               </Text>
             </View>
           </View>
@@ -102,8 +84,8 @@ export default function HelpScreen() {
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Aguarde a Autorização</Text>
               <Text style={styles.stepDescription}>
-                O morador receberá uma notificação e poderá aprovar ou negar sua visita. 
-                Você será notificado da decisão.
+                O morador receberá uma notificação e poderá aprovar ou negar sua visita. Você será
+                notificado da decisão.
               </Text>
             </View>
           </View>
@@ -115,8 +97,8 @@ export default function HelpScreen() {
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Acesse o Prédio</Text>
               <Text style={styles.stepDescription}>
-                Com a aprovação, você pode acessar o prédio. O porteiro registrará 
-                sua entrada e saída.
+                Com a aprovação, você pode acessar o prédio. O porteiro registrará sua entrada e
+                saída.
               </Text>
             </View>
           </View>
@@ -125,42 +107,45 @@ export default function HelpScreen() {
         {/* FAQ */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>💬 Perguntas Frequentes</Text>
-          
+
           <View style={styles.faqItem}>
             <Text style={styles.faqQuestion}>Quanto tempo demora para receber uma resposta?</Text>
             <Text style={styles.faqAnswer}>
-              Após registrar sua visita, você receberá um código de confirmação. Use este código na tela &quot;Consultar Status&quot; para acompanhar se sua visita foi aprovada pelo morador.
+              Após registrar sua visita, você receberá um código de confirmação. Use este código na
+              tela &quot;Consultar Status&quot; para acompanhar se sua visita foi aprovada pelo
+              morador.
             </Text>
           </View>
 
           <View style={styles.faqItem}>
             <Text style={styles.faqQuestion}>Posso registrar uma visita com antecedência?</Text>
             <Text style={styles.faqAnswer}>
-              Sim! Você pode registrar sua visita com antecedência. O morador receberá 
-              a notificação e poderá aprovar para o horário desejado.
+              Sim! Você pode registrar sua visita com antecedência. O morador receberá a notificação
+              e poderá aprovar para o horário desejado.
             </Text>
           </View>
 
           <View style={styles.faqItem}>
             <Text style={styles.faqQuestion}>E se minha visita for negada?</Text>
             <Text style={styles.faqAnswer}>
-              Se sua visita for negada, você pode tentar entrar em contato diretamente com o morador através dos contatos disponíveis na seção &quot;Contatos&quot; desta tela.
+              Se sua visita for negada, você pode tentar entrar em contato diretamente com o morador
+              através dos contatos disponíveis na seção &quot;Contatos&quot; desta tela.
             </Text>
           </View>
 
           <View style={styles.faqItem}>
             <Text style={styles.faqQuestion}>Preciso levar documento?</Text>
             <Text style={styles.faqAnswer}>
-              Sim, sempre leve um documento com foto. O porteiro pode solicitar 
-              para confirmar sua identidade.
+              Sim, sempre leve um documento com foto. O porteiro pode solicitar para confirmar sua
+              identidade.
             </Text>
           </View>
 
           <View style={styles.faqItem}>
             <Text style={styles.faqQuestion}>Posso cancelar uma visita registrada?</Text>
             <Text style={styles.faqAnswer}>
-              Sim, entre em contato com a portaria ou com o morador para cancelar. 
-              É importante avisar para evitar transtornos.
+              Sim, entre em contato com a portaria ou com o morador para cancelar. É importante
+              avisar para evitar transtornos.
             </Text>
           </View>
         </View>
@@ -168,24 +153,24 @@ export default function HelpScreen() {
         {/* Contact Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📞 Contatos</Text>
-          
+
           <View style={styles.contactCard}>
             <Ionicons name="business" size={24} color="#2196F3" />
             <View style={styles.contactContent}>
               <Text style={styles.contactTitle}>Portaria do Prédio</Text>
               <Text style={styles.contactDescription}>Para informações gerais</Text>
               <View style={styles.contactButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleCall('(11) 1234-5678')}
-                >
+                  onPress={() => handleCall('(11) 1234-5678')}>
                   <Ionicons name="call" size={16} color="#2196F3" />
                   <Text style={styles.contactButtonText}>Ligar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleWhatsApp('5511123456789', 'Olá, preciso de ajuda com o acesso ao prédio.')}
-                >
+                  onPress={() =>
+                    handleWhatsApp('5511123456789', 'Olá, preciso de ajuda com o acesso ao prédio.')
+                  }>
                   <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
                   <Text style={[styles.contactButtonText, { color: '#25D366' }]}>WhatsApp</Text>
                 </TouchableOpacity>
@@ -199,17 +184,20 @@ export default function HelpScreen() {
               <Text style={styles.contactTitle}>Suporte Técnico</Text>
               <Text style={styles.contactDescription}>Problemas com o aplicativo</Text>
               <View style={styles.contactButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleEmail('suporte@porteiroapp.com')}
-                >
+                  onPress={() => handleEmail('suporte@porteiroapp.com')}>
                   <Ionicons name="mail" size={16} color="#FF9800" />
                   <Text style={[styles.contactButtonText, { color: '#FF9800' }]}>E-mail</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleWhatsApp('5511987654321', 'Preciso de suporte técnico para o PorteiroApp.')}
-                >
+                  onPress={() =>
+                    handleWhatsApp(
+                      '5511987654321',
+                      'Preciso de suporte técnico para o PorteiroApp.'
+                    )
+                  }>
                   <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
                   <Text style={[styles.contactButtonText, { color: '#25D366' }]}>WhatsApp</Text>
                 </TouchableOpacity>
@@ -223,17 +211,15 @@ export default function HelpScreen() {
               <Text style={styles.contactTitle}>Administração</Text>
               <Text style={styles.contactDescription}>Questões administrativas</Text>
               <View style={styles.contactButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleCall('(11) 8765-4321')}
-                >
+                  onPress={() => handleCall('(11) 8765-4321')}>
                   <Ionicons name="call" size={16} color="#4CAF50" />
                   <Text style={[styles.contactButtonText, { color: '#4CAF50' }]}>Ligar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleEmail('admin@predio.com')}
-                >
+                  onPress={() => handleEmail('admin@predio.com')}>
                   <Ionicons name="mail" size={16} color="#4CAF50" />
                   <Text style={[styles.contactButtonText, { color: '#4CAF50' }]}>E-mail</Text>
                 </TouchableOpacity>
@@ -245,11 +231,11 @@ export default function HelpScreen() {
         {/* Tips Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>💡 Dicas Importantes</Text>
-          
+
           <View style={styles.tipCard}>
             <Ionicons name="time" size={20} color="#FF9800" />
             <Text style={styles.tipText}>
-              <Text style={styles.tipBold}>Horário de Funcionamento:</Text> O sistema funciona 24h, 
+              <Text style={styles.tipBold}>Horário de Funcionamento:</Text> O sistema funciona 24h,
               mas considere o horário de descanso dos moradores.
             </Text>
           </View>
@@ -257,23 +243,23 @@ export default function HelpScreen() {
           <View style={styles.tipCard}>
             <Ionicons name="camera" size={20} color="#2196F3" />
             <Text style={styles.tipText}>
-              <Text style={styles.tipBold}>Foto:</Text> Adicionar uma foto aumenta a confiança 
-              e acelera o processo de aprovação.
+              <Text style={styles.tipBold}>Foto:</Text> Adicionar uma foto aumenta a confiança e
+              acelera o processo de aprovação.
             </Text>
           </View>
 
           <View style={styles.tipCard}>
             <Ionicons name="document-text" size={20} color="#4CAF50" />
             <Text style={styles.tipText}>
-              <Text style={styles.tipBold}>Documento:</Text> Sempre tenha um documento com foto 
-              em mãos para apresentar na portaria.
+              <Text style={styles.tipBold}>Documento:</Text> Sempre tenha um documento com foto em
+              mãos para apresentar na portaria.
             </Text>
           </View>
 
           <View style={styles.tipCard}>
             <Ionicons name="checkmark-circle" size={20} color="#9C27B0" />
             <Text style={styles.tipText}>
-              <Text style={styles.tipBold}>Confirmação:</Text> Confirme os dados antes de enviar. 
+              <Text style={styles.tipBold}>Confirmação:</Text> Confirme os dados antes de enviar.
               Informações incorretas podem causar atrasos.
             </Text>
           </View>

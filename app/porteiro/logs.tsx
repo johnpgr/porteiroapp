@@ -61,22 +61,24 @@ export default function ActivityLogs() {
   const fetchLogs = async () => {
     try {
       const promises = [];
-      
+
       // Buscar logs de visitantes se necessário
       if (filter === 'all' || filter === 'visitor') {
         let visitorQuery = supabase
           .from('visitor_logs')
-          .select(`
+          .select(
+            `
             *,
             apartments!inner(number)
-          `)
+          `
+          )
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo
         if (timeFilter !== 'all') {
           const now = new Date();
           let startDate: Date;
-          
+
           switch (timeFilter) {
             case 'today':
               startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -90,7 +92,7 @@ export default function ActivityLogs() {
             default:
               startDate = new Date(0);
           }
-          
+
           visitorQuery = visitorQuery.gte('created_at', startDate.toISOString());
         }
 
@@ -103,17 +105,19 @@ export default function ActivityLogs() {
       if (filter === 'all' || filter === 'delivery') {
         let deliveryQuery = supabase
           .from('deliveries')
-          .select(`
+          .select(
+            `
             *,
             apartments!inner(number)
-          `)
+          `
+          )
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo
         if (timeFilter !== 'all') {
           const now = new Date();
           let startDate: Date;
-          
+
           switch (timeFilter) {
             case 'today':
               startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -127,7 +131,7 @@ export default function ActivityLogs() {
             default:
               startDate = new Date(0);
           }
-          
+
           deliveryQuery = deliveryQuery.gte('created_at', startDate.toISOString());
         }
 
@@ -145,15 +149,19 @@ export default function ActivityLogs() {
       const visitorLogs: LogEntry[] = (visitorResult.data || []).map((log: VisitorLog) => {
         const getVisitorStatus = (action: string) => {
           switch (action) {
-            case 'entrada': return { status: 'Entrada autorizada', icon: '✅', color: '#4CAF50' };
-            case 'saida': return { status: 'Saída registrada', icon: '🚪', color: '#2196F3' };
-            case 'negado': return { status: 'Acesso negado', icon: '❌', color: '#F44336' };
-            default: return { status: 'Pendente', icon: '⏳', color: '#FF9800' };
+            case 'entrada':
+              return { status: 'Entrada autorizada', icon: '✅', color: '#4CAF50' };
+            case 'saida':
+              return { status: 'Saída registrada', icon: '🚪', color: '#2196F3' };
+            case 'negado':
+              return { status: 'Acesso negado', icon: '❌', color: '#F44336' };
+            default:
+              return { status: 'Pendente', icon: '⏳', color: '#FF9800' };
           }
         };
 
         const statusInfo = getVisitorStatus(log.action);
-        
+
         return {
           id: log.id,
           type: 'visitor',
@@ -167,36 +175,39 @@ export default function ActivityLogs() {
           details: [
             `Documento: ${log.document}`,
             `Autorizado por: ${log.authorized_by || 'N/A'}`,
-            ...(log.notes ? [`Observações: ${log.notes}`] : [])
-          ]
+            ...(log.notes ? [`Observações: ${log.notes}`] : []),
+          ],
         };
       });
 
       // Processar logs de encomendas
       const deliveryLogs: LogEntry[] = (deliveryResult.data || []).map((delivery: DeliveryLog) => {
         const isDelivered = delivery.status === 'entregue';
-        
+
         return {
           id: delivery.id,
           type: 'delivery',
           title: `Encomenda - ${delivery.recipient_name}`,
           subtitle: `Apto ${delivery.apartments?.number || 'N/A'} • ${delivery.sender}`,
           status: isDelivered ? 'Entregue' : 'Recebida',
-          time: formatDate(isDelivered && delivery.delivered_at ? delivery.delivered_at : delivery.created_at),
+          time: formatDate(
+            isDelivered && delivery.delivered_at ? delivery.delivered_at : delivery.created_at
+          ),
           icon: isDelivered ? '✅' : '📦',
           color: isDelivered ? '#4CAF50' : '#FF9800',
           details: [
             `Remetente: ${delivery.sender}`,
             ...(delivery.description ? [`Descrição: ${delivery.description}`] : []),
             `Recebida por: ${delivery.received_by || 'N/A'}`,
-            ...(isDelivered ? [`Entregue por: ${delivery.delivered_by || 'N/A'}`] : [])
-          ]
+            ...(isDelivered ? [`Entregue por: ${delivery.delivered_by || 'N/A'}`] : []),
+          ],
         };
       });
 
       // Combinar e ordenar todos os logs por data
-      const allLogs = [...visitorLogs, ...deliveryLogs]
-        .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      const allLogs = [...visitorLogs, ...deliveryLogs].sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+      );
 
       setLogs(allLogs);
     } catch (error) {
@@ -210,7 +221,7 @@ export default function ActivityLogs() {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    
+
     if (diffInHours < 1) {
       const diffInMinutes = Math.floor(diffInHours * 60);
       return `${diffInMinutes} min atrás`;
@@ -221,30 +232,29 @@ export default function ActivityLogs() {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     }
   };
 
   const getFilterCount = (filterType: string) => {
     if (filterType === 'all') return logs.length;
-    return logs.filter(log => log.type === filterType).length;
+    return logs.filter((log) => log.type === filterType).length;
   };
 
   const LogCard = ({ log }: { log: LogEntry }) => {
     const [expanded, setExpanded] = useState(false);
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.logCard}
         onPress={() => setExpanded(!expanded)}
-        activeOpacity={0.7}
-      >
+        activeOpacity={0.7}>
         <View style={styles.logHeader}>
           <View style={styles.logIcon}>
             <Text style={[styles.iconText, { color: log.color }]}>{log.icon}</Text>
           </View>
-          
+
           <View style={styles.logInfo}>
             <Text style={styles.logTitle}>{log.title}</Text>
             <Text style={styles.logSubtitle}>{log.subtitle}</Text>
@@ -264,15 +274,15 @@ export default function ActivityLogs() {
         {expanded && (
           <View style={styles.logDetails}>
             {log.details.map((detail, index) => (
-              <Text key={index} style={styles.detailText}>• {detail}</Text>
+              <Text key={index} style={styles.detailText}>
+                • {detail}
+              </Text>
             ))}
           </View>
         )}
 
         <View style={styles.expandIndicator}>
-          <Text style={styles.expandText}>
-            {expanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}
-          </Text>
+          <Text style={styles.expandText}>{expanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -282,10 +292,7 @@ export default function ActivityLogs() {
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>📋 Histórico de Atividades</Text>
@@ -297,26 +304,27 @@ export default function ActivityLogs() {
               {[
                 { key: 'all', label: 'Todas', icon: '📋' },
                 { key: 'visitor', label: 'Visitantes', icon: '👥' },
-                { key: 'delivery', label: 'Encomendas', icon: '📦' }
+                { key: 'delivery', label: 'Encomendas', icon: '📦' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
                   style={[
                     styles.filterButton,
-                    filter === filterOption.key && styles.filterButtonActive
+                    filter === filterOption.key && styles.filterButtonActive,
                   ]}
-                  onPress={() => setFilter(filterOption.key as any)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filter === filterOption.key && styles.filterButtonTextActive
-                  ]}>
+                  onPress={() => setFilter(filterOption.key as any)}>
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filter === filterOption.key && styles.filterButtonTextActive,
+                    ]}>
                     {filterOption.icon} {filterOption.label}
                   </Text>
-                  <Text style={[
-                    styles.filterCount,
-                    filter === filterOption.key && styles.filterCountActive
-                  ]}>
+                  <Text
+                    style={[
+                      styles.filterCount,
+                      filter === filterOption.key && styles.filterCountActive,
+                    ]}>
                     {getFilterCount(filterOption.key)}
                   </Text>
                 </TouchableOpacity>
@@ -332,20 +340,20 @@ export default function ActivityLogs() {
                 { key: 'today', label: 'Hoje' },
                 { key: 'week', label: 'Semana' },
                 { key: 'month', label: 'Mês' },
-                { key: 'all', label: 'Tudo' }
+                { key: 'all', label: 'Tudo' },
               ].map((timeOption) => (
                 <TouchableOpacity
                   key={timeOption.key}
                   style={[
                     styles.timeFilterButton,
-                    timeFilter === timeOption.key && styles.timeFilterButtonActive
+                    timeFilter === timeOption.key && styles.timeFilterButtonActive,
                   ]}
-                  onPress={() => setTimeFilter(timeOption.key as any)}
-                >
-                  <Text style={[
-                    styles.timeFilterButtonText,
-                    timeFilter === timeOption.key && styles.timeFilterButtonTextActive
-                  ]}>
+                  onPress={() => setTimeFilter(timeOption.key as any)}>
+                  <Text
+                    style={[
+                      styles.timeFilterButtonText,
+                      timeFilter === timeOption.key && styles.timeFilterButtonTextActive,
+                    ]}>
                     {timeOption.label}
                   </Text>
                 </TouchableOpacity>
@@ -368,9 +376,7 @@ export default function ActivityLogs() {
               </Text>
             </View>
           ) : (
-            logs.map((log) => (
-              <LogCard key={`${log.type}-${log.id}`} log={log} />
-            ))
+            logs.map((log) => <LogCard key={`${log.type}-${log.id}`} log={log} />)
           )}
         </ScrollView>
       </View>

@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,18 +22,21 @@ export default function PreregisterScreen() {
     document: '',
     phone: '',
     notes: '',
-    photo_url: ''
+    photo_url: '',
   });
   const [loading, setLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à galeria para selecionar uma foto');
+      Alert.alert(
+        'Permissão necessária',
+        'Precisamos de acesso à galeria para selecionar uma foto'
+      );
       return;
     }
 
@@ -36,7 +48,7 @@ export default function PreregisterScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFormData(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
@@ -54,20 +66,16 @@ export default function PreregisterScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFormData(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
   const showImageOptions = () => {
-    Alert.alert(
-      'Adicionar Foto',
-      'Escolha uma opção:',
-      [
-        { text: 'Câmera', onPress: takePhoto },
-        { text: 'Galeria', onPress: pickImage },
-        { text: 'Cancelar', style: 'cancel' }
-      ]
-    );
+    Alert.alert('Adicionar Foto', 'Escolha uma opção:', [
+      { text: 'Câmera', onPress: takePhoto },
+      { text: 'Galeria', onPress: pickImage },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const validateForm = () => {
@@ -92,44 +100,38 @@ export default function PreregisterScreen() {
     setLoading(true);
     try {
       // Inserir visitante pré-cadastrado
-      const { error } = await supabase
-        .from('visitors')
-        .insert({
-          name: formData.name.trim(),
-          document: formData.document.trim(),
-          phone: formData.phone.trim() || null,
-          apartment_number: user!.apartment_number,
-          photo_url: formData.photo_url || null,
-          notes: formData.notes.trim() || null,
-          status: 'approved', // Pré-cadastrados são automaticamente aprovados
-          authorized_by: user!.id,
-          created_at: new Date().toISOString()
-        });
+      const { error } = await supabase.from('visitors').insert({
+        name: formData.name.trim(),
+        document: formData.document.trim(),
+        phone: formData.phone.trim() || null,
+        apartment_number: user!.apartment_number,
+        photo_url: formData.photo_url || null,
+        notes: formData.notes.trim() || null,
+        status: 'approved', // Pré-cadastrados são automaticamente aprovados
+        authorized_by: user!.id,
+        created_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
       // Criar log da atividade
-      await supabase
-        .from('visitor_logs')
-        .insert({
-          visitor_id: null, // Será preenchido pelo trigger
-          action: 'preregistered',
-          performed_by: user!.id,
-          notes: `Visitante pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
-          timestamp: new Date().toISOString()
-        });
+      await supabase.from('visitor_logs').insert({
+        visitor_id: null, // Será preenchido pelo trigger
+        action: 'preregistered',
+        performed_by: user!.id,
+        notes: `Visitante pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
+        timestamp: new Date().toISOString(),
+      });
 
       // Criar notificação para o porteiro
-      await supabase
-        .from('communications')
-        .insert({
-          title: 'Visitante Pré-cadastrado',
-          message: `${formData.name} foi pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
-          type: 'visitor',
-          priority: 'low',
-          target_user_type: 'porteiro',
-          created_by: user!.id
-        });
+      await supabase.from('communications').insert({
+        title: 'Visitante Pré-cadastrado',
+        message: `${formData.name} foi pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
+        type: 'visitor',
+        priority: 'low',
+        target_user_type: 'porteiro',
+        created_by: user!.id,
+      });
 
       Alert.alert(
         'Sucesso!',
@@ -143,7 +145,7 @@ export default function PreregisterScreen() {
         document: '',
         phone: '',
         notes: '',
-        photo_url: ''
+        photo_url: '',
       });
     } catch (error) {
       console.error('Erro ao pré-cadastrar visitante:', error);
@@ -157,10 +159,7 @@ export default function PreregisterScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pré-cadastro</Text>
@@ -198,7 +197,7 @@ export default function PreregisterScreen() {
           {/* Personal Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Pessoais</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Nome Completo *</Text>
               <TextInput
@@ -236,7 +235,7 @@ export default function PreregisterScreen() {
           {/* Additional Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Adicionais</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Observações</Text>
               <TextInput
@@ -252,11 +251,10 @@ export default function PreregisterScreen() {
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={loading}
-          >
+            disabled={loading}>
             <Ionicons name="checkmark-circle" size={24} color="#fff" />
             <Text style={styles.submitButtonText}>
               {loading ? 'Cadastrando...' : 'Pré-cadastrar Visitante'}

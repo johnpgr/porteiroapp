@@ -22,7 +22,7 @@ export default function AudioPlayer({
   onError,
   style,
   showDuration = true,
-  autoPlay = false
+  autoPlay = false,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -34,7 +34,7 @@ export default function AudioPlayer({
     if (autoPlay && uri) {
       handlePlay();
     }
-    
+
     return () => {
       // Cleanup ao desmontar
       handleStop();
@@ -43,14 +43,14 @@ export default function AudioPlayer({
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isPlaying && !isPaused) {
       interval = setInterval(async () => {
         const status = await audioService.getPlaybackStatus();
         if (status && status.isLoaded) {
           setCurrentPosition(status.positionMillis || 0);
           setTotalDuration(status.durationMillis || duration);
-          
+
           // Verificar se terminou
           if (status.didJustFinish) {
             setIsPlaying(false);
@@ -77,7 +77,7 @@ export default function AudioPlayer({
 
     try {
       setIsLoading(true);
-      
+
       if (isPaused) {
         // Resumir reprodução
         await audioService.resumeAudio();
@@ -145,22 +145,14 @@ export default function AudioPlayer({
 
     if (isPlaying && !isPaused) {
       return (
-        <TouchableOpacity 
-          style={styles.playButton}
-          onPress={handlePause}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.playButton} onPress={handlePause} activeOpacity={0.7}>
           <Ionicons name="pause" size={24} color="#2196F3" />
         </TouchableOpacity>
       );
     }
 
     return (
-      <TouchableOpacity 
-        style={styles.playButton}
-        onPress={handlePlay}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.playButton} onPress={handlePlay} activeOpacity={0.7}>
         <Ionicons name="play" size={24} color="#2196F3" />
       </TouchableOpacity>
     );
@@ -170,57 +162,40 @@ export default function AudioPlayer({
     <View style={[styles.container, style]}>
       <View style={styles.playerContainer}>
         {renderPlayButton()}
-        
+
         <View style={styles.infoContainer}>
           {showDuration && (
             <View style={styles.timeContainer}>
-              <Text style={styles.timeText}>
-                {formatTime(currentPosition)}
-              </Text>
+              <Text style={styles.timeText}>{formatTime(currentPosition)}</Text>
               {totalDuration > 0 && (
-                <Text style={styles.timeText}>
-                  / {formatTime(totalDuration)}
-                </Text>
+                <Text style={styles.timeText}>/ {formatTime(totalDuration)}</Text>
               )}
             </View>
           )}
-          
+
           {totalDuration > 0 && (
             <View style={styles.progressContainer}>
               <View style={styles.progressTrack}>
-                <View 
-                  style={[
-                    styles.progressBar,
-                    { width: `${getProgressPercentage()}%` }
-                  ]} 
-                />
+                <View style={[styles.progressBar, { width: `${getProgressPercentage()}%` }]} />
               </View>
             </View>
           )}
         </View>
-        
+
         {(isPlaying || isPaused) && (
-          <TouchableOpacity 
-            style={styles.stopButton}
-            onPress={handleStop}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.stopButton} onPress={handleStop} activeOpacity={0.7}>
             <Ionicons name="stop" size={20} color="#F44336" />
           </TouchableOpacity>
         )}
       </View>
-      
+
       {(isPlaying || isPaused) && (
         <View style={styles.statusContainer}>
           <View style={styles.statusIndicator}>
-            <View style={[
-              styles.statusDot, 
-              { backgroundColor: isPaused ? '#FF9800' : '#4CAF50' }
-            ]} />
-            <Text style={[
-              styles.statusText,
-              { color: isPaused ? '#FF9800' : '#4CAF50' }
-            ]}>
+            <View
+              style={[styles.statusDot, { backgroundColor: isPaused ? '#FF9800' : '#4CAF50' }]}
+            />
+            <Text style={[styles.statusText, { color: isPaused ? '#FF9800' : '#4CAF50' }]}>
               {isPaused ? 'PAUSADO' : 'REPRODUZINDO'}
             </Text>
           </View>

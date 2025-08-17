@@ -8,10 +8,7 @@ export default function VisitanteDashboard() {
     <Container>
       <ScrollView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>👋 Visitante</Text>
@@ -22,8 +19,8 @@ export default function VisitanteDashboard() {
           <Text style={styles.infoIcon}>ℹ️</Text>
           <Text style={styles.infoTitle}>Como funciona?</Text>
           <Text style={styles.infoText}>
-            Registre sua visita e aguarde a autorização do morador. 
-            Você receberá uma notificação quando for aprovado.
+            Registre sua visita e aguarde a autorização do morador. Você receberá uma notificação
+            quando for aprovado.
           </Text>
         </View>
 

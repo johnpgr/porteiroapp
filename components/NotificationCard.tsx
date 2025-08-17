@@ -19,21 +19,31 @@ interface NotificationCardProps {
 export function NotificationCard({ notification, onPress, onMarkAsRead }: NotificationCardProps) {
   const getTypeIcon = () => {
     switch (notification.type) {
-      case 'visitor': return '👋';
-      case 'delivery': return '📦';
-      case 'communication': return '📢';
-      case 'emergency': return '🚨';
-      default: return '🔔';
+      case 'visitor':
+        return '👋';
+      case 'delivery':
+        return '📦';
+      case 'communication':
+        return '📢';
+      case 'emergency':
+        return '🚨';
+      default:
+        return '🔔';
     }
   };
 
   const getTypeColor = () => {
     switch (notification.type) {
-      case 'visitor': return '#4CAF50';
-      case 'delivery': return '#9C27B0';
-      case 'communication': return '#2196F3';
-      case 'emergency': return '#F44336';
-      default: return '#FF9800';
+      case 'visitor':
+        return '#4CAF50';
+      case 'delivery':
+        return '#9C27B0';
+      case 'communication':
+        return '#2196F3';
+      case 'emergency':
+        return '#F44336';
+      default:
+        return '#FF9800';
     }
   };
 
@@ -41,7 +51,7 @@ export function NotificationCard({ notification, onPress, onMarkAsRead }: Notifi
     const date = new Date(dateString);
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'Agora';
     if (diffInMinutes < 60) return `${diffInMinutes}min atrás`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h atrás`;
@@ -53,32 +63,26 @@ export function NotificationCard({ notification, onPress, onMarkAsRead }: Notifi
       style={[
         styles.card,
         { borderLeftColor: getTypeColor() },
-        !notification.read && styles.unreadCard
+        !notification.read && styles.unreadCard,
       ]}
-      onPress={() => onPress?.(notification.id)}
-    >
+      onPress={() => onPress?.(notification.id)}>
       <View style={styles.header}>
         <View style={styles.iconContainer}>
           <Text style={styles.icon}>{getTypeIcon()}</Text>
         </View>
-        
+
         <View style={styles.content}>
           <View style={styles.titleRow}>
-            <Text style={[
-              styles.title,
-              !notification.read && styles.unreadTitle
-            ]}>
+            <Text style={[styles.title, !notification.read && styles.unreadTitle]}>
               {notification.title}
             </Text>
-            {!notification.read && (
-              <View style={styles.unreadDot} />
-            )}
+            {!notification.read && <View style={styles.unreadDot} />}
           </View>
-          
+
           <Text style={styles.message} numberOfLines={2}>
             {notification.message}
           </Text>
-          
+
           <Text style={styles.time}>{formatTime(notification.created_at)}</Text>
         </View>
       </View>
@@ -89,8 +93,7 @@ export function NotificationCard({ notification, onPress, onMarkAsRead }: Notifi
           onPress={(e) => {
             e.stopPropagation();
             onMarkAsRead(notification.id);
-          }}
-        >
+          }}>
           <Text style={styles.markAsReadText}>Marcar como lida</Text>
         </TouchableOpacity>
       )}

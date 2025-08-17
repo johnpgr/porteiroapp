@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
@@ -45,10 +54,12 @@ export default function DeliveryManagement() {
     try {
       let query = supabase
         .from('deliveries')
-        .select(`
+        .select(
+          `
           *,
           apartments!inner(number)
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
@@ -59,10 +70,11 @@ export default function DeliveryManagement() {
 
       if (error) throw error;
 
-      const formattedDeliveries = data?.map(delivery => ({
-        ...delivery,
-        apartment_number: delivery.apartments?.number || 'N/A'
-      })) || [];
+      const formattedDeliveries =
+        data?.map((delivery) => ({
+          ...delivery,
+          apartment_number: delivery.apartments?.number || 'N/A',
+        })) || [];
 
       setDeliveries(formattedDeliveries);
     } catch (error) {
@@ -119,18 +131,16 @@ export default function DeliveryManagement() {
         photoUrl = newDelivery.photo_uri;
       }
 
-      const { error } = await supabase
-        .from('deliveries')
-        .insert({
-          recipient_name: newDelivery.recipient_name,
-          apartment_id: apartment.id,
-          sender: newDelivery.sender,
-          description: newDelivery.description || null,
-          photo_url: photoUrl,
-          status: 'recebida',
-          received_by: 'Porteiro', // TODO: pegar do contexto de auth
-          notes: newDelivery.notes || null,
-        });
+      const { error } = await supabase.from('deliveries').insert({
+        recipient_name: newDelivery.recipient_name,
+        apartment_id: apartment.id,
+        sender: newDelivery.sender,
+        description: newDelivery.description || null,
+        photo_url: photoUrl,
+        status: 'recebida',
+        received_by: 'Porteiro', // TODO: pegar do contexto de auth
+        notes: newDelivery.notes || null,
+      });
 
       if (error) throw error;
 
@@ -165,13 +175,13 @@ export default function DeliveryManagement() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setNewDelivery(prev => ({ ...prev, photo_uri: result.assets[0].uri }));
+      setNewDelivery((prev) => ({ ...prev, photo_uri: result.assets[0].uri }));
     }
   };
 
   const getFilterCount = (filterType: string) => {
     if (filterType === 'all') return deliveries.length;
-    return deliveries.filter(d => d.status === filterType).length;
+    return deliveries.filter((d) => d.status === filterType).length;
   };
 
   const formatDate = (dateString: string) => {
@@ -181,7 +191,7 @@ export default function DeliveryManagement() {
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -191,7 +201,7 @@ export default function DeliveryManagement() {
 
     const handleDeliver = () => {
       if (delivery.status === 'entregue') return;
-      
+
       Alert.prompt(
         'Entregar Encomenda',
         'Adicione observações sobre a entrega (opcional):',
@@ -199,8 +209,8 @@ export default function DeliveryManagement() {
           { text: 'Cancelar', style: 'cancel' },
           {
             text: 'Entregar',
-            onPress: (notes) => handleDeliveryAction(delivery.id, 'entregue', notes)
-          }
+            onPress: (notes) => handleDeliveryAction(delivery.id, 'entregue', notes),
+          },
         ],
         'plain-text'
       );
@@ -213,10 +223,11 @@ export default function DeliveryManagement() {
             <Text style={styles.recipientName}>📦 {delivery.recipient_name}</Text>
             <Text style={styles.apartmentNumber}>Apto {delivery.apartment_number}</Text>
           </View>
-          <View style={[
-            styles.statusBadge,
-            delivery.status === 'entregue' ? styles.statusDelivered : styles.statusReceived
-          ]}>
+          <View
+            style={[
+              styles.statusBadge,
+              delivery.status === 'entregue' ? styles.statusDelivered : styles.statusReceived,
+            ]}>
             <Text style={styles.statusText}>
               {delivery.status === 'entregue' ? '✅ Entregue' : '📥 Recebida'}
             </Text>
@@ -273,20 +284,14 @@ export default function DeliveryManagement() {
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>📦 Gerenciar Encomendas</Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddForm(!showAddForm)}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Registrar Encomenda'}
             </Text>
@@ -299,26 +304,27 @@ export default function DeliveryManagement() {
               {[
                 { key: 'recebida', label: 'Recebidas', icon: '📥' },
                 { key: 'entregue', label: 'Entregues', icon: '✅' },
-                { key: 'all', label: 'Todas', icon: '📋' }
+                { key: 'all', label: 'Todas', icon: '📋' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
                   style={[
                     styles.filterButton,
-                    filter === filterOption.key && styles.filterButtonActive
+                    filter === filterOption.key && styles.filterButtonActive,
                   ]}
-                  onPress={() => setFilter(filterOption.key as any)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filter === filterOption.key && styles.filterButtonTextActive
-                  ]}>
+                  onPress={() => setFilter(filterOption.key as any)}>
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filter === filterOption.key && styles.filterButtonTextActive,
+                    ]}>
                     {filterOption.icon} {filterOption.label}
                   </Text>
-                  <Text style={[
-                    styles.filterCount,
-                    filter === filterOption.key && styles.filterCountActive
-                  ]}>
+                  <Text
+                    style={[
+                      styles.filterCount,
+                      filter === filterOption.key && styles.filterCountActive,
+                    ]}>
                     {getFilterCount(filterOption.key)}
                   </Text>
                 </TouchableOpacity>
@@ -330,63 +336,64 @@ export default function DeliveryManagement() {
         {showAddForm && (
           <View style={styles.addForm}>
             <Text style={styles.formTitle}>Registrar Nova Encomenda</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nome do destinatário"
               value={newDelivery.recipient_name}
-              onChangeText={(text) => setNewDelivery(prev => ({ ...prev, recipient_name: text }))}
+              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, recipient_name: text }))}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Número do apartamento"
               value={newDelivery.apartment_number}
-              onChangeText={(text) => setNewDelivery(prev => ({ ...prev, apartment_number: text }))}
+              onChangeText={(text) =>
+                setNewDelivery((prev) => ({ ...prev, apartment_number: text }))
+              }
               keyboardType="numeric"
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Remetente (empresa/pessoa)"
               value={newDelivery.sender}
-              onChangeText={(text) => setNewDelivery(prev => ({ ...prev, sender: text }))}
+              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, sender: text }))}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Descrição da encomenda (opcional)"
               value={newDelivery.description}
-              onChangeText={(text) => setNewDelivery(prev => ({ ...prev, description: text }))}
+              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, description: text }))}
             />
-            
+
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Observações (opcional)"
               value={newDelivery.notes}
-              onChangeText={(text) => setNewDelivery(prev => ({ ...prev, notes: text }))}
+              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, notes: text }))}
               multiline
               numberOfLines={3}
             />
-            
+
             <View style={styles.photoSection}>
               <TouchableOpacity style={styles.photoButton} onPress={handleTakePhoto}>
                 <Text style={styles.photoButtonText}>📷 Tirar Foto da Encomenda</Text>
               </TouchableOpacity>
-              
+
               {newDelivery.photo_uri && (
                 <View style={styles.photoPreview}>
                   <Image source={{ uri: newDelivery.photo_uri }} style={styles.previewImage} />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.removePhotoButton}
-                    onPress={() => setNewDelivery(prev => ({ ...prev, photo_uri: null }))}
-                  >
+                    onPress={() => setNewDelivery((prev) => ({ ...prev, photo_uri: null }))}>
                     <Text style={styles.removePhotoText}>❌</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
-            
+
             <TouchableOpacity style={styles.submitButton} onPress={handleAddDelivery}>
               <Text style={styles.submitButtonText}>✅ Registrar Encomenda</Text>
             </TouchableOpacity>
@@ -403,13 +410,13 @@ export default function DeliveryManagement() {
               <Text style={styles.emptyIcon}>📦</Text>
               <Text style={styles.emptyText}>Nenhuma encomenda encontrada</Text>
               <Text style={styles.emptySubtext}>
-                {filter === 'all' ? 'Ainda não há encomendas registradas' : `Nenhuma encomenda com status "${filter}" encontrada`}
+                {filter === 'all'
+                  ? 'Ainda não há encomendas registradas'
+                  : `Nenhuma encomenda com status "${filter}" encontrada`}
               </Text>
             </View>
           ) : (
-            deliveries.map((delivery) => (
-              <DeliveryCard key={delivery.id} delivery={delivery} />
-            ))
+            deliveries.map((delivery) => <DeliveryCard key={delivery.id} delivery={delivery} />)
           )}
         </ScrollView>
       </View>

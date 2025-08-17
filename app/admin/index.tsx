@@ -2,55 +2,55 @@ import { Link, router } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
+import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function AdminDashboard() {
   return (
-    <Container>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>👨‍💼 Administrador</Text>
-          <Text style={styles.subtitle}>Painel de Controle</Text>
-        </View>
-
-        <View style={styles.cardsContainer}>
-          <Link href="/admin/users" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.usersCard])}>
-              <Text style={styles.cardIcon}>👥</Text>
-              <Text style={styles.cardTitle}>Gerenciar Usuários</Text>
-              <Text style={styles.cardDescription}>Cadastrar porteiros e moradores</Text>
+    <ProtectedRoute redirectTo="/admin/login" userType="admin">
+      <Container>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={styles.backButtonText}>← Voltar</Text>
             </TouchableOpacity>
-          </Link>
+            <Text style={styles.title}>👨‍💼 Administrador</Text>
+            <Text style={styles.subtitle}>Painel de Controle</Text>
+          </View>
 
-          <Link href="/admin/logs" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
-              <Text style={styles.cardIcon}>📋</Text>
-              <Text style={styles.cardTitle}>Logs do Sistema</Text>
-              <Text style={styles.cardDescription}>Visualizar histórico completo</Text>
+          <View style={styles.cardsContainer}>
+            <Link href="/admin/users" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.usersCard])}>
+                <Text style={styles.cardIcon}>👥</Text>
+                <Text style={styles.cardTitle}>Gerenciar Usuários</Text>
+                <Text style={styles.cardDescription}>Cadastrar porteiros e moradores</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <Link href="/admin/logs" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
+                <Text style={styles.cardIcon}>📋</Text>
+                <Text style={styles.cardTitle}>Logs do Sistema</Text>
+                <Text style={styles.cardDescription}>Visualizar histórico completo</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <Link href="/admin/communications" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.communicationsCard])}>
+                <Text style={styles.cardIcon}>📢</Text>
+                <Text style={styles.cardTitle}>Comunicados</Text>
+                <Text style={styles.cardDescription}>Enviar avisos e alertas</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <TouchableOpacity style={flattenStyles([styles.card, styles.statsCard])}>
+              <Text style={styles.cardIcon}>📊</Text>
+              <Text style={styles.cardTitle}>Estatísticas</Text>
+              <Text style={styles.cardDescription}>Relatórios e métricas</Text>
             </TouchableOpacity>
-          </Link>
-
-          <Link href="/admin/communications" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.communicationsCard])}>
-              <Text style={styles.cardIcon}>📢</Text>
-              <Text style={styles.cardTitle}>Comunicados</Text>
-              <Text style={styles.cardDescription}>Enviar avisos e alertas</Text>
-            </TouchableOpacity>
-          </Link>
-
-          <TouchableOpacity style={flattenStyles([styles.card, styles.statsCard])}>
-            <Text style={styles.cardIcon}>📊</Text>
-            <Text style={styles.cardTitle}>Estatísticas</Text>
-            <Text style={styles.cardDescription}>Relatórios e métricas</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </Container>
+          </View>
+        </ScrollView>
+      </Container>
+    </ProtectedRoute>
   );
 }
 

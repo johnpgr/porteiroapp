@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -12,18 +21,21 @@ export default function RegisterScreen() {
     phone: '',
     apartment_number: '',
     notes: '',
-    photo_url: ''
+    photo_url: '',
   });
   const [loading, setLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à galeria para selecionar uma foto');
+      Alert.alert(
+        'Permissão necessária',
+        'Precisamos de acesso à galeria para selecionar uma foto'
+      );
       return;
     }
 
@@ -35,7 +47,7 @@ export default function RegisterScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFormData(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
@@ -53,20 +65,16 @@ export default function RegisterScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFormData(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
   const showImageOptions = () => {
-    Alert.alert(
-      'Adicionar Foto',
-      'Escolha uma opção:',
-      [
-        { text: 'Câmera', onPress: takePhoto },
-        { text: 'Galeria', onPress: pickImage },
-        { text: 'Cancelar', style: 'cancel' }
-      ]
-    );
+    Alert.alert('Adicionar Foto', 'Escolha uma opção:', [
+      { text: 'Câmera', onPress: takePhoto },
+      { text: 'Galeria', onPress: pickImage },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const validateForm = () => {
@@ -117,7 +125,7 @@ export default function RegisterScreen() {
           photo_url: formData.photo_url || null,
           notes: formData.notes.trim() || 'Registro via acesso sem porteiro',
           status: 'pending',
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -125,38 +133,32 @@ export default function RegisterScreen() {
       if (visitorError) throw visitorError;
 
       // Criar log da atividade
-      await supabase
-        .from('visitor_logs')
-        .insert({
-          visitor_id: visitor.id,
-          action: 'registered',
-          performed_by: null, // Registro próprio
-          notes: 'Visitante registrado via acesso sem porteiro',
-          timestamp: new Date().toISOString()
-        });
+      await supabase.from('visitor_logs').insert({
+        visitor_id: visitor.id,
+        action: 'registered',
+        performed_by: null, // Registro próprio
+        notes: 'Visitante registrado via acesso sem porteiro',
+        timestamp: new Date().toISOString(),
+      });
 
       // Criar notificação para o morador
-      await supabase
-        .from('communications')
-        .insert({
-          title: 'Novo Visitante Registrado',
-          message: `${formData.name} deseja visitá-lo. Documento: ${formData.document}`,
-          type: 'visitor',
-          priority: 'medium',
-          target_apartment: formData.apartment_number.trim(),
-          target_user_type: 'morador'
-        });
+      await supabase.from('communications').insert({
+        title: 'Novo Visitante Registrado',
+        message: `${formData.name} deseja visitá-lo. Documento: ${formData.document}`,
+        type: 'visitor',
+        priority: 'medium',
+        target_apartment: formData.apartment_number.trim(),
+        target_user_type: 'morador',
+      });
 
       // Criar notificação para o porteiro (se houver)
-      await supabase
-        .from('communications')
-        .insert({
-          title: 'Visitante Aguardando',
-          message: `${formData.name} registrou-se para visitar o apt. ${formData.apartment_number}`,
-          type: 'visitor',
-          priority: 'medium',
-          target_user_type: 'porteiro'
-        });
+      await supabase.from('communications').insert({
+        title: 'Visitante Aguardando',
+        message: `${formData.name} registrou-se para visitar o apt. ${formData.apartment_number}`,
+        type: 'visitor',
+        priority: 'medium',
+        target_user_type: 'porteiro',
+      });
 
       Alert.alert(
         'Registro Realizado! 📱',
@@ -164,12 +166,12 @@ export default function RegisterScreen() {
         [
           {
             text: 'Ver Status',
-            onPress: () => router.push('/visitante/status')
+            onPress: () => router.push('/visitante/status'),
           },
           {
             text: 'OK',
-            onPress: () => router.back()
-          }
+            onPress: () => router.back(),
+          },
         ]
       );
 
@@ -180,7 +182,7 @@ export default function RegisterScreen() {
         phone: '',
         apartment_number: '',
         notes: '',
-        photo_url: ''
+        photo_url: '',
       });
     } catch (error) {
       console.error('Erro ao registrar visitante:', error);
@@ -194,10 +196,7 @@ export default function RegisterScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Registrar Visita</Text>
@@ -209,9 +208,7 @@ export default function RegisterScreen() {
         <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
         <View style={styles.infoContent}>
           <Text style={styles.infoTitle}>Registro Seguro</Text>
-          <Text style={styles.infoText}>
-            Seus dados serão enviados ao morador para autorização
-          </Text>
+          <Text style={styles.infoText}>Seus dados serão enviados ao morador para autorização</Text>
         </View>
       </View>
 
@@ -236,7 +233,7 @@ export default function RegisterScreen() {
           {/* Personal Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>👤 Suas Informações</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Nome Completo *</Text>
               <TextInput
@@ -274,7 +271,7 @@ export default function RegisterScreen() {
           {/* Visit Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🏠 Informações da Visita</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Número do Apartamento *</Text>
               <TextInput
@@ -301,11 +298,10 @@ export default function RegisterScreen() {
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={loading}
-          >
+            disabled={loading}>
             <Ionicons name="send" size={24} color="#fff" />
             <Text style={styles.submitButtonText}>
               {loading ? 'Enviando...' : 'Registrar Visita'}

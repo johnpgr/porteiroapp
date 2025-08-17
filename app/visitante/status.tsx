@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  RefreshControl,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
@@ -76,7 +85,7 @@ export default function StatusScreen() {
 
   const refreshStatus = async () => {
     if (!visitor) return;
-    
+
     setRefreshing(true);
     try {
       // Atualizar dados do visitante
@@ -114,54 +123,60 @@ export default function StatusScreen() {
           icon: 'time-outline',
           color: '#FF9800',
           text: 'Aguardando Autorização',
-          description: 'Sua solicitação foi enviada ao morador'
+          description: 'Sua solicitação foi enviada ao morador',
         };
       case 'approved':
         return {
           icon: 'checkmark-circle',
           color: '#4CAF50',
           text: 'Visita Autorizada',
-          description: 'Você pode acessar o prédio'
+          description: 'Você pode acessar o prédio',
         };
       case 'denied':
         return {
           icon: 'close-circle',
           color: '#F44336',
           text: 'Visita Negada',
-          description: 'O morador não autorizou sua visita'
+          description: 'O morador não autorizou sua visita',
         };
       case 'in_building':
         return {
           icon: 'home',
           color: '#2196F3',
           text: 'No Prédio',
-          description: 'Você está atualmente no prédio'
+          description: 'Você está atualmente no prédio',
         };
       case 'exited':
         return {
           icon: 'exit-outline',
           color: '#9E9E9E',
           text: 'Visita Finalizada',
-          description: 'Você saiu do prédio'
+          description: 'Você saiu do prédio',
         };
       default:
         return {
           icon: 'help-circle',
           color: '#9E9E9E',
           text: 'Status Desconhecido',
-          description: ''
+          description: '',
         };
     }
   };
 
   const getActionText = (action: string) => {
     switch (action) {
-      case 'registered': return 'Registrado';
-      case 'approved': return 'Aprovado';
-      case 'denied': return 'Negado';
-      case 'entered': return 'Entrada registrada';
-      case 'exited': return 'Saída registrada';
-      default: return action;
+      case 'registered':
+        return 'Registrado';
+      case 'approved':
+        return 'Aprovado';
+      case 'denied':
+        return 'Negado';
+      case 'entered':
+        return 'Entrada registrada';
+      case 'exited':
+        return 'Saída registrada';
+      default:
+        return action;
     }
   };
 
@@ -172,7 +187,7 @@ export default function StatusScreen() {
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -180,22 +195,16 @@ export default function StatusScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Status da Visita</Text>
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refreshStatus} />
-        }
-      >
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshStatus} />}>
         {/* Search Section */}
         <View style={styles.searchSection}>
           <Text style={styles.sectionTitle}>🔍 Consultar Status</Text>
@@ -207,11 +216,10 @@ export default function StatusScreen() {
               placeholder="Digite o número do seu documento"
               keyboardType="numeric"
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.searchButton, loading && styles.searchButtonDisabled]}
               onPress={searchVisitor}
-              disabled={loading}
-            >
+              disabled={loading}>
               <Ionicons name="search" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -227,7 +235,7 @@ export default function StatusScreen() {
                   <Ionicons name="refresh" size={20} color="#666" />
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.visitorDetails}>
                 <Text style={styles.visitorDetail}>📄 {visitor.document}</Text>
                 <Text style={styles.visitorDetail}>🏠 Apartamento {visitor.apartment_number}</Text>
@@ -245,9 +253,7 @@ export default function StatusScreen() {
                         <Text style={[styles.statusText, { color: statusInfo.color }]}>
                           {statusInfo.text}
                         </Text>
-                        <Text style={styles.statusDescription}>
-                          {statusInfo.description}
-                        </Text>
+                        <Text style={styles.statusDescription}>{statusInfo.description}</Text>
                       </View>
                     </View>
                   );
@@ -283,15 +289,9 @@ export default function StatusScreen() {
                       <View style={styles.timelineDot} />
                       {index < logs.length - 1 && <View style={styles.timelineLine} />}
                       <View style={styles.timelineContent}>
-                        <Text style={styles.timelineAction}>
-                          {getActionText(log.action)}
-                        </Text>
-                        <Text style={styles.timelineTime}>
-                          {formatDateTime(log.timestamp)}
-                        </Text>
-                        {log.notes && (
-                          <Text style={styles.timelineNotes}>{log.notes}</Text>
-                        )}
+                        <Text style={styles.timelineAction}>{getActionText(log.action)}</Text>
+                        <Text style={styles.timelineTime}>{formatDateTime(log.timestamp)}</Text>
+                        {log.notes && <Text style={styles.timelineNotes}>{log.notes}</Text>}
                       </View>
                     </View>
                   ))}
@@ -308,18 +308,15 @@ export default function StatusScreen() {
             <View style={styles.helpContent}>
               <Text style={styles.helpTitle}>Como funciona?</Text>
               <Text style={styles.helpText}>
-                • Digite seu documento para consultar{"\n"}
-                • Acompanhe o status em tempo real{"\n"}
-                • Receba atualizações automáticas{"\n"}
-                • Entre em contato se necessário
+                • Digite seu documento para consultar{'\n'}• Acompanhe o status em tempo real{'\n'}•
+                Receba atualizações automáticas{'\n'}• Entre em contato se necessário
               </Text>
             </View>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.helpButton}
-            onPress={() => router.push('/visitante/help')}
-          >
+            onPress={() => router.push('/visitante/help')}>
             <Ionicons name="help-circle" size={20} color="#FF9800" />
             <Text style={styles.helpButtonText}>Precisa de Ajuda?</Text>
           </TouchableOpacity>

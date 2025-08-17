@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
@@ -55,16 +63,14 @@ export default function Communications() {
     }
 
     try {
-      const { error } = await supabase
-        .from('communications')
-        .insert({
-          title: newComm.title,
-          message: newComm.message,
-          type: newComm.type,
-          priority: newComm.priority,
-          target_apartment: newComm.target_apartment || null,
-          created_by: 'admin', // TODO: pegar do contexto de auth
-        });
+      const { error } = await supabase.from('communications').insert({
+        title: newComm.title,
+        message: newComm.message,
+        type: newComm.type,
+        priority: newComm.priority,
+        target_apartment: newComm.target_apartment || null,
+        created_by: 'admin', // TODO: pegar do contexto de auth
+      });
 
       if (error) throw error;
 
@@ -84,67 +90,78 @@ export default function Communications() {
   };
 
   const handleDeleteCommunication = async (commId: string, title: string) => {
-    Alert.alert(
-      'Confirmar Exclusão',
-      `Deseja excluir o comunicado "${title}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('communications')
-                .delete()
-                .eq('id', commId);
+    Alert.alert('Confirmar Exclusão', `Deseja excluir o comunicado "${title}"?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { error } = await supabase.from('communications').delete().eq('id', commId);
 
-              if (error) throw error;
-              fetchCommunications();
-            } catch (error) {
-              Alert.alert('Erro', 'Falha ao excluir comunicado');
-            }
-          },
+            if (error) throw error;
+            fetchCommunications();
+          } catch (error) {
+            Alert.alert('Erro', 'Falha ao excluir comunicado');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'emergencia': return '#F44336';
-      case 'manutencao': return '#FF9800';
-      case 'evento': return '#9C27B0';
-      case 'geral': return '#2196F3';
-      default: return '#666';
+      case 'emergencia':
+        return '#F44336';
+      case 'manutencao':
+        return '#FF9800';
+      case 'evento':
+        return '#9C27B0';
+      case 'geral':
+        return '#2196F3';
+      default:
+        return '#666';
     }
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'emergencia': return '🚨';
-      case 'manutencao': return '🔧';
-      case 'evento': return '🎉';
-      case 'geral': return '📢';
-      default: return '📝';
+      case 'emergencia':
+        return '🚨';
+      case 'manutencao':
+        return '🔧';
+      case 'evento':
+        return '🎉';
+      case 'geral':
+        return '📢';
+      default:
+        return '📝';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'alta': return '#F44336';
-      case 'media': return '#FF9800';
-      case 'baixa': return '#4CAF50';
-      default: return '#666';
+      case 'alta':
+        return '#F44336';
+      case 'media':
+        return '#FF9800';
+      case 'baixa':
+        return '#4CAF50';
+      default:
+        return '#666';
     }
   };
 
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
-      case 'alta': return '🔴';
-      case 'media': return '🟡';
-      case 'baixa': return '🟢';
-      default: return '⚪';
+      case 'alta':
+        return '🔴';
+      case 'media':
+        return '🟡';
+      case 'baixa':
+        return '🟢';
+      default:
+        return '⚪';
     }
   };
 
@@ -152,7 +169,7 @@ export default function Communications() {
     const date = new Date(dateString);
     return {
       date: date.toLocaleDateString('pt-BR'),
-      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
   };
 
@@ -170,20 +187,14 @@ export default function Communications() {
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>📢 Comunicados</Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddForm(!showAddForm)}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Novo Comunicado'}
             </Text>
@@ -193,23 +204,23 @@ export default function Communications() {
         {showAddForm && (
           <View style={styles.addForm}>
             <Text style={styles.formTitle}>Novo Comunicado</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Título do comunicado"
               value={newComm.title}
-              onChangeText={(text) => setNewComm(prev => ({ ...prev, title: text }))}
+              onChangeText={(text) => setNewComm((prev) => ({ ...prev, title: text }))}
             />
-            
+
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Mensagem do comunicado"
               value={newComm.message}
-              onChangeText={(text) => setNewComm(prev => ({ ...prev, message: text }))}
+              onChangeText={(text) => setNewComm((prev) => ({ ...prev, message: text }))}
               multiline
               numberOfLines={4}
             />
-            
+
             <View style={styles.selector}>
               <Text style={styles.selectorLabel}>Tipo:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -218,21 +229,21 @@ export default function Communications() {
                     { key: 'geral', label: 'Geral', icon: '📢' },
                     { key: 'emergencia', label: 'Emergência', icon: '🚨' },
                     { key: 'manutencao', label: 'Manutenção', icon: '🔧' },
-                    { key: 'evento', label: 'Evento', icon: '🎉' }
+                    { key: 'evento', label: 'Evento', icon: '🎉' },
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
                       style={[
                         styles.selectorButton,
                         newComm.type === type.key && styles.selectorButtonActive,
-                        { borderColor: getTypeColor(type.key) }
+                        { borderColor: getTypeColor(type.key) },
                       ]}
-                      onPress={() => setNewComm(prev => ({ ...prev, type: type.key as any }))}
-                    >
-                      <Text style={[
-                        styles.selectorButtonText,
-                        newComm.type === type.key && { color: getTypeColor(type.key) }
-                      ]}>
+                      onPress={() => setNewComm((prev) => ({ ...prev, type: type.key as any }))}>
+                      <Text
+                        style={[
+                          styles.selectorButtonText,
+                          newComm.type === type.key && { color: getTypeColor(type.key) },
+                        ]}>
                         {type.icon} {type.label}
                       </Text>
                     </TouchableOpacity>
@@ -240,43 +251,47 @@ export default function Communications() {
                 </View>
               </ScrollView>
             </View>
-            
+
             <View style={styles.selector}>
               <Text style={styles.selectorLabel}>Prioridade:</Text>
               <View style={styles.selectorButtons}>
                 {[
                   { key: 'baixa', label: 'Baixa', icon: '🟢' },
                   { key: 'media', label: 'Média', icon: '🟡' },
-                  { key: 'alta', label: 'Alta', icon: '🔴' }
+                  { key: 'alta', label: 'Alta', icon: '🔴' },
                 ].map((priority) => (
                   <TouchableOpacity
                     key={priority.key}
                     style={[
                       styles.selectorButton,
                       newComm.priority === priority.key && styles.selectorButtonActive,
-                      { borderColor: getPriorityColor(priority.key) }
+                      { borderColor: getPriorityColor(priority.key) },
                     ]}
-                    onPress={() => setNewComm(prev => ({ ...prev, priority: priority.key as any }))}
-                  >
-                    <Text style={[
-                      styles.selectorButtonText,
-                      newComm.priority === priority.key && { color: getPriorityColor(priority.key) }
-                    ]}>
+                    onPress={() =>
+                      setNewComm((prev) => ({ ...prev, priority: priority.key as any }))
+                    }>
+                    <Text
+                      style={[
+                        styles.selectorButtonText,
+                        newComm.priority === priority.key && {
+                          color: getPriorityColor(priority.key),
+                        },
+                      ]}>
                       {priority.icon} {priority.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Apartamento específico (opcional)"
               value={newComm.target_apartment}
-              onChangeText={(text) => setNewComm(prev => ({ ...prev, target_apartment: text }))}
+              onChangeText={(text) => setNewComm((prev) => ({ ...prev, target_apartment: text }))}
               keyboardType="numeric"
             />
-            
+
             <TouchableOpacity style={styles.submitButton} onPress={handleAddCommunication}>
               <Text style={styles.submitButtonText}>📤 Enviar Comunicado</Text>
             </TouchableOpacity>
@@ -295,18 +310,18 @@ export default function Communications() {
                       {comm.type.charAt(0).toUpperCase() + comm.type.slice(1)}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.commMeta}>
                     <View style={styles.priority}>
                       <Text style={styles.priorityIcon}>{getPriorityIcon(comm.priority)}</Text>
-                      <Text style={[styles.priorityText, { color: getPriorityColor(comm.priority) }]}>
+                      <Text
+                        style={[styles.priorityText, { color: getPriorityColor(comm.priority) }]}>
                         {comm.priority.charAt(0).toUpperCase() + comm.priority.slice(1)}
                       </Text>
                     </View>
                     <TouchableOpacity
                       style={styles.deleteButton}
-                      onPress={() => handleDeleteCommunication(comm.id, comm.title)}
-                    >
+                      onPress={() => handleDeleteCommunication(comm.id, comm.title)}>
                       <Text style={styles.deleteButtonText}>🗑️</Text>
                     </TouchableOpacity>
                   </View>
@@ -315,15 +330,17 @@ export default function Communications() {
                 <View style={styles.commContent}>
                   <Text style={styles.commTitle}>{comm.title}</Text>
                   <Text style={styles.commMessage}>{comm.message}</Text>
-                  
+
                   {comm.target_apartment && (
                     <View style={styles.targetInfo}>
                       <Text style={styles.targetText}>🏠 Apartamento {comm.target_apartment}</Text>
                     </View>
                   )}
-                  
+
                   <View style={styles.commFooter}>
-                    <Text style={styles.commDate}>{date} às {time}</Text>
+                    <Text style={styles.commDate}>
+                      {date} às {time}
+                    </Text>
                     <Text style={styles.commAuthor}>Por: {comm.created_by}</Text>
                   </View>
                 </View>

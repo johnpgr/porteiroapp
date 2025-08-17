@@ -2,68 +2,68 @@ import { Link, router } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
+import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function MoradorDashboard() {
   return (
-    <Container>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>🏠 Morador</Text>
-          <Text style={styles.subtitle}>Apartamento 101</Text>
-        </View>
+    <ProtectedRoute redirectTo="/morador/login" userType="morador">
+      <Container>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={styles.backButtonText}>← Voltar</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>🏠 Morador</Text>
+            <Text style={styles.subtitle}>Apartamento 101</Text>
+          </View>
 
-        <View style={styles.cardsContainer}>
-          <Link href="/morador/notifications" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.notificationsCard])}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardIcon}>🔔</Text>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>3</Text>
+          <View style={styles.cardsContainer}>
+            <Link href="/morador/notifications" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.notificationsCard])}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardIcon}>🔔</Text>
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>3</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.cardTitle}>Notificações</Text>
-              <Text style={styles.cardDescription}>Visitantes e encomendas</Text>
-            </TouchableOpacity>
-          </Link>
+                <Text style={styles.cardTitle}>Notificações</Text>
+                <Text style={styles.cardDescription}>Visitantes e encomendas</Text>
+              </TouchableOpacity>
+            </Link>
 
-          <Link href="/morador/authorize" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.authorizeCard])}>
-              <Text style={styles.cardIcon}>✅</Text>
-              <Text style={styles.cardTitle}>Autorizar Visita</Text>
-              <Text style={styles.cardDescription}>Aprovar ou negar acesso</Text>
-            </TouchableOpacity>
-          </Link>
+            <Link href="/morador/authorize" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.authorizeCard])}>
+                <Text style={styles.cardIcon}>✅</Text>
+                <Text style={styles.cardTitle}>Autorizar Visita</Text>
+                <Text style={styles.cardDescription}>Aprovar ou negar acesso</Text>
+              </TouchableOpacity>
+            </Link>
 
-          <Link href="/morador/preregister" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.preregisterCard])}>
-              <Text style={styles.cardIcon}>📝</Text>
-              <Text style={styles.cardTitle}>Pré-cadastro</Text>
-              <Text style={styles.cardDescription}>Registrar visitantes esperados</Text>
-            </TouchableOpacity>
-          </Link>
+            <Link href="/morador/preregister" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.preregisterCard])}>
+                <Text style={styles.cardIcon}>📝</Text>
+                <Text style={styles.cardTitle}>Pré-cadastro</Text>
+                <Text style={styles.cardDescription}>Registrar visitantes esperados</Text>
+              </TouchableOpacity>
+            </Link>
 
-          <Link href="/morador/logs" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
-              <Text style={styles.cardIcon}>📋</Text>
-              <Text style={styles.cardTitle}>Histórico</Text>
-              <Text style={styles.cardDescription}>Atividades do apartamento</Text>
-            </TouchableOpacity>
-          </Link>
+            <Link href="/morador/logs" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
+                <Text style={styles.cardIcon}>📋</Text>
+                <Text style={styles.cardTitle}>Histórico</Text>
+                <Text style={styles.cardDescription}>Atividades do apartamento</Text>
+              </TouchableOpacity>
+            </Link>
 
-          <TouchableOpacity style={flattenStyles([styles.card, styles.settingsCard])}>
-            <Text style={styles.cardIcon}>⚙️</Text>
-            <Text style={styles.cardTitle}>Configurações</Text>
-            <Text style={styles.cardDescription}>Preferências e perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </Container>
+            <TouchableOpacity style={flattenStyles([styles.card, styles.settingsCard])}>
+              <Text style={styles.cardIcon}>⚙️</Text>
+              <Text style={styles.cardTitle}>Configurações</Text>
+              <Text style={styles.cardDescription}>Preferências e perfil</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </Container>
+    </ProtectedRoute>
   );
 }
 

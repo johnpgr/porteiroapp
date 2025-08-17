@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
@@ -52,14 +60,12 @@ export default function UsersManagement() {
     }
 
     try {
-      const { error } = await supabase
-        .from('users')
-        .insert({
-          name: newUser.name,
-          code: newUser.code,
-          role: newUser.role,
-          password: newUser.password || null,
-        });
+      const { error } = await supabase.from('users').insert({
+        name: newUser.name,
+        code: newUser.code,
+        role: newUser.role,
+        password: newUser.password || null,
+      });
 
       if (error) throw error;
 
@@ -73,47 +79,48 @@ export default function UsersManagement() {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    Alert.alert(
-      'Confirmar Exclusão',
-      `Deseja excluir o usuário ${userName}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('users')
-                .delete()
-                .eq('id', userId);
+    Alert.alert('Confirmar Exclusão', `Deseja excluir o usuário ${userName}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { error } = await supabase.from('users').delete().eq('id', userId);
 
-              if (error) throw error;
-              fetchUsers();
-            } catch (error) {
-              Alert.alert('Erro', 'Falha ao excluir usuário');
-            }
-          },
+            if (error) throw error;
+            fetchUsers();
+          } catch (error) {
+            Alert.alert('Erro', 'Falha ao excluir usuário');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return '#9C27B0';
-      case 'porteiro': return '#2196F3';
-      case 'morador': return '#4CAF50';
-      default: return '#666';
+      case 'admin':
+        return '#9C27B0';
+      case 'porteiro':
+        return '#2196F3';
+      case 'morador':
+        return '#4CAF50';
+      default:
+        return '#666';
     }
   };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'admin': return '👨‍💼';
-      case 'porteiro': return '🛡️';
-      case 'morador': return '🏠';
-      default: return '👤';
+      case 'admin':
+        return '👨‍💼';
+      case 'porteiro':
+        return '🛡️';
+      case 'morador':
+        return '🏠';
+      default:
+        return '👤';
     }
   };
 
@@ -131,20 +138,14 @@ export default function UsersManagement() {
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>👥 Gerenciar Usuários</Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddForm(!showAddForm)}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
             </Text>
@@ -154,23 +155,23 @@ export default function UsersManagement() {
         {showAddForm && (
           <View style={styles.addForm}>
             <Text style={styles.formTitle}>Novo Usuário</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nome completo"
               value={newUser.name}
-              onChangeText={(text) => setNewUser(prev => ({ ...prev, name: text }))}
+              onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Código de acesso"
               value={newUser.code}
-              onChangeText={(text) => setNewUser(prev => ({ ...prev, code: text }))}
+              onChangeText={(text) => setNewUser((prev) => ({ ...prev, code: text }))}
               keyboardType="numeric"
               maxLength={6}
             />
-            
+
             <View style={styles.roleSelector}>
               <Text style={styles.roleLabel}>Tipo de usuário:</Text>
               <View style={styles.roleButtons}>
@@ -180,31 +181,31 @@ export default function UsersManagement() {
                     style={[
                       styles.roleButton,
                       newUser.role === role && styles.roleButtonActive,
-                      { borderColor: getRoleColor(role) }
+                      { borderColor: getRoleColor(role) },
                     ]}
-                    onPress={() => setNewUser(prev => ({ ...prev, role: role as any }))}
-                  >
-                    <Text style={[
-                      styles.roleButtonText,
-                      newUser.role === role && { color: getRoleColor(role) }
-                    ]}>
+                    onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        newUser.role === role && { color: getRoleColor(role) },
+                      ]}>
                       {getRoleIcon(role)} {role.charAt(0).toUpperCase() + role.slice(1)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-            
+
             {newUser.role !== 'morador' && (
               <TextInput
                 style={styles.input}
                 placeholder="Senha (opcional)"
                 value={newUser.password}
-                onChangeText={(text) => setNewUser(prev => ({ ...prev, password: text }))}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, password: text }))}
                 secureTextEntry
               />
             )}
-            
+
             <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
               <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
             </TouchableOpacity>
@@ -229,11 +230,10 @@ export default function UsersManagement() {
                   )}
                 </View>
               </View>
-              
+
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => handleDeleteUser(user.id, user.name)}
-              >
+                onPress={() => handleDeleteUser(user.id, user.name)}>
                 <Text style={styles.deleteButtonText}>🗑️</Text>
               </TouchableOpacity>
             </View>

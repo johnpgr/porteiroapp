@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+  Modal,
+  TextInput,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
@@ -73,46 +83,43 @@ export default function AuthorizeScreen() {
 
     try {
       const newStatus = actionType === 'approve' ? 'approved' : 'denied';
-      
+
       const { error } = await supabase
         .from('visitors')
         .update({
           status: newStatus,
           authorized_by: user.id,
-          notes: notes || selectedVisitor.notes
+          notes: notes || selectedVisitor.notes,
         })
         .eq('id', selectedVisitor.id);
 
       if (error) throw error;
 
       // Criar log da atividade
-      await supabase
-        .from('visitor_logs')
-        .insert({
-          visitor_id: selectedVisitor.id,
-          action: newStatus,
-          performed_by: user.id,
-          notes: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
-          timestamp: new Date().toISOString()
-        });
+      await supabase.from('visitor_logs').insert({
+        visitor_id: selectedVisitor.id,
+        action: newStatus,
+        performed_by: user.id,
+        notes:
+          notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
+        timestamp: new Date().toISOString(),
+      });
 
       // Criar notificação para o porteiro
-      await supabase
-        .from('communications')
-        .insert({
-          title: `Visitante ${actionType === 'approve' ? 'Aprovado' : 'Negado'}`,
-          message: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${selectedVisitor.apartment_number}`,
-          type: 'visitor',
-          priority: 'medium',
-          target_user_type: 'porteiro',
-          created_by: user.id
-        });
+      await supabase.from('communications').insert({
+        title: `Visitante ${actionType === 'approve' ? 'Aprovado' : 'Negado'}`,
+        message: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${selectedVisitor.apartment_number}`,
+        type: 'visitor',
+        priority: 'medium',
+        target_user_type: 'porteiro',
+        created_by: user.id,
+      });
 
       Alert.alert(
-        'Sucesso', 
+        'Sucesso',
         `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} com sucesso!`
       );
-      
+
       setModalVisible(false);
       fetchPendingVisitors();
     } catch (error) {
@@ -125,10 +132,7 @@ export default function AuthorizeScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Autorizar Visitas</Text>
@@ -153,12 +157,9 @@ export default function AuthorizeScreen() {
       </View>
 
       {/* Visitors List */}
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando visitantes...</Text>
@@ -191,14 +192,13 @@ export default function AuthorizeScreen() {
         animationType="slide"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+        onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {actionType === 'approve' ? 'Aprovar Visitante' : 'Negar Visitante'}
             </Text>
-            
+
             {selectedVisitor && (
               <View style={styles.visitorInfo}>
                 <Text style={styles.visitorName}>{selectedVisitor.name}</Text>
@@ -217,20 +217,16 @@ export default function AuthorizeScreen() {
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[
                   styles.confirmButton,
-                  { backgroundColor: actionType === 'approve' ? '#4CAF50' : '#F44336' }
+                  { backgroundColor: actionType === 'approve' ? '#4CAF50' : '#F44336' },
                 ]}
-                onPress={confirmAction}
-              >
+                onPress={confirmAction}>
                 <Text style={styles.confirmButtonText}>
                   {actionType === 'approve' ? 'Aprovar' : 'Negar'}
                 </Text>

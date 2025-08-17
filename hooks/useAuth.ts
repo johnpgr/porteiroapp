@@ -4,10 +4,15 @@ import { notificationService } from '../services/notificationService';
 
 interface User {
   id: string;
+  email: string;
   name: string;
   code: string;
-  role: 'admin' | 'porteiro' | 'morador';
+  user_type: 'admin' | 'porteiro' | 'morador';
+  condominium_id?: string;
+  building_id?: string;
   apartment_id?: string;
+  phone?: string;
+  is_active: boolean;
   last_login?: string;
 }
 
@@ -33,29 +38,70 @@ export function useAuth() {
     try {
       // Aqui você pode implementar verificação de token/sessão
       // Por enquanto, vamos simular verificação local
-      setAuthState(prev => ({ ...prev, loading: false }));
+      setAuthState((prev) => ({ ...prev, loading: false }));
     } catch (error) {
       setAuthState({ user: null, loading: false, isAuthenticated: false });
     }
   };
 
-  const login = async (code: string, password?: string, userType?: 'admin' | 'porteiro' | 'morador') => {
-    setAuthState(prev => ({ ...prev, loading: true }));
-    
+  const signIn = async (
+    email: string,
+    password: string,
+    userType?: 'admin' | 'porteiro' | 'morador'
+  ) => {
+    setAuthState((prev) => ({ ...prev, loading: true }));
+
     try {
+      // Inferir user_type do email se não fornecido
+      let inferredUserType = userType;
+      if (!inferredUserType) {
+        if (email.includes('admin')) {
+          inferredUserType = 'admin';
+        } else if (email.includes('porteiro')) {
+          inferredUserType = 'porteiro';
+        } else {
+          inferredUserType = 'morador';
+        }
+      }
+
+      // Buscar usuário por email e tipo
       const { data: user, error } = await supabase
         .from('users')
-        .select('*')
-        .eq('code', code)
-        .eq('role', userType || 'morador')
+        .select(
+          `
+          *,
+          condominium:condominiums(id, name),
+          building:buildings(id, name)
+        `
+        )
+        .eq('email', email)
+        .eq('user_type', inferredUserType || 'morador')
+        .eq('is_active', true)
         .single();
 
       if (error || !user) {
-        throw new Error('Usuário não encontrado');
+        throw new Error('Usuário não encontrado ou inativo');
       }
 
-      if (user.password && password !== user.password) {
+      // Verificar senha usando hash SHA-256
+      const crypto = require('crypto');
+      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
+      if (user.password_hash !== hashedPassword) {
         throw new Error('Senha incorreta');
+      }
+
+      // Verificar hierarquia baseada no tipo de usuário
+      if (userType === 'admin' && !user.condominium_id) {
+        throw new Error('Administrador deve estar associado a um condomínio');
+      }
+
+      if (userType === 'porteiro' && (!user.condominium_id || !user.building_id)) {
+        throw new Error('Porteiro deve estar associado a um condomínio e prédio');
+      }
+
+      if (userType === 'morador' && !user.condominium_id) {
+        throw new Error('Morador deve estar associado a um condomínio');
       }
 
       // Registrar para notificações push
@@ -74,16 +120,34 @@ export function useAuth() {
         .update({ last_login: new Date().toISOString() })
         .eq('id', user.id);
 
+      // Mapear dados do usuário para interface
+      const mappedUser: User = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        code: user.code,
+        user_type: user.user_type,
+        condominium_id: user.condominium_id,
+        building_id: user.building_id,
+        apartment_id: user.apartment_id,
+        phone: user.phone,
+        is_active: user.is_active,
+        last_login: user.last_login,
+      };
+
       setAuthState({
-        user,
+        user: mappedUser,
         loading: false,
         isAuthenticated: true,
       });
 
-      return { success: true, user };
-    } catch (error) {
+      return { success: true, user: mappedUser };
+    } catch (err) {
       setAuthState({ user: null, loading: false, isAuthenticated: false });
-      return { success: false, error: error instanceof Error ? error.message : 'Erro na autenticação' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Erro na autenticação',
+      };
     }
   };
 
@@ -97,31 +161,39 @@ export function useAuth() {
 
   const updateUser = (userData: Partial<User>) => {
     if (authState.user) {
-      setAuthState(prev => ({
+      setAuthState((prev) => ({
         ...prev,
-        user: { ...prev.user!, ...userData }
+        user: { ...prev.user!, ...userData },
       }));
     }
   };
 
   return {
     ...authState,
-    login,
+    signIn,
     logout,
     updateUser,
     checkAuthState,
   };
 }
 
-// Hook para verificar permissões
+// Hook para verificar permissões baseado na hierarquia
 export function usePermissions() {
   const { user } = useAuth();
 
-  const canManageUsers = user?.role === 'admin';
-  const canManageVisitors = user?.role === 'admin' || user?.role === 'porteiro';
-  const canViewLogs = user?.role === 'admin' || user?.role === 'porteiro';
-  const canReceiveDeliveries = user?.role === 'porteiro';
-  const canAuthorizeVisitors = user?.role === 'morador';
+  const canManageUsers = user?.user_type === 'admin';
+  const canManageVisitors = user?.user_type === 'admin' || user?.user_type === 'porteiro';
+  const canViewLogs = user?.user_type === 'admin' || user?.user_type === 'porteiro';
+  const canReceiveDeliveries = user?.user_type === 'porteiro';
+  const canAuthorizeVisitors = user?.user_type === 'morador';
+
+  // Permissões hierárquicas
+  const canManageCondominium = user?.user_type === 'admin' && user?.condominium_id;
+  const canManageBuilding =
+    (user?.user_type === 'admin' && user?.condominium_id) ||
+    (user?.user_type === 'porteiro' && user?.building_id);
+  const canAccessCondominium = user?.condominium_id;
+  const canAccessBuilding = user?.building_id || user?.condominium_id;
 
   return {
     canManageUsers,
@@ -129,7 +201,13 @@ export function usePermissions() {
     canViewLogs,
     canReceiveDeliveries,
     canAuthorizeVisitors,
-    userRole: user?.role,
+    canManageCondominium,
+    canManageBuilding,
+    canAccessCondominium,
+    canAccessBuilding,
+    userRole: user?.user_type,
+    condominiumId: user?.condominium_id,
+    buildingId: user?.building_id,
   };
 }
 

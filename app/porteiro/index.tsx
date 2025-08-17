@@ -2,63 +2,55 @@ import { Link, router } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
+import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function PorteiroDashboard() {
   return (
-    <Container>
-      <ScrollView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>🛡️ Porteiro</Text>
-          <Text style={styles.subtitle}>Central de Controle</Text>
-        </View>
-
-        <View style={styles.cardsContainer}>
-          <Link href="/porteiro/login" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.loginCard])}>
-              <Text style={styles.cardIcon}>🔐</Text>
-              <Text style={styles.cardTitle}>Fazer Login</Text>
-              <Text style={styles.cardDescription}>Autenticar com código</Text>
+    <ProtectedRoute redirectTo="/porteiro/login" userType="porteiro">
+      <Container>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={styles.backButtonText}>← Voltar</Text>
             </TouchableOpacity>
-          </Link>
+            <Text style={styles.title}>🛡️ Porteiro</Text>
+            <Text style={styles.subtitle}>Central de Controle</Text>
+          </View>
 
-          <Link href="/porteiro/visitor" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.visitorCard])}>
-              <Text style={styles.cardIcon}>👋</Text>
-              <Text style={styles.cardTitle}>Gerenciar Visitantes</Text>
-              <Text style={styles.cardDescription}>Registrar e autorizar visitas</Text>
+          <View style={styles.cardsContainer}>
+            <Link href="/porteiro/visitor" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.visitorCard])}>
+                <Text style={styles.cardIcon}>👋</Text>
+                <Text style={styles.cardTitle}>Gerenciar Visitantes</Text>
+                <Text style={styles.cardDescription}>Registrar e autorizar visitas</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <Link href="/porteiro/delivery" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.deliveryCard])}>
+                <Text style={styles.cardIcon}>📦</Text>
+                <Text style={styles.cardTitle}>Encomendas</Text>
+                <Text style={styles.cardDescription}>Receber e gerenciar entregas</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <Link href="/porteiro/logs" asChild>
+              <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
+                <Text style={styles.cardIcon}>📋</Text>
+                <Text style={styles.cardTitle}>Histórico</Text>
+                <Text style={styles.cardDescription}>Ver atividades do turno</Text>
+              </TouchableOpacity>
+            </Link>
+
+            <TouchableOpacity style={flattenStyles([styles.card, styles.emergencyCard])}>
+              <Text style={styles.cardIcon}>🚨</Text>
+              <Text style={styles.cardTitle}>Emergência</Text>
+              <Text style={styles.cardDescription}>Contatos e procedimentos</Text>
             </TouchableOpacity>
-          </Link>
-
-          <Link href="/porteiro/delivery" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.deliveryCard])}>
-              <Text style={styles.cardIcon}>📦</Text>
-              <Text style={styles.cardTitle}>Encomendas</Text>
-              <Text style={styles.cardDescription}>Receber e gerenciar entregas</Text>
-            </TouchableOpacity>
-          </Link>
-
-          <Link href="/porteiro/logs" asChild>
-            <TouchableOpacity style={flattenStyles([styles.card, styles.logsCard])}>
-              <Text style={styles.cardIcon}>📋</Text>
-              <Text style={styles.cardTitle}>Histórico</Text>
-              <Text style={styles.cardDescription}>Ver atividades do turno</Text>
-            </TouchableOpacity>
-          </Link>
-
-          <TouchableOpacity style={flattenStyles([styles.card, styles.emergencyCard])}>
-            <Text style={styles.cardIcon}>🚨</Text>
-            <Text style={styles.cardTitle}>Emergência</Text>
-            <Text style={styles.cardDescription}>Contatos e procedimentos</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </Container>
+          </View>
+        </ScrollView>
+      </Container>
+    </ProtectedRoute>
   );
 }
 

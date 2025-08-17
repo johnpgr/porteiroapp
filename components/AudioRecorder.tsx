@@ -18,13 +18,11 @@ export default function AudioRecorder({
   onRecordingStop,
   maxDuration = 300, // 5 minutos por padrão
   disabled = false,
-  style
+  style,
 }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-
-
 
   useEffect(() => {
     checkPermissions();
@@ -44,14 +42,14 @@ export default function AudioRecorder({
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isRecording) {
       interval = setInterval(async () => {
         const status = await audioService.getRecordingStatus();
         if (status && status.durationMillis) {
           const duration = Math.floor(status.durationMillis / 1000);
           setRecordingDuration(duration);
-          
+
           // Parar automaticamente se atingir duração máxima
           if (duration >= maxDuration) {
             handleStopRecording();
@@ -79,7 +77,7 @@ export default function AudioRecorder({
         'É necessário permitir o acesso ao microfone para gravar áudio.',
         [
           { text: 'Cancelar', style: 'cancel' },
-          { text: 'Tentar Novamente', onPress: checkPermissions }
+          { text: 'Tentar Novamente', onPress: checkPermissions },
         ]
       );
       return;
@@ -106,7 +104,7 @@ export default function AudioRecorder({
       setIsRecording(false);
       setRecordingDuration(0);
       onRecordingStop?.();
-      
+
       if (recording) {
         onRecordingComplete?.(recording);
       }
@@ -139,10 +137,7 @@ export default function AudioRecorder({
   if (hasPermission === false) {
     return (
       <View style={[styles.container, style]}>
-        <TouchableOpacity 
-          style={styles.permissionButton}
-          onPress={checkPermissions}
-        >
+        <TouchableOpacity style={styles.permissionButton} onPress={checkPermissions}>
           <Ionicons name="mic-off" size={24} color="#F44336" />
           <Text style={styles.permissionText}>Permitir Microfone</Text>
         </TouchableOpacity>
@@ -156,55 +151,45 @@ export default function AudioRecorder({
         style={[
           styles.recordButton,
           isRecording && styles.recordingButton,
-          disabled && styles.disabledButton
+          disabled && styles.disabledButton,
         ]}
         onPress={isRecording ? handleStopRecording : handleStartRecording}
         disabled={disabled}
-        activeOpacity={0.7}
-      >
-        <Ionicons 
-          name={isRecording ? "stop" : "mic"} 
-          size={32} 
-          color={disabled ? '#999' : '#fff'} 
+        activeOpacity={0.7}>
+        <Ionicons
+          name={isRecording ? 'stop' : 'mic'}
+          size={32}
+          color={disabled ? '#999' : '#fff'}
         />
       </TouchableOpacity>
-      
+
       {isRecording && (
         <View style={styles.recordingInfo}>
           <View style={styles.recordingIndicator}>
             <View style={[styles.recordingDot, { backgroundColor: getRecordingColor() }]} />
-            <Text style={[styles.recordingText, { color: getRecordingColor() }]}>
-              REC
-            </Text>
+            <Text style={[styles.recordingText, { color: getRecordingColor() }]}>REC</Text>
           </View>
-          
-          <Text style={styles.durationText}>
-            {formatTime(recordingDuration)}
-          </Text>
-          
+
+          <Text style={styles.durationText}>{formatTime(recordingDuration)}</Text>
+
           <View style={styles.progressContainer}>
-            <View 
+            <View
               style={[
                 styles.progressBar,
-                { 
+                {
                   width: `${(recordingDuration / maxDuration) * 100}%`,
-                  backgroundColor: getRecordingColor()
-                }
-              ]} 
+                  backgroundColor: getRecordingColor(),
+                },
+              ]}
             />
           </View>
-          
-          <Text style={styles.maxDurationText}>
-            Máx: {formatTime(maxDuration)}
-          </Text>
+
+          <Text style={styles.maxDurationText}>Máx: {formatTime(maxDuration)}</Text>
         </View>
       )}
-      
+
       <Text style={styles.instructionText}>
-        {isRecording 
-          ? 'Toque para parar a gravação' 
-          : 'Toque para iniciar gravação'
-        }
+        {isRecording ? 'Toque para parar a gravação' : 'Toque para iniciar gravação'}
       </Text>
     </View>
   );

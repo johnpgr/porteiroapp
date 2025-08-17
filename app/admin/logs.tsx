@@ -30,10 +30,12 @@ export default function SystemLogs() {
     try {
       let query = supabase
         .from('visitor_logs')
-        .select(`
+        .select(
+          `
           *,
           apartments!inner(number)
-        `)
+        `
+        )
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -45,10 +47,11 @@ export default function SystemLogs() {
 
       if (error) throw error;
 
-      const formattedLogs = data?.map(log => ({
-        ...log,
-        apartment_number: log.apartments?.number || 'N/A'
-      })) || [];
+      const formattedLogs =
+        data?.map((log) => ({
+          ...log,
+          apartment_number: log.apartments?.number || 'N/A',
+        })) || [];
 
       setLogs(formattedLogs);
     } catch (error) {
@@ -66,19 +69,27 @@ export default function SystemLogs() {
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case 'entrada': return '#4CAF50';
-      case 'saida': return '#2196F3';
-      case 'negado': return '#F44336';
-      default: return '#666';
+      case 'entrada':
+        return '#4CAF50';
+      case 'saida':
+        return '#2196F3';
+      case 'negado':
+        return '#F44336';
+      default:
+        return '#666';
     }
   };
 
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'entrada': return '✅';
-      case 'saida': return '🚪';
-      case 'negado': return '❌';
-      default: return '📝';
+      case 'entrada':
+        return '✅';
+      case 'saida':
+        return '🚪';
+      case 'negado':
+        return '❌';
+      default:
+        return '📝';
     }
   };
 
@@ -86,23 +97,20 @@ export default function SystemLogs() {
     const date = new Date(dateString);
     return {
       date: date.toLocaleDateString('pt-BR'),
-      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
   };
 
   const getFilterCount = (action: string) => {
     if (action === 'all') return logs.length;
-    return logs.filter(log => log.action === action).length;
+    return logs.filter((log) => log.action === action).length;
   };
 
   return (
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>📊 Logs do Sistema</Text>
@@ -115,26 +123,27 @@ export default function SystemLogs() {
                 { key: 'all', label: 'Todos', icon: '📋' },
                 { key: 'entrada', label: 'Entradas', icon: '✅' },
                 { key: 'saida', label: 'Saídas', icon: '🚪' },
-                { key: 'negado', label: 'Negados', icon: '❌' }
+                { key: 'negado', label: 'Negados', icon: '❌' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
                   style={[
                     styles.filterButton,
-                    filter === filterOption.key && styles.filterButtonActive
+                    filter === filterOption.key && styles.filterButtonActive,
                   ]}
-                  onPress={() => setFilter(filterOption.key as any)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filter === filterOption.key && styles.filterButtonTextActive
-                  ]}>
+                  onPress={() => setFilter(filterOption.key as any)}>
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filter === filterOption.key && styles.filterButtonTextActive,
+                    ]}>
                     {filterOption.icon} {filterOption.label}
                   </Text>
-                  <Text style={[
-                    styles.filterCount,
-                    filter === filterOption.key && styles.filterCountActive
-                  ]}>
+                  <Text
+                    style={[
+                      styles.filterCount,
+                      filter === filterOption.key && styles.filterCountActive,
+                    ]}>
                     {getFilterCount(filterOption.key)}
                   </Text>
                 </TouchableOpacity>
@@ -143,12 +152,9 @@ export default function SystemLogs() {
           </ScrollView>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.logsList}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Carregando logs...</Text>
@@ -158,7 +164,9 @@ export default function SystemLogs() {
               <Text style={styles.emptyIcon}>📝</Text>
               <Text style={styles.emptyText}>Nenhum log encontrado</Text>
               <Text style={styles.emptySubtext}>
-                {filter === 'all' ? 'Ainda não há atividades registradas' : `Nenhuma atividade do tipo "${filter}" encontrada`}
+                {filter === 'all'
+                  ? 'Ainda não há atividades registradas'
+                  : `Nenhuma atividade do tipo "${filter}" encontrada`}
               </Text>
             </View>
           ) : (
@@ -183,7 +191,9 @@ export default function SystemLogs() {
                     <View style={styles.visitorInfo}>
                       <Text style={styles.visitorName}>👤 {log.visitor_name}</Text>
                       <Text style={styles.visitorDocument}>📄 {log.document}</Text>
-                      <Text style={styles.apartmentInfo}>🏠 Apartamento {log.apartment_number}</Text>
+                      <Text style={styles.apartmentInfo}>
+                        🏠 Apartamento {log.apartment_number}
+                      </Text>
                     </View>
 
                     {log.authorized_by && (

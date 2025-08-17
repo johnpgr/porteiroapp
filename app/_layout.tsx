@@ -36,7 +36,7 @@ export default function RootLayout() {
         (response) => {
           console.log('Notificação tocada:', response);
           const data = response.notification.request.content.data;
-          
+
           // Navegar baseado no tipo de notificação
           if (data.type === 'visitor') {
             // Navegar para tela de visitantes

@@ -39,19 +39,20 @@ export function useNotifications() {
 
       if (error) throw error;
 
-      const formattedNotifications = data?.map(item => ({
-        id: item.id,
-        title: item.title || 'Nova notificação',
-        message: item.message,
-        type: item.type || 'communication',
-        user_id: item.user_id,
-        apartment_id: item.apartment_id,
-        read: item.read || false,
-        created_at: item.created_at,
-      })) || [];
+      const formattedNotifications =
+        data?.map((item) => ({
+          id: item.id,
+          title: item.title || 'Nova notificação',
+          message: item.message,
+          type: item.type || 'communication',
+          user_id: item.user_id,
+          apartment_id: item.apartment_id,
+          read: item.read || false,
+          created_at: item.created_at,
+        })) || [];
 
       setNotifications(formattedNotifications);
-      setUnreadCount(formattedNotifications.filter(n => !n.read).length);
+      setUnreadCount(formattedNotifications.filter((n) => !n.read).length);
     } catch (error) {
       console.error('Erro ao buscar notificações:', error);
     } finally {
@@ -84,8 +85,8 @@ export function useNotifications() {
             created_at: payload.new.created_at,
           };
 
-          setNotifications(prev => [newNotification, ...prev]);
-          setUnreadCount(prev => prev + 1);
+          setNotifications((prev) => [newNotification, ...prev]);
+          setUnreadCount((prev) => prev + 1);
         }
       )
       .subscribe();
@@ -104,15 +105,13 @@ export function useNotifications() {
 
       if (error) throw error;
 
-      setNotifications(prev =>
-        prev.map(notification =>
-          notification.id === notificationId
-            ? { ...notification, read: true }
-            : notification
+      setNotifications((prev) =>
+        prev.map((notification) =>
+          notification.id === notificationId ? { ...notification, read: true } : notification
         )
       );
 
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error('Erro ao marcar notificação como lida:', error);
     }
@@ -130,9 +129,7 @@ export function useNotifications() {
 
       if (error) throw error;
 
-      setNotifications(prev =>
-        prev.map(notification => ({ ...notification, read: true }))
-      );
+      setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })));
       setUnreadCount(0);
     } catch (error) {
       console.error('Erro ao marcar todas as notificações como lidas:', error);
@@ -147,17 +144,15 @@ export function useNotifications() {
     targetApartmentId?: string
   ) => {
     try {
-      const { error } = await supabase
-        .from('communications')
-        .insert({
-          title,
-          message,
-          type,
-          user_id: targetUserId,
-          apartment_id: targetApartmentId,
-          sender_id: user?.id,
-          read: false,
-        });
+      const { error } = await supabase.from('communications').insert({
+        title,
+        message,
+        type,
+        user_id: targetUserId,
+        apartment_id: targetApartmentId,
+        sender_id: user?.id,
+        read: false,
+      });
 
       if (error) throw error;
       return { success: true };

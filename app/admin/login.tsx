@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function PorteiroLogin() {
+export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const { signIn, user } = useAuth();
 
   const handleTestLogin = async () => {
-    await handleLogin('porteiro@teste.com', 'porteiro123');
+    await handleLogin('admin@teste.com', 'admin123');
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -23,14 +22,15 @@ export default function PorteiroLogin() {
         return;
       }
 
-      // Verificar se o usuário é porteiro após o login
+      // Verificar se o usuário é admin após o login
+      // Aguardar um momento para o estado ser atualizado
       setTimeout(() => {
-        if (user?.user_type !== 'porteiro') {
-          Alert.alert('Acesso Negado', 'Apenas porteiros podem acessar esta área');
+        if (user?.user_type !== 'admin') {
+          Alert.alert('Acesso Negado', 'Apenas administradores podem acessar esta área');
           return;
         }
-        // Redirecionar para a área do porteiro após verificação
-        router.replace('/porteiro');
+        // Redirecionar para a área do admin após verificação
+        router.replace('/admin');
       }, 100);
     } catch (error) {
       Alert.alert('Erro', 'Ocorreu um erro inesperado');
@@ -42,15 +42,15 @@ export default function PorteiroLogin() {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={24} color="#2196F3" />
+        <Text style={styles.backButtonText}>← Voltar</Text>
       </TouchableOpacity>
 
       <View style={styles.header}>
-        <Text style={styles.title}>🚪 Login Porteiro</Text>
-        <Text style={styles.subtitle}>Acesse o painel de controle da portaria</Text>
+        <Text style={styles.title}>🔐 Login Administrador</Text>
+        <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
       </View>
 
-      <AuthForm onSubmit={handleLogin} loading={loading} submitText="Entrar como Porteiro" />
+      <AuthForm onSubmit={handleLogin} loading={loading} submitText="Entrar como Admin" />
 
       {/* Botão de Login de Teste - Apenas para Desenvolvimento */}
       <TouchableOpacity style={styles.testButton} onPress={handleTestLogin} disabled={loading}>
@@ -73,6 +73,11 @@ const styles = StyleSheet.create({
     left: 20,
     zIndex: 1,
     padding: 10,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#2196F3',
+    fontWeight: '600',
   },
   header: {
     alignItems: 'center',

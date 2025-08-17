@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { VisitorCard } from '~/components/VisitorCard';
@@ -42,10 +51,12 @@ export default function VisitorManagement() {
     try {
       let query = supabase
         .from('visitors')
-        .select(`
+        .select(
+          `
           *,
           apartments!inner(number)
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
@@ -56,10 +67,11 @@ export default function VisitorManagement() {
 
       if (error) throw error;
 
-      const formattedVisitors = data?.map(visitor => ({
-        ...visitor,
-        apartment_number: visitor.apartments?.number || 'N/A'
-      })) || [];
+      const formattedVisitors =
+        data?.map((visitor) => ({
+          ...visitor,
+          apartment_number: visitor.apartments?.number || 'N/A',
+        })) || [];
 
       setVisitors(formattedVisitors);
     } catch (error) {
@@ -69,7 +81,11 @@ export default function VisitorManagement() {
     }
   };
 
-  const handleVisitorAction = async (visitorId: string, action: 'aprovado' | 'negado' | 'entrada' | 'saida', notes?: string) => {
+  const handleVisitorAction = async (
+    visitorId: string,
+    action: 'aprovado' | 'negado' | 'entrada' | 'saida',
+    notes?: string
+  ) => {
     try {
       const { error: updateError } = await supabase
         .from('visitors')
@@ -83,32 +99,30 @@ export default function VisitorManagement() {
       if (updateError) throw updateError;
 
       // Registrar no log
-      const visitor = visitors.find(v => v.id === visitorId);
+      const visitor = visitors.find((v) => v.id === visitorId);
       if (visitor) {
-        const { error: logError } = await supabase
-          .from('visitor_logs')
-          .insert({
-            visitor_name: visitor.name,
-            document: visitor.document,
-            apartment_id: visitor.apartment_id,
-            action: action === 'aprovado' ? 'entrada' : action,
-            authorized_by: 'Porteiro',
-            photo_url: visitor.photo_url,
-            notes: notes,
-          });
+        const { error: logError } = await supabase.from('visitor_logs').insert({
+          visitor_name: visitor.name,
+          document: visitor.document,
+          apartment_id: visitor.apartment_id,
+          action: action === 'aprovado' ? 'entrada' : action,
+          authorized_by: 'Porteiro',
+          photo_url: visitor.photo_url,
+          notes: notes,
+        });
 
         if (logError) console.error('Erro ao registrar log:', logError);
       }
 
       fetchVisitors();
-      
+
       const actionMessages = {
         aprovado: 'Visitante aprovado com sucesso!',
         negado: 'Visitante negado',
         entrada: 'Entrada registrada',
-        saida: 'Saída registrada'
+        saida: 'Saída registrada',
       };
-      
+
       Alert.alert('Sucesso', actionMessages[action]);
     } catch (error) {
       Alert.alert('Erro', 'Falha ao processar ação');
@@ -141,16 +155,14 @@ export default function VisitorManagement() {
         photoUrl = newVisitor.photo_uri;
       }
 
-      const { error } = await supabase
-        .from('visitors')
-        .insert({
-          name: newVisitor.name,
-          document: newVisitor.document,
-          apartment_id: apartment.id,
-          photo_url: photoUrl,
-          status: 'pendente',
-          notes: newVisitor.notes || null,
-        });
+      const { error } = await supabase.from('visitors').insert({
+        name: newVisitor.name,
+        document: newVisitor.document,
+        apartment_id: apartment.id,
+        photo_url: photoUrl,
+        status: 'pendente',
+        notes: newVisitor.notes || null,
+      });
 
       if (error) throw error;
 
@@ -184,33 +196,27 @@ export default function VisitorManagement() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setNewVisitor(prev => ({ ...prev, photo_uri: result.assets[0].uri }));
+      setNewVisitor((prev) => ({ ...prev, photo_uri: result.assets[0].uri }));
     }
   };
 
   const getFilterCount = (filterType: string) => {
     if (filterType === 'all') return visitors.length;
-    return visitors.filter(v => v.status === filterType).length;
+    return visitors.filter((v) => v.status === filterType).length;
   };
 
   return (
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>👥 Gerenciar Visitantes</Text>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddForm(!showAddForm)}
-          >
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Registrar Visitante'}
             </Text>
@@ -224,26 +230,27 @@ export default function VisitorManagement() {
                 { key: 'pendente', label: 'Pendentes', icon: '⏳' },
                 { key: 'aprovado', label: 'Aprovados', icon: '✅' },
                 { key: 'entrada', label: 'No Prédio', icon: '🏠' },
-                { key: 'all', label: 'Todos', icon: '📋' }
+                { key: 'all', label: 'Todos', icon: '📋' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
                   style={[
                     styles.filterButton,
-                    filter === filterOption.key && styles.filterButtonActive
+                    filter === filterOption.key && styles.filterButtonActive,
                   ]}
-                  onPress={() => setFilter(filterOption.key as any)}
-                >
-                  <Text style={[
-                    styles.filterButtonText,
-                    filter === filterOption.key && styles.filterButtonTextActive
-                  ]}>
+                  onPress={() => setFilter(filterOption.key as any)}>
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      filter === filterOption.key && styles.filterButtonTextActive,
+                    ]}>
                     {filterOption.icon} {filterOption.label}
                   </Text>
-                  <Text style={[
-                    styles.filterCount,
-                    filter === filterOption.key && styles.filterCountActive
-                  ]}>
+                  <Text
+                    style={[
+                      styles.filterCount,
+                      filter === filterOption.key && styles.filterCountActive,
+                    ]}>
                     {getFilterCount(filterOption.key)}
                   </Text>
                 </TouchableOpacity>
@@ -255,56 +262,57 @@ export default function VisitorManagement() {
         {showAddForm && (
           <View style={styles.addForm}>
             <Text style={styles.formTitle}>Registrar Novo Visitante</Text>
-            
+
             <TextInput
               style={styles.input}
               placeholder="Nome completo do visitante"
               value={newVisitor.name}
-              onChangeText={(text) => setNewVisitor(prev => ({ ...prev, name: text }))}
+              onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, name: text }))}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Documento (RG/CPF)"
               value={newVisitor.document}
-              onChangeText={(text) => setNewVisitor(prev => ({ ...prev, document: text }))}
+              onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, document: text }))}
             />
-            
+
             <TextInput
               style={styles.input}
               placeholder="Número do apartamento"
               value={newVisitor.apartment_number}
-              onChangeText={(text) => setNewVisitor(prev => ({ ...prev, apartment_number: text }))}
+              onChangeText={(text) =>
+                setNewVisitor((prev) => ({ ...prev, apartment_number: text }))
+              }
               keyboardType="numeric"
             />
-            
+
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Observações (opcional)"
               value={newVisitor.notes}
-              onChangeText={(text) => setNewVisitor(prev => ({ ...prev, notes: text }))}
+              onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, notes: text }))}
               multiline
               numberOfLines={3}
             />
-            
+
             <View style={styles.photoSection}>
               <TouchableOpacity style={styles.photoButton} onPress={handleTakePhoto}>
                 <Text style={styles.photoButtonText}>📷 Tirar Foto</Text>
               </TouchableOpacity>
-              
+
               {newVisitor.photo_uri && (
                 <View style={styles.photoPreview}>
                   <Image source={{ uri: newVisitor.photo_uri }} style={styles.previewImage} />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.removePhotoButton}
-                    onPress={() => setNewVisitor(prev => ({ ...prev, photo_uri: null }))}
-                  >
+                    onPress={() => setNewVisitor((prev) => ({ ...prev, photo_uri: null }))}>
                     <Text style={styles.removePhotoText}>❌</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
-            
+
             <TouchableOpacity style={styles.submitButton} onPress={handleAddVisitor}>
               <Text style={styles.submitButtonText}>✅ Registrar Visitante</Text>
             </TouchableOpacity>
@@ -321,7 +329,9 @@ export default function VisitorManagement() {
               <Text style={styles.emptyIcon}>👥</Text>
               <Text style={styles.emptyText}>Nenhum visitante encontrado</Text>
               <Text style={styles.emptySubtext}>
-                {filter === 'all' ? 'Ainda não há visitantes registrados' : `Nenhum visitante com status "${filter}" encontrado`}
+                {filter === 'all'
+                  ? 'Ainda não há visitantes registrados'
+                  : `Nenhum visitante com status "${filter}" encontrado`}
               </Text>
             </View>
           ) : (
@@ -330,7 +340,7 @@ export default function VisitorManagement() {
                 key={visitor.id}
                 visitor={{
                   ...visitor,
-                  apartment: visitor.apartment_number
+                  apartment: visitor.apartment_number,
                 }}
                 onAction={handleVisitorAction}
                 showActions={true}

@@ -9,29 +9,29 @@ export default function Home() {
       <View style={styles.container}>
         <Text style={styles.title}>🏢 PorteiroApp</Text>
         <Text style={styles.subtitle}>Selecione seu perfil de acesso</Text>
-        
+
         <View style={styles.buttonsContainer}>
-          <Link href="/admin" asChild>
+          <Link href="/admin/login" asChild>
             <TouchableOpacity style={flattenStyles([styles.button, styles.adminButton])}>
               <Text style={styles.buttonIcon}>👨‍💼</Text>
               <Text style={styles.buttonText}>Administrador</Text>
             </TouchableOpacity>
           </Link>
-          
-          <Link href="/porteiro" asChild>
+
+          <Link href="/porteiro/login" asChild>
             <TouchableOpacity style={flattenStyles([styles.button, styles.porteiroButton])}>
               <Text style={styles.buttonIcon}>🛡️</Text>
               <Text style={styles.buttonText}>Porteiro</Text>
             </TouchableOpacity>
           </Link>
-          
-          <Link href="/morador" asChild>
+
+          <Link href="/morador/login" asChild>
             <TouchableOpacity style={flattenStyles([styles.button, styles.moradorButton])}>
               <Text style={styles.buttonIcon}>🏠</Text>
               <Text style={styles.buttonText}>Morador</Text>
             </TouchableOpacity>
           </Link>
-          
+
           <Link href="/visitante" asChild>
             <TouchableOpacity style={flattenStyles([styles.button, styles.visitanteButton])}>
               <Text style={styles.buttonIcon}>👋</Text>

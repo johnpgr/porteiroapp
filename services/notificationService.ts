@@ -33,7 +33,9 @@ class NotificationService {
 
     // Evitar tentativa de registrar na Web, onde não é suportado via Expo Go
     if (Platform.OS === 'web') {
-      console.warn('[expo-notifications] Registro de push não é suportado no ambiente web (Expo Go).');
+      console.warn(
+        '[expo-notifications] Registro de push não é suportado no ambiente web (Expo Go).'
+      );
       return null;
     }
 
@@ -52,10 +54,12 @@ class NotificationService {
       }
 
       try {
-        token = (await Notifications.getExpoPushTokenAsync({
-          projectId: process.env.EXPO_PUBLIC_PROJECT_ID || 'your-project-id',
-        })).data;
-        
+        token = (
+          await Notifications.getExpoPushTokenAsync({
+            projectId: process.env.EXPO_PUBLIC_PROJECT_ID || 'your-project-id',
+          })
+        ).data;
+
         this.expoPushToken = token;
         console.log('Push token obtido:', token);
       } catch (error) {
@@ -109,10 +113,7 @@ class NotificationService {
    */
   async savePushToken(userId: string, token: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ push_token: token })
-        .eq('id', userId);
+      const { error } = await supabase.from('users').update({ push_token: token }).eq('id', userId);
 
       if (error) {
         console.error('Erro ao salvar push token:', error);
@@ -147,10 +148,7 @@ class NotificationService {
   /**
    * Envia notificação push para um usuário específico
    */
-  async sendPushNotification(
-    pushToken: string,
-    data: PushNotificationData
-  ): Promise<boolean> {
+  async sendPushNotification(pushToken: string, data: PushNotificationData): Promise<boolean> {
     try {
       if (Platform.OS === 'web') {
         console.warn('Envio de push via Expo não é suportado na Web.');
@@ -178,7 +176,7 @@ class NotificationService {
       });
 
       const result = await response.json();
-      
+
       if (result.data && result.data[0] && result.data[0].status === 'ok') {
         console.log('Notificação push enviada com sucesso');
         return true;
@@ -195,15 +193,12 @@ class NotificationService {
   /**
    * Envia notificação para múltiplos usuários
    */
-  async sendBulkNotifications(
-    tokens: string[],
-    data: PushNotificationData
-  ): Promise<void> {
+  async sendBulkNotifications(tokens: string[], data: PushNotificationData): Promise<void> {
     if (Platform.OS === 'web') {
       console.warn('Envio de push em lote não é suportado na Web.');
       return;
     }
-    const messages = tokens.map(token => ({
+    const messages = tokens.map((token) => ({
       to: token,
       sound: 'default',
       title: data.title,
@@ -239,10 +234,7 @@ class NotificationService {
     apartmentNumber?: string
   ): Promise<string[]> {
     try {
-      let query = supabase
-        .from('users')
-        .select('push_token')
-        .not('push_token', 'is', null);
+      let query = supabase.from('users').select('push_token').not('push_token', 'is', null);
 
       if (userType) {
         query = query.eq('user_type', userType);
@@ -259,9 +251,7 @@ class NotificationService {
         return [];
       }
 
-      return data
-        .filter(user => user.push_token)
-        .map(user => user.push_token);
+      return data.filter((user) => user.push_token).map((user) => user.push_token);
     } catch (error) {
       console.error('Erro ao buscar push tokens:', error);
       return [];
@@ -283,7 +273,7 @@ class NotificationService {
         type: 'visitor',
         title: '🚪 Novo Visitante',
         message: `${visitorName} deseja visitá-lo. Doc: ${document}`,
-        data: { type: 'visitor', apartmentNumber, visitorName }
+        data: { type: 'visitor', apartmentNumber, visitorName },
       });
     }
 
@@ -294,7 +284,7 @@ class NotificationService {
         type: 'visitor',
         title: '👤 Visitante Aguardando',
         message: `${visitorName} para apt. ${apartmentNumber}`,
-        data: { type: 'visitor', apartmentNumber, visitorName }
+        data: { type: 'visitor', apartmentNumber, visitorName },
       });
     }
   }
@@ -313,7 +303,7 @@ class NotificationService {
         type: 'delivery',
         title: '📦 Nova Encomenda',
         message: `Encomenda de ${sender} para ${recipientName}`,
-        data: { type: 'delivery', apartmentNumber, sender }
+        data: { type: 'delivery', apartmentNumber, sender },
       });
     }
   }
@@ -339,7 +329,7 @@ class NotificationService {
         type: 'emergency',
         title: '🚨 EMERGÊNCIA',
         message: message,
-        data: { type: 'emergency', apartmentNumber }
+        data: { type: 'emergency', apartmentNumber },
       });
     }
   }
