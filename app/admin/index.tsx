@@ -79,8 +79,10 @@ export default function AdminDashboard() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [logSearchType, setLogSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
@@ -133,6 +135,26 @@ export default function AdminDashboard() {
     filterLogs();
   }, [logSearchType, logSearchQuery, logBuildingFilter, logMovementFilter, logDateFilter, logs]);
 
+  useEffect(() => {
+    filterVehicles();
+  }, [vehicles, vehicleSearchQuery]);
+
+  const filterVehicles = () => {
+    if (!vehicleSearchQuery.trim()) {
+      setFilteredVehicles(vehicles);
+      return;
+    }
+
+    const filtered = vehicles.filter(vehicle => 
+      vehicle.license_plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.model.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.parking_spot?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.users?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.buildings?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+    );
+    setFilteredVehicles(filtered);
+  };
+
   const fetchData = async () => {
     try {
       const [usersData, buildingsData, apartmentsData, activitiesData, logsData] = await Promise.all([
@@ -166,6 +188,7 @@ export default function AdminDashboard() {
 
       if (error) throw error;
       setVehicles(data || []);
+      setFilteredVehicles(data || []);
     } catch (error) {
       console.error('Erro ao carregar veículos:', error);
     }
@@ -378,10 +401,16 @@ export default function AdminDashboard() {
                 <Text style={styles.menuItemText}>👤 Meu Perfil</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={styles.menuItem} 
-                onPress={() => {
+                style={styles.menuItemLast} 
+                onPress={async () => {
                   setShowAvatarMenu(false);
-                  // Implementar logout
+                  try {
+                    await supabase.auth.signOut();
+                    router.replace('/admin/login');
+                  } catch (error) {
+                    console.error('Erro ao fazer logout:', error);
+                    Alert.alert('Erro', 'Não foi possível fazer logout');
+                  }
                 }}
               >
                 <Text style={styles.menuItemText}>🚪 Sair</Text>
@@ -542,9 +571,9 @@ export default function AdminDashboard() {
               <Text style={styles.cardIcon}>🔍</Text>
               <TextInput
                 style={styles.searchCardInput}
-                placeholder="Buscar por placa, modelo..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                placeholder="Buscar por placa, modelo, vaga, morador..."
+                value={vehicleSearchQuery}
+                onChangeText={setVehicleSearchQuery}
               />
             </View>
             <TouchableOpacity style={styles.newUserCard} onPress={() => setShowAddVehicleForm(!showAddVehicleForm)}>
@@ -612,7 +641,7 @@ export default function AdminDashboard() {
           )}
 
           <View style={styles.usersList}>
-            {vehicles.map(vehicle => (
+            {filteredVehicles.map(vehicle => (
               <View key={vehicle.id} style={styles.userCard}>
                 <Text style={styles.userName}>{vehicle.license_plate}</Text>
                 <Text style={styles.userRole}>{vehicle.model}</Text>
@@ -1355,21 +1384,27 @@ const styles = StyleSheet.create({
   avatarMenu: {
     position: 'absolute',
     top: 50,
-    left: 0,
+    left: -50,
     backgroundColor: '#fff',
     borderRadius: 8,
-    elevation: 10,
+    elevation: 50,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
     minWidth: 150,
-    zIndex: 9999,
+    zIndex: 999999,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   menuItem: {
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+  },
+  menuItemLast: {
+    padding: 15,
+    borderBottomWidth: 0,
   },
   menuItemText: {
     fontSize: 14,

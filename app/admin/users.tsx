@@ -42,6 +42,8 @@ interface Apartment {
 
 export default function UsersManagement() {
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
@@ -75,6 +77,26 @@ export default function UsersManagement() {
     }
   }, [newUser.building_id, apartments]);
 
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchQuery]);
+
+  const filterUsers = () => {
+    if (!searchQuery.trim()) {
+      setFilteredUsers(users);
+      return;
+    }
+
+    const filtered = users.filter(user => 
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.cpf?.includes(searchQuery) ||
+      user.phone?.includes(searchQuery) ||
+      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredUsers(filtered);
+  };
+
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -84,6 +106,7 @@ export default function UsersManagement() {
 
       if (error) throw error;
       setUsers(data || []);
+      setFilteredUsers(data || []);
     } catch (error) {
       Alert.alert('Erro', 'Falha ao carregar usuários');
     } finally {
@@ -269,6 +292,13 @@ export default function UsersManagement() {
         </View>
 
         <View style={styles.actions}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          
           <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
@@ -396,7 +426,7 @@ export default function UsersManagement() {
         )}
 
         <ScrollView style={styles.usersList}>
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <View key={user.id} style={styles.userCard}>
               <View style={styles.userInfo}>
                 {user.photo_url ? (
@@ -462,6 +492,15 @@ const styles = StyleSheet.create({
   },
   actions: {
     padding: 20,
+    gap: 12,
+  },
+  searchInput: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
   addButton: {
     backgroundColor: '#4CAF50',
