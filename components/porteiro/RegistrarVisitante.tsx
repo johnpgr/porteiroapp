@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
-type FlowStep = 'apartamento' | 'tipo' | 'nome' | 'cpf' | 'observacoes' | 'foto' | 'confirmacao';
+type FlowStep = 'apartamento' | 'tipo' | 'empresa_prestador' | 'empresa_entrega' | 'nome' | 'cpf' | 'observacoes' | 'foto' | 'confirmacao';
 type TipoVisita = 'social' | 'prestador' | 'entrega';
+type EmpresaPrestador = 'claro' | 'vivo' | 'encanador' | 'bombeiro_hidraulico' | 'dedetizacao' | 'eletricista' | 'pintor' | 'marceneiro';
+type EmpresaEntrega = 'rappi' | 'ifood' | 'uber_eats' | 'mercado_livre' | 'amazon' | 'correios' | 'outro';
 
 interface RegistrarVisitanteProps {
   onClose: () => void;
+  onConfirm?: (message: string) => void;
 }
 
-export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps) {
+export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
+  const [empresaPrestador, setEmpresaPrestador] = useState<EmpresaPrestador | null>(null);
+  const [empresaEntrega, setEmpresaEntrega] = useState<EmpresaEntrega | null>(null);
   const [nomeVisitante, setNomeVisitante] = useState('');
   const [cpfVisitante, setCpfVisitante] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -68,6 +73,77 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
     </View>
   );
 
+  const renderEmpresaPrestadorStep = () => {
+    const empresas = [
+      { id: 'claro', nome: 'Claro', icon: '📱' },
+      { id: 'vivo', nome: 'Vivo', icon: '📞' },
+      { id: 'encanador', nome: 'Encanador', icon: '🔧' },
+      { id: 'bombeiro_hidraulico', nome: 'Bombeiro Hidráulico', icon: '🚰' },
+      { id: 'dedetizacao', nome: 'Dedetização', icon: '🐛' },
+      { id: 'eletricista', nome: 'Eletricista', icon: '⚡' },
+      { id: 'pintor', nome: 'Pintor', icon: '🎨' },
+      { id: 'marceneiro', nome: 'Marceneiro', icon: '🪚' },
+    ];
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>🔧 Empresa Prestadora</Text>
+        <Text style={styles.stepSubtitle}>Qual empresa o prestador representa?</Text>
+        
+        <View style={styles.optionsContainer}>
+          {empresas.map((empresa) => (
+            <TouchableOpacity
+              key={empresa.id}
+              style={[styles.optionButton, styles.prestadorButton]}
+              onPress={() => {
+                setEmpresaPrestador(empresa.id as EmpresaPrestador);
+                setCurrentStep('nome');
+              }}
+            >
+              <Text style={styles.optionIcon}>{empresa.icon}</Text>
+              <Text style={styles.optionTitle}>{empresa.nome}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  const renderEmpresaEntregaStep = () => {
+    const empresas = [
+      { id: 'rappi', nome: 'Rappi', icon: '🛵' },
+      { id: 'ifood', nome: 'iFood', icon: '🍔' },
+      { id: 'uber_eats', nome: 'Uber Eats', icon: '🚗' },
+      { id: 'mercado_livre', nome: 'Mercado Livre', icon: '📦' },
+      { id: 'amazon', nome: 'Amazon', icon: '📋' },
+      { id: 'correios', nome: 'Correios', icon: '📮' },
+      { id: 'outro', nome: 'Outro', icon: '📦' },
+    ];
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>📦 Empresa de Entrega</Text>
+        <Text style={styles.stepSubtitle}>Qual empresa de entrega?</Text>
+        
+        <View style={styles.optionsContainer}>
+          {empresas.map((empresa) => (
+            <TouchableOpacity
+              key={empresa.id}
+              style={[styles.optionButton, styles.entregaButton]}
+              onPress={() => {
+                setEmpresaEntrega(empresa.id as EmpresaEntrega);
+                setCurrentStep('nome');
+              }}
+            >
+              <Text style={styles.optionIcon}>{empresa.icon}</Text>
+              <Text style={styles.optionTitle}>{empresa.nome}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   const renderTipoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>👥 Tipo de Visita</Text>
@@ -90,7 +166,7 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
           style={[styles.optionButton, styles.prestadorButton]}
           onPress={() => {
             setTipoVisita('prestador');
-            setCurrentStep('nome');
+            setCurrentStep('empresa_prestador');
           }}
         >
           <Text style={styles.optionIcon}>🔧</Text>
@@ -102,7 +178,7 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
           style={[styles.optionButton, styles.entregaButton]}
           onPress={() => {
             setTipoVisita('entrega');
-            setCurrentStep('nome');
+            setCurrentStep('empresa_entrega');
           }}
         >
           <Text style={styles.optionIcon}>📦</Text>
@@ -256,16 +332,28 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
   const renderConfirmacaoStep = () => {
     const handleConfirm = () => {
       // Aqui você implementaria a lógica para salvar os dados
-      Alert.alert(
-        '✅ Visitante Registrado!',
-        `O apartamento ${apartamento} foi notificado sobre a chegada de ${nomeVisitante}.`,
-        [{ text: 'OK' }]
-      );
+      console.log('Visitante registrado:', {
+        apartamento,
+        tipo: tipoVisita,
+        empresa: tipoVisita === 'prestador' ? empresaPrestador : tipoVisita === 'entrega' ? empresaEntrega : null,
+        nome: nomeVisitante,
+        cpf: cpfVisitante,
+        observacoes,
+        fotoTirada
+      });
       
-      // Fechar automaticamente após 3 segundos
-      setTimeout(() => {
+      const message = `O apartamento ${apartamento} foi notificado sobre a chegada de ${nomeVisitante}.`;
+      
+      if (onConfirm) {
+        onConfirm(message);
+      } else {
+        Alert.alert(
+          '✅ Visitante Registrado!',
+          message,
+          [{ text: 'OK' }]
+        );
         onClose();
-      }, 3000);
+      }
     };
 
     return (
@@ -286,6 +374,18 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
                tipoVisita === 'prestador' ? 'Prestador de Serviço' : 'Serviço de Entrega'}
             </Text>
           </View>
+          
+          {(empresaPrestador || empresaEntrega) && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Empresa:</Text>
+              <Text style={styles.summaryValue}>
+                {empresaPrestador ? 
+                  empresaPrestador.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) :
+                  empresaEntrega?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+                }
+              </Text>
+            </View>
+          )}
           
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Nome:</Text>
@@ -318,6 +418,10 @@ export default function RegistrarVisitante({ onClose }: RegistrarVisitanteProps)
         return renderApartamentoStep();
       case 'tipo':
         return renderTipoStep();
+      case 'empresa_prestador':
+        return renderEmpresaPrestadorStep();
+      case 'empresa_entrega':
+        return renderEmpresaEntregaStep();
       case 'nome':
         return renderNomeStep();
       case 'cpf':

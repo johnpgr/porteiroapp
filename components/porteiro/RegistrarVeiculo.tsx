@@ -1,11 +1,29 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView, ScrollView } from 'react-native';
 
-type FlowStep = 'apartamento' | 'placa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
+type FlowStep = 'apartamento' | 'empresa' | 'placa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
 
 interface RegistrarVeiculoProps {
   onClose: () => void;
+  onConfirm?: (message: string) => void;
 }
+
+const empresasPrestadoras = [
+  { id: 'claro', nome: 'Claro', icon: '📡', cor: '#E60000' },
+  { id: 'vivo', nome: 'Vivo', icon: '📶', cor: '#660099' },
+  { id: 'tim', nome: 'TIM', icon: '📱', cor: '#0066CC' },
+  { id: 'oi', nome: 'Oi', icon: '📞', cor: '#FFD700' },
+  { id: 'net', nome: 'NET/Claro', icon: '📺', cor: '#E60000' },
+  { id: 'sky', nome: 'SKY', icon: '📡', cor: '#0066CC' },
+  { id: 'encanador', nome: 'Encanador', icon: '🔧', cor: '#4CAF50' },
+  { id: 'eletricista', nome: 'Eletricista', icon: '⚡', cor: '#FF9800' },
+  { id: 'gas', nome: 'Gás', icon: '🔥', cor: '#FF5722' },
+  { id: 'limpeza', nome: 'Limpeza', icon: '🧽', cor: '#2196F3' },
+  { id: 'manutencao', nome: 'Manutenção', icon: '🔨', cor: '#795548' },
+  { id: 'seguranca', nome: 'Segurança', icon: '🛡️', cor: '#607D8B' },
+  { id: 'delivery', nome: 'Delivery', icon: '🛵', cor: '#FF6B35' },
+  { id: 'outros', nome: 'Outros', icon: '🏢', cor: '#666666' },
+];
 
 const marcasVeiculos = [
   { id: 'toyota', nome: 'Toyota', icon: '🚗' },
@@ -39,9 +57,10 @@ const coresVeiculos = [
   { id: 'outros', nome: 'Outros', cor: '#666666', borda: '#444444' },
 ];
 
-export default function RegistrarVeiculo({ onClose }: RegistrarVeiculoProps) {
+export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeiculoProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<typeof empresasPrestadoras[0] | null>(null);
   const [placa, setPlaca] = useState('');
   const [marcaSelecionada, setMarcaSelecionada] = useState<typeof marcasVeiculos[0] | null>(null);
   const [corSelecionada, setCorSelecionada] = useState<typeof coresVeiculos[0] | null>(null);
@@ -104,11 +123,40 @@ export default function RegistrarVeiculo({ onClose }: RegistrarVeiculoProps) {
       
       {renderNumericKeypad(apartamento, setApartamento, () => {
         if (apartamento) {
-          setCurrentStep('placa');
+          setCurrentStep('empresa');
         }
       })}
     </View>
   );
+
+  const renderEmpresaStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>🏢 Empresa/Serviço</Text>
+      <Text style={styles.stepSubtitle}>Selecione a empresa ou tipo de serviço</Text>
+      
+      <ScrollView style={styles.empresasContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.empresasGrid}>
+          {empresasPrestadoras.map((empresa) => (
+            <TouchableOpacity
+              key={empresa.id}
+              style={[
+                styles.empresaButton,
+                { borderColor: empresa.cor },
+                empresaSelecionada?.id === empresa.id && { backgroundColor: empresa.cor + '20' }
+              ]}
+              onPress={() => {
+                setEmpresaSelecionada(empresa);
+                setCurrentStep('placa');
+              }}
+            >
+              <Text style={styles.empresaIcon}>{empresa.icon}</Text>
+              <Text style={styles.empresaNome}>{empresa.nome}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+     </View>
+   );
 
   const renderPlacaStep = () => (
     <View style={styles.stepContainer}>
@@ -239,16 +287,18 @@ export default function RegistrarVeiculo({ onClose }: RegistrarVeiculoProps) {
   const renderConfirmacaoStep = () => {
     const handleConfirm = () => {
       // Aqui você implementaria a lógica para salvar os dados
-      Alert.alert(
-        '✅ Veículo Registrado!',
-        `O apartamento ${apartamento} foi notificado sobre a chegada do veículo ${placa} de ${nomeConvidado}.`,
-        [{ text: 'OK' }]
-      );
+      const message = `O apartamento ${apartamento} foi notificado sobre a chegada do veículo ${placa} de ${nomeConvidado}.`;
       
-      // Fechar automaticamente após 3 segundos
-      setTimeout(() => {
+      if (onConfirm) {
+        onConfirm(message);
+      } else {
+        Alert.alert(
+          '✅ Veículo Registrado!',
+          message,
+          [{ text: 'OK' }]
+        );
         onClose();
-      }, 3000);
+      }
     };
 
     return (
@@ -302,6 +352,8 @@ export default function RegistrarVeiculo({ onClose }: RegistrarVeiculoProps) {
     switch (currentStep) {
       case 'apartamento':
         return renderApartamentoStep();
+      case 'empresa':
+        return renderEmpresaStep();
       case 'placa':
         return renderPlacaStep();
       case 'marca':
@@ -616,5 +668,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  empresasContainer: {
+    flex: 1,
+    marginTop: 20,
+  },
+  empresasGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 15,
+  },
+  empresaButton: {
+    width: '48%',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  empresaIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  empresaNome: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
   },
 });

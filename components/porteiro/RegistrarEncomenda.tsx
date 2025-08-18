@@ -6,6 +6,7 @@ type FlowStep = 'apartamento' | 'empresa' | 'entregador' | 'observacoes' | 'foto
 
 interface RegistrarEncomendaProps {
   onClose: () => void;
+  onConfirm?: (message: string) => void;
 }
 
 const empresasEntrega = [
@@ -20,7 +21,7 @@ const empresasEntrega = [
   { id: 'outros', nome: 'Outros', icon: '📦', cor: '#666666' },
 ];
 
-export default function RegistrarEncomenda({ onClose }: RegistrarEncomendaProps) {
+export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEncomendaProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [empresaSelecionada, setEmpresaSelecionada] = useState<typeof empresasEntrega[0] | null>(null);
@@ -219,16 +220,18 @@ export default function RegistrarEncomenda({ onClose }: RegistrarEncomendaProps)
   const renderConfirmacaoStep = () => {
     const handleConfirm = () => {
       // Aqui você implementaria a lógica para salvar os dados
-      Alert.alert(
-        '✅ Encomenda Registrada!',
-        `O apartamento ${apartamento} foi notificado sobre a chegada da encomenda ${empresaSelecionada?.nome}.`,
-        [{ text: 'OK' }]
-      );
+      const message = `O apartamento ${apartamento} foi notificado sobre a chegada da encomenda ${empresaSelecionada?.nome}.`;
       
-      // Fechar automaticamente após 3 segundos
-      setTimeout(() => {
+      if (onConfirm) {
+        onConfirm(message);
+      } else {
+        Alert.alert(
+          '✅ Encomenda Registrada!',
+          message,
+          [{ text: 'OK' }]
+        );
         onClose();
-      }, 3000);
+      }
     };
 
     return (

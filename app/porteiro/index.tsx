@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Alert, Modal } from 'react-native';
 import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
@@ -7,6 +7,7 @@ import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
+import { flattenStyles } from '~/utils/styles';
 
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'historico';
 
@@ -19,9 +20,39 @@ export default function PorteiroDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<any>(null);
   const [expandedCard, setExpandedCard] = useState(false);
+  
+  // Estados para modal de confirmação
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [countdown, setCountdown] = useState(5);
 
   const handlePanicButton = () => {
     router.push('/emergency');
+  };
+
+  // Função para mostrar modal de confirmação
+  const showConfirmationModal = (message: string) => {
+    setConfirmMessage(message);
+    setShowConfirmModal(true);
+    setCountdown(5);
+    
+    // Iniciar countdown
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setShowConfirmModal(false);
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Função para fechar modal manualmente
+  const closeConfirmModal = () => {
+    setShowConfirmModal(false);
+    setCountdown(5);
   };
 
   const handleUserMenuToggle = () => {
@@ -113,7 +144,7 @@ export default function PorteiroDashboard() {
       
       <View style={styles.buttonsContainer}>
         <TouchableOpacity 
-          style={[styles.actionButton, styles.visitorButton]}
+          style={flattenStyles([styles.actionButton, styles.visitorButton])}
           onPress={() => setActiveFlow('visitante')}
         >
           <Text style={styles.buttonIcon}>👋</Text>
@@ -122,7 +153,7 @@ export default function PorteiroDashboard() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.actionButton, styles.deliveryButton]}
+          style={flattenStyles([styles.actionButton, styles.deliveryButton])}
           onPress={() => setActiveFlow('encomenda')}
         >
           <Text style={styles.buttonIcon}>📦</Text>
@@ -131,7 +162,7 @@ export default function PorteiroDashboard() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.actionButton, styles.vehicleButton]}
+          style={flattenStyles([styles.actionButton, styles.vehicleButton])}
           onPress={() => setActiveFlow('veiculo')}
         >
           <Text style={styles.buttonIcon}>🚗</Text>
@@ -143,7 +174,7 @@ export default function PorteiroDashboard() {
   );
 
   const renderAutorizacoesTab = () => {
-    // Dados mockados de autorizações pré-aprovadas
+    // Dados mockados de autorizações pré-aprovadas com mais variedade
     const autorizacoes = [
       {
         id: 1,
@@ -152,7 +183,10 @@ export default function PorteiroDashboard() {
         apartamento: '101',
         dataAprovacao: '2024-01-15',
         horaAprovacao: '14:30',
-        tipo: 'Visitante'
+        tipo: 'Visitante',
+        status: 'pre_autorizado',
+        statusLabel: 'Pré-autorizado',
+        statusColor: '#4CAF50'
       },
       {
         id: 2,
@@ -161,7 +195,10 @@ export default function PorteiroDashboard() {
         apartamento: '205',
         dataAprovacao: '2024-01-15',
         horaAprovacao: '16:45',
-        tipo: 'Prestador de Serviço'
+        tipo: 'Prestador de Serviço',
+        status: 'controle_livre',
+        statusLabel: 'Controle Livre',
+        statusColor: '#FF9800'
       },
       {
         id: 3,
@@ -170,48 +207,149 @@ export default function PorteiroDashboard() {
         apartamento: '304',
         dataAprovacao: '2024-01-15',
         horaAprovacao: '18:20',
-        tipo: 'Visitante'
+        tipo: 'Visitante',
+        status: 'horario_permitido',
+        statusLabel: 'Horário: 18h-22h',
+        statusColor: '#2196F3'
+      },
+      {
+        id: 4,
+        nomeConvidado: 'Rafael Costa',
+        moradorAprovador: 'Mariana Silva',
+        apartamento: '102',
+        dataAprovacao: '2024-01-15',
+        horaAprovacao: '19:15',
+        tipo: 'Convidado',
+        status: 'autorizado_subida',
+        statusLabel: 'Autorizado - Pode Subir',
+        statusColor: '#4CAF50',
+        jaAutorizado: true
+      },
+      {
+        id: 5,
+        nomeConvidado: 'Entregador Mercado Livre',
+        moradorAprovador: 'Carlos Mendes',
+        apartamento: '203',
+        dataAprovacao: '2024-01-15',
+        horaAprovacao: '20:00',
+        tipo: 'Encomenda',
+        status: 'deixar_portaria',
+        statusLabel: 'Deixar na Portaria',
+        statusColor: '#9C27B0',
+        isEncomenda: true
       }
     ];
 
     const confirmarChegada = (autorizacao: any) => {
-      // Aqui seria implementada a lógica para registrar a chegada
-      alert(`Chegada confirmada para ${autorizacao.nomeConvidado}`);
+      setSelectedAuth(autorizacao);
+      setShowConfirmModal(true);
+      setCountdown(5);
+      
+      // Iniciar countdown
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setShowConfirmModal(false);
+            return 5;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    };
+
+    const getStatusTag = (autorizacao: any) => {
+      return (
+        <View style={flattenStyles([styles.statusTag, { backgroundColor: autorizacao.statusColor }])}>
+          <Text style={styles.statusTagText}>{autorizacao.statusLabel}</Text>
+        </View>
+      );
     };
 
     return (
-      <ScrollView style={styles.tabContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>✅ Autorizações</Text>
-          <Text style={styles.headerSubtitle}>Convidados pré-aprovados</Text>
-        </View>
-        
-        <View style={styles.buttonsContainer}>
-          {autorizacoes.map((autorizacao) => (
-            <View key={autorizacao.id} style={styles.authorizationCard}>
-              <View style={styles.authCardHeader}>
-                <Text style={styles.authCardIcon}>{autorizacao.tipo === 'Visitante' ? '👤' : '🔧'}</Text>
-                <View style={styles.authCardInfo}>
-                  <Text style={styles.authCardTitle}>Convidado {autorizacao.nomeConvidado}</Text>
-                  <Text style={styles.authCardSubtitle}>
-                    Aprovado por {autorizacao.moradorAprovador} do Apartamento {autorizacao.apartamento}
+      <>
+        <ScrollView style={styles.tabContent}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>✅ Autorizações</Text>
+            <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
+          </View>
+          
+          <View style={styles.buttonsContainer}>
+            {autorizacoes.map((autorizacao) => (
+              <View key={autorizacao.id} style={styles.authorizationCard}>
+                <View style={styles.authCardHeader}>
+                  <Text style={styles.authCardIcon}>
+                    {autorizacao.tipo === 'Visitante' ? '👤' : 
+                     autorizacao.tipo === 'Prestador de Serviço' ? '🔧' :
+                     autorizacao.tipo === 'Convidado' ? '🎉' :
+                     autorizacao.tipo === 'Encomenda' ? '📦' : '👤'}
                   </Text>
-                  <Text style={styles.authCardTime}>
-                    {autorizacao.dataAprovacao} às {autorizacao.horaAprovacao}
-                  </Text>
+                  <View style={styles.authCardInfo}>
+                    <View style={styles.authCardTitleRow}>
+                      <Text style={styles.authCardTitle}>
+                        {autorizacao.isEncomenda ? 'Encomenda' : 'Convidado'} {autorizacao.nomeConvidado}
+                      </Text>
+                      {getStatusTag(autorizacao)}
+                    </View>
+                    <Text style={styles.authCardSubtitle}>
+                      {autorizacao.isEncomenda ? 
+                        `Solicitado por ${autorizacao.moradorAprovador} - Apt. ${autorizacao.apartamento}` :
+                        `Aprovado por ${autorizacao.moradorAprovador} do Apartamento ${autorizacao.apartamento}`
+                      }
+                    </Text>
+                    <Text style={styles.authCardTime}>
+                      {autorizacao.dataAprovacao} às {autorizacao.horaAprovacao}
+                    </Text>
+                    {autorizacao.jaAutorizado && (
+                      <Text style={styles.authCardStatus}>✅ Morador já autorizou a subida</Text>
+                    )}
+                  </View>
                 </View>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.confirmButton,
+                    autorizacao.isEncomenda && styles.encomendaButton,
+                    autorizacao.jaAutorizado && styles.autorizedButton
+                  ]}
+                  onPress={() => confirmarChegada(autorizacao)}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {autorizacao.isEncomenda ? '📦 Receber Encomenda' :
+                     autorizacao.jaAutorizado ? '✅ Liberar Subida' :
+                     '✓ Confirmar Chegada'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Modal de Confirmação */}
+        {showConfirmModal && selectedAuth && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.confirmModal}>
+              <Text style={styles.confirmModalIcon}>✅</Text>
+              <Text style={styles.confirmModalTitle}>Morador Notificado!</Text>
+              <Text style={styles.confirmModalMessage}>
+                {selectedAuth.isEncomenda ? 
+                  `A encomenda de ${selectedAuth.nomeConvidado} foi registrada na portaria.` :
+                  selectedAuth.jaAutorizado ?
+                    `${selectedAuth.nomeConvidado} foi liberado para subir ao apartamento ${selectedAuth.apartamento}.` :
+                    `O morador do apartamento ${selectedAuth.apartamento} foi notificado sobre a chegada de ${selectedAuth.nomeConvidado}.`
+                }
+              </Text>
+              <Text style={styles.countdownText}>Fechando em {countdown} segundos...</Text>
               <TouchableOpacity 
-                style={styles.confirmButton}
-                onPress={() => confirmarChegada(autorizacao)}
+                style={styles.closeModalButton}
+                onPress={() => setShowConfirmModal(false)}
               >
-                <Text style={styles.confirmButtonText}>✓ Confirmar Chegada</Text>
+                <Text style={styles.closeModalButtonText}>Fechar</Text>
               </TouchableOpacity>
             </View>
-          ))}
-        </View>
-      </ScrollView>
+          </View>
+        )}
+      </>
     );
   };
 
@@ -410,7 +548,7 @@ export default function PorteiroDashboard() {
         
         <View style={styles.buttonsContainer}>
           {avisos.map((aviso) => (
-            <View key={aviso.id} style={[styles.avisoCard, { borderLeftColor: getCorPrioridade(aviso.prioridade) }]}>
+            <View key={aviso.id} style={flattenStyles([styles.avisoCard, { borderLeftColor: getCorPrioridade(aviso.prioridade) }])}>
               <View style={styles.avisoHeader}>
                 <Text style={styles.avisoIcon}>{getIconeAviso(aviso.tipo)}</Text>
                 <View style={styles.avisoInfo}>
@@ -517,7 +655,7 @@ export default function PorteiroDashboard() {
         
         <View style={styles.buttonsContainer}>
           {historico.map((item) => (
-            <View key={item.id} style={[styles.historicoCard, { borderLeftColor: getCorStatus(item.status) }]}>
+            <View key={item.id} style={flattenStyles([styles.historicoCard, { borderLeftColor: getCorStatus(item.status) }])}>
               <View style={styles.historicoHeader}>
                 <Text style={styles.historicoIcon}>{getIconeAcao(item.tipo)}</Text>
                 <View style={styles.historicoInfo}>
@@ -525,7 +663,7 @@ export default function PorteiroDashboard() {
                   <Text style={styles.historicoDetalhes}>{item.detalhes}</Text>
                   <Text style={styles.historicoDateTime}>{item.data} às {item.hora}</Text>
                 </View>
-                <View style={[styles.statusBadge, { backgroundColor: getCorStatus(item.status) }]}>
+                <View style={flattenStyles([styles.statusBadge, { backgroundColor: getCorStatus(item.status) }])}>
                   <Text style={styles.statusText}>
                     {item.status === 'concluido' ? '✓' : item.status === 'ativo' ? '●' : '⏳'}
                   </Text>
@@ -559,15 +697,33 @@ export default function PorteiroDashboard() {
     <ProtectedRoute redirectTo="/porteiro/login" userType="porteiro">
       {/* Renderizar fluxos modais */}
       {activeFlow === 'visitante' && (
-        <RegistrarVisitante onClose={() => setActiveFlow(null)} />
+        <RegistrarVisitante 
+          onClose={() => setActiveFlow(null)} 
+          onConfirm={(message: string) => {
+            setActiveFlow(null);
+            showConfirmationModal(message);
+          }}
+        />
       )}
       
       {activeFlow === 'encomenda' && (
-        <RegistrarEncomenda onClose={() => setActiveFlow(null)} />
+        <RegistrarEncomenda 
+          onClose={() => setActiveFlow(null)}
+          onConfirm={(message: string) => {
+            setActiveFlow(null);
+            showConfirmationModal(message);
+          }}
+        />
       )}
       
       {activeFlow === 'veiculo' && (
-        <RegistrarVeiculo onClose={() => setActiveFlow(null)} />
+        <RegistrarVeiculo 
+          onClose={() => setActiveFlow(null)}
+          onConfirm={(message: string) => {
+            setActiveFlow(null);
+            showConfirmationModal(message);
+          }}
+        />
       )}
 
       {!activeFlow && (
@@ -580,47 +736,72 @@ export default function PorteiroDashboard() {
           {/* Navegação Inferior Fixa */}
           <View style={styles.bottomNavigation}>
           <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'chegada' && styles.navItemActive]}
+            style={flattenStyles([styles.navItem, activeTab === 'chegada' && styles.navItemActive])}
             onPress={() => setActiveTab('chegada')}
           >
-            <Text style={[styles.navIcon, activeTab === 'chegada' && styles.navIconActive]}>🏠</Text>
-            <Text style={[styles.navLabel, activeTab === 'chegada' && styles.navLabelActive]}>Chegada</Text>
+            <Text style={flattenStyles([styles.navIcon, activeTab === 'chegada' && styles.navIconActive])}>🏠</Text>
+            <Text style={flattenStyles([styles.navLabel, activeTab === 'chegada' && styles.navLabelActive])}>Chegada</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'autorizacoes' && styles.navItemActive]}
+            style={flattenStyles([styles.navItem, activeTab === 'autorizacoes' && styles.navItemActive])}
             onPress={() => setActiveTab('autorizacoes')}
           >
-            <Text style={[styles.navIcon, activeTab === 'autorizacoes' && styles.navIconActive]}>✅</Text>
-            <Text style={[styles.navLabel, activeTab === 'autorizacoes' && styles.navLabelActive]}>Autorizações</Text>
+            <Text style={flattenStyles([styles.navIcon, activeTab === 'autorizacoes' && styles.navIconActive])}>✅</Text>
+            <Text style={flattenStyles([styles.navLabel, activeTab === 'autorizacoes' && styles.navLabelActive])}>Autorizações</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'consulta' && styles.navItemActive]}
+            style={flattenStyles([styles.navItem, activeTab === 'consulta' && styles.navItemActive])}
             onPress={() => setActiveTab('consulta')}
           >
-            <Text style={[styles.navIcon, activeTab === 'consulta' && styles.navIconActive]}>🔍</Text>
-            <Text style={[styles.navLabel, activeTab === 'consulta' && styles.navLabelActive]}>Consulta</Text>
+            <Text style={flattenStyles([styles.navIcon, activeTab === 'consulta' && styles.navIconActive])}>🔍</Text>
+            <Text style={flattenStyles([styles.navLabel, activeTab === 'consulta' && styles.navLabelActive])}>Consulta</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'avisos' && styles.navItemActive]}
+            style={flattenStyles([styles.navItem, activeTab === 'avisos' && styles.navItemActive])}
             onPress={() => setActiveTab('avisos')}
           >
-            <Text style={[styles.navIcon, activeTab === 'avisos' && styles.navIconActive]}>📢</Text>
-            <Text style={[styles.navLabel, activeTab === 'avisos' && styles.navLabelActive]}>Avisos</Text>
+            <Text style={flattenStyles([styles.navIcon, activeTab === 'avisos' && styles.navIconActive])}>📢</Text>
+            <Text style={flattenStyles([styles.navLabel, activeTab === 'avisos' && styles.navLabelActive])}>Avisos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'historico' && styles.navItemActive]}
+            style={flattenStyles([styles.navItem, activeTab === 'historico' && styles.navItemActive])}
             onPress={() => setActiveTab('historico')}
           >
-            <Text style={[styles.navIcon, activeTab === 'historico' && styles.navIconActive]}>📚</Text>
-            <Text style={[styles.navLabel, activeTab === 'historico' && styles.navLabelActive]}>Histórico</Text>
+            <Text style={flattenStyles([styles.navIcon, activeTab === 'historico' && styles.navIconActive])}>📚</Text>
+            <Text style={flattenStyles([styles.navLabel, activeTab === 'historico' && styles.navLabelActive])}>Histórico</Text>
           </TouchableOpacity>
         </View>
         </SafeAreaView>
       )}
+      
+      {/* Modal de Confirmação */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeConfirmModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmModalContainer}>
+            <Text style={styles.confirmModalIcon}>✅</Text>
+            <Text style={styles.confirmModalTitle}>Registro Confirmado!</Text>
+            <Text style={styles.confirmModalMessage}>{confirmMessage}</Text>
+            <Text style={styles.countdownText}>
+              Fechando automaticamente em {countdown} segundos...
+            </Text>
+            <TouchableOpacity 
+              style={styles.closeModalButton}
+              onPress={closeConfirmModal}
+            >
+              <Text style={styles.closeModalButtonText}>Fechar Manualmente</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ProtectedRoute>
   );
 }
@@ -1129,8 +1310,166 @@ const styles = StyleSheet.create({
       marginRight: 8,
     },
     userMenuText: {
-      fontSize: 14,
-      color: '#333',
-      fontWeight: '500',
-    },
-  });
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  // Novos estilos para autorizações
+  authCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  statusTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  statusTagText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  authCardStatus: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  encomendaButton: {
+    backgroundColor: '#9C27B0',
+  },
+  autorizedButton: {
+    backgroundColor: '#4CAF50',
+  },
+  // Estilos do modal de confirmação
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  confirmModal: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    margin: 20,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    maxWidth: 350,
+  },
+  confirmModalIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  confirmModalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  countdownText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+    marginBottom: 20,
+  },
+  closeModalButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  closeModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Estilos para modal de confirmação
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    maxWidth: 350,
+    width: '100%',
+  },
+  confirmModalIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  confirmModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  confirmModalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  countdownText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  closeModalButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  closeModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
