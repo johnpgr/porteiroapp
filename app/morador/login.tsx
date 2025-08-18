@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuthMock';
 
 export default function MoradorLogin() {
   const { signIn, user } = useAuth();
@@ -12,7 +12,7 @@ export default function MoradorLogin() {
 
   useEffect(() => {
     if (user && user.user_type === 'morador') {
-      router.replace('/moradores');
+      router.replace('/morador');
     }
   }, [user]);
 
