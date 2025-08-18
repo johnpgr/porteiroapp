@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
+import { Picker } from '@react-native-picker/picker';
 
 interface Communication {
   id: string;
@@ -19,15 +20,24 @@ interface Communication {
   type: 'geral' | 'emergencia' | 'manutencao' | 'evento';
   priority: 'baixa' | 'media' | 'alta';
   target_apartment?: string;
+  building_id?: string;
   created_by: string;
   created_at: string;
   read_by?: string[];
 }
 
+interface Building {
+  id: string;
+  name: string;
+}
+
 export default function Communications() {
   const [communications, setCommunications] = useState<Communication[]>([]);
+  const [filteredCommunications, setFilteredCommunications] = useState<Communication[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [buildingFilter, setBuildingFilter] = useState('');
   const [newComm, setNewComm] = useState({
     title: '',
     message: '',
@@ -38,7 +48,12 @@ export default function Communications() {
 
   useEffect(() => {
     fetchCommunications();
+    fetchBuildings();
   }, []);
+
+  useEffect(() => {
+    filterCommunications();
+  }, [communications, buildingFilter]);
 
   const fetchCommunications = async () => {
     try {
@@ -54,6 +69,30 @@ export default function Communications() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setBuildings(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar prédios:', error);
+    }
+  };
+
+  const filterCommunications = () => {
+    let filtered = communications;
+
+    if (buildingFilter) {
+      filtered = filtered.filter(comm => comm.building_id === buildingFilter);
+    }
+
+    setFilteredCommunications(filtered);
   };
 
   const handleAddCommunication = async () => {
@@ -199,6 +238,24 @@ export default function Communications() {
               {showAddForm ? '❌ Cancelar' : '➕ Novo Comunicado'}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterLabel}>Filtrar por prédio:</Text>
+            <Picker
+              selectedValue={buildingFilter}
+              style={styles.picker}
+              onValueChange={(itemValue) => setBuildingFilter(itemValue)}
+            >
+              <Picker.Item label="Todos os prédios" value="" />
+              {buildings.map((building) => (
+                <Picker.Item
+                  key={building.id}
+                  label={building.name}
+                  value={building.id}
+                />
+              ))}
+            </Picker>
+          </View>
         </View>
 
         {showAddForm && (
@@ -299,7 +356,7 @@ export default function Communications() {
         )}
 
         <ScrollView style={styles.commList}>
-          {communications.map((comm) => {
+          {filteredCommunications.map((comm) => {
             const { date, time } = formatDate(comm.created_at);
             return (
               <View key={comm.id} style={styles.commCard}>
@@ -382,6 +439,24 @@ const styles = StyleSheet.create({
   },
   actions: {
     padding: 20,
+  },
+  filterContainer: {
+    marginTop: 15,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 15,
+    elevation: 2,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#333',
+  },
+  picker: {
+    height: 50,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 8,
   },
   addButton: {
     backgroundColor: '#4CAF50',

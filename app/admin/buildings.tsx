@@ -1,0 +1,405 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Alert,
+} from 'react-native';
+import { router } from 'expo-router';
+import { Container } from '~/components/Container';
+import ProtectedRoute from '~/components/ProtectedRoute';
+import { supabase } from '~/utils/supabase';
+
+interface Building {
+  id: string;
+  name: string;
+  address: string;
+  created_at: string;
+}
+
+export default function BuildingsManagement() {
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newBuilding, setNewBuilding] = useState({
+    name: '',
+    address: '',
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchBuildings();
+  }, []);
+
+  const fetchBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setBuildings(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar prédios:', error);
+      Alert.alert('Erro', 'Falha ao carregar lista de prédios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddBuilding = async () => {
+    if (!newBuilding.name.trim()) {
+      Alert.alert('Erro', 'Nome do prédio é obrigatório');
+      return;
+    }
+
+    if (!newBuilding.address.trim()) {
+      Alert.alert('Erro', 'Endereço é obrigatório');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('buildings')
+        .insert({
+          name: newBuilding.name.trim(),
+          address: newBuilding.address.trim(),
+        });
+
+      if (error) throw error;
+
+      Alert.alert('Sucesso', 'Prédio cadastrado com sucesso');
+      setNewBuilding({ name: '', address: '' });
+      setShowAddForm(false);
+      fetchBuildings();
+    } catch (error) {
+      console.error('Erro ao cadastrar prédio:', error);
+      Alert.alert('Erro', 'Falha ao cadastrar prédio');
+    }
+  };
+
+  const handleDeleteBuilding = async (buildingId: string, buildingName: string) => {
+    Alert.alert(
+      'Confirmar Exclusão',
+      `Tem certeza que deseja excluir o prédio "${buildingName}"?\n\nEsta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('buildings')
+                .delete()
+                .eq('id', buildingId);
+
+              if (error) throw error;
+
+              Alert.alert('Sucesso', 'Prédio excluído com sucesso');
+              fetchBuildings();
+            } catch (error) {
+              console.error('Erro ao excluir prédio:', error);
+              Alert.alert('Erro', 'Falha ao excluir prédio');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <Container>
+        <View style={styles.loadingContainer}>
+          <Text>Carregando...</Text>
+        </View>
+      </Container>
+    );
+  }
+
+  return (
+    <ProtectedRoute requiredRole="admin">
+      <Container>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={styles.backButtonText}>← Voltar</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>Gerenciar Prédios</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddForm(!showAddForm)}
+            >
+              <Text style={styles.addButtonText}>
+                {showAddForm ? 'Cancelar' : '+ Novo'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.content}>
+            {showAddForm && (
+              <View style={styles.addForm}>
+                <Text style={styles.formTitle}>Novo Prédio</Text>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nome do Prédio *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: Edifício Residencial São Paulo"
+                    value={newBuilding.name}
+                    onChangeText={(text) => setNewBuilding(prev => ({ ...prev, name: text }))}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Endereço Completo *</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Ex: Rua das Flores, 123 - Centro - São Paulo/SP - CEP: 01234-567"
+                    value={newBuilding.address}
+                    onChangeText={(text) => setNewBuilding(prev => ({ ...prev, address: text }))}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <TouchableOpacity style={styles.submitButton} onPress={handleAddBuilding}>
+                  <Text style={styles.submitButtonText}>Cadastrar Prédio</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={styles.buildingsList}>
+              <Text style={styles.sectionTitle}>
+                Prédios Cadastrados ({buildings.length})
+              </Text>
+              
+              {buildings.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>🏢</Text>
+                  <Text style={styles.emptyStateTitle}>Nenhum prédio cadastrado</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Clique em "+ Novo" para cadastrar o primeiro prédio
+                  </Text>
+                </View>
+              ) : (
+                buildings.map((building) => (
+                  <View key={building.id} style={styles.buildingCard}>
+                    <View style={styles.buildingInfo}>
+                      <Text style={styles.buildingName}>{building.name}</Text>
+                      <Text style={styles.buildingAddress}>{building.address}</Text>
+                      <Text style={styles.buildingDate}>
+                        Cadastrado em: {new Date(building.created_at).toLocaleDateString('pt-BR')}
+                      </Text>
+                    </View>
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => router.push(`/admin/buildings/edit/${building.id}`)}
+                      >
+                        <Text style={styles.editButtonText}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteBuilding(building.id, building.name)}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </Container>
+    </ProtectedRoute>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    backgroundColor: '#FF9800',
+    paddingTop: 50,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  addButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+  },
+  addForm: {
+    backgroundColor: '#fff',
+    margin: 20,
+    padding: 20,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  buildingsList: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#333',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    elevation: 1,
+  },
+  emptyStateText: {
+    fontSize: 48,
+    marginBottom: 15,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  buildingCard: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  buildingInfo: {
+    flex: 1,
+  },
+  buildingName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  buildingAddress: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+    lineHeight: 18,
+  },
+  buildingDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#e3f2fd',
+  },
+  editButtonText: {
+    fontSize: 18,
+  },
+  deleteButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: '#ffebee',
+  },
+  deleteButtonText: {
+    fontSize: 18,
+  },
+});

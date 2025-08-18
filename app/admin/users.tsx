@@ -7,35 +7,73 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
+import * as ImagePicker from 'expo-image-picker';
+import { Picker } from '@react-native-picker/picker';
 
 interface User {
   id: string;
   name: string;
-  code: string;
   role: 'admin' | 'porteiro' | 'morador';
+  cpf?: string;
+  phone?: string;
+  email?: string;
+  building_id?: string;
   apartment_id?: string;
+  photo_url?: string;
   last_login?: string;
   created_at: string;
 }
 
+interface Building {
+  id: string;
+  name: string;
+}
+
+interface Apartment {
+  id: string;
+  number: string;
+  building_id: string;
+}
+
 export default function UsersManagement() {
   const [users, setUsers] = useState<User[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
-    code: '',
     role: 'morador' as 'admin' | 'porteiro' | 'morador',
+    cpf: '',
+    phone: '',
+    email: '',
+    building_id: '',
+    apartment_id: '',
+    photo_url: '',
     password: '',
   });
 
   useEffect(() => {
     fetchUsers();
+    fetchBuildings();
+    fetchApartments();
   }, []);
+
+  useEffect(() => {
+    if (newUser.building_id) {
+      const filtered = apartments.filter(apt => apt.building_id === newUser.building_id);
+      setFilteredApartments(filtered);
+      setNewUser(prev => ({ ...prev, apartment_id: '' }));
+    } else {
+      setFilteredApartments([]);
+    }
+  }, [newUser.building_id, apartments]);
 
   const fetchUsers = async () => {
     try {
@@ -53,24 +91,110 @@ export default function UsersManagement() {
     }
   };
 
-  const handleAddUser = async () => {
-    if (!newUser.name || !newUser.code) {
-      Alert.alert('Erro', 'Nome e código são obrigatórios');
+  const fetchBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setBuildings(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar prédios:', error);
+    }
+  };
+
+  const fetchApartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('apartments')
+        .select('*')
+        .order('number');
+
+      if (error) throw error;
+      setApartments(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar apartamentos:', error);
+    }
+  };
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert('Permissão necessária', 'É necessário permitir acesso à galeria de fotos.');
       return;
     }
 
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setNewUser(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!newUser.name) {
+      Alert.alert('Erro', 'Nome é obrigatório');
+      return;
+    }
+
+    if (newUser.role === 'morador' || newUser.role === 'porteiro') {
+      if (!newUser.cpf || !newUser.phone || !newUser.email) {
+        Alert.alert('Erro', 'CPF, telefone e email são obrigatórios');
+        return;
+      }
+      if (!newUser.building_id) {
+        Alert.alert('Erro', 'Prédio é obrigatório');
+        return;
+      }
+      if (newUser.role === 'morador' && !newUser.apartment_id) {
+        Alert.alert('Erro', 'Apartamento é obrigatório para moradores');
+        return;
+      }
+    }
+
     try {
-      const { error } = await supabase.from('users').insert({
+      const userData: any = {
         name: newUser.name,
-        code: newUser.code,
         role: newUser.role,
         password: newUser.password || null,
-      });
+      };
+
+      if (newUser.role === 'morador' || newUser.role === 'porteiro') {
+        userData.cpf = newUser.cpf;
+        userData.phone = newUser.phone;
+        userData.email = newUser.email;
+        userData.building_id = newUser.building_id;
+        userData.photo_url = newUser.photo_url;
+        
+        if (newUser.role === 'morador') {
+          userData.apartment_id = newUser.apartment_id;
+        }
+      }
+
+      const { error } = await supabase.from('users').insert(userData);
 
       if (error) throw error;
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
-      setNewUser({ name: '', code: '', role: 'morador', password: '' });
+      setNewUser({ 
+        name: '', 
+        role: 'morador', 
+        cpf: '', 
+        phone: '', 
+        email: '', 
+        building_id: '', 
+        apartment_id: '', 
+        photo_url: '', 
+        password: '' 
+      });
       setShowAddForm(false);
       fetchUsers();
     } catch (error) {
@@ -153,7 +277,7 @@ export default function UsersManagement() {
         </View>
 
         {showAddForm && (
-          <View style={styles.addForm}>
+          <ScrollView style={styles.addForm}>
             <Text style={styles.formTitle}>Novo Usuário</Text>
 
             <TextInput
@@ -161,15 +285,6 @@ export default function UsersManagement() {
               placeholder="Nome completo"
               value={newUser.name}
               onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Código de acesso"
-              value={newUser.code}
-              onChangeText={(text) => setNewUser((prev) => ({ ...prev, code: text }))}
-              keyboardType="numeric"
-              maxLength={6}
             />
 
             <View style={styles.roleSelector}>
@@ -196,6 +311,74 @@ export default function UsersManagement() {
               </View>
             </View>
 
+            {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="CPF"
+                  value={newUser.cpf}
+                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
+                  keyboardType="numeric"
+                  maxLength={14}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Telefone"
+                  value={newUser.phone}
+                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
+                  keyboardType="phone-pad"
+                />
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  value={newUser.email}
+                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <View style={styles.pickerContainer}>
+                  <Text style={styles.pickerLabel}>Prédio:</Text>
+                  <Picker
+                    selectedValue={newUser.building_id}
+                    style={styles.picker}
+                    onValueChange={(itemValue) => setNewUser((prev) => ({ ...prev, building_id: itemValue }))}>
+                    <Picker.Item label="Selecione um prédio" value="" />
+                    {buildings.map((building) => (
+                      <Picker.Item key={building.id} label={building.name} value={building.id} />
+                    ))}
+                  </Picker>
+                </View>
+
+                {newUser.role === 'morador' && newUser.building_id && (
+                  <View style={styles.pickerContainer}>
+                    <Text style={styles.pickerLabel}>Apartamento:</Text>
+                    <Picker
+                      selectedValue={newUser.apartment_id}
+                      style={styles.picker}
+                      onValueChange={(itemValue) => setNewUser((prev) => ({ ...prev, apartment_id: itemValue }))}>
+                      <Picker.Item label="Selecione um apartamento" value="" />
+                      {filteredApartments.map((apartment) => (
+                        <Picker.Item key={apartment.id} label={apartment.number} value={apartment.id} />
+                      ))}
+                    </Picker>
+                  </View>
+                )}
+
+                <View style={styles.photoSection}>
+                  <Text style={styles.photoLabel}>Foto do usuário:</Text>
+                  <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+                    <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
+                  </TouchableOpacity>
+                  {newUser.photo_url && (
+                    <Image source={{ uri: newUser.photo_url }} style={styles.photoPreview} />
+                  )}
+                </View>
+              </>
+            )}
+
             {newUser.role !== 'morador' && (
               <TextInput
                 style={styles.input}
@@ -209,17 +392,23 @@ export default function UsersManagement() {
             <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
               <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         )}
 
         <ScrollView style={styles.usersList}>
           {users.map((user) => (
             <View key={user.id} style={styles.userCard}>
               <View style={styles.userInfo}>
-                <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
+                {user.photo_url ? (
+                  <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
+                ) : (
+                  <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
+                )}
                 <View style={styles.userDetails}>
                   <Text style={styles.userName}>{user.name}</Text>
-                  <Text style={styles.userCode}>Código: {user.code}</Text>
+                  {user.cpf && <Text style={styles.userInfo}>CPF: {user.cpf}</Text>}
+                  {user.phone && <Text style={styles.userInfo}>Tel: {user.phone}</Text>}
+                  {user.email && <Text style={styles.userInfo}>Email: {user.email}</Text>}
                   <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
                     {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                   </Text>
@@ -291,6 +480,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     elevation: 3,
+    maxHeight: 500,
   },
   formTitle: {
     fontSize: 18,
@@ -402,5 +592,49 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+  },
+  pickerLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 5,
+    marginTop: 5,
+    color: '#333',
+  },
+  picker: {
+    height: 50,
+  },
+  photoSection: {
+    marginBottom: 15,
+  },
+  photoLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#333',
+  },
+  photoButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  photoButtonText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  photoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignSelf: 'center',
   },
 });
