@@ -7,9 +7,9 @@ import {
   Linking,
   Alert,
   ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function EmergencyPage() {
@@ -35,8 +35,7 @@ export default function EmergencyPage() {
 
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
-      <Container>
-        <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Text style={styles.backButtonText}>← Voltar</Text>
@@ -121,8 +120,7 @@ export default function EmergencyPage() {
             
             <View style={styles.bottomSpacing} />
           </ScrollView>
-        </View>
-      </Container>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }
@@ -134,7 +132,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#f44336',
-    paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },

@@ -8,9 +8,9 @@ import {
   TextInput,
   Alert,
   Image,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
@@ -273,17 +273,14 @@ export default function UsersManagement() {
 
   if (loading) {
     return (
-      <Container>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Carregando usuários...</Text>
-        </View>
-      </Container>
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Carregando usuários...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <Container>
-      <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
@@ -458,8 +455,7 @@ export default function UsersManagement() {
             </View>
           ))}
         </ScrollView>
-      </View>
-    </Container>
+    </SafeAreaView>
   );
 }
 
@@ -470,7 +466,6 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,

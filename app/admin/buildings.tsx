@@ -7,9 +7,9 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 
@@ -113,18 +113,15 @@ export default function BuildingsManagement() {
 
   if (loading) {
     return (
-      <Container>
-        <View style={styles.loadingContainer}>
-          <Text>Carregando...</Text>
-        </View>
-      </Container>
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text>Carregando...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <Container>
-        <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Text style={styles.backButtonText}>← Voltar</Text>
@@ -216,8 +213,7 @@ export default function BuildingsManagement() {
               )}
             </View>
           </ScrollView>
-        </View>
-      </Container>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }
@@ -234,7 +230,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingTop: 50,
     paddingBottom: 15,
     paddingHorizontal: 20,
     flexDirection: 'row',
