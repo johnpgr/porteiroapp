@@ -9,9 +9,9 @@ import {
   Alert,
   Image,
   Linking,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
@@ -960,13 +960,11 @@ export default function AdminDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
-      <Container>
-        <View style={styles.container}>
-          {renderHeader()}
-          {renderContent()}
-          {renderBottomNavigation()}
-        </View>
-      </Container>
+      <SafeAreaView style={styles.container}>
+        {renderHeader()}
+        {renderContent()}
+        {renderBottomNavigation()}
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }
@@ -978,7 +976,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingTop: 50,
     paddingBottom: 15,
     paddingHorizontal: 20,
   },
