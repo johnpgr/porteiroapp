@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, SafeAreaView, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -250,7 +250,8 @@ export default function ConfirmacaoVisitante() {
               )}
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }
