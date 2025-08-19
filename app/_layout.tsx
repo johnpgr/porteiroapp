@@ -6,12 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
-<<<<<<< HEAD
-import { AuthProvider } from '../hooks/useAuthMock';
-=======
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../hooks/useAuth';
->>>>>>> fc6f6d32def0dc013d1f554e3890ad88a86b0cb0
 // import { notificationService } from '../services/notificationService'; // TEMPORARIAMENTE DESABILITADO
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 // import * as Notifications from 'expo-notifications'; // TEMPORARIAMENTE DESABILITADO

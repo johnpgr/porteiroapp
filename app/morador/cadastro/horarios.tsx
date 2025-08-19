@@ -309,39 +309,74 @@ export default function HorariosCadastro() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              )}
-
-              {selectedSlotData && (
-                <View style={styles.selectedInfo}>
-                  <Text style={styles.selectedInfoTitle}>⏰ Horário selecionado:</Text>
-                  <Text style={styles.selectedInfoText}>
-                    {selectedSlotData.icon} {selectedSlotData.label} - {selectedSlotData.description}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.summaryContainer}>
-                <Text style={styles.summaryTitle}>📋 Resumo do Cadastro</Text>
-                <View style={styles.summaryContent}>
-                  <Text style={styles.summaryItem}>👤 Nome: {nome}</Text>
-                  <Text style={styles.summaryItem}>👥 Relacionamento: {getRelationshipLabel(relacionamento || '').replace(/^[^\s]+\s/, '')}</Text>
-                  <Text style={styles.summaryItem}>📱 Telefone: {telefone}</Text>
-                  {placa && <Text style={styles.summaryItem}>🚗 Placa: {placa}</Text>}
-                  <Text style={styles.summaryItem}>🔐 Acesso: {getAccessLabel(acesso || '').replace(/^[^\s]+\s/, '')}</Text>
-                  <Text style={styles.summaryItem}>📅 Dias: {getDaysLabel(dias || '')}</Text>
-                  <Text style={styles.summaryItem}>⏰ Horários: {selectedSlotData?.description}</Text>
-                </View>
               </View>
+            )}
+                
+                <View style={styles.customTimePresets}>
+                  <Text style={styles.presetsTitle}>Sugestões:</Text>
+                  <View style={styles.presetsList}>
+                    <TouchableOpacity 
+                      style={styles.presetButton}
+                      onPress={() => {
+                        setCustomStartTime('07:00');
+                        setCustomEndTime('19:00');
+                      }}
+                    >
+                      <Text style={styles.presetText}>7h-19h</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.presetButton}
+                      onPress={() => {
+                        setCustomStartTime('09:00');
+                        setCustomEndTime('17:00');
+                      }}
+                    >
+                      <Text style={styles.presetText}>9h-17h</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.presetButton}
+                      onPress={() => {
+                        setCustomStartTime('14:00');
+                        setCustomEndTime('22:00');
+                      }}
+                    >
+                      <Text style={styles.presetText}>14h-22h</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
-              <View style={styles.tipContainer}>
-                <Ionicons name="information-circle" size={20} color="#2196F3" />
-                <Text style={styles.tipText}>
-                  Após finalizar, você poderá editar todas essas informações na lista de pessoas cadastradas
+            {selectedSlotData && (
+              <View style={styles.selectedInfo}>
+                <Text style={styles.selectedInfoTitle}>⏰ Horário selecionado:</Text>
+                <Text style={styles.selectedInfoText}>
+                  {selectedSlotData.icon} {selectedSlotData.label} - {selectedSlotData.description}
                 </Text>
               </View>
-            </View>
-          </ScrollView>
+            )}
 
+            <View style={styles.summaryContainer}>
+              <Text style={styles.summaryTitle}>📋 Resumo do Cadastro</Text>
+              <View style={styles.summaryContent}>
+                <Text style={styles.summaryItem}>👤 Nome: {nome}</Text>
+                <Text style={styles.summaryItem}>👥 Relacionamento: {getRelationshipLabel(relacionamento || '').replace(/^[^\s]+\s/, '')}</Text>
+                <Text style={styles.summaryItem}>📱 Telefone: {telefone}</Text>
+                {placa && <Text style={styles.summaryItem}>🚗 Placa: {placa}</Text>}
+                <Text style={styles.summaryItem}>🔐 Acesso: {getAccessLabel(acesso || '').replace(/^[^\s]+\s/, '')}</Text>
+                <Text style={styles.summaryItem}>📅 Dias: {getDaysLabel(dias || '')}</Text>
+                <Text style={styles.summaryItem}>⏰ Horários: {selectedSlotData?.description}</Text>
+              </View>
+            </View>
+
+            <View style={styles.tipContainer}>
+              <Ionicons name="information-circle" size={20} color="#2196F3" />
+              <Text style={styles.tipText}>
+                Após finalizar, você poderá editar todas essas informações na lista de pessoas cadastradas
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+          
           <View style={styles.footer}>
             <TouchableOpacity
               style={styles.backFooterButton}
@@ -350,7 +385,7 @@ export default function HorariosCadastro() {
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
-
+ 
             <TouchableOpacity
               style={[
                 styles.finishButton,
@@ -372,7 +407,6 @@ export default function HorariosCadastro() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
       </SafeAreaView>
     </ProtectedRoute>
   );

@@ -126,7 +126,9 @@ export default function NovoCadastro() {
               />
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
+      </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

@@ -231,8 +231,9 @@ export default function FotoCadastro() {
               </View>
             </View>
           </View>
+        </ScrollView>
 
-          <View style={styles.footer}>
+        <View style={styles.footer}>
             <TouchableOpacity
               style={styles.backFooterButton}
               onPress={handleBack}
@@ -257,8 +258,6 @@ export default function FotoCadastro() {
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
       </SafeAreaView>
     </ProtectedRoute>
   );

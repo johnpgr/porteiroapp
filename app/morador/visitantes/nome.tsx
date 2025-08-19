@@ -130,6 +130,7 @@ export default function NomeVisitante() {
           </TouchableOpacity>
         </View>
       </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

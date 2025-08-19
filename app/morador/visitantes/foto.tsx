@@ -182,9 +182,10 @@ export default function FotoVisitante() {
                 A foto ajuda o porteiro a identificar o visitante com mais facilidade
               </Text>
             </View>
-          </ScrollView>
+          </View>
+        </ScrollView>
 
-          <View style={styles.footer}>
+        <View style={styles.footer}>
             <TouchableOpacity
               style={styles.backFooterButton}
               onPress={handleBack}
@@ -208,7 +209,7 @@ export default function FotoVisitante() {
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }
