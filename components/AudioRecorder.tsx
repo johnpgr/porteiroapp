@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { audioService, AudioRecording } from '../services/audioService';
+import { flattenStyles } from '../utils/styles';
 
 interface AudioRecorderProps {
   onRecordingComplete?: (recording: AudioRecording) => void;
@@ -128,7 +129,7 @@ export default function AudioRecorder({
 
   if (hasPermission === null) {
     return (
-      <View style={[styles.container, style]}>
+      <View style={flattenStyles([styles.container, style])}>
         <Text style={styles.permissionText}>Verificando permissões...</Text>
       </View>
     );
@@ -136,7 +137,7 @@ export default function AudioRecorder({
 
   if (hasPermission === false) {
     return (
-      <View style={[styles.container, style]}>
+      <View style={flattenStyles([styles.container, style])}>
         <TouchableOpacity style={styles.permissionButton} onPress={checkPermissions}>
           <Ionicons name="mic-off" size={24} color="#F44336" />
           <Text style={styles.permissionText}>Permitir Microfone</Text>
@@ -146,7 +147,7 @@ export default function AudioRecorder({
   }
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={flattenStyles([styles.container, style])}>
       <TouchableOpacity
         style={[
           styles.recordButton,
@@ -166,8 +167,8 @@ export default function AudioRecorder({
       {isRecording && (
         <View style={styles.recordingInfo}>
           <View style={styles.recordingIndicator}>
-            <View style={[styles.recordingDot, { backgroundColor: getRecordingColor() }]} />
-            <Text style={[styles.recordingText, { color: getRecordingColor() }]}>REC</Text>
+            <View style={flattenStyles([styles.recordingDot, { backgroundColor: getRecordingColor() }])} />
+            <Text style={flattenStyles([styles.recordingText, { color: getRecordingColor() }])}>REC</Text>
           </View>
 
           <Text style={styles.durationText}>{formatTime(recordingDuration)}</Text>

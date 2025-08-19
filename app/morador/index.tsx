@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, Saf
 import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import { useAuth } from '~/hooks/useAuthMock';
+import { useAuth } from '~/hooks/useAuth';
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();

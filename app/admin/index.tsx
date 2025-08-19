@@ -566,20 +566,26 @@ export default function AdminDashboard() {
         </>
       ) : (
         <>
-          <View style={styles.cardsContainer}>
-            <View style={styles.searchCard}>
-              <Text style={styles.cardIcon}>🔍</Text>
-              <TextInput
-                style={styles.searchCardInput}
-                placeholder="Buscar por placa, modelo, vaga, morador..."
-                value={vehicleSearchQuery}
-                onChangeText={setVehicleSearchQuery}
-              />
-            </View>
+          <View style={styles.vehicleActionsContainer}>
             <TouchableOpacity style={styles.newUserCard} onPress={() => setShowAddVehicleForm(!showAddVehicleForm)}>
-              <Text style={styles.cardIcon}>{showAddVehicleForm ? '🔍' : '🚗+'}</Text>
-              <Text style={styles.newUserCardText}>{showAddVehicleForm ? 'Buscar' : 'Novo Veículo'}</Text>
+              <Text style={styles.cardIcon}>{showAddVehicleForm ? '❌' : '🚗+'}</Text>
+              <Text style={styles.newUserCardText}>{showAddVehicleForm ? 'Cancelar' : 'Novo Veículo'}</Text>
             </TouchableOpacity>
+            
+            <View style={styles.vehicleSearchContainer}>
+              <View style={styles.searchCard}>
+                <Text style={styles.cardIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchCardInput}
+                  placeholder="Buscar por placa, modelo, vaga, morador..."
+                  value={vehicleSearchQuery}
+                  onChangeText={setVehicleSearchQuery}
+                />
+              </View>
+              <TouchableOpacity style={styles.vehicleSearchButton} onPress={() => filterVehicles()}>
+                <Text style={styles.vehicleSearchButtonText}>🔍 Procurar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {showAddVehicleForm && (
@@ -978,6 +984,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
     paddingBottom: 15,
     paddingHorizontal: 20,
+    zIndex: 50,
   },
   headerContent: {
     flexDirection: 'row',
@@ -1075,6 +1082,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 20,
     gap: 10,
+  },
+  vehicleActionsContainer: {
+    padding: 20,
+    gap: 12,
+  },
+  vehicleSearchContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  vehicleSearchButton: {
+    backgroundColor: '#2196F3',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  vehicleSearchButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchCard: {
     flex: 1,
@@ -1351,11 +1380,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 10,
     paddingHorizontal: 5,
-    elevation: 8,
+    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    zIndex: 100,
   },
   navItem: {
     flex: 1,
@@ -1377,20 +1407,21 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
+    zIndex: 1000,
   },
   avatarMenu: {
     position: 'absolute',
     top: 50,
     left: -50,
     backgroundColor: '#fff',
-    borderRadius: 8,
-    elevation: 50,
+    borderRadius: 12,
+    elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     minWidth: 150,
-    zIndex: 999999,
+    zIndex: 10000,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },

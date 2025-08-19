@@ -289,18 +289,23 @@ export default function UsersManagement() {
         </View>
 
         <View style={styles.actions}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          
           <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>
               {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
             </Text>
           </TouchableOpacity>
+          
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <TouchableOpacity style={styles.searchButton} onPress={() => filterUsers()}>
+              <Text style={styles.searchButtonText}>🔍 Procurar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {showAddForm && (
@@ -489,13 +494,32 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 12,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   searchInput: {
+    flex: 1,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#ddd',
+  },
+  searchButton: {
+    backgroundColor: '#2196F3',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButton: {
     backgroundColor: '#4CAF50',

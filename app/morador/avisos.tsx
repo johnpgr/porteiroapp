@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, A
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import { flattenStyles } from '~/utils/styles';
 
 type Notice = {
   id: string;
@@ -225,33 +226,33 @@ export default function Avisos() {
                 return (
                   <TouchableOpacity
                     key={category.id}
-                    style={[
+                    style={flattenStyles([
                       styles.categoryButton,
                       selectedCategory === category.id && styles.categoryButtonActive
-                    ]}
+                    ])}
                     onPress={() => setSelectedCategory(category.id)}
                   >
-                    <Text style={[
+                    <Text style={flattenStyles([
                       styles.categoryIcon,
                       selectedCategory === category.id && styles.categoryIconActive
-                    ]}>
+                    ])}>
                       {category.icon}
                     </Text>
-                    <Text style={[
+                    <Text style={flattenStyles([
                       styles.categoryLabel,
                       selectedCategory === category.id && styles.categoryLabelActive
-                    ]}>
+                    ])}>
                       {category.label}
                     </Text>
                     {categoryCount > 0 && (
-                      <View style={[
+                      <View style={flattenStyles([
                         styles.categoryBadge,
                         selectedCategory === category.id && styles.categoryBadgeActive
-                      ]}>
-                        <Text style={[
+                      ])}>
+                        <Text style={flattenStyles([
                           styles.categoryBadgeText,
                           selectedCategory === category.id && styles.categoryBadgeTextActive
-                        ]}>
+                        ])}>
                           {categoryCount}
                         </Text>
                       </View>
@@ -285,10 +286,10 @@ export default function Avisos() {
                 {filteredNotices.map((notice) => (
                   <TouchableOpacity
                     key={notice.id}
-                    style={[
+                    style={flattenStyles([
                       styles.noticeCard,
                       !notice.isRead && styles.noticeCardUnread
-                    ]}
+                    ])}
                     onPress={() => markAsRead(notice.id)}
                   >
                     <View style={styles.noticeHeader}>
@@ -297,10 +298,10 @@ export default function Avisos() {
                           {getCategoryIcon(notice.category)}
                         </Text>
                         <View 
-                          style={[
+                          style={flattenStyles([
                             styles.noticePriority,
                             { backgroundColor: getPriorityColor(notice.priority) }
-                          ]} 
+                          ])} 
                         />
                       </View>
                       
@@ -317,10 +318,10 @@ export default function Avisos() {
                     </View>
                     
                     <View style={styles.noticeContent}>
-                      <Text style={[
+                      <Text style={flattenStyles([
                         styles.noticeTitle,
                         !notice.isRead && styles.noticeTitleUnread
-                      ]}>
+                      ])}>
                         {notice.title}
                       </Text>
                       <Text style={styles.noticeDescription}>
@@ -330,15 +331,15 @@ export default function Avisos() {
                     
                     <View style={styles.noticeFooter}>
                       <View 
-                        style={[
+                        style={flattenStyles([
                           styles.categoryTag,
                           { backgroundColor: getCategoryColor(notice.category) + '20' }
-                        ]}
+                        ])}
                       >
-                        <Text style={[
+                        <Text style={flattenStyles([
                           styles.categoryTagText,
                           { color: getCategoryColor(notice.category) }
-                        ]}>
+                        ])}>
                           {categories.find(c => c.id === notice.category)?.label || notice.category}
                         </Text>
                       </View>

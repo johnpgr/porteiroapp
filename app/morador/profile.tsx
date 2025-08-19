@@ -15,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
-import { useAuth } from '~/hooks/useAuthMock';
+import { useAuth } from '~/hooks/useAuth';
+import { flattenStyles } from '~/utils/styles';
 
 interface MoradorProfile {
   id: string;
@@ -251,7 +252,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome Completo</Text>
                 <TextInput
-                  style={[styles.input, !isEditing && styles.inputDisabled]}
+                  style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.name}
                   onChangeText={(text) => setFormData({ ...formData, name: text })}
                   editable={isEditing}
@@ -262,7 +263,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Email</Text>
                 <TextInput
-                  style={[styles.input, styles.inputDisabled]}
+                  style={flattenStyles([styles.input, styles.inputDisabled])}
                   value={formData.email}
                   editable={false}
                   placeholder="Email não pode ser alterado"
@@ -272,7 +273,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Telefone</Text>
                 <TextInput
-                  style={[styles.input, !isEditing && styles.inputDisabled]}
+                  style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.phone}
                   onChangeText={(text) => setFormData({ ...formData, phone: text })}
                   editable={isEditing}
@@ -284,7 +285,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>CPF</Text>
                 <TextInput
-                  style={[styles.input, styles.inputDisabled]}
+                  style={flattenStyles([styles.input, styles.inputDisabled])}
                   value={formData.cpf}
                   editable={false}
                   placeholder="CPF não pode ser alterado"
@@ -294,7 +295,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Data de Nascimento</Text>
                 <TextInput
-                  style={[styles.input, !isEditing && styles.inputDisabled]}
+                  style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.birth_date}
                   onChangeText={(text) => setFormData({ ...formData, birth_date: text })}
                   editable={isEditing}
@@ -323,7 +324,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome do Contato</Text>
                 <TextInput
-                  style={[styles.input, !isEditing && styles.inputDisabled]}
+                  style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.emergency_contact_name}
                   onChangeText={(text) => setFormData({ ...formData, emergency_contact_name: text })}
                   editable={isEditing}
@@ -334,7 +335,7 @@ export default function MoradorProfile() {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Telefone do Contato</Text>
                 <TextInput
-                  style={[styles.input, !isEditing && styles.inputDisabled]}
+                  style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.emergency_contact_phone}
                   onChangeText={(text) => setFormData({ ...formData, emergency_contact_phone: text })}
                   editable={isEditing}

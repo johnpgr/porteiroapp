@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { VisitorCard } from '../../components/VisitorCard';
+import { flattenStyles } from '../../utils/styles';
 
 interface Visitor {
   id: string;
@@ -222,10 +223,10 @@ export default function AuthorizeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[
+                style={flattenStyles([
                   styles.confirmButton,
                   { backgroundColor: actionType === 'approve' ? '#4CAF50' : '#F44336' },
-                ]}
+                ])}
                 onPress={confirmAction}>
                 <Text style={styles.confirmButtonText}>
                   {actionType === 'approve' ? 'Aprovar' : 'Negar'}

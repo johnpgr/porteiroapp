@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } fr
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import { flattenStyles } from '~/utils/styles';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
 
@@ -101,7 +102,7 @@ export default function NovoVisitante() {
 
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
-              <View style={[styles.progressStep, styles.progressStepActive]} />
+              <View style={flattenStyles([styles.progressStep, styles.progressStepActive])} />
               <View style={styles.progressStep} />
               <View style={styles.progressStep} />
               <View style={styles.progressStep} />

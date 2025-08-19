@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
+import { flattenStyles } from '~/utils/styles';
 
 interface Building {
   id: string;
@@ -155,7 +156,7 @@ export default function BuildingsManagement() {
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Endereço Completo *</Text>
                   <TextInput
-                    style={[styles.input, styles.textArea]}
+                    style={flattenStyles([styles.input, styles.textArea])}
                     placeholder="Ex: Rua das Flores, 123 - Centro - São Paulo/SP - CEP: 01234-567"
                     value={newBuilding.address}
                     onChangeText={(text) => setNewBuilding(prev => ({ ...prev, address: text }))}

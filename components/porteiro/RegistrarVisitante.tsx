@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { flattenStyles } from '../../utils/styles';
 
 type FlowStep = 'apartamento' | 'tipo' | 'empresa_prestador' | 'empresa_entrega' | 'nome' | 'cpf' | 'observacoes' | 'foto' | 'confirmacao';
 type TipoVisita = 'social' | 'prestador' | 'entrega';
@@ -50,7 +51,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.keypadButton, styles.confirmButton]}
+          style={flattenStyles([styles.keypadButton, styles.confirmButton])}
           onPress={onNext}
           disabled={!value}
         >
@@ -94,7 +95,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           {empresas.map((empresa) => (
             <TouchableOpacity
               key={empresa.id}
-              style={[styles.optionButton, styles.prestadorButton]}
+              style={flattenStyles([styles.optionButton, styles.prestadorButton])}
               onPress={() => {
                 setEmpresaPrestador(empresa.id as EmpresaPrestador);
                 setCurrentStep('nome');
@@ -129,7 +130,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           {empresas.map((empresa) => (
             <TouchableOpacity
               key={empresa.id}
-              style={[styles.optionButton, styles.entregaButton]}
+              style={flattenStyles([styles.optionButton, styles.entregaButton])}
               onPress={() => {
                 setEmpresaEntrega(empresa.id as EmpresaEntrega);
                 setCurrentStep('nome');
@@ -151,7 +152,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       
       <View style={styles.optionsContainer}>
         <TouchableOpacity
-          style={[styles.optionButton, styles.socialButton]}
+          style={flattenStyles([styles.optionButton, styles.socialButton])}
           onPress={() => {
             setTipoVisita('social');
             setCurrentStep('nome');
@@ -163,7 +164,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.optionButton, styles.prestadorButton]}
+          style={flattenStyles([styles.optionButton, styles.prestadorButton])}
           onPress={() => {
             setTipoVisita('prestador');
             setCurrentStep('empresa_prestador');
@@ -175,7 +176,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.optionButton, styles.entregaButton]}
+          style={flattenStyles([styles.optionButton, styles.entregaButton])}
           onPress={() => {
             setTipoVisita('entrega');
             setCurrentStep('empresa_entrega');
@@ -205,7 +206,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         />
         
         <TouchableOpacity
-          style={[styles.nextButton, !nomeVisitante && styles.nextButtonDisabled]}
+          style={flattenStyles([styles.nextButton, !nomeVisitante && styles.nextButtonDisabled])}
           onPress={() => {
             if (nomeVisitante.trim()) {
               setCurrentStep('cpf');
@@ -236,7 +237,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         />
         
         <TouchableOpacity
-          style={[styles.nextButton, !cpfVisitante && styles.nextButtonDisabled]}
+          style={flattenStyles([styles.nextButton, !cpfVisitante && styles.nextButtonDisabled])}
           onPress={() => {
             if (cpfVisitante.trim()) {
               setCurrentStep('observacoes');
@@ -257,7 +258,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       
       <View style={styles.inputContainer}>
         <TextInput
-          style={[styles.textInput, styles.textArea]}
+          style={flattenStyles([styles.textInput, styles.textArea])}
           value={observacoes}
           onChangeText={setObservacoes}
           placeholder="Observações adicionais..."

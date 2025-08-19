@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
-import { useAuth } from '../../hooks/useAuthMock';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function MoradorLogin() {
   const { signIn, user } = useAuth();

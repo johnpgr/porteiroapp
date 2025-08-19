@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'rea
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
+import { flattenStyles } from '~/utils/styles';
 
 interface VisitorLog {
   id: string;
@@ -252,14 +253,14 @@ export default function ActivityLogs() {
         activeOpacity={0.7}>
         <View style={styles.logHeader}>
           <View style={styles.logIcon}>
-            <Text style={[styles.iconText, { color: log.color }]}>{log.icon}</Text>
+            <Text style={flattenStyles([styles.iconText, { color: log.color }])}>{log.icon}</Text>
           </View>
 
           <View style={styles.logInfo}>
             <Text style={styles.logTitle}>{log.title}</Text>
             <Text style={styles.logSubtitle}>{log.subtitle}</Text>
             <View style={styles.logMeta}>
-              <Text style={[styles.logStatus, { color: log.color }]}>{log.status}</Text>
+              <Text style={flattenStyles([styles.logStatus, { color: log.color }])}>{log.status}</Text>
               <Text style={styles.logTime}>{log.time}</Text>
             </View>
           </View>

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import { flattenStyles } from '~/utils/styles';
 
 export default function EmergencyPage() {
   const handleEmergencyCall = (service: string, number: string) => {
@@ -51,7 +52,7 @@ export default function EmergencyPage() {
 
             <View style={styles.emergencyButtons}>
               <TouchableOpacity
-                style={[styles.emergencyButton, styles.policeButton]}
+                style={flattenStyles([styles.emergencyButton, styles.policeButton])}
                 onPress={() => handleEmergencyCall('Polícia', '190')}
               >
                 <Text style={styles.emergencyIcon}>🚔</Text>
@@ -63,7 +64,7 @@ export default function EmergencyPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.emergencyButton, styles.fireButton]}
+                style={flattenStyles([styles.emergencyButton, styles.fireButton])}
                 onPress={() => handleEmergencyCall('Bombeiros', '193')}
               >
                 <Text style={styles.emergencyIcon}>🚒</Text>
@@ -75,7 +76,7 @@ export default function EmergencyPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.emergencyButton, styles.civilDefenseButton]}
+                style={flattenStyles([styles.emergencyButton, styles.civilDefenseButton])}
                 onPress={() => handleEmergencyCall('Defesa Civil', '199')}
               >
                 <Text style={styles.emergencyIcon}>🏛️</Text>
@@ -87,7 +88,7 @@ export default function EmergencyPage() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.emergencyButton, styles.samuButton]}
+                style={flattenStyles([styles.emergencyButton, styles.samuButton])}
                 onPress={() => handleEmergencyCall('SAMU', '192')}
               >
                 <Text style={styles.emergencyIcon}>🚑</Text>

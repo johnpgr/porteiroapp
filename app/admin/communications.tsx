@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
+import { flattenStyles } from '~/utils/styles';
 
 interface Communication {
   id: string;
@@ -267,7 +268,7 @@ export default function Communications() {
             />
 
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={flattenStyles([styles.input, styles.textArea])}
               placeholder="Mensagem do comunicado"
               value={newComm.message}
               onChangeText={(text) => setNewComm((prev) => ({ ...prev, message: text }))}
@@ -287,17 +288,17 @@ export default function Communications() {
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.key}
-                      style={[
+                      style={flattenStyles([
                         styles.selectorButton,
                         newComm.type === type.key && styles.selectorButtonActive,
                         { borderColor: getTypeColor(type.key) },
-                      ]}
+                      ])}
                       onPress={() => setNewComm((prev) => ({ ...prev, type: type.key as any }))}>
                       <Text
-                        style={[
+                        style={flattenStyles([
                           styles.selectorButtonText,
                           newComm.type === type.key && { color: getTypeColor(type.key) },
-                        ]}>
+                        ])}>
                         {type.icon} {type.label}
                       </Text>
                     </TouchableOpacity>
@@ -316,21 +317,21 @@ export default function Communications() {
                 ].map((priority) => (
                   <TouchableOpacity
                     key={priority.key}
-                    style={[
+                    style={flattenStyles([
                       styles.selectorButton,
                       newComm.priority === priority.key && styles.selectorButtonActive,
                       { borderColor: getPriorityColor(priority.key) },
-                    ]}
+                    ])}
                     onPress={() =>
                       setNewComm((prev) => ({ ...prev, priority: priority.key as any }))
                     }>
                     <Text
-                      style={[
+                      style={flattenStyles([
                         styles.selectorButtonText,
                         newComm.priority === priority.key && {
                           color: getPriorityColor(priority.key),
                         },
-                      ]}>
+                      ])}>
                       {priority.icon} {priority.label}
                     </Text>
                   </TouchableOpacity>
@@ -360,7 +361,7 @@ export default function Communications() {
                 <View style={styles.commHeader}>
                   <View style={styles.commType}>
                     <Text style={styles.typeIcon}>{getTypeIcon(comm.type)}</Text>
-                    <Text style={[styles.typeText, { color: getTypeColor(comm.type) }]}>
+                    <Text style={flattenStyles([styles.typeText, { color: getTypeColor(comm.type) }])}>
                       {comm.type.charAt(0).toUpperCase() + comm.type.slice(1)}
                     </Text>
                   </View>
@@ -369,7 +370,7 @@ export default function Communications() {
                     <View style={styles.priority}>
                       <Text style={styles.priorityIcon}>{getPriorityIcon(comm.priority)}</Text>
                       <Text
-                        style={[styles.priorityText, { color: getPriorityColor(comm.priority) }]}>
+                        style={flattenStyles([styles.priorityText, { color: getPriorityColor(comm.priority) }])}>
                         {comm.priority.charAt(0).toUpperCase() + comm.priority.slice(1)}
                       </Text>
                     </View>
