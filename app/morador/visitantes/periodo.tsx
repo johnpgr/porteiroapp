@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -31,13 +39,13 @@ function formatTime(date: Date): string {
 }
 
 export default function PeriodoVisitante() {
-  const { tipo, nome, cpf, foto } = useLocalSearchParams<{ 
-    tipo: VisitType; 
-    nome: string; 
+  const { tipo, nome, cpf, foto } = useLocalSearchParams<{
+    tipo: VisitType;
+    nome: string;
     cpf: string;
     foto: string;
   }>();
-  
+
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(() => {
@@ -92,23 +100,23 @@ export default function PeriodoVisitante() {
     const now = new Date();
     const visitDateTime = new Date(selectedDate);
     visitDateTime.setHours(startTime.getHours(), startTime.getMinutes());
-    
+
     if (visitDateTime < now) {
       Alert.alert('Data/horário inválido', 'A visita não pode ser agendada para o passado');
       return;
     }
-    
+
     router.push({
       pathname: '/morador/visitantes/observacoes',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
         foto: foto || '',
         data: selectedDate.toISOString(),
         horaInicio: startTime.toISOString(),
-        horaFim: endTime.toISOString()
-      }
+        horaFim: endTime.toISOString(),
+      },
     });
   };
 
@@ -122,166 +130,158 @@ export default function PeriodoVisitante() {
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👥 Novo Visitante</Text>
-            <View style={styles.placeholder} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.title}>👥 Novo Visitante</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+          </View>
+          <Text style={styles.progressText}>Passo 5 de 7</Text>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.typeIndicator}>
+            <Text style={styles.typeIndicatorText}>
+              {visitTypeLabels[tipo as VisitType] || '👥 Visita Social'}
+            </Text>
           </View>
 
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-            </View>
-            <Text style={styles.progressText}>Passo 5 de 7</Text>
+          <View style={styles.visitorInfo}>
+            <Text style={styles.visitorName}>👤 {nome}</Text>
+            {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.typeIndicator}>
-              <Text style={styles.typeIndicatorText}>
-                {visitTypeLabels[tipo as VisitType] || '👥 Visita Social'}
-              </Text>
-            </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Período da Visita</Text>
+            <Text style={styles.sectionDescription}>Defina quando a visita irá acontecer</Text>
 
-            <View style={styles.visitorInfo}>
-              <Text style={styles.visitorName}>👤 {nome}</Text>
-              {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
-            </View>
+            <View style={styles.dateSection}>
+              <Text style={styles.subsectionTitle}>📅 Data da Visita</Text>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Período da Visita</Text>
-              <Text style={styles.sectionDescription}>
-                Defina quando a visita irá acontecer
-              </Text>
+              <View style={styles.quickDateButtons}>
+                <TouchableOpacity
+                  style={[styles.quickDateButton, isToday && styles.quickDateButtonActive]}
+                  onPress={setToday}>
+                  <Text
+                    style={[
+                      styles.quickDateButtonText,
+                      isToday && styles.quickDateButtonTextActive,
+                    ]}>
+                    Hoje
+                  </Text>
+                </TouchableOpacity>
 
-              <View style={styles.dateSection}>
-                <Text style={styles.subsectionTitle}>📅 Data da Visita</Text>
-                
-                <View style={styles.quickDateButtons}>
-                  <TouchableOpacity 
-                    style={[styles.quickDateButton, isToday && styles.quickDateButtonActive]}
-                    onPress={setToday}
-                  >
-                    <Text style={[styles.quickDateButtonText, isToday && styles.quickDateButtonTextActive]}>
-                      Hoje
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.quickDateButton, isTomorrow && styles.quickDateButtonActive]}
-                    onPress={setTomorrow}
-                  >
-                    <Text style={[styles.quickDateButtonText, isTomorrow && styles.quickDateButtonTextActive]}>
-                      Amanhã
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.quickDateButton}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Ionicons name="calendar" size={16} color="#4CAF50" />
-                    <Text style={styles.quickDateButtonText}>Outro</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={[styles.quickDateButton, isTomorrow && styles.quickDateButtonActive]}
+                  onPress={setTomorrow}>
+                  <Text
+                    style={[
+                      styles.quickDateButtonText,
+                      isTomorrow && styles.quickDateButtonTextActive,
+                    ]}>
+                    Amanhã
+                  </Text>
+                </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={styles.dateDisplay}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Ionicons name="calendar" size={20} color="#4CAF50" />
-                  <Text style={styles.dateDisplayText}>{formatDate(selectedDate)}</Text>
+                <TouchableOpacity
+                  style={styles.quickDateButton}
+                  onPress={() => setShowDatePicker(true)}>
+                  <Ionicons name="calendar" size={16} color="#4CAF50" />
+                  <Text style={styles.quickDateButtonText}>Outro</Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.timeSection}>
-                <Text style={styles.subsectionTitle}>🕐 Horário da Visita</Text>
-                
-                <View style={styles.timeContainer}>
-                  <TouchableOpacity 
-                    style={styles.timeButton}
-                    onPress={() => setShowStartTimePicker(true)}
-                  >
-                    <Text style={styles.timeLabel}>Início</Text>
-                    <Text style={styles.timeValue}>{formatTime(startTime)}</Text>
-                  </TouchableOpacity>
-                  
-                  <View style={styles.timeSeparator}>
-                    <Text style={styles.timeSeparatorText}>até</Text>
-                  </View>
-                  
-                  <TouchableOpacity 
-                    style={styles.timeButton}
-                    onPress={() => setShowEndTimePicker(true)}
-                  >
-                    <Text style={styles.timeLabel}>Fim</Text>
-                    <Text style={styles.timeValue}>{formatTime(endTime)}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <TouchableOpacity style={styles.dateDisplay} onPress={() => setShowDatePicker(true)}>
+                <Ionicons name="calendar" size={20} color="#4CAF50" />
+                <Text style={styles.dateDisplayText}>{formatDate(selectedDate)}</Text>
+              </TouchableOpacity>
+            </View>
 
-              <View style={styles.tipContainer}>
-                <Ionicons name="information-circle" size={20} color="#2196F3" />
-                <Text style={styles.tipText}>
-                  O visitante poderá entrar apenas no período definido
-                </Text>
+            <View style={styles.timeSection}>
+              <Text style={styles.subsectionTitle}>🕐 Horário da Visita</Text>
+
+              <View style={styles.timeContainer}>
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowStartTimePicker(true)}>
+                  <Text style={styles.timeLabel}>Início</Text>
+                  <Text style={styles.timeValue}>{formatTime(startTime)}</Text>
+                </TouchableOpacity>
+
+                <View style={styles.timeSeparator}>
+                  <Text style={styles.timeSeparatorText}>até</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.timeButton}
+                  onPress={() => setShowEndTimePicker(true)}>
+                  <Text style={styles.timeLabel}>Fim</Text>
+                  <Text style={styles.timeValue}>{formatTime(endTime)}</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
-              <Ionicons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backFooterButtonText}>Voltar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
-              <Text style={styles.nextButtonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.tipContainer}>
+              <Ionicons name="information-circle" size={20} color="#2196F3" />
+              <Text style={styles.tipText}>
+                O visitante poderá entrar apenas no período definido
+              </Text>
+            </View>
           </View>
+        </ScrollView>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={selectedDate}
-              mode="date"
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color="#666" />
+            <Text style={styles.backFooterButtonText}>Voltar</Text>
+          </TouchableOpacity>
 
-          {showStartTimePicker && (
-            <DateTimePicker
-              value={startTime}
-              mode="time"
-              display="default"
-              onChange={handleStartTimeChange}
-            />
-          )}
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
 
-          {showEndTimePicker && (
-            <DateTimePicker
-              value={endTime}
-              mode="time"
-              display="default"
-              onChange={handleEndTimeChange}
-            />
-          )}
-        </SafeAreaView>
+        {showDatePicker && (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+          />
+        )}
+
+        {showStartTimePicker && (
+          <DateTimePicker
+            value={startTime}
+            mode="time"
+            display="default"
+            onChange={handleStartTimeChange}
+          />
+        )}
+
+        {showEndTimePicker && (
+          <DateTimePicker
+            value={endTime}
+            mode="time"
+            display="default"
+            onChange={handleEndTimeChange}
+          />
+        )}
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

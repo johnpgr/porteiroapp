@@ -37,90 +37,70 @@ export default function EmergencyPage() {
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
       <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Text style={styles.backButtonText}>← Voltar</Text>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>← Voltar</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>🚨 Emergência</Text>
+          <Text style={styles.subtitle}>Contatos de Emergência</Text>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.warningText}>⚠️ Use apenas em situações de emergência real</Text>
+
+          <View style={styles.emergencyButtons}>
+            <TouchableOpacity
+              style={flattenStyles([styles.emergencyButton, styles.policeButton])}
+              onPress={() => handleEmergencyCall('Polícia', '190')}>
+              <Text style={styles.emergencyIcon}>🚔</Text>
+              <Text style={styles.emergencyTitle}>POLÍCIA</Text>
+              <Text style={styles.emergencyNumber}>190</Text>
+              <Text style={styles.emergencyDescription}>Crimes, violência, segurança pública</Text>
             </TouchableOpacity>
-            <Text style={styles.title}>🚨 Emergência</Text>
-            <Text style={styles.subtitle}>Contatos de Emergência</Text>
+
+            <TouchableOpacity
+              style={flattenStyles([styles.emergencyButton, styles.fireButton])}
+              onPress={() => handleEmergencyCall('Bombeiros', '193')}>
+              <Text style={styles.emergencyIcon}>🚒</Text>
+              <Text style={styles.emergencyTitle}>BOMBEIROS</Text>
+              <Text style={styles.emergencyNumber}>193</Text>
+              <Text style={styles.emergencyDescription}>
+                Incêndios, resgates, emergências médicas
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={flattenStyles([styles.emergencyButton, styles.civilDefenseButton])}
+              onPress={() => handleEmergencyCall('Defesa Civil', '199')}>
+              <Text style={styles.emergencyIcon}>🏛️</Text>
+              <Text style={styles.emergencyTitle}>DEFESA CIVIL</Text>
+              <Text style={styles.emergencyNumber}>199</Text>
+              <Text style={styles.emergencyDescription}>
+                Desastres naturais, riscos estruturais
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={flattenStyles([styles.emergencyButton, styles.samuButton])}
+              onPress={() => handleEmergencyCall('SAMU', '192')}>
+              <Text style={styles.emergencyIcon}>🚑</Text>
+              <Text style={styles.emergencyTitle}>SAMU</Text>
+              <Text style={styles.emergencyNumber}>192</Text>
+              <Text style={styles.emergencyDescription}>Emergências médicas, ambulância</Text>
+            </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.warningText}>
-              ⚠️ Use apenas em situações de emergência real
-            </Text>
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsTitle}>Instruções:</Text>
+            <Text style={styles.instructionText}>• Mantenha a calma e fale claramente</Text>
+            <Text style={styles.instructionText}>• Informe sua localização exata</Text>
+            <Text style={styles.instructionText}>• Descreva a situação de emergência</Text>
+            <Text style={styles.instructionText}>• Siga as orientações do atendente</Text>
+            <Text style={styles.instructionText}>• Não desligue até ser orientado</Text>
+          </View>
 
-            <View style={styles.emergencyButtons}>
-              <TouchableOpacity
-                style={flattenStyles([styles.emergencyButton, styles.policeButton])}
-                onPress={() => handleEmergencyCall('Polícia', '190')}
-              >
-                <Text style={styles.emergencyIcon}>🚔</Text>
-                <Text style={styles.emergencyTitle}>POLÍCIA</Text>
-                <Text style={styles.emergencyNumber}>190</Text>
-                <Text style={styles.emergencyDescription}>
-                  Crimes, violência, segurança pública
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={flattenStyles([styles.emergencyButton, styles.fireButton])}
-                onPress={() => handleEmergencyCall('Bombeiros', '193')}
-              >
-                <Text style={styles.emergencyIcon}>🚒</Text>
-                <Text style={styles.emergencyTitle}>BOMBEIROS</Text>
-                <Text style={styles.emergencyNumber}>193</Text>
-                <Text style={styles.emergencyDescription}>
-                  Incêndios, resgates, emergências médicas
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={flattenStyles([styles.emergencyButton, styles.civilDefenseButton])}
-                onPress={() => handleEmergencyCall('Defesa Civil', '199')}
-              >
-                <Text style={styles.emergencyIcon}>🏛️</Text>
-                <Text style={styles.emergencyTitle}>DEFESA CIVIL</Text>
-                <Text style={styles.emergencyNumber}>199</Text>
-                <Text style={styles.emergencyDescription}>
-                  Desastres naturais, riscos estruturais
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={flattenStyles([styles.emergencyButton, styles.samuButton])}
-                onPress={() => handleEmergencyCall('SAMU', '192')}
-              >
-                <Text style={styles.emergencyIcon}>🚑</Text>
-                <Text style={styles.emergencyTitle}>SAMU</Text>
-                <Text style={styles.emergencyNumber}>192</Text>
-                <Text style={styles.emergencyDescription}>
-                  Emergências médicas, ambulância
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.instructionsContainer}>
-              <Text style={styles.instructionsTitle}>Instruções:</Text>
-              <Text style={styles.instructionText}>
-                • Mantenha a calma e fale claramente
-              </Text>
-              <Text style={styles.instructionText}>
-                • Informe sua localização exata
-              </Text>
-              <Text style={styles.instructionText}>
-                • Descreva a situação de emergência
-              </Text>
-              <Text style={styles.instructionText}>
-                • Siga as orientações do atendente
-              </Text>
-              <Text style={styles.instructionText}>
-                • Não desligue até ser orientado
-              </Text>
-            </View>
-            
-            <View style={styles.bottomSpacing} />
-          </ScrollView>
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
       </SafeAreaView>
     </ProtectedRoute>
   );

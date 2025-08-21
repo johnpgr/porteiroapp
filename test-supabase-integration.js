@@ -1,8 +1,15 @@
-const { supabase, signIn, signOut, getAdminProfile, getAdminBuildings, getCurrentAdmin } = require('./utils/supabase');
+const {
+  supabase,
+  signIn,
+  signOut,
+  getAdminProfile,
+  getAdminBuildings,
+  getCurrentAdmin,
+} = require('./utils/supabase');
 
 async function testSupabaseIntegration() {
   console.log('🔍 Testando integração com Supabase...');
-  console.log('=' .repeat(50));
+  console.log('='.repeat(50));
 
   try {
     // 1. Testar conexão básica
@@ -11,7 +18,7 @@ async function testSupabaseIntegration() {
       .from('admin_profiles')
       .select('count')
       .limit(1);
-    
+
     if (connectionError) {
       console.error('❌ Erro na conexão:', connectionError.message);
       return;
@@ -24,7 +31,7 @@ async function testSupabaseIntegration() {
       .from('admin_profiles')
       .select('*')
       .limit(5);
-    
+
     if (adminError) {
       console.error('❌ Erro ao buscar perfis de admin:', adminError.message);
     } else {
@@ -33,7 +40,7 @@ async function testSupabaseIntegration() {
         console.log('   Exemplo:', {
           id: adminProfiles[0].id,
           name: adminProfiles[0].name,
-          email: adminProfiles[0].email
+          email: adminProfiles[0].email,
         });
       }
     }
@@ -44,7 +51,7 @@ async function testSupabaseIntegration() {
       .from('buildings')
       .select('*')
       .limit(5);
-    
+
     if (buildingsError) {
       console.error('❌ Erro ao buscar edifícios:', buildingsError.message);
     } else {
@@ -53,7 +60,7 @@ async function testSupabaseIntegration() {
         console.log('   Exemplo:', {
           id: buildings[0].id,
           name: buildings[0].name,
-          address: buildings[0].address
+          address: buildings[0].address,
         });
       }
     }
@@ -65,7 +72,7 @@ async function testSupabaseIntegration() {
       signOut: typeof signOut === 'function',
       getAdminProfile: typeof getAdminProfile === 'function',
       getAdminBuildings: typeof getAdminBuildings === 'function',
-      getCurrentAdmin: typeof getCurrentAdmin === 'function'
+      getCurrentAdmin: typeof getCurrentAdmin === 'function',
     };
 
     console.log('Funções disponíveis:');
@@ -82,17 +89,21 @@ async function testSupabaseIntegration() {
     console.log('\n6. Testando relacionamentos entre tabelas...');
     const { data: buildingAdmins, error: relationError } = await supabase
       .from('building_admins')
-      .select(`
+      .select(
+        `
         *,
         admin_profiles(*),
         buildings(*)
-      `)
+      `
+      )
       .limit(3);
-    
+
     if (relationError) {
       console.error('❌ Erro ao testar relacionamentos:', relationError.message);
     } else {
-      console.log(`✅ Relacionamentos funcionando - ${buildingAdmins.length} registros encontrados`);
+      console.log(
+        `✅ Relacionamentos funcionando - ${buildingAdmins.length} registros encontrados`
+      );
     }
 
     console.log('\n' + '='.repeat(50));
@@ -101,7 +112,6 @@ async function testSupabaseIntegration() {
     console.log('   - Implementar telas de login');
     console.log('   - Configurar autenticação de usuários');
     console.log('   - Testar fluxo completo de autenticação');
-
   } catch (error) {
     console.error('\n💥 Erro inesperado durante o teste:', error.message);
     console.error('Stack trace:', error.stack);

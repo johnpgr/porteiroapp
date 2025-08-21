@@ -69,9 +69,9 @@ export default function UsersManagement() {
 
   useEffect(() => {
     if (newUser.building_id) {
-      const filtered = apartments.filter(apt => apt.building_id === newUser.building_id);
+      const filtered = apartments.filter((apt) => apt.building_id === newUser.building_id);
       setFilteredApartments(filtered);
-      setNewUser(prev => ({ ...prev, apartment_id: '' }));
+      setNewUser((prev) => ({ ...prev, apartment_id: '' }));
     } else {
       setFilteredApartments([]);
     }
@@ -87,12 +87,13 @@ export default function UsersManagement() {
       return;
     }
 
-    const filtered = users.filter(user => 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.cpf?.includes(searchQuery) ||
-      user.phone?.includes(searchQuery) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+    const filtered = users.filter(
+      (user) =>
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.cpf?.includes(searchQuery) ||
+        user.phone?.includes(searchQuery) ||
+        user.role.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredUsers(filtered);
   };
@@ -116,10 +117,7 @@ export default function UsersManagement() {
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('*')
-        .order('name');
+      const { data, error } = await supabase.from('buildings').select('*').order('name');
 
       if (error) throw error;
       setBuildings(data || []);
@@ -130,10 +128,7 @@ export default function UsersManagement() {
 
   const fetchApartments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('apartments')
-        .select('*')
-        .order('number');
+      const { data, error } = await supabase.from('apartments').select('*').order('number');
 
       if (error) throw error;
       setApartments(data || []);
@@ -144,7 +139,7 @@ export default function UsersManagement() {
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (permissionResult.granted === false) {
       Alert.alert('Permissão necessária', 'É necessário permitir acesso à galeria de fotos.');
       return;
@@ -158,7 +153,7 @@ export default function UsersManagement() {
     });
 
     if (!result.canceled) {
-      setNewUser(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setNewUser((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
@@ -196,7 +191,7 @@ export default function UsersManagement() {
         userData.email = newUser.email;
         userData.building_id = newUser.building_id;
         userData.photo_url = newUser.photo_url;
-        
+
         if (newUser.role === 'morador') {
           userData.apartment_id = newUser.apartment_id;
         }
@@ -207,16 +202,16 @@ export default function UsersManagement() {
       if (error) throw error;
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
-      setNewUser({ 
-        name: '', 
-        role: 'morador', 
-        cpf: '', 
-        phone: '', 
-        email: '', 
-        building_id: '', 
-        apartment_id: '', 
-        photo_url: '', 
-        password: '' 
+      setNewUser({
+        name: '',
+        role: 'morador',
+        cpf: '',
+        phone: '',
+        email: '',
+        building_id: '',
+        apartment_id: '',
+        photo_url: '',
+        password: '',
       });
       setShowAddForm(false);
       fetchUsers();
@@ -281,185 +276,193 @@ export default function UsersManagement() {
 
   return (
     <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>← Voltar</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>👥 Gerenciar Usuários</Text>
+      </View>
+
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
+          <Text style={styles.addButtonText}>
+            {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          <TouchableOpacity style={styles.searchButton} onPress={() => filterUsers()}>
+            <Text style={styles.searchButtonText}>🔍 Procurar</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>👥 Gerenciar Usuários</Text>
         </View>
+      </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
-            <Text style={styles.addButtonText}>
-              {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
-            </Text>
-          </TouchableOpacity>
-          
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            <TouchableOpacity style={styles.searchButton} onPress={() => filterUsers()}>
-              <Text style={styles.searchButtonText}>🔍 Procurar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      {showAddForm && (
+        <ScrollView style={styles.addForm}>
+          <Text style={styles.formTitle}>Novo Usuário</Text>
 
-        {showAddForm && (
-          <ScrollView style={styles.addForm}>
-            <Text style={styles.formTitle}>Novo Usuário</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Nome completo"
+            value={newUser.name}
+            onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
+          />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Nome completo"
-              value={newUser.name}
-              onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-            />
-
-            <View style={styles.roleSelector}>
-              <Text style={styles.roleLabel}>Tipo de usuário:</Text>
-              <View style={styles.roleButtons}>
-                {['morador', 'porteiro', 'admin'].map((role) => (
-                  <TouchableOpacity
-                    key={role}
+          <View style={styles.roleSelector}>
+            <Text style={styles.roleLabel}>Tipo de usuário:</Text>
+            <View style={styles.roleButtons}>
+              {['morador', 'porteiro', 'admin'].map((role) => (
+                <TouchableOpacity
+                  key={role}
+                  style={[
+                    styles.roleButton,
+                    newUser.role === role && styles.roleButtonActive,
+                    { borderColor: getRoleColor(role) },
+                  ]}
+                  onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
+                  <Text
                     style={[
-                      styles.roleButton,
-                      newUser.role === role && styles.roleButtonActive,
-                      { borderColor: getRoleColor(role) },
-                    ]}
-                    onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
-                    <Text
-                      style={[
-                        styles.roleButtonText,
-                        newUser.role === role && { color: getRoleColor(role) },
-                      ]}>
-                      {getRoleIcon(role)} {role.charAt(0).toUpperCase() + role.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                      styles.roleButtonText,
+                      newUser.role === role && { color: getRoleColor(role) },
+                    ]}>
+                    {getRoleIcon(role)} {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
+          </View>
 
-            {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
-              <>
-                <TextInput
-                  style={styles.input}
-                  placeholder="CPF"
-                  value={newUser.cpf}
-                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
-                  keyboardType="numeric"
-                  maxLength={14}
-                />
+          {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="CPF"
+                value={newUser.cpf}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
+                keyboardType="numeric"
+                maxLength={14}
+              />
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Telefone"
-                  value={newUser.phone}
-                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
-                  keyboardType="phone-pad"
-                />
+              <TextInput
+                style={styles.input}
+                placeholder="Telefone"
+                value={newUser.phone}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
+                keyboardType="phone-pad"
+              />
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email"
-                  value={newUser.email}
-                  onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={newUser.email}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
 
+              <View style={styles.pickerContainer}>
+                <Text style={styles.pickerLabel}>Prédio:</Text>
+                <Picker
+                  selectedValue={newUser.building_id}
+                  style={styles.picker}
+                  onValueChange={(itemValue) =>
+                    setNewUser((prev) => ({ ...prev, building_id: itemValue }))
+                  }>
+                  <Picker.Item label="Selecione um prédio" value="" />
+                  {buildings.map((building) => (
+                    <Picker.Item key={building.id} label={building.name} value={building.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              {newUser.role === 'morador' && newUser.building_id && (
                 <View style={styles.pickerContainer}>
-                  <Text style={styles.pickerLabel}>Prédio:</Text>
+                  <Text style={styles.pickerLabel}>Apartamento:</Text>
                   <Picker
-                    selectedValue={newUser.building_id}
+                    selectedValue={newUser.apartment_id}
                     style={styles.picker}
-                    onValueChange={(itemValue) => setNewUser((prev) => ({ ...prev, building_id: itemValue }))}>
-                    <Picker.Item label="Selecione um prédio" value="" />
-                    {buildings.map((building) => (
-                      <Picker.Item key={building.id} label={building.name} value={building.id} />
+                    onValueChange={(itemValue) =>
+                      setNewUser((prev) => ({ ...prev, apartment_id: itemValue }))
+                    }>
+                    <Picker.Item label="Selecione um apartamento" value="" />
+                    {filteredApartments.map((apartment) => (
+                      <Picker.Item
+                        key={apartment.id}
+                        label={apartment.number}
+                        value={apartment.id}
+                      />
                     ))}
                   </Picker>
                 </View>
+              )}
 
-                {newUser.role === 'morador' && newUser.building_id && (
-                  <View style={styles.pickerContainer}>
-                    <Text style={styles.pickerLabel}>Apartamento:</Text>
-                    <Picker
-                      selectedValue={newUser.apartment_id}
-                      style={styles.picker}
-                      onValueChange={(itemValue) => setNewUser((prev) => ({ ...prev, apartment_id: itemValue }))}>
-                      <Picker.Item label="Selecione um apartamento" value="" />
-                      {filteredApartments.map((apartment) => (
-                        <Picker.Item key={apartment.id} label={apartment.number} value={apartment.id} />
-                      ))}
-                    </Picker>
-                  </View>
+              <View style={styles.photoSection}>
+                <Text style={styles.photoLabel}>Foto do usuário:</Text>
+                <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+                  <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
+                </TouchableOpacity>
+                {newUser.photo_url && (
+                  <Image source={{ uri: newUser.photo_url }} style={styles.photoPreview} />
                 )}
-
-                <View style={styles.photoSection}>
-                  <Text style={styles.photoLabel}>Foto do usuário:</Text>
-                  <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-                    <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
-                  </TouchableOpacity>
-                  {newUser.photo_url && (
-                    <Image source={{ uri: newUser.photo_url }} style={styles.photoPreview} />
-                  )}
-                </View>
-              </>
-            )}
-
-            {newUser.role !== 'morador' && (
-              <TextInput
-                style={styles.input}
-                placeholder="Senha (opcional)"
-                value={newUser.password}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, password: text }))}
-                secureTextEntry
-              />
-            )}
-
-            <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
-              <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        )}
-
-        <ScrollView style={styles.usersList}>
-          {filteredUsers.map((user) => (
-            <View key={user.id} style={styles.userCard}>
-              <View style={styles.userInfo}>
-                {user.photo_url ? (
-                  <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
-                ) : (
-                  <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
-                )}
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{user.name}</Text>
-                  {user.cpf && <Text style={styles.userInfo}>CPF: {user.cpf}</Text>}
-                  {user.phone && <Text style={styles.userInfo}>Tel: {user.phone}</Text>}
-                  {user.email && <Text style={styles.userInfo}>Email: {user.email}</Text>}
-                  <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </Text>
-                  {user.last_login && (
-                    <Text style={styles.lastLogin}>
-                      Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
-                    </Text>
-                  )}
-                </View>
               </View>
+            </>
+          )}
 
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDeleteUser(user.id, user.name)}>
-                <Text style={styles.deleteButtonText}>🗑️</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+          {newUser.role !== 'morador' && (
+            <TextInput
+              style={styles.input}
+              placeholder="Senha (opcional)"
+              value={newUser.password}
+              onChangeText={(text) => setNewUser((prev) => ({ ...prev, password: text }))}
+              secureTextEntry
+            />
+          )}
+
+          <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
+            <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
+          </TouchableOpacity>
         </ScrollView>
+      )}
+
+      <ScrollView style={styles.usersList}>
+        {filteredUsers.map((user) => (
+          <View key={user.id} style={styles.userCard}>
+            <View style={styles.userInfo}>
+              {user.photo_url ? (
+                <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
+              ) : (
+                <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
+              )}
+              <View style={styles.userDetails}>
+                <Text style={styles.userName}>{user.name}</Text>
+                {user.cpf && <Text style={styles.userInfo}>CPF: {user.cpf}</Text>}
+                {user.phone && <Text style={styles.userInfo}>Tel: {user.phone}</Text>}
+                {user.email && <Text style={styles.userInfo}>Email: {user.email}</Text>}
+                <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
+                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                </Text>
+                {user.last_login && (
+                  <Text style={styles.lastLogin}>
+                    Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDeleteUser(user.id, user.name)}>
+              <Text style={styles.deleteButtonText}>🗑️</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
     </SafeAreaView>
   );
 }

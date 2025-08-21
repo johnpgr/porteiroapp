@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function PlacaCadastro() {
-  const { nome, relacionamento, telefone } = useLocalSearchParams<{ 
+  const { nome, relacionamento, telefone } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
     telefone: string;
@@ -15,7 +23,7 @@ export default function PlacaCadastro() {
   const formatPlate = (text: string) => {
     // Remove caracteres especiais e converte para maiúsculo
     const cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    
+
     // Formato brasileiro: ABC1234 ou ABC1D23 (Mercosul)
     if (cleaned.length <= 3) {
       return cleaned;
@@ -40,24 +48,24 @@ export default function PlacaCadastro() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/cadastro/acesso',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
-        placa: plate || ''
-      }
+        placa: plate || '',
+      },
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/morador/cadastro/acesso',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
-        placa: ''
-      }
+        placa: '',
+      },
     });
   };
 
@@ -67,16 +75,16 @@ export default function PlacaCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
@@ -110,15 +118,15 @@ export default function PlacaCadastro() {
           <View style={styles.content}>
             <View style={styles.personInfo}>
               <Text style={styles.personName}>👤 {nome}</Text>
-              <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+              <Text style={styles.personRelationship}>
+                {getRelationshipLabel(relacionamento || '')}
+              </Text>
               <Text style={styles.personPhone}>📱 {telefone}</Text>
             </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Placa do Veículo</Text>
-              <Text style={styles.sectionDescription}>
-                Informe a placa do carro (opcional)
-              </Text>
+              <Text style={styles.sectionDescription}>Informe a placa do carro (opcional)</Text>
 
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
@@ -133,7 +141,12 @@ export default function PlacaCadastro() {
                     autoFocus
                   />
                   {isValidPlate() && (
-                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" style={styles.validIcon} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#4CAF50"
+                      style={styles.validIcon}
+                    />
                   )}
                 </View>
               </View>
@@ -155,22 +168,13 @@ export default function PlacaCadastro() {
               <View style={styles.quickButtons}>
                 <Text style={styles.quickButtonsTitle}>🚀 Ações rápidas:</Text>
                 <View style={styles.quickButtonsList}>
-                  <TouchableOpacity 
-                    style={styles.quickButton}
-                    onPress={() => setPlate('ABC-1234')}
-                  >
+                  <TouchableOpacity style={styles.quickButton} onPress={() => setPlate('ABC-1234')}>
                     <Text style={styles.quickButtonText}>Exemplo 1</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.quickButton}
-                    onPress={() => setPlate('XYZ-5A67')}
-                  >
+                  <TouchableOpacity style={styles.quickButton} onPress={() => setPlate('XYZ-5A67')}>
                     <Text style={styles.quickButtonText}>Exemplo 2</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.clearButton}
-                    onPress={() => setPlate('')}
-                  >
+                  <TouchableOpacity style={styles.clearButton} onPress={() => setPlate('')}>
                     <Text style={styles.clearButtonText}>Limpar</Text>
                   </TouchableOpacity>
                 </View>
@@ -186,36 +190,26 @@ export default function PlacaCadastro() {
               {plate.length > 0 && !isValidPlate() && (
                 <View style={styles.warningContainer}>
                   <Ionicons name="warning" size={20} color="#FF9800" />
-                  <Text style={styles.warningText}>
-                    Formato inválido. Use ABC-1234 ou ABC-1D23
-                  </Text>
+                  <Text style={styles.warningText}>Formato inválido. Use ABC-1234 ou ABC-1D23</Text>
                 </View>
               )}
 
               {isValidPlate() && (
                 <View style={styles.successContainer}>
                   <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.successText}>
-                    ✅ Placa válida: {plate}
-                  </Text>
+                  <Text style={styles.successText}>✅ Placa válida: {plate}</Text>
                 </View>
               )}
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
+            <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-            >
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
               <Text style={styles.skipButtonText}>Pular</Text>
               <Ionicons name="arrow-forward" size={20} color="#666" />
             </TouchableOpacity>
@@ -223,21 +217,21 @@ export default function PlacaCadastro() {
             <TouchableOpacity
               style={[
                 styles.nextButton,
-                plate.length > 0 && !isValidPlate() && styles.nextButtonDisabled
+                plate.length > 0 && !isValidPlate() && styles.nextButtonDisabled,
               ]}
               onPress={handleNext}
-              disabled={plate.length > 0 && !isValidPlate()}
-            >
-              <Text style={[
-                styles.nextButtonText,
-                plate.length > 0 && !isValidPlate() && styles.nextButtonTextDisabled
-              ]}>
+              disabled={plate.length > 0 && !isValidPlate()}>
+              <Text
+                style={[
+                  styles.nextButtonText,
+                  plate.length > 0 && !isValidPlate() && styles.nextButtonTextDisabled,
+                ]}>
                 Continuar
               </Text>
-              <Ionicons 
-                name="arrow-forward" 
-                size={20} 
-                color={(plate.length > 0 && !isValidPlate()) ? "#ccc" : "#fff"} 
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={plate.length > 0 && !isValidPlate() ? '#ccc' : '#fff'}
               />
             </TouchableOpacity>
           </View>

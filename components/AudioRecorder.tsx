@@ -167,8 +167,12 @@ export default function AudioRecorder({
       {isRecording && (
         <View style={styles.recordingInfo}>
           <View style={styles.recordingIndicator}>
-            <View style={flattenStyles([styles.recordingDot, { backgroundColor: getRecordingColor() }])} />
-            <Text style={flattenStyles([styles.recordingText, { color: getRecordingColor() }])}>REC</Text>
+            <View
+              style={flattenStyles([styles.recordingDot, { backgroundColor: getRecordingColor() }])}
+            />
+            <Text style={flattenStyles([styles.recordingText, { color: getRecordingColor() }])}>
+              REC
+            </Text>
           </View>
 
           <Text style={styles.durationText}>{formatTime(recordingDuration)}</Text>

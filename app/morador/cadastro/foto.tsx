@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ScrollView, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ScrollView,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function FotoCadastro() {
-  const { nome, relacionamento, telefone, placa, acesso } = useLocalSearchParams<{ 
+  const { nome, relacionamento, telefone, placa, acesso } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
     telefone: string;
@@ -18,7 +27,7 @@ export default function FotoCadastro() {
   const requestPermissions = async () => {
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
     const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
+
     if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
       Alert.alert(
         'Permissões Necessárias',
@@ -69,28 +78,28 @@ export default function FotoCadastro() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/cadastro/dias',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
         placa: placa || '',
         acesso: acesso || '',
-        foto: photo || ''
-      }
+        foto: photo || '',
+      },
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/morador/cadastro/dias',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
         placa: placa || '',
         acesso: acesso || '',
-        foto: ''
-      }
+        foto: '',
+      },
     });
   };
 
@@ -100,25 +109,25 @@ export default function FotoCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
 
   const getAccessLabel = (acc: string) => {
     const accessTypes: { [key: string]: string } = {
-      'sem_acesso': '🚫 Sem Acesso',
-      'usuario': '👤 Usuário',
-      'administrador': '👑 Administrador',
+      sem_acesso: '🚫 Sem Acesso',
+      usuario: '👤 Usuário',
+      administrador: '👑 Administrador',
     };
     return accessTypes[acc] || acc;
   };
@@ -152,7 +161,9 @@ export default function FotoCadastro() {
           <View style={styles.content}>
             <View style={styles.personInfo}>
               <Text style={styles.personName}>👤 {nome}</Text>
-              <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+              <Text style={styles.personRelationship}>
+                {getRelationshipLabel(relacionamento || '')}
+              </Text>
               <Text style={styles.personPhone}>📱 {telefone}</Text>
               {placa && <Text style={styles.personPlate}>🚗 {placa}</Text>}
               <Text style={styles.personAccess}>{getAccessLabel(acesso || '')}</Text>
@@ -195,9 +206,7 @@ export default function FotoCadastro() {
               {photo && (
                 <View style={styles.successContainer}>
                   <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.successText}>
-                    ✅ Foto adicionada com sucesso!
-                  </Text>
+                  <Text style={styles.successText}>✅ Foto adicionada com sucesso!</Text>
                 </View>
               )}
 
@@ -234,30 +243,21 @@ export default function FotoCadastro() {
         </ScrollView>
 
         <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
-              <Ionicons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backFooterButtonText}>Voltar</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color="#666" />
+            <Text style={styles.backFooterButtonText}>Voltar</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-            >
-              <Text style={styles.skipButtonText}>Pular</Text>
-              <Ionicons name="arrow-forward" size={20} color="#666" />
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipButtonText}>Pular</Text>
+            <Ionicons name="arrow-forward" size={20} color="#666" />
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
-              <Text style={styles.nextButtonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </ProtectedRoute>
   );

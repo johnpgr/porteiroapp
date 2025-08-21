@@ -3,9 +3,9 @@ const crypto = require('crypto');
 
 // Simular hash das senhas de teste
 const testPasswords = {
-  'admin123': crypto.createHash('sha256').update('admin123').digest('hex'),
-  'porteiro123': crypto.createHash('sha256').update('porteiro123').digest('hex'),
-  'morador123': crypto.createHash('sha256').update('morador123').digest('hex')
+  admin123: crypto.createHash('sha256').update('admin123').digest('hex'),
+  porteiro123: crypto.createHash('sha256').update('porteiro123').digest('hex'),
+  morador123: crypto.createHash('sha256').update('morador123').digest('hex'),
 };
 
 console.log('Hashes das senhas de teste:');

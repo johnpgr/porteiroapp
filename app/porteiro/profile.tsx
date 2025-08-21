@@ -37,7 +37,9 @@ export default function PorteiroProfile() {
 
   const fetchProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
@@ -131,25 +133,21 @@ export default function PorteiroProfile() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Confirmar Logout',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/porteiro/login');
-            } catch {
-              Alert.alert('Erro', 'Falha ao fazer logout');
-            }
-          },
+    Alert.alert('Confirmar Logout', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/porteiro/login');
+          } catch {
+            Alert.alert('Erro', 'Falha ao fazer logout');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -176,11 +174,8 @@ export default function PorteiroProfile() {
             <Text style={styles.title}>Meu Perfil</Text>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => (isEditing ? handleSave() : setIsEditing(true))}
-            >
-              <Text style={styles.editButtonText}>
-                {isEditing ? 'Salvar' : 'Editar'}
-              </Text>
+              onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
+              <Text style={styles.editButtonText}>{isEditing ? 'Salvar' : 'Editar'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -306,7 +301,7 @@ export default function PorteiroProfile() {
             {/* Actions Card */}
             <View style={styles.actionsCard}>
               <Text style={styles.actionsTitle}>Configurações</Text>
-              
+
               <TouchableOpacity style={styles.actionButton}>
                 <Text style={styles.actionButtonText}>Alterar Senha</Text>
                 <Text style={styles.actionButtonArrow}>›</Text>

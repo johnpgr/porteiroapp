@@ -72,13 +72,13 @@ export default function AuthForm({
 
     try {
       const result = await onSubmit(email.trim().toLowerCase(), password);
-      
+
       // Limpar timeout se chegou até aqui
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
         submitTimeoutRef.current = null;
       }
-      
+
       if (!result.success && result.error) {
         console.error('❌ Erro no resultado do login:', result.error);
         Alert.alert('Erro de Login', result.error);
@@ -94,7 +94,7 @@ export default function AuthForm({
         clearTimeout(submitTimeoutRef.current);
         submitTimeoutRef.current = null;
       }
-      
+
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
@@ -128,16 +128,10 @@ export default function AuthForm({
         style={[styles.button, isLoading && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? '⏳ Entrando...' : submitText}
-        </Text>
+        <Text style={styles.buttonText}>{isLoading ? '⏳ Entrando...' : submitText}</Text>
       </TouchableOpacity>
-      
-      {isLoading && (
-        <Text style={styles.loadingHint}>
-          Aguarde, processando sua solicitação...
-        </Text>
-      )}
+
+      {isLoading && <Text style={styles.loadingHint}>Aguarde, processando sua solicitação...</Text>}
     </View>
   );
 }

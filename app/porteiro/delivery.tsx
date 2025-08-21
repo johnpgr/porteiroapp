@@ -196,7 +196,6 @@ export default function DeliveryManagement() {
   };
 
   const DeliveryCard = ({ delivery }: { delivery: Delivery }) => {
-
     const handleDeliver = () => {
       if (delivery.status === 'entregue') return;
 

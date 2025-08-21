@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 type FlowStep = 'apartamento' | 'empresa' | 'entregador' | 'observacoes' | 'foto' | 'confirmacao';
@@ -24,42 +33,43 @@ const empresasEntrega = [
 export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEncomendaProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
-  const [empresaSelecionada, setEmpresaSelecionada] = useState<typeof empresasEntrega[0] | null>(null);
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<(typeof empresasEntrega)[0] | null>(
+    null
+  );
   const [nomeEntregador, setNomeEntregador] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const renderNumericKeypad = (value: string, setValue: (val: string) => void, onNext: () => void) => (
+  const renderNumericKeypad = (
+    value: string,
+    setValue: (val: string) => void,
+    onNext: () => void
+  ) => (
     <View style={styles.keypadContainer}>
       <View style={styles.displayContainer}>
         <Text style={styles.displayLabel}>Número do Apartamento</Text>
         <Text style={styles.displayValue}>{value || '___'}</Text>
       </View>
-      
+
       <View style={styles.keypad}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
           <TouchableOpacity
             key={num}
             style={styles.keypadButton}
-            onPress={() => setValue(value + num.toString())}
-          >
+            onPress={() => setValue(value + num.toString())}>
             <Text style={styles.keypadButtonText}>{num}</Text>
           </TouchableOpacity>
         ))}
-        
-        <TouchableOpacity
-          style={styles.keypadButton}
-          onPress={() => setValue(value.slice(0, -1))}
-        >
+
+        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
           <Text style={styles.keypadButtonText}>⌫</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.keypadButton, styles.confirmButton]}
           onPress={onNext}
-          disabled={!value}
-        >
+          disabled={!value}>
           <Text style={styles.confirmButtonText}>✓</Text>
         </TouchableOpacity>
       </View>
@@ -70,7 +80,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
       <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
-      
+
       {renderNumericKeypad(apartamento, setApartamento, () => {
         if (apartamento) {
           setCurrentStep('empresa');
@@ -83,7 +93,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🚚 Empresa de Entrega</Text>
       <Text style={styles.stepSubtitle}>Selecione a empresa ou serviço</Text>
-      
+
       <ScrollView style={styles.empresasContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.empresasGrid}>
           {empresasEntrega.map((empresa) => (
@@ -92,13 +102,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
               style={[
                 styles.empresaButton,
                 { borderColor: empresa.cor },
-                empresaSelecionada?.id === empresa.id && { backgroundColor: empresa.cor + '20' }
+                empresaSelecionada?.id === empresa.id && { backgroundColor: empresa.cor + '20' },
               ]}
               onPress={() => {
                 setEmpresaSelecionada(empresa);
                 setCurrentStep('entregador');
-              }}
-            >
+              }}>
               <Text style={styles.empresaIcon}>{empresa.icon}</Text>
               <Text style={styles.empresaNome}>{empresa.nome}</Text>
             </TouchableOpacity>
@@ -112,7 +121,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>👤 Entregador</Text>
       <Text style={styles.stepSubtitle}>Digite o nome do entregador</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
@@ -122,7 +131,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           autoFocus
           autoCapitalize="words"
         />
-        
+
         <TouchableOpacity
           style={[styles.nextButton, !nomeEntregador && styles.nextButtonDisabled]}
           onPress={() => {
@@ -130,8 +139,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
               setCurrentStep('observacoes');
             }
           }}
-          disabled={!nomeEntregador.trim()}
-        >
+          disabled={!nomeEntregador.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -142,7 +150,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>📝 Observações</Text>
       <Text style={styles.stepSubtitle}>Adicione observações (opcional)</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={[styles.textInput, styles.textArea]}
@@ -153,11 +161,8 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           numberOfLines={4}
           autoFocus
         />
-        
-        <TouchableOpacity
-          style={styles.nextButton}
-          onPress={() => setCurrentStep('foto')}
-        >
+
+        <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep('foto')}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -185,7 +190,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>📸 Foto da Encomenda</Text>
         <Text style={styles.stepSubtitle}>Tire uma foto da encomenda ou entregador</Text>
-        
+
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
             <CameraView style={styles.camera} facing="back">
@@ -195,8 +200,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                   onPress={() => {
                     setFotoTirada(true);
                     setCurrentStep('confirmacao');
-                  }}
-                >
+                  }}>
                   <Text style={styles.captureButtonText}>📸</Text>
                 </TouchableOpacity>
               </View>
@@ -207,8 +211,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             <Text style={styles.photoTakenText}>✅ Foto capturada com sucesso!</Text>
             <TouchableOpacity
               style={styles.nextButton}
-              onPress={() => setCurrentStep('confirmacao')}
-            >
+              onPress={() => setCurrentStep('confirmacao')}>
               <Text style={styles.nextButtonText}>Continuar →</Text>
             </TouchableOpacity>
           </View>
@@ -221,15 +224,11 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     const handleConfirm = () => {
       // Aqui você implementaria a lógica para salvar os dados
       const message = `O apartamento ${apartamento} foi notificado sobre a chegada da encomenda ${empresaSelecionada?.nome}.`;
-      
+
       if (onConfirm) {
         onConfirm(message);
       } else {
-        Alert.alert(
-          '✅ Encomenda Registrada!',
-          message,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('✅ Encomenda Registrada!', message, [{ text: 'OK' }]);
         onClose();
       }
     };
@@ -238,23 +237,23 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>✅ Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados da encomenda</Text>
-        
+
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
             <Text style={styles.summaryValue}>{apartamento}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Empresa:</Text>
             <Text style={styles.summaryValue}>{empresaSelecionada?.nome}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Entregador:</Text>
             <Text style={styles.summaryValue}>{nomeEntregador}</Text>
           </View>
-          
+
           {observacoes && (
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Observações:</Text>
@@ -262,7 +261,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             </View>
           )}
         </View>
-        
+
         <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
           <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
         </TouchableOpacity>
@@ -297,18 +296,20 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Registrar Encomenda</Text>
       </View>
-      
+
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View 
+          <View
             style={[
-              styles.progressFill, 
-              { width: `${(Object.keys({apartamento, empresa: empresaSelecionada, entregador: nomeEntregador, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao'}).filter(Boolean).length / 6) * 100}%` }
-            ]} 
+              styles.progressFill,
+              {
+                width: `${(Object.keys({ apartamento, empresa: empresaSelecionada, entregador: nomeEntregador, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
+              },
+            ]}
           />
         </View>
       </View>
-      
+
       {renderCurrentStep()}
     </SafeAreaView>
   );

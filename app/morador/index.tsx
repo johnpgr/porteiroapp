@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { Link, router } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -12,41 +21,31 @@ export default function MoradorDashboard() {
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Sair',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.replace('/');
-          },
+    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+          router.replace('/');
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity 
-        style={styles.alertButton}
-        onPress={() => router.push('/admin/emergency')}
-      >
+      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/admin/emergency')}>
         <Ionicons name="warning" size={24} color="#fff" />
       </TouchableOpacity>
-      
+
       <View style={styles.headerCenter}>
         <Text style={styles.title}>🏠 Morador</Text>
         <Text style={styles.subtitle}>Apartamento 101</Text>
       </View>
-      
-      <TouchableOpacity 
-        style={styles.avatarButton}
-        onPress={() => setShowAvatarMenu(true)}
-      >
+
+      <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
         <Ionicons name="person-circle" size={32} color="#fff" />
       </TouchableOpacity>
     </View>
@@ -57,33 +56,27 @@ export default function MoradorDashboard() {
       visible={showAvatarMenu}
       transparent
       animationType="fade"
-      onRequestClose={() => setShowAvatarMenu(false)}
-    >
-      <TouchableOpacity 
-        style={styles.modalOverlay}
-        onPress={() => setShowAvatarMenu(false)}
-      >
+      onRequestClose={() => setShowAvatarMenu(false)}>
+      <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowAvatarMenu(false)}>
         <View style={styles.avatarMenu}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {
               setShowAvatarMenu(false);
               router.push('/morador/profile');
-            }}
-          >
+            }}>
             <Ionicons name="person" size={20} color="#333" />
             <Text style={styles.menuText}>Ver/Editar Perfil</Text>
           </TouchableOpacity>
-          
+
           <View style={styles.menuDivider} />
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {
               setShowAvatarMenu(false);
               handleLogout();
-            }}
-          >
+            }}>
             <Ionicons name="log-out" size={20} color="#f44336" />
             <Text style={[styles.menuText, { color: '#f44336' }]}>Logout</Text>
           </TouchableOpacity>
@@ -111,7 +104,7 @@ export default function MoradorDashboard() {
     <ScrollView style={styles.content}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📬 Notificações Pendentes</Text>
-        
+
         <View style={styles.notificationCard}>
           <View style={styles.notificationHeader}>
             <Text style={styles.notificationTitle}>👤 Roberto Silva quer subir</Text>
@@ -145,7 +138,7 @@ export default function MoradorDashboard() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📋 Histórico de Visitantes</Text>
-        
+
         <View style={styles.historyCard}>
           <Text style={styles.historyTitle}>Maria Santos</Text>
           <Text style={styles.historyDetails}>Prestadora de serviço • Hoje às 14:30</Text>
@@ -168,11 +161,10 @@ export default function MoradorDashboard() {
         <Text style={styles.sectionDescription}>
           Cadastre visitantes esperados para facilitar a entrada
         </Text>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push('/morador/visitantes/novo')}
-        >
+          onPress={() => router.push('/morador/visitantes/novo')}>
           <Ionicons name="add-circle" size={24} color="#fff" />
           <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
         </TouchableOpacity>
@@ -180,7 +172,7 @@ export default function MoradorDashboard() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📝 Visitantes Pré-cadastrados</Text>
-        
+
         <View style={styles.visitorCard}>
           <Text style={styles.visitorName}>Carlos Silva</Text>
           <Text style={styles.visitorType}>🔧 Prestador de serviço</Text>
@@ -200,11 +192,10 @@ export default function MoradorDashboard() {
         <Text style={styles.sectionDescription}>
           Cadastre familiares, funcionários e pessoas autorizadas
         </Text>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push('/morador/cadastro/novo')}
-        >
+          onPress={() => router.push('/morador/cadastro/novo')}>
           <Ionicons name="person-add" size={24} color="#fff" />
           <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
         </TouchableOpacity>
@@ -212,7 +203,7 @@ export default function MoradorDashboard() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
-        
+
         <View style={styles.personCard}>
           <Text style={styles.personName}>Ana Silva</Text>
           <Text style={styles.personRelation}>💑 Cônjuge</Text>
@@ -238,7 +229,7 @@ export default function MoradorDashboard() {
     <ScrollView style={styles.content}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
-        
+
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>🛗 Manutenção do Elevador</Text>
           <Text style={styles.noticeDescription}>
@@ -250,7 +241,8 @@ export default function MoradorDashboard() {
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>💧 Interrupção no Fornecimento de Água</Text>
           <Text style={styles.noticeDescription}>
-            Haverá interrupção no fornecimento de água no dia 30/12/2024 das 9h às 15h para manutenção da caixa d&apos;água.
+            Haverá interrupção no fornecimento de água no dia 30/12/2024 das 9h às 15h para
+            manutenção da caixa d&apos;água.
           </Text>
           <Text style={styles.noticeTime}>Publicado em 18/12/2024 às 14:15</Text>
         </View>
@@ -258,7 +250,8 @@ export default function MoradorDashboard() {
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>🎄 Festa de Fim de Ano</Text>
           <Text style={styles.noticeDescription}>
-            Convidamos todos os moradores para a festa de fim de ano que acontecerá no salão de festas no dia 31/12/2024 às 20h.
+            Convidamos todos os moradores para a festa de fim de ano que acontecerá no salão de
+            festas no dia 31/12/2024 às 20h.
           </Text>
           <Text style={styles.noticeTime}>Publicado em 15/12/2024 às 16:45</Text>
         </View>
@@ -270,50 +263,54 @@ export default function MoradorDashboard() {
     <View style={styles.bottomNav}>
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'inicio' && styles.navItemActive]}
-        onPress={() => setActiveTab('inicio')}
-      >
-        <Ionicons 
-          name={activeTab === 'inicio' ? 'home' : 'home-outline'} 
-          size={24} 
-          color={activeTab === 'inicio' ? '#4CAF50' : '#666'} 
+        onPress={() => setActiveTab('inicio')}>
+        <Ionicons
+          name={activeTab === 'inicio' ? 'home' : 'home-outline'}
+          size={24}
+          color={activeTab === 'inicio' ? '#4CAF50' : '#666'}
         />
-        <Text style={[styles.navLabel, activeTab === 'inicio' && styles.navLabelActive]}>Início</Text>
+        <Text style={[styles.navLabel, activeTab === 'inicio' && styles.navLabelActive]}>
+          Início
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'visitantes' && styles.navItemActive]}
-        onPress={() => setActiveTab('visitantes')}
-      >
-        <Ionicons 
-          name={activeTab === 'visitantes' ? 'people' : 'people-outline'} 
-          size={24} 
-          color={activeTab === 'visitantes' ? '#4CAF50' : '#666'} 
+        onPress={() => setActiveTab('visitantes')}>
+        <Ionicons
+          name={activeTab === 'visitantes' ? 'people' : 'people-outline'}
+          size={24}
+          color={activeTab === 'visitantes' ? '#4CAF50' : '#666'}
         />
-        <Text style={[styles.navLabel, activeTab === 'visitantes' && styles.navLabelActive]}>Visitantes</Text>
+        <Text style={[styles.navLabel, activeTab === 'visitantes' && styles.navLabelActive]}>
+          Visitantes
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'cadastro' && styles.navItemActive]}
-        onPress={() => setActiveTab('cadastro')}
-      >
-        <Ionicons 
-          name={activeTab === 'cadastro' ? 'person-add' : 'person-add-outline'} 
-          size={24} 
-          color={activeTab === 'cadastro' ? '#4CAF50' : '#666'} 
+        onPress={() => setActiveTab('cadastro')}>
+        <Ionicons
+          name={activeTab === 'cadastro' ? 'person-add' : 'person-add-outline'}
+          size={24}
+          color={activeTab === 'cadastro' ? '#4CAF50' : '#666'}
         />
-        <Text style={[styles.navLabel, activeTab === 'cadastro' && styles.navLabelActive]}>Cadastro</Text>
+        <Text style={[styles.navLabel, activeTab === 'cadastro' && styles.navLabelActive]}>
+          Cadastro
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'avisos' && styles.navItemActive]}
-        onPress={() => setActiveTab('avisos')}
-      >
-        <Ionicons 
-          name={activeTab === 'avisos' ? 'notifications' : 'notifications-outline'} 
-          size={24} 
-          color={activeTab === 'avisos' ? '#4CAF50' : '#666'} 
+        onPress={() => setActiveTab('avisos')}>
+        <Ionicons
+          name={activeTab === 'avisos' ? 'notifications' : 'notifications-outline'}
+          size={24}
+          color={activeTab === 'avisos' ? '#4CAF50' : '#666'}
         />
-        <Text style={[styles.navLabel, activeTab === 'avisos' && styles.navLabelActive]}>Avisos</Text>
+        <Text style={[styles.navLabel, activeTab === 'avisos' && styles.navLabelActive]}>
+          Avisos
+        </Text>
       </TouchableOpacity>
     </View>
   );

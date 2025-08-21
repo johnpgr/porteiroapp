@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -42,22 +50,22 @@ function formatTime(dateString: string): string {
 }
 
 export default function ObservacoesVisitante() {
-  const { tipo, nome, cpf, foto, data, horaInicio, horaFim } = useLocalSearchParams<{ 
-    tipo: VisitType; 
-    nome: string; 
+  const { tipo, nome, cpf, foto, data, horaInicio, horaFim } = useLocalSearchParams<{
+    tipo: VisitType;
+    nome: string;
     cpf: string;
     foto: string;
     data: string;
     horaInicio: string;
     horaFim: string;
   }>();
-  
+
   const [observacoes, setObservacoes] = useState('');
   const [autoAuthorize, setAutoAuthorize] = useState(false);
 
   const addQuickObservation = (observation: string) => {
     if (observacoes.trim()) {
-      setObservacoes(prev => prev + '\n' + observation);
+      setObservacoes((prev) => prev + '\n' + observation);
     } else {
       setObservacoes(observation);
     }
@@ -66,7 +74,7 @@ export default function ObservacoesVisitante() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/visitantes/confirmacao',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
@@ -75,15 +83,15 @@ export default function ObservacoesVisitante() {
         horaInicio: horaInicio || '',
         horaFim: horaFim || '',
         observacoes: observacoes.trim(),
-        autoAuthorize: autoAuthorize.toString()
-      }
+        autoAuthorize: autoAuthorize.toString(),
+      },
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/morador/visitantes/confirmacao',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
@@ -92,8 +100,8 @@ export default function ObservacoesVisitante() {
         horaInicio: horaInicio || '',
         horaFim: horaFim || '',
         observacoes: '',
-        autoAuthorize: autoAuthorize.toString()
-      }
+        autoAuthorize: autoAuthorize.toString(),
+      },
     });
   };
 
@@ -104,136 +112,122 @@ export default function ObservacoesVisitante() {
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👥 Novo Visitante</Text>
-            <View style={styles.placeholder} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.title}>👥 Novo Visitante</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={styles.progressStep} />
+          </View>
+          <Text style={styles.progressText}>Passo 6 de 7</Text>
+        </View>
+
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.typeIndicator}>
+            <Text style={styles.typeIndicatorText}>
+              {visitTypeLabels[tipo as VisitType] || '👥 Visita Social'}
+            </Text>
           </View>
 
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={styles.progressStep} />
-            </View>
-            <Text style={styles.progressText}>Passo 6 de 7</Text>
+          <View style={styles.visitorInfo}>
+            <Text style={styles.visitorName}>👤 {nome}</Text>
+            {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
+            {data && (
+              <Text style={styles.visitorDate}>
+                📅 {formatDate(data)} • 🕐 {formatTime(horaInicio || '')} -{' '}
+                {formatTime(horaFim || '')}
+              </Text>
+            )}
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.typeIndicator}>
-              <Text style={styles.typeIndicatorText}>
-                {visitTypeLabels[tipo as VisitType] || '👥 Visita Social'}
-              </Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Observações</Text>
+            <Text style={styles.sectionDescription}>
+              Adicione informações extras sobre a visita (opcional)
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Observações</Text>
+              <TextInput
+                style={styles.textArea}
+                value={observacoes}
+                onChangeText={setObservacoes}
+                placeholder="Ex: Visitante irá trazer equipamentos para manutenção..."
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+              <Text style={styles.inputHelper}>{observacoes.length}/500 caracteres</Text>
             </View>
 
-            <View style={styles.visitorInfo}>
-              <Text style={styles.visitorName}>👤 {nome}</Text>
-              {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
-              {data && (
-                <Text style={styles.visitorDate}>
-                  📅 {formatDate(data)} • 🕐 {formatTime(horaInicio || '')} - {formatTime(horaFim || '')}
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Observações</Text>
-              <Text style={styles.sectionDescription}>
-                Adicione informações extras sobre a visita (opcional)
-              </Text>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Observações</Text>
-                <TextInput
-                  style={styles.textArea}
-                  value={observacoes}
-                  onChangeText={setObservacoes}
-                  placeholder="Ex: Visitante irá trazer equipamentos para manutenção..."
-                  placeholderTextColor="#999"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  maxLength={500}
-                />
-                <Text style={styles.inputHelper}>
-                  {observacoes.length}/500 caracteres
-                </Text>
+            <View style={styles.quickObservationsContainer}>
+              <Text style={styles.quickObservationsTitle}>💡 Sugestões Rápidas</Text>
+              <View style={styles.quickObservationsGrid}>
+                {quickObservations.map((observation, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.quickObservationButton}
+                    onPress={() => addQuickObservation(observation)}>
+                    <Text style={styles.quickObservationText}>{observation}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+            </View>
 
-              <View style={styles.quickObservationsContainer}>
-                <Text style={styles.quickObservationsTitle}>💡 Sugestões Rápidas</Text>
-                <View style={styles.quickObservationsGrid}>
-                  {quickObservations.map((observation, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.quickObservationButton}
-                      onPress={() => addQuickObservation(observation)}
-                    >
-                      <Text style={styles.quickObservationText}>{observation}</Text>
-                    </TouchableOpacity>
-                  ))}
+            <View style={styles.autoAuthorizeContainer}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setAutoAuthorize(!autoAuthorize)}>
+                <View style={[styles.checkbox, autoAuthorize && styles.checkboxChecked]}>
+                  {autoAuthorize && <Ionicons name="checkmark" size={16} color="#fff" />}
                 </View>
-              </View>
-
-              <View style={styles.autoAuthorizeContainer}>
-                <TouchableOpacity
-                  style={styles.checkboxContainer}
-                  onPress={() => setAutoAuthorize(!autoAuthorize)}
-                >
-                  <View style={[styles.checkbox, autoAuthorize && styles.checkboxChecked]}>
-                    {autoAuthorize && (
-                      <Ionicons name="checkmark" size={16} color="#fff" />
-                    )}
-                  </View>
-                  <View style={styles.checkboxTextContainer}>
-                    <Text style={styles.checkboxTitle}>🚪 Autorizar entrada automaticamente</Text>
-                    <Text style={styles.checkboxDescription}>
-                      O visitante poderá entrar sem aprovação manual no período definido
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.tipContainer}>
-                <Ionicons name="information-circle" size={20} color="#2196F3" />
-                <Text style={styles.tipText}>
-                  As observações ajudam o porteiro a identificar o motivo da visita
-                </Text>
-              </View>
+                <View style={styles.checkboxTextContainer}>
+                  <Text style={styles.checkboxTitle}>🚪 Autorizar entrada automaticamente</Text>
+                  <Text style={styles.checkboxDescription}>
+                    O visitante poderá entrar sem aprovação manual no período definido
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
 
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
-              <Ionicons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backFooterButtonText}>Voltar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-            >
-              <Text style={styles.skipButtonText}>Pular</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
-              <Text style={styles.nextButtonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.tipContainer}>
+              <Ionicons name="information-circle" size={20} color="#2196F3" />
+              <Text style={styles.tipText}>
+                As observações ajudam o porteiro a identificar o motivo da visita
+              </Text>
+            </View>
           </View>
-        </SafeAreaView>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color="#666" />
+            <Text style={styles.backFooterButtonText}>Voltar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipButtonText}>Pular</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

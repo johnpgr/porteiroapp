@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -34,60 +43,50 @@ export default function Avisos() {
   };
 
   const markAsRead = (noticeId: string) => {
-    setNotices(prev => 
-      prev.map(notice => 
-        notice.id === noticeId 
-          ? { ...notice, isRead: true }
-          : notice
-      )
+    setNotices((prev) =>
+      prev.map((notice) => (notice.id === noticeId ? { ...notice, isRead: true } : notice))
     );
   };
 
   const markAllAsRead = () => {
-    Alert.alert(
-      'Marcar Todos como Lidos',
-      'Deseja marcar todos os avisos como lidos?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: () => {
-            setNotices(prev => 
-              prev.map(notice => ({ ...notice, isRead: true }))
-            );
-          }
-        }
-      ]
-    );
+    Alert.alert('Marcar Todos como Lidos', 'Deseja marcar todos os avisos como lidos?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Confirmar',
+        onPress: () => {
+          setNotices((prev) => prev.map((notice) => ({ ...notice, isRead: true })));
+        },
+      },
+    ]);
   };
 
   const getCategoryIcon = (category: string) => {
     const icons: { [key: string]: string } = {
-      'maintenance': '🔧',
-      'event': '🎉',
-      'warning': '⚠️',
-      'info': 'ℹ️',
-      'emergency': '🚨',
+      maintenance: '🔧',
+      event: '🎉',
+      warning: '⚠️',
+      info: 'ℹ️',
+      emergency: '🚨',
     };
     return icons[category] || 'ℹ️';
   };
 
   const getCategoryColor = (category: string) => {
     const colors: { [key: string]: string } = {
-      'maintenance': '#FF9800',
-      'event': '#4CAF50',
-      'warning': '#F44336',
-      'info': '#2196F3',
-      'emergency': '#E91E63',
+      maintenance: '#FF9800',
+      event: '#4CAF50',
+      warning: '#F44336',
+      info: '#2196F3',
+      emergency: '#E91E63',
     };
     return colors[category] || '#2196F3';
   };
 
   const getPriorityColor = (priority: string) => {
     const colors: { [key: string]: string } = {
-      'low': '#4CAF50',
-      'medium': '#FF9800',
-      'high': '#F44336',
+      low: '#4CAF50',
+      medium: '#FF9800',
+      high: '#F44336',
     };
     return colors[priority] || '#4CAF50';
   };
@@ -103,19 +102,20 @@ export default function Avisos() {
     } else if (date.toDateString() === yesterday.toDateString()) {
       return 'Ontem';
     } else {
-      return date.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
         month: '2-digit',
-        year: 'numeric'
+        year: 'numeric',
       });
     }
   };
 
-  const filteredNotices = selectedCategory === 'all' 
-    ? notices 
-    : notices.filter(notice => notice.category === selectedCategory);
+  const filteredNotices =
+    selectedCategory === 'all'
+      ? notices
+      : notices.filter((notice) => notice.category === selectedCategory);
 
-  const unreadCount = notices.filter(notice => !notice.isRead).length;
+  const unreadCount = notices.filter((notice) => !notice.isRead).length;
 
   const categories = [
     { id: 'all', label: 'Todos', icon: '📋' },
@@ -148,46 +148,49 @@ export default function Avisos() {
           </View>
 
           <View style={styles.categoriesContainer}>
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesList}
-            >
+              contentContainerStyle={styles.categoriesList}>
               {categories.map((category) => {
-                const categoryCount = category.id === 'all' 
-                  ? notices.length 
-                  : notices.filter(n => n.category === category.id).length;
-                
+                const categoryCount =
+                  category.id === 'all'
+                    ? notices.length
+                    : notices.filter((n) => n.category === category.id).length;
+
                 return (
                   <TouchableOpacity
                     key={category.id}
                     style={flattenStyles([
                       styles.categoryButton,
-                      selectedCategory === category.id && styles.categoryButtonActive
+                      selectedCategory === category.id && styles.categoryButtonActive,
                     ])}
-                    onPress={() => setSelectedCategory(category.id)}
-                  >
-                    <Text style={flattenStyles([
-                      styles.categoryIcon,
-                      selectedCategory === category.id && styles.categoryIconActive
-                    ])}>
+                    onPress={() => setSelectedCategory(category.id)}>
+                    <Text
+                      style={flattenStyles([
+                        styles.categoryIcon,
+                        selectedCategory === category.id && styles.categoryIconActive,
+                      ])}>
                       {category.icon}
                     </Text>
-                    <Text style={flattenStyles([
-                      styles.categoryLabel,
-                      selectedCategory === category.id && styles.categoryLabelActive
-                    ])}>
+                    <Text
+                      style={flattenStyles([
+                        styles.categoryLabel,
+                        selectedCategory === category.id && styles.categoryLabelActive,
+                      ])}>
                       {category.label}
                     </Text>
                     {categoryCount > 0 && (
-                      <View style={flattenStyles([
-                        styles.categoryBadge,
-                        selectedCategory === category.id && styles.categoryBadgeActive
-                      ])}>
-                        <Text style={flattenStyles([
-                          styles.categoryBadgeText,
-                          selectedCategory === category.id && styles.categoryBadgeTextActive
+                      <View
+                        style={flattenStyles([
+                          styles.categoryBadge,
+                          selectedCategory === category.id && styles.categoryBadgeActive,
                         ])}>
+                        <Text
+                          style={flattenStyles([
+                            styles.categoryBadgeText,
+                            selectedCategory === category.id && styles.categoryBadgeTextActive,
+                          ])}>
                           {categoryCount}
                         </Text>
                       </View>
@@ -198,22 +201,18 @@ export default function Avisos() {
             </ScrollView>
           </View>
 
-          <ScrollView 
+          <ScrollView
             style={styles.content}
             showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-          >
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
             {filteredNotices.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyIcon}>📭</Text>
                 <Text style={styles.emptyTitle}>Nenhum aviso encontrado</Text>
                 <Text style={styles.emptyDescription}>
-                  {selectedCategory === 'all' 
+                  {selectedCategory === 'all'
                     ? 'Não há avisos para exibir no momento.'
-                    : `Não há avisos na categoria "${categories.find(c => c.id === selectedCategory)?.label}".`
-                  }
+                    : `Não há avisos na categoria "${categories.find((c) => c.id === selectedCategory)?.label}".`}
                 </Text>
               </View>
             ) : (
@@ -223,62 +222,59 @@ export default function Avisos() {
                     key={notice.id}
                     style={flattenStyles([
                       styles.noticeCard,
-                      !notice.isRead && styles.noticeCardUnread
+                      !notice.isRead && styles.noticeCardUnread,
                     ])}
-                    onPress={() => markAsRead(notice.id)}
-                  >
+                    onPress={() => markAsRead(notice.id)}>
                     <View style={styles.noticeHeader}>
                       <View style={styles.noticeCategory}>
                         <Text style={styles.noticeCategoryIcon}>
                           {getCategoryIcon(notice.category)}
                         </Text>
-                        <View 
+                        <View
                           style={flattenStyles([
                             styles.noticePriority,
-                            { backgroundColor: getPriorityColor(notice.priority) }
-                          ])} 
+                            { backgroundColor: getPriorityColor(notice.priority) },
+                          ])}
                         />
                       </View>
-                      
+
                       <View style={styles.noticeInfo}>
                         <Text style={styles.noticeDate}>
                           {formatDate(notice.date)} • {notice.time}
                         </Text>
                         <Text style={styles.noticeAuthor}>por {notice.author}</Text>
                       </View>
-                      
-                      {!notice.isRead && (
-                        <View style={styles.unreadIndicator} />
-                      )}
+
+                      {!notice.isRead && <View style={styles.unreadIndicator} />}
                     </View>
-                    
+
                     <View style={styles.noticeContent}>
-                      <Text style={flattenStyles([
-                        styles.noticeTitle,
-                        !notice.isRead && styles.noticeTitleUnread
-                      ])}>
+                      <Text
+                        style={flattenStyles([
+                          styles.noticeTitle,
+                          !notice.isRead && styles.noticeTitleUnread,
+                        ])}>
                         {notice.title}
                       </Text>
-                      <Text style={styles.noticeDescription}>
-                        {notice.description}
-                      </Text>
+                      <Text style={styles.noticeDescription}>{notice.description}</Text>
                     </View>
-                    
+
                     <View style={styles.noticeFooter}>
-                      <View 
+                      <View
                         style={flattenStyles([
                           styles.categoryTag,
-                          { backgroundColor: getCategoryColor(notice.category) + '20' }
-                        ])}
-                      >
-                        <Text style={flattenStyles([
-                          styles.categoryTagText,
-                          { color: getCategoryColor(notice.category) }
+                          { backgroundColor: getCategoryColor(notice.category) + '20' },
                         ])}>
-                          {categories.find(c => c.id === notice.category)?.label || notice.category}
+                        <Text
+                          style={flattenStyles([
+                            styles.categoryTagText,
+                            { color: getCategoryColor(notice.category) },
+                          ])}>
+                          {categories.find((c) => c.id === notice.category)?.label ||
+                            notice.category}
                         </Text>
                       </View>
-                      
+
                       <TouchableOpacity style={styles.shareButton}>
                         <Ionicons name="share-outline" size={16} color="#666" />
                         <Text style={styles.shareText}>Compartilhar</Text>

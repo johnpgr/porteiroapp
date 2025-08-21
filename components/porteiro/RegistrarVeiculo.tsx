@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+} from 'react-native';
 
 type FlowStep = 'apartamento' | 'empresa' | 'placa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
 
@@ -60,16 +69,18 @@ const coresVeiculos = [
 export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeiculoProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
-  const [empresaSelecionada, setEmpresaSelecionada] = useState<typeof empresasPrestadoras[0] | null>(null);
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<
+    (typeof empresasPrestadoras)[0] | null
+  >(null);
   const [placa, setPlaca] = useState('');
-  const [marcaSelecionada, setMarcaSelecionada] = useState<typeof marcasVeiculos[0] | null>(null);
-  const [corSelecionada, setCorSelecionada] = useState<typeof coresVeiculos[0] | null>(null);
+  const [marcaSelecionada, setMarcaSelecionada] = useState<(typeof marcasVeiculos)[0] | null>(null);
+  const [corSelecionada, setCorSelecionada] = useState<(typeof coresVeiculos)[0] | null>(null);
   const [nomeConvidado, setNomeConvidado] = useState('');
 
   const formatPlaca = (text: string) => {
     // Remove caracteres não alfanuméricos
     const cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    
+
     // Formato brasileiro: ABC-1234 ou ABC1D23
     if (cleaned.length <= 3) {
       return cleaned;
@@ -80,36 +91,35 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     }
   };
 
-  const renderNumericKeypad = (value: string, setValue: (val: string) => void, onNext: () => void) => (
+  const renderNumericKeypad = (
+    value: string,
+    setValue: (val: string) => void,
+    onNext: () => void
+  ) => (
     <View style={styles.keypadContainer}>
       <View style={styles.displayContainer}>
         <Text style={styles.displayLabel}>Número do Apartamento</Text>
         <Text style={styles.displayValue}>{value || '___'}</Text>
       </View>
-      
+
       <View style={styles.keypad}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
           <TouchableOpacity
             key={num}
             style={styles.keypadButton}
-            onPress={() => setValue(value + num.toString())}
-          >
+            onPress={() => setValue(value + num.toString())}>
             <Text style={styles.keypadButtonText}>{num}</Text>
           </TouchableOpacity>
         ))}
-        
-        <TouchableOpacity
-          style={styles.keypadButton}
-          onPress={() => setValue(value.slice(0, -1))}
-        >
+
+        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
           <Text style={styles.keypadButtonText}>⌫</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.keypadButton, styles.confirmButton]}
           onPress={onNext}
-          disabled={!value}
-        >
+          disabled={!value}>
           <Text style={styles.confirmButtonText}>✓</Text>
         </TouchableOpacity>
       </View>
@@ -120,7 +130,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
       <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
-      
+
       {renderNumericKeypad(apartamento, setApartamento, () => {
         if (apartamento) {
           setCurrentStep('empresa');
@@ -133,7 +143,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏢 Empresa/Serviço</Text>
       <Text style={styles.stepSubtitle}>Selecione a empresa ou tipo de serviço</Text>
-      
+
       <ScrollView style={styles.empresasContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.empresasGrid}>
           {empresasPrestadoras.map((empresa) => (
@@ -142,27 +152,26 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               style={[
                 styles.empresaButton,
                 { borderColor: empresa.cor },
-                empresaSelecionada?.id === empresa.id && { backgroundColor: empresa.cor + '20' }
+                empresaSelecionada?.id === empresa.id && { backgroundColor: empresa.cor + '20' },
               ]}
               onPress={() => {
                 setEmpresaSelecionada(empresa);
                 setCurrentStep('placa');
-              }}
-            >
+              }}>
               <Text style={styles.empresaIcon}>{empresa.icon}</Text>
               <Text style={styles.empresaNome}>{empresa.nome}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
-     </View>
-   );
+    </View>
+  );
 
   const renderPlacaStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🚗 Placa do Veículo</Text>
       <Text style={styles.stepSubtitle}>Digite a placa do veículo</Text>
-      
+
       <View style={styles.inputContainer}>
         <View style={styles.placaContainer}>
           <Text style={styles.placaLabel}>BRASIL</Text>
@@ -176,7 +185,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             maxLength={8}
           />
         </View>
-        
+
         <TouchableOpacity
           style={[styles.nextButton, !placa && styles.nextButtonDisabled]}
           onPress={() => {
@@ -184,8 +193,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               setCurrentStep('marca');
             }
           }}
-          disabled={!placa.trim()}
-        >
+          disabled={!placa.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -196,7 +204,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏭 Marca do Veículo</Text>
       <Text style={styles.stepSubtitle}>Selecione a marca do veículo</Text>
-      
+
       <ScrollView style={styles.marcasContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.marcasGrid}>
           {marcasVeiculos.map((marca) => (
@@ -204,13 +212,12 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               key={marca.id}
               style={[
                 styles.marcaButton,
-                marcaSelecionada?.id === marca.id && styles.marcaButtonSelected
+                marcaSelecionada?.id === marca.id && styles.marcaButtonSelected,
               ]}
               onPress={() => {
                 setMarcaSelecionada(marca);
                 setCurrentStep('cor');
-              }}
-            >
+              }}>
               <Text style={styles.marcaIcon}>{marca.icon}</Text>
               <Text style={styles.marcaNome}>{marca.nome}</Text>
             </TouchableOpacity>
@@ -224,7 +231,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🎨 Cor do Veículo</Text>
       <Text style={styles.stepSubtitle}>Selecione a cor do veículo</Text>
-      
+
       <ScrollView style={styles.coresContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.coresGrid}>
           {coresVeiculos.map((cor) => (
@@ -233,18 +240,14 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               style={[
                 styles.corButton,
                 { borderColor: cor.borda },
-                corSelecionada?.id === cor.id && styles.corButtonSelected
+                corSelecionada?.id === cor.id && styles.corButtonSelected,
               ]}
               onPress={() => {
                 setCorSelecionada(cor);
                 setCurrentStep('convidado');
-              }}
-            >
-              <View 
-                style={[
-                  styles.corCircle, 
-                  { backgroundColor: cor.cor, borderColor: cor.borda }
-                ]} 
+              }}>
+              <View
+                style={[styles.corCircle, { backgroundColor: cor.cor, borderColor: cor.borda }]}
               />
               <Text style={styles.corNome}>{cor.nome}</Text>
             </TouchableOpacity>
@@ -258,7 +261,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>👤 Nome do Convidado</Text>
       <Text style={styles.stepSubtitle}>Digite o nome da pessoa associada ao veículo</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
@@ -268,7 +271,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           autoFocus
           autoCapitalize="words"
         />
-        
+
         <TouchableOpacity
           style={[styles.nextButton, !nomeConvidado && styles.nextButtonDisabled]}
           onPress={() => {
@@ -276,8 +279,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               setCurrentStep('confirmacao');
             }
           }}
-          disabled={!nomeConvidado.trim()}
-        >
+          disabled={!nomeConvidado.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -288,15 +290,11 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     const handleConfirm = () => {
       // Aqui você implementaria a lógica para salvar os dados
       const message = `O apartamento ${apartamento} foi notificado sobre a chegada do veículo ${placa} de ${nomeConvidado}.`;
-      
+
       if (onConfirm) {
         onConfirm(message);
       } else {
-        Alert.alert(
-          '✅ Veículo Registrado!',
-          message,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('✅ Veículo Registrado!', message, [{ text: 'OK' }]);
         onClose();
       }
     };
@@ -305,42 +303,42 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>✅ Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados do veículo</Text>
-        
+
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
             <Text style={styles.summaryValue}>{apartamento}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Placa:</Text>
             <Text style={styles.summaryValue}>{placa}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Marca:</Text>
             <Text style={styles.summaryValue}>{marcaSelecionada?.nome}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Cor:</Text>
             <View style={styles.summaryCorContainer}>
-              <View 
+              <View
                 style={[
-                  styles.summaryCorCircle, 
-                  { backgroundColor: corSelecionada?.cor, borderColor: corSelecionada?.borda }
-                ]} 
+                  styles.summaryCorCircle,
+                  { backgroundColor: corSelecionada?.cor, borderColor: corSelecionada?.borda },
+                ]}
               />
               <Text style={styles.summaryValue}>{corSelecionada?.nome}</Text>
             </View>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Convidado:</Text>
             <Text style={styles.summaryValue}>{nomeConvidado}</Text>
           </View>
         </View>
-        
+
         <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
           <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
         </TouchableOpacity>
@@ -377,18 +375,20 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Registrar Veículo</Text>
       </View>
-      
+
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View 
+          <View
             style={[
-              styles.progressFill, 
-              { width: `${(Object.keys({apartamento, placa, marca: marcaSelecionada, cor: corSelecionada, convidado: nomeConvidado, confirmacao: currentStep === 'confirmacao'}).filter(Boolean).length / 6) * 100}%` }
-            ]} 
+              styles.progressFill,
+              {
+                width: `${(Object.keys({ apartamento, placa, marca: marcaSelecionada, cor: corSelecionada, convidado: nomeConvidado, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
+              },
+            ]}
           />
         </View>
       </View>
-      
+
       {renderCurrentStep()}
     </SafeAreaView>
   );

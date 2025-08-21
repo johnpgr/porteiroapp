@@ -22,9 +22,9 @@ const accessTypes: AccessType[] = [
     features: [
       'Apenas acesso físico ao condomínio',
       'Não pode usar o aplicativo',
-      'Controle apenas pelo morador responsável'
+      'Controle apenas pelo morador responsável',
     ],
-    color: '#9E9E9E'
+    color: '#9E9E9E',
   },
   {
     id: 'usuario',
@@ -35,9 +35,9 @@ const accessTypes: AccessType[] = [
       'Pode usar o aplicativo',
       'Visualizar notificações',
       'Pré-cadastrar visitantes',
-      'Ver histórico de acessos'
+      'Ver histórico de acessos',
     ],
-    color: '#2196F3'
+    color: '#2196F3',
   },
   {
     id: 'administrador',
@@ -49,14 +49,14 @@ const accessTypes: AccessType[] = [
       'Gerenciar outros moradores',
       'Configurar permissões',
       'Acesso a relatórios avançados',
-      'Gerenciar avisos do condomínio'
+      'Gerenciar avisos do condomínio',
     ],
-    color: '#FF9800'
+    color: '#FF9800',
   },
 ];
 
 export default function AcessoCadastro() {
-  const { nome, relacionamento, telefone, placa } = useLocalSearchParams<{ 
+  const { nome, relacionamento, telefone, placa } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
     telefone: string;
@@ -67,13 +67,13 @@ export default function AcessoCadastro() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/cadastro/foto',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
         placa: placa || '',
-        acesso: selectedAccess
-      }
+        acesso: selectedAccess,
+      },
     });
   };
 
@@ -83,21 +83,21 @@ export default function AcessoCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
 
-  const selectedAccessData = accessTypes.find(a => a.id === selectedAccess);
+  const selectedAccessData = accessTypes.find((a) => a.id === selectedAccess);
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
@@ -128,7 +128,9 @@ export default function AcessoCadastro() {
           <View style={styles.content}>
             <View style={styles.personInfo}>
               <Text style={styles.personName}>👤 {nome}</Text>
-              <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+              <Text style={styles.personRelationship}>
+                {getRelationshipLabel(relacionamento || '')}
+              </Text>
               <Text style={styles.personPhone}>📱 {telefone}</Text>
               {placa && <Text style={styles.personPlate}>🚗 {placa}</Text>}
             </View>
@@ -139,59 +141,58 @@ export default function AcessoCadastro() {
                 Defina o nível de acesso desta pessoa ao aplicativo
               </Text>
 
-              <ScrollView 
-                style={styles.accessList}
-                showsVerticalScrollIndicator={false}
-              >
+              <ScrollView style={styles.accessList} showsVerticalScrollIndicator={false}>
                 {accessTypes.map((access) => (
                   <TouchableOpacity
                     key={access.id}
                     style={[
                       styles.accessCard,
                       selectedAccess === access.id && styles.accessCardSelected,
-                      { borderColor: selectedAccess === access.id ? access.color : '#e9ecef' }
+                      { borderColor: selectedAccess === access.id ? access.color : '#e9ecef' },
                     ]}
-                    onPress={() => setSelectedAccess(access.id)}
-                  >
+                    onPress={() => setSelectedAccess(access.id)}>
                     <View style={styles.accessHeader}>
                       <View style={[styles.accessIcon, { backgroundColor: access.color + '20' }]}>
                         <Text style={styles.accessIconText}>{access.icon}</Text>
                       </View>
-                      
+
                       <View style={styles.accessInfo}>
-                        <Text style={[
-                          styles.accessLabel,
-                          selectedAccess === access.id && { color: access.color }
-                        ]}>
+                        <Text
+                          style={[
+                            styles.accessLabel,
+                            selectedAccess === access.id && { color: access.color },
+                          ]}>
                           {access.label}
                         </Text>
-                        <Text style={[
-                          styles.accessDescription,
-                          selectedAccess === access.id && { color: access.color + 'CC' }
-                        ]}>
+                        <Text
+                          style={[
+                            styles.accessDescription,
+                            selectedAccess === access.id && { color: access.color + 'CC' },
+                          ]}>
                           {access.description}
                         </Text>
                       </View>
-                      
+
                       <View style={styles.accessCheck}>
                         {selectedAccess === access.id && (
                           <Ionicons name="checkmark-circle" size={24} color={access.color} />
                         )}
                       </View>
                     </View>
-                    
+
                     <View style={styles.accessFeatures}>
                       {access.features.map((feature, index) => (
                         <View key={index} style={styles.featureItem}>
-                          <Ionicons 
-                            name="checkmark" 
-                            size={16} 
-                            color={selectedAccess === access.id ? access.color : '#666'} 
+                          <Ionicons
+                            name="checkmark"
+                            size={16}
+                            color={selectedAccess === access.id ? access.color : '#666'}
                           />
-                          <Text style={[
-                            styles.featureText,
-                            selectedAccess === access.id && { color: access.color }
-                          ]}>
+                          <Text
+                            style={[
+                              styles.featureText,
+                              selectedAccess === access.id && { color: access.color },
+                            ]}>
                             {feature}
                           </Text>
                         </View>
@@ -202,14 +203,12 @@ export default function AcessoCadastro() {
               </ScrollView>
 
               {selectedAccessData && (
-                <View style={[
-                  styles.selectedInfo,
-                  { backgroundColor: selectedAccessData.color + '15' }
-                ]}>
-                  <Text style={[
-                    styles.selectedInfoText,
-                    { color: selectedAccessData.color }
+                <View
+                  style={[
+                    styles.selectedInfo,
+                    { backgroundColor: selectedAccessData.color + '15' },
                   ]}>
+                  <Text style={[styles.selectedInfoText, { color: selectedAccessData.color }]}>
                     ✅ Selecionado: {selectedAccessData.icon} {selectedAccessData.label}
                   </Text>
                 </View>
@@ -225,18 +224,12 @@ export default function AcessoCadastro() {
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
+            <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
               <Text style={styles.nextButtonText}>Continuar</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />
             </TouchableOpacity>

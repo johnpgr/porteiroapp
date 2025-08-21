@@ -134,7 +134,7 @@ class NotificationService {
   async savePushToken(userId: string, token: string): Promise<void> {
     console.warn('savePushToken está desabilitado temporariamente');
     return;
-    
+
     // CÓDIGO ORIGINAL COMENTADO
     // try {
     //   const { error } = await supabase.from('users').update({ push_token: token }).eq('id', userId);

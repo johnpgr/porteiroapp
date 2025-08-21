@@ -16,7 +16,7 @@ export default function AdminLogin() {
     if (!isCheckingRef.current) {
       checkCurrentAdmin();
     }
-    
+
     // Cleanup na desmontagem do componente
     return () => {
       isMountedRef.current = false;
@@ -33,22 +33,19 @@ export default function AdminLogin() {
       console.log('🔄 Verificação já em andamento, ignorando...');
       return;
     }
-    
+
     try {
       isCheckingRef.current = true;
       console.log('🔍 Verificando se há administrador logado...');
       setIsCheckingAuth(true);
-      
+
       // Timeout para verificação inicial
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Timeout na verificação de autenticação')), 8000);
       });
-      
-      const currentAdmin = await Promise.race([
-        adminAuth.getCurrentAdmin(),
-        timeoutPromise
-      ]);
-      
+
+      const currentAdmin = await Promise.race([adminAuth.getCurrentAdmin(), timeoutPromise]);
+
       if (currentAdmin && isMountedRef.current) {
         console.log('✅ Administrador já logado, redirecionando...');
         router.replace('/admin');
@@ -65,16 +62,19 @@ export default function AdminLogin() {
     }
   };
 
-  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const handleLogin = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
     // Limpar timeout anterior se existir
     if (loginTimeoutRef.current) {
       clearTimeout(loginTimeoutRef.current);
     }
-    
+
     try {
       console.log('🔐 Iniciando processo de login...');
       setIsLoading(true);
-      
+
       // Timeout de segurança para resetar loading em caso de travamento
       loginTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
@@ -82,31 +82,29 @@ export default function AdminLogin() {
           setIsLoading(false);
         }
       }, 15000);
-      
+
       const result = await adminAuth.signIn(email, password);
-      
+
       // Limpar timeout se chegou até aqui
       if (loginTimeoutRef.current) {
         clearTimeout(loginTimeoutRef.current);
         loginTimeoutRef.current = null;
       }
-      
+
       if (result.user && result.adminProfile) {
         console.log('✅ Login realizado com sucesso!');
-        
+
         if (isMountedRef.current) {
-          Alert.alert(
-            'Login Realizado',
-            `Bem-vindo, ${result.adminProfile.name}!`,
-            [{
+          Alert.alert('Login Realizado', `Bem-vindo, ${result.adminProfile.name}!`, [
+            {
               text: 'OK',
               onPress: () => {
                 if (isMountedRef.current) {
                   router.replace('/admin');
                 }
-              }
-            }]
-          );
+              },
+            },
+          ]);
         }
         return { success: true };
       } else {
@@ -115,9 +113,9 @@ export default function AdminLogin() {
       }
     } catch (error: any) {
       console.error('💥 Erro durante o login:', error);
-      
+
       let errorMessage = 'Ocorreu um erro inesperado';
-      
+
       if (error.message?.includes('Timeout')) {
         errorMessage = 'A operação demorou muito para responder. Tente novamente.';
       } else if (error.message === 'Invalid login credentials') {
@@ -129,7 +127,7 @@ export default function AdminLogin() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       return { success: false, error: errorMessage };
     } finally {
       // Garantir que o loading seja sempre resetado
@@ -137,7 +135,7 @@ export default function AdminLogin() {
         clearTimeout(loginTimeoutRef.current);
         loginTimeoutRef.current = null;
       }
-      
+
       if (isMountedRef.current) {
         setIsLoading(false);
       }
@@ -155,27 +153,20 @@ export default function AdminLogin() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity 
-        style={styles.backButton} 
+      <TouchableOpacity
+        style={styles.backButton}
         onPress={() => router.back()}
-        disabled={isLoading}
-      >
+        disabled={isLoading}>
         <Text style={[styles.backButtonText, isLoading && styles.disabledText]}>← Voltar</Text>
       </TouchableOpacity>
 
       <View style={styles.header}>
         <Text style={styles.title}>🔐 Login Administrador</Text>
         <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
-        {isLoading && (
-          <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>
-        )}
+        {isLoading && <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>}
       </View>
 
-      <AuthForm 
-        onSubmit={handleLogin} 
-        submitText="Entrar como Admin" 
-        loading={isLoading}
-      />
+      <AuthForm onSubmit={handleLogin} submitText="Entrar como Admin" loading={isLoading} />
     </View>
   );
 }

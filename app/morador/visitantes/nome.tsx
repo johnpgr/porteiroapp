@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -22,13 +30,13 @@ export default function NomeVisitante() {
       Alert.alert('Campo obrigatório', 'Por favor, digite o nome do visitante');
       return;
     }
-    
+
     router.push({
       pathname: '/morador/visitantes/cpf',
-      params: { 
+      params: {
         tipo: tipo || 'social',
-        nome: nome.trim()
-      }
+        nome: nome.trim(),
+      },
     });
   };
 
@@ -85,9 +93,7 @@ export default function NomeVisitante() {
                 autoCorrect={false}
                 maxLength={100}
               />
-              <Text style={styles.inputHelper}>
-                {nome.length}/100 caracteres
-              </Text>
+              <Text style={styles.inputHelper}>{nome.length}/100 caracteres</Text>
             </View>
 
             <View style={styles.tipContainer}>
@@ -100,33 +106,19 @@ export default function NomeVisitante() {
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.backFooterButton}
-            onPress={handleBack}
-          >
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={20} color="#666" />
             <Text style={styles.backFooterButtonText}>Voltar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.nextButton,
-              !nome.trim() && styles.nextButtonDisabled
-            ]}
+            style={[styles.nextButton, !nome.trim() && styles.nextButtonDisabled]}
             onPress={handleNext}
-            disabled={!nome.trim()}
-          >
-            <Text style={[
-              styles.nextButtonText,
-              !nome.trim() && styles.nextButtonTextDisabled
-            ]}>
+            disabled={!nome.trim()}>
+            <Text style={[styles.nextButtonText, !nome.trim() && styles.nextButtonTextDisabled]}>
               Continuar
             </Text>
-            <Ionicons 
-              name="arrow-forward" 
-              size={20} 
-              color={nome.trim() ? "#fff" : "#ccc"} 
-            />
+            <Ionicons name="arrow-forward" size={20} color={nome.trim() ? '#fff' : '#ccc'} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>

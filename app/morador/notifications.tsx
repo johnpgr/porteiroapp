@@ -15,7 +15,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { NotificationCard } from '../../components/NotificationCard';
 
 export default function NotificationsScreen() {
-  const { } = useAuth();
+  const {} = useAuth();
   const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
     useNotifications();
   const [refreshing, setRefreshing] = useState(false);

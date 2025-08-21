@@ -5,7 +5,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Configurações do Supabase
 const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
+const supabaseAnonKey =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -20,16 +21,16 @@ const adminAuth = {
           user_id: userData.user_id,
           full_name: userData.full_name,
           email: userData.email,
-          role: userData.role || 'admin'
+          role: userData.role || 'admin',
         })
         .select()
         .single();
-      
+
       if (error) {
         console.error('Erro ao criar perfil do administrador:', error);
         throw error;
       }
-      
+
       console.log('Perfil de administrador criado com sucesso:', data);
       return data;
     } catch (error) {
@@ -45,12 +46,12 @@ const adminAuth = {
         .from('admin_profiles')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         console.error('Erro ao buscar administradores:', error);
         return [];
       }
-      
+
       return data || [];
     } catch (error) {
       console.error('Erro ao buscar administradores:', error);
@@ -66,12 +67,12 @@ const adminAuth = {
         .select('id')
         .eq('admin_profile_id', adminProfileId)
         .limit(1);
-      
+
       if (error) {
         console.error('Erro ao verificar vinculações do administrador:', error);
         return false;
       }
-      
+
       return (data && data.length > 0) || false;
     } catch (error) {
       console.error('Erro ao verificar vinculações do administrador:', error);
@@ -84,7 +85,8 @@ const adminAuth = {
     try {
       const { data, error } = await supabase
         .from('building_admins')
-        .select(`
+        .select(
+          `
           buildings (
             id,
             name,
@@ -92,25 +94,26 @@ const adminAuth = {
             created_at,
             updated_at
           )
-        `)
+        `
+        )
         .eq('admin_profile_id', adminProfileId);
-      
+
       if (error) {
         console.error('Erro ao buscar edifícios do administrador:', error);
         return []; // Retorna array vazio ao invés de lançar erro
       }
-      
-      return data?.map(item => item.buildings).filter(Boolean) || [];
+
+      return data?.map((item) => item.buildings).filter(Boolean) || [];
     } catch (error) {
       console.error('Erro ao buscar edifícios do administrador:', error);
       return []; // Sempre retorna array vazio em caso de erro
     }
-  }
+  },
 };
 
 async function testAdminManagement() {
   console.log('🧪 Iniciando testes de gerenciamento de administradores...');
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
 
   try {
     // Teste 1: Listar todos os administradores existentes
@@ -125,10 +128,10 @@ async function testAdminManagement() {
     if (existingAdmins.length > 0) {
       const firstAdmin = existingAdmins[0];
       console.log(`\n🏢 Teste 2: Verificando vinculações do admin ${firstAdmin.full_name}`);
-      
+
       const hasBuildings = await adminAuth.hasAssignedBuildings(firstAdmin.id);
       console.log(`Admin tem prédios vinculados: ${hasBuildings ? 'SIM' : 'NÃO'}`);
-      
+
       const buildings = await adminAuth.getAdminBuildings(firstAdmin.id);
       console.log(`Prédios encontrados: ${buildings.length}`);
       buildings.forEach((building, index) => {
@@ -138,35 +141,35 @@ async function testAdminManagement() {
 
     // Teste 3: Testar criação de novo administrador sem prédios
     console.log('\n👤 Teste 3: Testando criação de administrador sem prédios');
-    
+
     // Primeiro, vamos verificar se existe um usuário de teste no auth.users
     const testUserId = '00000000-0000-0000-0000-000000000001'; // ID fictício para teste
-    
+
     const newAdminData = {
       user_id: testUserId,
       full_name: 'Admin Teste Sem Prédios',
       email: 'admin.teste@example.com',
-      role: 'admin'
+      role: 'admin',
     };
 
     console.log('Tentando criar novo administrador:', newAdminData);
-    
+
     // Nota: Este teste pode falhar se o user_id não existir no auth.users
     // Isso é esperado devido às constraints de foreign key
     const newAdmin = await adminAuth.createAdminProfile(newAdminData);
-    
+
     if (newAdmin) {
       console.log('✅ Administrador criado com sucesso!');
       console.log('ID:', newAdmin.id);
-      
+
       // Teste 4: Verificar se o novo admin não tem prédios vinculados
       console.log('\n🔍 Teste 4: Verificando se novo admin não tem prédios');
       const newAdminHasBuildings = await adminAuth.hasAssignedBuildings(newAdmin.id);
       console.log(`Novo admin tem prédios: ${newAdminHasBuildings ? 'SIM' : 'NÃO'}`);
-      
+
       const newAdminBuildings = await adminAuth.getAdminBuildings(newAdmin.id);
       console.log(`Prédios do novo admin: ${newAdminBuildings.length}`);
-      
+
       if (newAdminBuildings.length === 0) {
         console.log('✅ Confirmado: Admin criado sem prédios vinculados!');
       }
@@ -180,16 +183,15 @@ async function testAdminManagement() {
     const fakeAdminId = '00000000-0000-0000-0000-000000000999';
     const fakeBuildingsResult = await adminAuth.getAdminBuildings(fakeAdminId);
     console.log(`Resultado para admin inexistente: ${JSON.stringify(fakeBuildingsResult)}`);
-    
+
     if (Array.isArray(fakeBuildingsResult) && fakeBuildingsResult.length === 0) {
       console.log('✅ Função retorna array vazio corretamente para admin inexistente');
     }
-
   } catch (error) {
     console.error('❌ Erro durante os testes:', error);
   }
 
-  console.log('\n' + '=' .repeat(60));
+  console.log('\n' + '='.repeat(60));
   console.log('🏁 Testes concluídos!');
   console.log('\n📝 Resumo das funcionalidades testadas:');
   console.log('  ✅ Listagem de administradores existentes');

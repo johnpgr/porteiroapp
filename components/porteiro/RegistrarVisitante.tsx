@@ -1,12 +1,44 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { flattenStyles } from '../../utils/styles';
 
-type FlowStep = 'apartamento' | 'tipo' | 'empresa_prestador' | 'empresa_entrega' | 'nome' | 'cpf' | 'observacoes' | 'foto' | 'confirmacao';
+type FlowStep =
+  | 'apartamento'
+  | 'tipo'
+  | 'empresa_prestador'
+  | 'empresa_entrega'
+  | 'nome'
+  | 'cpf'
+  | 'observacoes'
+  | 'foto'
+  | 'confirmacao';
 type TipoVisita = 'social' | 'prestador' | 'entrega';
-type EmpresaPrestador = 'claro' | 'vivo' | 'encanador' | 'bombeiro_hidraulico' | 'dedetizacao' | 'eletricista' | 'pintor' | 'marceneiro';
-type EmpresaEntrega = 'rappi' | 'ifood' | 'uber_eats' | 'mercado_livre' | 'amazon' | 'correios' | 'outro';
+type EmpresaPrestador =
+  | 'claro'
+  | 'vivo'
+  | 'encanador'
+  | 'bombeiro_hidraulico'
+  | 'dedetizacao'
+  | 'eletricista'
+  | 'pintor'
+  | 'marceneiro';
+type EmpresaEntrega =
+  | 'rappi'
+  | 'ifood'
+  | 'uber_eats'
+  | 'mercado_livre'
+  | 'amazon'
+  | 'correios'
+  | 'outro';
 
 interface RegistrarVisitanteProps {
   onClose: () => void;
@@ -25,36 +57,35 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const renderNumericKeypad = (value: string, setValue: (val: string) => void, onNext: () => void) => (
+  const renderNumericKeypad = (
+    value: string,
+    setValue: (val: string) => void,
+    onNext: () => void
+  ) => (
     <View style={styles.keypadContainer}>
       <View style={styles.displayContainer}>
         <Text style={styles.displayLabel}>Número do Apartamento</Text>
         <Text style={styles.displayValue}>{value || '___'}</Text>
       </View>
-      
+
       <View style={styles.keypad}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
           <TouchableOpacity
             key={num}
             style={styles.keypadButton}
-            onPress={() => setValue(value + num.toString())}
-          >
+            onPress={() => setValue(value + num.toString())}>
             <Text style={styles.keypadButtonText}>{num}</Text>
           </TouchableOpacity>
         ))}
-        
-        <TouchableOpacity
-          style={styles.keypadButton}
-          onPress={() => setValue(value.slice(0, -1))}
-        >
+
+        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
           <Text style={styles.keypadButtonText}>⌫</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={flattenStyles([styles.keypadButton, styles.confirmButton])}
           onPress={onNext}
-          disabled={!value}
-        >
+          disabled={!value}>
           <Text style={styles.confirmButtonText}>✓</Text>
         </TouchableOpacity>
       </View>
@@ -65,7 +96,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
       <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
-      
+
       {renderNumericKeypad(apartamento, setApartamento, () => {
         if (apartamento) {
           setCurrentStep('tipo');
@@ -90,7 +121,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>🔧 Empresa Prestadora</Text>
         <Text style={styles.stepSubtitle}>Qual empresa o prestador representa?</Text>
-        
+
         <View style={styles.optionsContainer}>
           {empresas.map((empresa) => (
             <TouchableOpacity
@@ -99,8 +130,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               onPress={() => {
                 setEmpresaPrestador(empresa.id as EmpresaPrestador);
                 setCurrentStep('nome');
-              }}
-            >
+              }}>
               <Text style={styles.optionIcon}>{empresa.icon}</Text>
               <Text style={styles.optionTitle}>{empresa.nome}</Text>
             </TouchableOpacity>
@@ -125,7 +155,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>📦 Empresa de Entrega</Text>
         <Text style={styles.stepSubtitle}>Qual empresa de entrega?</Text>
-        
+
         <View style={styles.optionsContainer}>
           {empresas.map((empresa) => (
             <TouchableOpacity
@@ -134,8 +164,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               onPress={() => {
                 setEmpresaEntrega(empresa.id as EmpresaEntrega);
                 setCurrentStep('nome');
-              }}
-            >
+              }}>
               <Text style={styles.optionIcon}>{empresa.icon}</Text>
               <Text style={styles.optionTitle}>{empresa.nome}</Text>
             </TouchableOpacity>
@@ -149,15 +178,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>👥 Tipo de Visita</Text>
       <Text style={styles.stepSubtitle}>Selecione o tipo de visita</Text>
-      
+
       <View style={styles.optionsContainer}>
         <TouchableOpacity
           style={flattenStyles([styles.optionButton, styles.socialButton])}
           onPress={() => {
             setTipoVisita('social');
             setCurrentStep('nome');
-          }}
-        >
+          }}>
           <Text style={styles.optionIcon}>👨‍👩‍👧‍👦</Text>
           <Text style={styles.optionTitle}>Social</Text>
           <Text style={styles.optionDescription}>Visita familiar ou amigos</Text>
@@ -168,8 +196,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           onPress={() => {
             setTipoVisita('prestador');
             setCurrentStep('empresa_prestador');
-          }}
-        >
+          }}>
           <Text style={styles.optionIcon}>🔧</Text>
           <Text style={styles.optionTitle}>Prestador de Serviço</Text>
           <Text style={styles.optionDescription}>Técnico, encanador, etc.</Text>
@@ -180,8 +207,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           onPress={() => {
             setTipoVisita('entrega');
             setCurrentStep('empresa_entrega');
-          }}
-        >
+          }}>
           <Text style={styles.optionIcon}>📦</Text>
           <Text style={styles.optionTitle}>Serviço de Entrega</Text>
           <Text style={styles.optionDescription}>Entregador de comida, etc.</Text>
@@ -194,7 +220,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>✏️ Nome Completo</Text>
       <Text style={styles.stepSubtitle}>Digite o nome do visitante</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
@@ -204,7 +230,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           autoFocus
           autoCapitalize="words"
         />
-        
+
         <TouchableOpacity
           style={flattenStyles([styles.nextButton, !nomeVisitante && styles.nextButtonDisabled])}
           onPress={() => {
@@ -212,8 +238,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               setCurrentStep('cpf');
             }
           }}
-          disabled={!nomeVisitante.trim()}
-        >
+          disabled={!nomeVisitante.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -224,7 +249,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🆔 CPF</Text>
       <Text style={styles.stepSubtitle}>Digite o CPF do visitante</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
@@ -235,7 +260,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           autoFocus
           maxLength={14}
         />
-        
+
         <TouchableOpacity
           style={flattenStyles([styles.nextButton, !cpfVisitante && styles.nextButtonDisabled])}
           onPress={() => {
@@ -243,8 +268,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               setCurrentStep('observacoes');
             }
           }}
-          disabled={!cpfVisitante.trim()}
-        >
+          disabled={!cpfVisitante.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -255,7 +279,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>📝 Observações</Text>
       <Text style={styles.stepSubtitle}>Adicione observações (opcional)</Text>
-      
+
       <View style={styles.inputContainer}>
         <TextInput
           style={flattenStyles([styles.textInput, styles.textArea])}
@@ -266,11 +290,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           numberOfLines={4}
           autoFocus
         />
-        
-        <TouchableOpacity
-          style={styles.nextButton}
-          onPress={() => setCurrentStep('foto')}
-        >
+
+        <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep('foto')}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -298,7 +319,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>📸 Foto do Visitante</Text>
         <Text style={styles.stepSubtitle}>Tire uma foto do visitante</Text>
-        
+
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
             <CameraView style={styles.camera} facing="back">
@@ -308,8 +329,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                   onPress={() => {
                     setFotoTirada(true);
                     setCurrentStep('confirmacao');
-                  }}
-                >
+                  }}>
                   <Text style={styles.captureButtonText}>📸</Text>
                 </TouchableOpacity>
               </View>
@@ -320,8 +340,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             <Text style={styles.photoTakenText}>✅ Foto capturada com sucesso!</Text>
             <TouchableOpacity
               style={styles.nextButton}
-              onPress={() => setCurrentStep('confirmacao')}
-            >
+              onPress={() => setCurrentStep('confirmacao')}>
               <Text style={styles.nextButtonText}>Continuar →</Text>
             </TouchableOpacity>
           </View>
@@ -336,23 +355,24 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       console.log('Visitante registrado:', {
         apartamento,
         tipo: tipoVisita,
-        empresa: tipoVisita === 'prestador' ? empresaPrestador : tipoVisita === 'entrega' ? empresaEntrega : null,
+        empresa:
+          tipoVisita === 'prestador'
+            ? empresaPrestador
+            : tipoVisita === 'entrega'
+              ? empresaEntrega
+              : null,
         nome: nomeVisitante,
         cpf: cpfVisitante,
         observacoes,
-        fotoTirada
+        fotoTirada,
       });
-      
+
       const message = `O apartamento ${apartamento} foi notificado sobre a chegada de ${nomeVisitante}.`;
-      
+
       if (onConfirm) {
         onConfirm(message);
       } else {
-        Alert.alert(
-          '✅ Visitante Registrado!',
-          message,
-          [{ text: 'OK' }]
-        );
+        Alert.alert('✅ Visitante Registrado!', message, [{ text: 'OK' }]);
         onClose();
       }
     };
@@ -361,43 +381,45 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>✅ Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados do visitante</Text>
-        
+
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
             <Text style={styles.summaryValue}>{apartamento}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Tipo:</Text>
             <Text style={styles.summaryValue}>
-              {tipoVisita === 'social' ? 'Social' : 
-               tipoVisita === 'prestador' ? 'Prestador de Serviço' : 'Serviço de Entrega'}
+              {tipoVisita === 'social'
+                ? 'Social'
+                : tipoVisita === 'prestador'
+                  ? 'Prestador de Serviço'
+                  : 'Serviço de Entrega'}
             </Text>
           </View>
-          
+
           {(empresaPrestador || empresaEntrega) && (
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Empresa:</Text>
               <Text style={styles.summaryValue}>
-                {empresaPrestador ? 
-                  empresaPrestador.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) :
-                  empresaEntrega?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-                }
+                {empresaPrestador
+                  ? empresaPrestador.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+                  : empresaEntrega?.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
               </Text>
             </View>
           )}
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Nome:</Text>
             <Text style={styles.summaryValue}>{nomeVisitante}</Text>
           </View>
-          
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>CPF:</Text>
             <Text style={styles.summaryValue}>{cpfVisitante}</Text>
           </View>
-          
+
           {observacoes && (
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Observações:</Text>
@@ -405,7 +427,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             </View>
           )}
         </View>
-        
+
         <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
           <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
         </TouchableOpacity>
@@ -446,18 +468,20 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Registrar Visitante</Text>
       </View>
-      
+
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View 
+          <View
             style={[
-              styles.progressFill, 
-              { width: `${(Object.keys({apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao'}).filter(Boolean).length / 7) * 100}%` }
-            ]} 
+              styles.progressFill,
+              {
+                width: `${(Object.keys({ apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
+              },
+            ]}
           />
         </View>
       </View>
-      
+
       {renderCurrentStep()}
     </SafeAreaView>
   );

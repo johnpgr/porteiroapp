@@ -24,7 +24,7 @@ const SENHA_TESTE = 'douglas123';
 
 async function debugAdminLogin() {
   console.log('🔍 DIAGNÓSTICO DE LOGIN DO ADMINISTRADOR');
-  console.log('=' .repeat(50));
+  console.log('='.repeat(50));
   console.log(`Email de teste: ${EMAIL_TESTE}`);
   console.log(`Senha de teste: ${SENHA_TESTE}`);
   console.log('');
@@ -41,12 +41,12 @@ async function debugAdminLogin() {
       console.error('❌ Erro ao consultar auth.users:', authError.message);
       // Tentar método alternativo usando RPC ou auth admin
       console.log('🔄 Tentando método alternativo...');
-      
+
       const { data: userData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
       if (userError) {
         console.error('❌ Erro ao listar usuários:', userError.message);
       } else {
-        const user = userData.users.find(u => u.email === EMAIL_TESTE);
+        const user = userData.users.find((u) => u.email === EMAIL_TESTE);
         if (user) {
           console.log('✅ Usuário encontrado via admin.listUsers:');
           console.log(`   ID: ${user.id}`);
@@ -102,7 +102,7 @@ async function debugAdminLogin() {
     console.log('3️⃣ Testando autenticação direta...');
     const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
       email: EMAIL_TESTE,
-      password: SENHA_TESTE
+      password: SENHA_TESTE,
     });
 
     if (signInError) {
@@ -114,11 +114,11 @@ async function debugAdminLogin() {
       console.log(`   User ID: ${signInData.user?.id}`);
       console.log(`   Email: ${signInData.user?.email}`);
       console.log(`   Token válido até: ${signInData.session?.expires_at}`);
-      
+
       // 4. Verificar se consegue buscar o perfil após login
       console.log('');
       console.log('4️⃣ Verificando busca do perfil após login...');
-      
+
       const { data: profileAfterLogin, error: profileAfterError } = await supabaseClient
         .from('admin_profiles')
         .select('*')
@@ -181,7 +181,6 @@ async function debugAdminLogin() {
         console.log(`   ${index + 1}. ${admin.name} (${admin.email}) - ${admin.created_at}`);
       });
     }
-
   } catch (error) {
     console.error('❌ Erro geral no diagnóstico:', error.message);
     console.error('Stack trace:', error.stack);
@@ -189,14 +188,16 @@ async function debugAdminLogin() {
 
   console.log('');
   console.log('🏁 DIAGNÓSTICO CONCLUÍDO');
-  console.log('=' .repeat(50));
+  console.log('='.repeat(50));
 }
 
 // Executar diagnóstico
-debugAdminLogin().then(() => {
-  console.log('\n✅ Script de diagnóstico executado com sucesso!');
-  process.exit(0);
-}).catch((error) => {
-  console.error('\n❌ Erro fatal no script:', error.message);
-  process.exit(1);
-});
+debugAdminLogin()
+  .then(() => {
+    console.log('\n✅ Script de diagnóstico executado com sucesso!');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('\n❌ Erro fatal no script:', error.message);
+    process.exit(1);
+  });

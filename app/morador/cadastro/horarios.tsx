@@ -20,7 +20,7 @@ const timeSlots: TimeSlot[] = [
     startTime: '00:00',
     endTime: '23:59',
     icon: '🌅',
-    description: '24 horas por dia'
+    description: '24 horas por dia',
   },
   {
     id: 'business_hours',
@@ -28,7 +28,7 @@ const timeSlots: TimeSlot[] = [
     startTime: '08:00',
     endTime: '18:00',
     icon: '🏢',
-    description: '8h às 18h'
+    description: '8h às 18h',
   },
   {
     id: 'morning',
@@ -36,7 +36,7 @@ const timeSlots: TimeSlot[] = [
     startTime: '06:00',
     endTime: '12:00',
     icon: '🌅',
-    description: '6h às 12h'
+    description: '6h às 12h',
   },
   {
     id: 'afternoon',
@@ -44,7 +44,7 @@ const timeSlots: TimeSlot[] = [
     startTime: '12:00',
     endTime: '18:00',
     icon: '☀️',
-    description: '12h às 18h'
+    description: '12h às 18h',
   },
   {
     id: 'evening',
@@ -52,7 +52,7 @@ const timeSlots: TimeSlot[] = [
     startTime: '18:00',
     endTime: '23:59',
     icon: '🌙',
-    description: '18h às 23h59'
+    description: '18h às 23h59',
   },
   {
     id: 'custom',
@@ -60,12 +60,12 @@ const timeSlots: TimeSlot[] = [
     startTime: '09:00',
     endTime: '17:00',
     icon: '⚙️',
-    description: 'Definir horário específico'
+    description: 'Definir horário específico',
   },
 ];
 
 export default function HorariosCadastro() {
-  const { nome, relacionamento, telefone, placa, acesso, foto, dias } = useLocalSearchParams<{ 
+  const { nome, relacionamento, telefone, placa, acesso, foto, dias } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
     telefone: string;
@@ -81,31 +81,29 @@ export default function HorariosCadastro() {
 
   const handleFinish = async () => {
     setIsLoading(true);
-    
+
     try {
       // Simulate API call to save the registration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       Alert.alert(
         'Cadastro Realizado! 🎉',
         `${nome} foi cadastrado(a) com sucesso!\n\nVocê pode visualizar e editar este cadastro na lista de pessoas cadastradas.`,
         [
           {
             text: 'Ver Lista',
-            onPress: () => router.push('/morador')
+            onPress: () => router.push('/morador'),
           },
           {
             text: 'Novo Cadastro',
-            onPress: () => router.push('/morador/cadastro/novo')
-          }
+            onPress: () => router.push('/morador/cadastro/novo'),
+          },
         ]
       );
     } catch (error) {
-      Alert.alert(
-        'Erro no Cadastro',
-        'Ocorreu um erro ao salvar o cadastro. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Erro no Cadastro', 'Ocorreu um erro ao salvar o cadastro. Tente novamente.', [
+        { text: 'OK' },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -117,61 +115,61 @@ export default function HorariosCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
 
   const getAccessLabel = (acc: string) => {
     const accessTypes: { [key: string]: string } = {
-      'sem_acesso': '🚫 Sem Acesso',
-      'usuario': '👤 Usuário',
-      'administrador': '👑 Administrador',
+      sem_acesso: '🚫 Sem Acesso',
+      usuario: '👤 Usuário',
+      administrador: '👑 Administrador',
     };
     return accessTypes[acc] || acc;
   };
 
   const getDaysLabel = (daysString: string) => {
     if (!daysString) return 'Nenhum dia';
-    
+
     const dayIds = daysString.split(',');
     const dayLabels: { [key: string]: string } = {
-      'monday': 'SEG',
-      'tuesday': 'TER',
-      'wednesday': 'QUA',
-      'thursday': 'QUI',
-      'friday': 'SEX',
-      'saturday': 'SÁB',
-      'sunday': 'DOM',
+      monday: 'SEG',
+      tuesday: 'TER',
+      wednesday: 'QUA',
+      thursday: 'QUI',
+      friday: 'SEX',
+      saturday: 'SÁB',
+      sunday: 'DOM',
     };
-    
+
     if (dayIds.length === 7) return 'Todos os dias';
-    
-    return dayIds.map(id => dayLabels[id] || '').join(', ');
+
+    return dayIds.map((id) => dayLabels[id] || '').join(', ');
   };
 
   const getSelectedTimeSlotData = () => {
-    const slot = timeSlots.find(s => s.id === selectedTimeSlot);
+    const slot = timeSlots.find((s) => s.id === selectedTimeSlot);
     if (!slot) return null;
-    
+
     if (selectedTimeSlot === 'custom') {
       return {
         ...slot,
         startTime: customStartTime,
         endTime: customEndTime,
-        description: `${customStartTime} às ${customEndTime}`
+        description: `${customStartTime} às ${customEndTime}`,
       };
     }
-    
+
     return slot;
   };
 
@@ -205,7 +203,9 @@ export default function HorariosCadastro() {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.personInfo}>
             <Text style={styles.personName}>👤 {nome}</Text>
-            <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+            <Text style={styles.personRelationship}>
+              {getRelationshipLabel(relacionamento || '')}
+            </Text>
             <Text style={styles.personPhone}>📱 {telefone}</Text>
             {placa && <Text style={styles.personPlate}>🚗 {placa}</Text>}
             <Text style={styles.personAccess}>{getAccessLabel(acesso || '')}</Text>
@@ -224,29 +224,30 @@ export default function HorariosCadastro() {
                   key={slot.id}
                   style={[
                     styles.timeSlotCard,
-                    selectedTimeSlot === slot.id && styles.timeSlotCardSelected
+                    selectedTimeSlot === slot.id && styles.timeSlotCardSelected,
                   ]}
-                  onPress={() => setSelectedTimeSlot(slot.id)}
-                >
+                  onPress={() => setSelectedTimeSlot(slot.id)}>
                   <View style={styles.timeSlotIcon}>
                     <Text style={styles.timeSlotIconText}>{slot.icon}</Text>
                   </View>
-                  
+
                   <View style={styles.timeSlotInfo}>
-                    <Text style={[
-                      styles.timeSlotLabel,
-                      selectedTimeSlot === slot.id && styles.timeSlotLabelSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.timeSlotLabel,
+                        selectedTimeSlot === slot.id && styles.timeSlotLabelSelected,
+                      ]}>
                       {slot.label}
                     </Text>
-                    <Text style={[
-                      styles.timeSlotDescription,
-                      selectedTimeSlot === slot.id && styles.timeSlotDescriptionSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.timeSlotDescription,
+                        selectedTimeSlot === slot.id && styles.timeSlotDescriptionSelected,
+                      ]}>
                       {slot.description}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.timeSlotCheck}>
                     {selectedTimeSlot === slot.id && (
                       <Ionicons name="checkmark-circle" size={24} color="#2196F3" />
@@ -267,7 +268,7 @@ export default function HorariosCadastro() {
                       <Ionicons name="time" size={20} color="#2196F3" />
                     </TouchableOpacity>
                   </View>
-                  
+
                   <View style={styles.timeInputGroup}>
                     <Text style={styles.timeInputLabel}>Fim:</Text>
                     <TouchableOpacity style={styles.timeInput}>
@@ -276,35 +277,32 @@ export default function HorariosCadastro() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                
+
                 <View style={styles.customTimePresets}>
                   <Text style={styles.presetsTitle}>Sugestões:</Text>
                   <View style={styles.presetsList}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.presetButton}
                       onPress={() => {
                         setCustomStartTime('07:00');
                         setCustomEndTime('19:00');
-                      }}
-                    >
+                      }}>
                       <Text style={styles.presetText}>7h-19h</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.presetButton}
                       onPress={() => {
                         setCustomStartTime('09:00');
                         setCustomEndTime('17:00');
-                      }}
-                    >
+                      }}>
                       <Text style={styles.presetText}>9h-17h</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.presetButton}
                       onPress={() => {
                         setCustomStartTime('14:00');
                         setCustomEndTime('22:00');
-                      }}
-                    >
+                      }}>
                       <Text style={styles.presetText}>14h-22h</Text>
                     </TouchableOpacity>
                   </View>
@@ -325,10 +323,15 @@ export default function HorariosCadastro() {
               <Text style={styles.summaryTitle}>📋 Resumo do Cadastro</Text>
               <View style={styles.summaryContent}>
                 <Text style={styles.summaryItem}>👤 Nome: {nome}</Text>
-                <Text style={styles.summaryItem}>👥 Relacionamento: {getRelationshipLabel(relacionamento || '').replace(/^[^\s]+\s/, '')}</Text>
+                <Text style={styles.summaryItem}>
+                  👥 Relacionamento:{' '}
+                  {getRelationshipLabel(relacionamento || '').replace(/^[^\s]+\s/, '')}
+                </Text>
                 <Text style={styles.summaryItem}>📱 Telefone: {telefone}</Text>
                 {placa && <Text style={styles.summaryItem}>🚗 Placa: {placa}</Text>}
-                <Text style={styles.summaryItem}>🔐 Acesso: {getAccessLabel(acesso || '').replace(/^[^\s]+\s/, '')}</Text>
+                <Text style={styles.summaryItem}>
+                  🔐 Acesso: {getAccessLabel(acesso || '').replace(/^[^\s]+\s/, '')}
+                </Text>
                 <Text style={styles.summaryItem}>📅 Dias: {getDaysLabel(dias || '')}</Text>
                 <Text style={styles.summaryItem}>⏰ Horários: {selectedSlotData?.description}</Text>
               </View>
@@ -337,42 +340,36 @@ export default function HorariosCadastro() {
             <View style={styles.tipContainer}>
               <Ionicons name="information-circle" size={20} color="#2196F3" />
               <Text style={styles.tipText}>
-                Após finalizar, você poderá editar todas essas informações na lista de pessoas cadastradas
+                Após finalizar, você poderá editar todas essas informações na lista de pessoas
+                cadastradas
               </Text>
             </View>
           </View>
         </ScrollView>
-          
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
-              <Ionicons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backFooterButtonText}>Voltar</Text>
-            </TouchableOpacity>
- 
-            <TouchableOpacity
-              style={[
-                styles.finishButton,
-                isLoading && styles.finishButtonDisabled
-              ]}
-              onPress={handleFinish}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Text style={styles.finishButtonText}>Salvando...</Text>
-                  <Ionicons name="hourglass" size={20} color="#fff" />
-                </>
-              ) : (
-                <>
-                  <Text style={styles.finishButtonText}>Finalizar Cadastro</Text>
-                  <Ionicons name="checkmark" size={20} color="#fff" />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color="#666" />
+            <Text style={styles.backFooterButtonText}>Voltar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.finishButton, isLoading && styles.finishButtonDisabled]}
+            onPress={handleFinish}
+            disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Text style={styles.finishButtonText}>Salvando...</Text>
+                <Ionicons name="hourglass" size={20} color="#fff" />
+              </>
+            ) : (
+              <>
+                <Text style={styles.finishButtonText}>Finalizar Cadastro</Text>
+                <Ionicons name="checkmark" size={20} color="#fff" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </ProtectedRoute>
   );

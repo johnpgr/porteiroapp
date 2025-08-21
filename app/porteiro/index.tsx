@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Alert, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  SafeAreaView,
+  TextInput,
+  Alert,
+  Modal,
+} from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
@@ -14,12 +24,12 @@ export default function PorteiroDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  
+
   // Estados para a aba Consulta
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<any>(null);
   const [expandedCard, setExpandedCard] = useState(false);
-  
+
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -34,7 +44,7 @@ export default function PorteiroDashboard() {
     setConfirmMessage(message);
     setShowConfirmModal(true);
     setCountdown(5);
-    
+
     // Iniciar countdown
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -59,29 +69,25 @@ export default function PorteiroDashboard() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Confirmar Logout',
-      'Deseja realmente sair do sistema?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel'
-        },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supabase.auth.signOut();
-              router.replace('/porteiro/login');
-            } catch (error) {
-              console.error('Erro ao fazer logout:', error);
-              Alert.alert('Erro', 'Não foi possível fazer logout. Tente novamente.');
-            }
+    Alert.alert('Confirmar Logout', 'Deseja realmente sair do sistema?', [
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await supabase.auth.signOut();
+            router.replace('/porteiro/login');
+          } catch (error) {
+            console.error('Erro ao fazer logout:', error);
+            Alert.alert('Erro', 'Não foi possível fazer logout. Tente novamente.');
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const renderTopMenu = () => (
@@ -90,41 +96,31 @@ export default function PorteiroDashboard() {
         <Text style={styles.welcomeText}>Olá, João Silva</Text>
         <Text style={styles.shiftText}>Turno: 08:00 - 20:00</Text>
       </View>
-      
+
       <View style={styles.topMenuRight}>
         {/* Botão de Pânico */}
-        <TouchableOpacity 
-          style={styles.panicButton}
-          onPress={handlePanicButton}
-        >
+        <TouchableOpacity style={styles.panicButton} onPress={handlePanicButton}>
           <Text style={styles.panicButtonText}>🚨</Text>
         </TouchableOpacity>
-        
+
         {/* Avatar do Usuário */}
-        <TouchableOpacity 
-          style={styles.userAvatar}
-          onPress={handleUserMenuToggle}
-        >
+        <TouchableOpacity style={styles.userAvatar} onPress={handleUserMenuToggle}>
           <Text style={styles.avatarText}>JS</Text>
         </TouchableOpacity>
-        
+
         {/* Menu do Usuário */}
         {showUserMenu && (
           <View style={styles.userMenu}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.userMenuItem}
               onPress={() => {
                 setShowUserMenu(false);
                 router.push('/porteiro/profile');
-              }}
-            >
+              }}>
               <Text style={styles.userMenuIcon}>👤</Text>
               <Text style={styles.userMenuText}>Perfil</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.userMenuItem}
-              onPress={handleLogout}
-            >
+            <TouchableOpacity style={styles.userMenuItem} onPress={handleLogout}>
               <Text style={styles.userMenuIcon}>🚪</Text>
               <Text style={styles.userMenuText}>Logout</Text>
             </TouchableOpacity>
@@ -140,30 +136,27 @@ export default function PorteiroDashboard() {
         <Text style={styles.headerTitle}>🏠 Chegadas</Text>
         <Text style={styles.headerSubtitle}>Registre visitantes, encomendas e veículos</Text>
       </View>
-      
+
       <View style={styles.buttonsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.visitorButton])}
-          onPress={() => setActiveFlow('visitante')}
-        >
+          onPress={() => setActiveFlow('visitante')}>
           <Text style={styles.buttonIcon}>👋</Text>
           <Text style={styles.buttonTitle}>Registrar Visitante</Text>
           <Text style={styles.buttonDescription}>Cadastrar nova visita</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.deliveryButton])}
-          onPress={() => setActiveFlow('encomenda')}
-        >
+          onPress={() => setActiveFlow('encomenda')}>
           <Text style={styles.buttonIcon}>📦</Text>
           <Text style={styles.buttonTitle}>Registrar Encomenda</Text>
           <Text style={styles.buttonDescription}>Receber entrega</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.vehicleButton])}
-          onPress={() => setActiveFlow('veiculo')}
-        >
+          onPress={() => setActiveFlow('veiculo')}>
           <Text style={styles.buttonIcon}>🚗</Text>
           <Text style={styles.buttonTitle}>Registrar Veículo</Text>
           <Text style={styles.buttonDescription}>Autorizar entrada</Text>
@@ -181,7 +174,7 @@ export default function PorteiroDashboard() {
       setSelectedAuth(autorizacao);
       setShowConfirmModal(true);
       setCountdown(5);
-      
+
       // Iniciar countdown
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -197,7 +190,8 @@ export default function PorteiroDashboard() {
 
     const getStatusTag = (autorizacao: any) => {
       return (
-        <View style={flattenStyles([styles.statusTag, { backgroundColor: autorizacao.statusColor }])}>
+        <View
+          style={flattenStyles([styles.statusTag, { backgroundColor: autorizacao.statusColor }])}>
           <Text style={styles.statusTagText}>{autorizacao.statusLabel}</Text>
         </View>
       );
@@ -210,29 +204,34 @@ export default function PorteiroDashboard() {
             <Text style={styles.headerTitle}>✅ Autorizações</Text>
             <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
           </View>
-          
+
           <View style={styles.buttonsContainer}>
             {autorizacoes.map((autorizacao) => (
               <View key={autorizacao.id} style={styles.authorizationCard}>
                 <View style={styles.authCardHeader}>
                   <Text style={styles.authCardIcon}>
-                    {autorizacao.tipo === 'Visitante' ? '👤' : 
-                     autorizacao.tipo === 'Prestador de Serviço' ? '🔧' :
-                     autorizacao.tipo === 'Convidado' ? '🎉' :
-                     autorizacao.tipo === 'Encomenda' ? '📦' : '👤'}
+                    {autorizacao.tipo === 'Visitante'
+                      ? '👤'
+                      : autorizacao.tipo === 'Prestador de Serviço'
+                        ? '🔧'
+                        : autorizacao.tipo === 'Convidado'
+                          ? '🎉'
+                          : autorizacao.tipo === 'Encomenda'
+                            ? '📦'
+                            : '👤'}
                   </Text>
                   <View style={styles.authCardInfo}>
                     <View style={styles.authCardTitleRow}>
                       <Text style={styles.authCardTitle}>
-                        {autorizacao.isEncomenda ? 'Encomenda' : 'Convidado'} {autorizacao.nomeConvidado}
+                        {autorizacao.isEncomenda ? 'Encomenda' : 'Convidado'}{' '}
+                        {autorizacao.nomeConvidado}
                       </Text>
                       {getStatusTag(autorizacao)}
                     </View>
                     <Text style={styles.authCardSubtitle}>
-                      {autorizacao.isEncomenda ? 
-                        `Solicitado por ${autorizacao.moradorAprovador} - Apt. ${autorizacao.apartamento}` :
-                        `Aprovado por ${autorizacao.moradorAprovador} do Apartamento ${autorizacao.apartamento}`
-                      }
+                      {autorizacao.isEncomenda
+                        ? `Solicitado por ${autorizacao.moradorAprovador} - Apt. ${autorizacao.apartamento}`
+                        : `Aprovado por ${autorizacao.moradorAprovador} do Apartamento ${autorizacao.apartamento}`}
                     </Text>
                     <Text style={styles.authCardTime}>
                       {autorizacao.dataAprovacao} às {autorizacao.horaAprovacao}
@@ -242,19 +241,20 @@ export default function PorteiroDashboard() {
                     )}
                   </View>
                 </View>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[
                     styles.confirmButton,
                     autorizacao.isEncomenda && styles.encomendaButton,
-                    autorizacao.jaAutorizado && styles.autorizedButton
+                    autorizacao.jaAutorizado && styles.autorizedButton,
                   ]}
-                  onPress={() => confirmarChegada(autorizacao)}
-                >
+                  onPress={() => confirmarChegada(autorizacao)}>
                   <Text style={styles.confirmButtonText}>
-                    {autorizacao.isEncomenda ? '📦 Receber Encomenda' :
-                     autorizacao.jaAutorizado ? '✅ Liberar Subida' :
-                     '✓ Confirmar Chegada'}
+                    {autorizacao.isEncomenda
+                      ? '📦 Receber Encomenda'
+                      : autorizacao.jaAutorizado
+                        ? '✅ Liberar Subida'
+                        : '✓ Confirmar Chegada'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -269,18 +269,16 @@ export default function PorteiroDashboard() {
               <Text style={styles.confirmModalIcon}>✅</Text>
               <Text style={styles.confirmModalTitle}>Morador Notificado!</Text>
               <Text style={styles.confirmModalMessage}>
-                {selectedAuth.isEncomenda ? 
-                  `A encomenda de ${selectedAuth.nomeConvidado} foi registrada na portaria.` :
-                  selectedAuth.jaAutorizado ?
-                    `${selectedAuth.nomeConvidado} foi liberado para subir ao apartamento ${selectedAuth.apartamento}.` :
-                    `O morador do apartamento ${selectedAuth.apartamento} foi notificado sobre a chegada de ${selectedAuth.nomeConvidado}.`
-                }
+                {selectedAuth.isEncomenda
+                  ? `A encomenda de ${selectedAuth.nomeConvidado} foi registrada na portaria.`
+                  : selectedAuth.jaAutorizado
+                    ? `${selectedAuth.nomeConvidado} foi liberado para subir ao apartamento ${selectedAuth.apartamento}.`
+                    : `O morador do apartamento ${selectedAuth.apartamento} foi notificado sobre a chegada de ${selectedAuth.nomeConvidado}.`}
               </Text>
               <Text style={styles.countdownText}>Fechando em {countdown} segundos...</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeModalButton}
-                onPress={() => setShowConfirmModal(false)}
-              >
+                onPress={() => setShowConfirmModal(false)}>
                 <Text style={styles.closeModalButtonText}>Fechar</Text>
               </TouchableOpacity>
             </View>
@@ -312,7 +310,7 @@ export default function PorteiroDashboard() {
           <Text style={styles.headerTitle}>🔍 Consulta</Text>
           <Text style={styles.headerSubtitle}>Buscar por CPF ou placa</Text>
         </View>
-        
+
         <View style={styles.buttonsContainer}>
           <View style={styles.searchContainer}>
             <TextInput
@@ -322,59 +320,71 @@ export default function PorteiroDashboard() {
               onChangeText={setSearchQuery}
               autoCapitalize="characters"
             />
-            <TouchableOpacity 
-              style={styles.searchButton}
-              onPress={realizarBusca}
-            >
+            <TouchableOpacity style={styles.searchButton} onPress={realizarBusca}>
               <Text style={styles.searchButtonText}>🔍 Buscar</Text>
             </TouchableOpacity>
           </View>
 
           {searchResult ? (
-            <TouchableOpacity 
-              style={styles.resultCard}
-              onPress={toggleExpanded}
-            >
+            <TouchableOpacity style={styles.resultCard} onPress={toggleExpanded}>
               <View style={styles.resultHeader}>
                 <Text style={styles.resultIcon}>{searchResult.foto}</Text>
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultTitle}>
-                    {searchResult.tipo === 'pessoa' ? searchResult.nome : `${searchResult.marca} ${searchResult.modelo}`}
+                    {searchResult.tipo === 'pessoa'
+                      ? searchResult.nome
+                      : `${searchResult.marca} ${searchResult.modelo}`}
                   </Text>
                   <Text style={styles.resultSubtitle}>
-                    {searchResult.tipo === 'pessoa' ? `CPF: ${searchResult.cpf}` : `Placa: ${searchResult.placa}`}
+                    {searchResult.tipo === 'pessoa'
+                      ? `CPF: ${searchResult.cpf}`
+                      : `Placa: ${searchResult.placa}`}
                   </Text>
                   {searchResult.apartamento && (
-                    <Text style={styles.resultApartment}>Apartamento {searchResult.apartamento}</Text>
+                    <Text style={styles.resultApartment}>
+                      Apartamento {searchResult.apartamento}
+                    </Text>
                   )}
                 </View>
                 <Text style={styles.expandIcon}>{expandedCard ? '▼' : '▶'}</Text>
               </View>
-              
+
               {expandedCard && (
                 <View style={styles.expandedContent}>
                   {searchResult.tipo === 'pessoa' ? (
                     <>
                       <Text style={styles.detailItem}>📞 Telefone: {searchResult.telefone}</Text>
-                      <Text style={styles.detailItem}>🕒 Última visita: {searchResult.ultimaVisita}</Text>
-                      <Text style={styles.detailItem}>📝 Observações: {searchResult.observacoes}</Text>
+                      <Text style={styles.detailItem}>
+                        🕒 Última visita: {searchResult.ultimaVisita}
+                      </Text>
+                      <Text style={styles.detailItem}>
+                        📝 Observações: {searchResult.observacoes}
+                      </Text>
                     </>
                   ) : (
                     <>
                       <Text style={styles.detailItem}>🎨 Cor: {searchResult.cor}</Text>
-                      <Text style={styles.detailItem}>👤 Proprietário: {searchResult.proprietario}</Text>
-                      <Text style={styles.detailItem}>🕒 Última entrada: {searchResult.ultimaEntrada}</Text>
+                      <Text style={styles.detailItem}>
+                        👤 Proprietário: {searchResult.proprietario}
+                      </Text>
+                      <Text style={styles.detailItem}>
+                        🕒 Última entrada: {searchResult.ultimaEntrada}
+                      </Text>
                     </>
                   )}
                 </View>
               )}
             </TouchableOpacity>
-          ) : searchQuery && (
-            <View style={styles.noResultCard}>
-              <Text style={styles.noResultIcon}>❌</Text>
-              <Text style={styles.noResultText}>Nenhum resultado encontrado</Text>
-              <Text style={styles.noResultSubtext}>Verifique se o CPF ou placa estão corretos</Text>
-            </View>
+          ) : (
+            searchQuery && (
+              <View style={styles.noResultCard}>
+                <Text style={styles.noResultIcon}>❌</Text>
+                <Text style={styles.noResultText}>Nenhum resultado encontrado</Text>
+                <Text style={styles.noResultSubtext}>
+                  Verifique se o CPF ou placa estão corretos
+                </Text>
+              </View>
+            )
           )}
         </View>
       </ScrollView>
@@ -388,20 +398,29 @@ export default function PorteiroDashboard() {
 
     const getIconeAviso = (tipo: string) => {
       switch (tipo) {
-        case 'manutencao': return '🔧';
-        case 'reuniao': return '👥';
-        case 'obra': return '🏗️';
-        case 'informativo': return 'ℹ️';
-        default: return '📢';
+        case 'manutencao':
+          return '🔧';
+        case 'reuniao':
+          return '👥';
+        case 'obra':
+          return '🏗️';
+        case 'informativo':
+          return 'ℹ️';
+        default:
+          return '📢';
       }
     };
 
     const getCorPrioridade = (prioridade: string) => {
       switch (prioridade) {
-        case 'alta': return '#FF5722';
-        case 'media': return '#FF9800';
-        case 'baixa': return '#4CAF50';
-        default: return '#2196F3';
+        case 'alta':
+          return '#FF5722';
+        case 'media':
+          return '#FF9800';
+        case 'baixa':
+          return '#4CAF50';
+        default:
+          return '#2196F3';
       }
     };
 
@@ -411,19 +430,26 @@ export default function PorteiroDashboard() {
           <Text style={styles.headerTitle}>📢 Avisos</Text>
           <Text style={styles.headerSubtitle}>Comunicados do condomínio</Text>
         </View>
-        
+
         <View style={styles.buttonsContainer}>
           {avisos.map((aviso) => (
-            <View key={aviso.id} style={flattenStyles([styles.avisoCard, { borderLeftColor: getCorPrioridade(aviso.prioridade) }])}>
+            <View
+              key={aviso.id}
+              style={flattenStyles([
+                styles.avisoCard,
+                { borderLeftColor: getCorPrioridade(aviso.prioridade) },
+              ])}>
               <View style={styles.avisoHeader}>
                 <Text style={styles.avisoIcon}>{getIconeAviso(aviso.tipo)}</Text>
                 <View style={styles.avisoInfo}>
                   <Text style={styles.avisoTitle}>{aviso.titulo}</Text>
                   <Text style={styles.avisoAuthor}>Por {aviso.autor}</Text>
-                  <Text style={styles.avisoDateTime}>{aviso.data} às {aviso.hora}</Text>
+                  <Text style={styles.avisoDateTime}>
+                    {aviso.data} às {aviso.hora}
+                  </Text>
                 </View>
               </View>
-              
+
               <Text style={styles.avisoDescription}>{aviso.descricao}</Text>
             </View>
           ))}
@@ -439,22 +465,33 @@ export default function PorteiroDashboard() {
 
     const getIconeAcao = (tipo: string) => {
       switch (tipo) {
-        case 'visitante': return '👤';
-        case 'encomenda': return '📦';
-        case 'veiculo': return '🚗';
-        case 'autorizacao': return '✅';
-        case 'consulta': return '🔍';
-        case 'sistema': return '⚙️';
-        default: return '📝';
+        case 'visitante':
+          return '👤';
+        case 'encomenda':
+          return '📦';
+        case 'veiculo':
+          return '🚗';
+        case 'autorizacao':
+          return '✅';
+        case 'consulta':
+          return '🔍';
+        case 'sistema':
+          return '⚙️';
+        default:
+          return '📝';
       }
     };
 
     const getCorStatus = (status: string) => {
       switch (status) {
-        case 'concluido': return '#4CAF50';
-        case 'ativo': return '#2196F3';
-        case 'pendente': return '#FF9800';
-        default: return '#666';
+        case 'concluido':
+          return '#4CAF50';
+        case 'ativo':
+          return '#2196F3';
+        case 'pendente':
+          return '#FF9800';
+        default:
+          return '#666';
       }
     };
 
@@ -464,18 +501,29 @@ export default function PorteiroDashboard() {
           <Text style={styles.headerTitle}>📚 Histórico</Text>
           <Text style={styles.headerSubtitle}>Atividades do turno</Text>
         </View>
-        
+
         <View style={styles.buttonsContainer}>
           {historico.map((item) => (
-            <View key={item.id} style={flattenStyles([styles.historicoCard, { borderLeftColor: getCorStatus(item.status) }])}>
+            <View
+              key={item.id}
+              style={flattenStyles([
+                styles.historicoCard,
+                { borderLeftColor: getCorStatus(item.status) },
+              ])}>
               <View style={styles.historicoHeader}>
                 <Text style={styles.historicoIcon}>{getIconeAcao(item.tipo)}</Text>
                 <View style={styles.historicoInfo}>
                   <Text style={styles.historicoAcao}>{item.acao}</Text>
                   <Text style={styles.historicoDetalhes}>{item.detalhes}</Text>
-                  <Text style={styles.historicoDateTime}>{item.data} às {item.hora}</Text>
+                  <Text style={styles.historicoDateTime}>
+                    {item.data} às {item.hora}
+                  </Text>
                 </View>
-                <View style={flattenStyles([styles.statusBadge, { backgroundColor: getCorStatus(item.status) }])}>
+                <View
+                  style={flattenStyles([
+                    styles.statusBadge,
+                    { backgroundColor: getCorStatus(item.status) },
+                  ])}>
                   <Text style={styles.statusText}>
                     {item.status === 'concluido' ? '✓' : item.status === 'ativo' ? '●' : '⏳'}
                   </Text>
@@ -509,17 +557,7 @@ export default function PorteiroDashboard() {
     <ProtectedRoute redirectTo="/porteiro/login" userType="porteiro">
       {/* Renderizar fluxos modais */}
       {activeFlow === 'visitante' && (
-        <RegistrarVisitante 
-          onClose={() => setActiveFlow(null)} 
-          onConfirm={(message: string) => {
-            setActiveFlow(null);
-            showConfirmationModal(message);
-          }}
-        />
-      )}
-      
-      {activeFlow === 'encomenda' && (
-        <RegistrarEncomenda 
+        <RegistrarVisitante
           onClose={() => setActiveFlow(null)}
           onConfirm={(message: string) => {
             setActiveFlow(null);
@@ -527,9 +565,19 @@ export default function PorteiroDashboard() {
           }}
         />
       )}
-      
+
+      {activeFlow === 'encomenda' && (
+        <RegistrarEncomenda
+          onClose={() => setActiveFlow(null)}
+          onConfirm={(message: string) => {
+            setActiveFlow(null);
+            showConfirmationModal(message);
+          }}
+        />
+      )}
+
       {activeFlow === 'veiculo' && (
-        <RegistrarVeiculo 
+        <RegistrarVeiculo
           onClose={() => setActiveFlow(null)}
           onConfirm={(message: string) => {
             setActiveFlow(null);
@@ -541,62 +589,129 @@ export default function PorteiroDashboard() {
       {!activeFlow && (
         <SafeAreaView style={styles.container}>
           {renderTopMenu()}
-          <View style={styles.content}>
-            {renderTabContent()}
-          </View>
-          
+          <View style={styles.content}>{renderTabContent()}</View>
+
           {/* Navegação Inferior Fixa */}
           <View style={styles.bottomNavigation}>
-          <TouchableOpacity 
-            style={flattenStyles([styles.navItem, activeTab === 'chegada' && styles.navItemActive])}
-            onPress={() => setActiveTab('chegada')}
-          >
-            <Text style={flattenStyles([styles.navIcon, activeTab === 'chegada' && styles.navIconActive])}>🏠</Text>
-            <Text style={flattenStyles([styles.navLabel, activeTab === 'chegada' && styles.navLabelActive])}>Chegada</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'chegada' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('chegada')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'chegada' && styles.navIconActive,
+                ])}>
+                🏠
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'chegada' && styles.navLabelActive,
+                ])}>
+                Chegada
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={flattenStyles([styles.navItem, activeTab === 'autorizacoes' && styles.navItemActive])}
-            onPress={() => setActiveTab('autorizacoes')}
-          >
-            <Text style={flattenStyles([styles.navIcon, activeTab === 'autorizacoes' && styles.navIconActive])}>✅</Text>
-            <Text style={flattenStyles([styles.navLabel, activeTab === 'autorizacoes' && styles.navLabelActive])}>Autorizações</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'autorizacoes' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('autorizacoes')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'autorizacoes' && styles.navIconActive,
+                ])}>
+                ✅
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'autorizacoes' && styles.navLabelActive,
+                ])}>
+                Autorizações
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={flattenStyles([styles.navItem, activeTab === 'consulta' && styles.navItemActive])}
-            onPress={() => setActiveTab('consulta')}
-          >
-            <Text style={flattenStyles([styles.navIcon, activeTab === 'consulta' && styles.navIconActive])}>🔍</Text>
-            <Text style={flattenStyles([styles.navLabel, activeTab === 'consulta' && styles.navLabelActive])}>Consulta</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'consulta' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('consulta')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'consulta' && styles.navIconActive,
+                ])}>
+                🔍
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'consulta' && styles.navLabelActive,
+                ])}>
+                Consulta
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={flattenStyles([styles.navItem, activeTab === 'avisos' && styles.navItemActive])}
-            onPress={() => setActiveTab('avisos')}
-          >
-            <Text style={flattenStyles([styles.navIcon, activeTab === 'avisos' && styles.navIconActive])}>📢</Text>
-            <Text style={flattenStyles([styles.navLabel, activeTab === 'avisos' && styles.navLabelActive])}>Avisos</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'avisos' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('avisos')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'avisos' && styles.navIconActive,
+                ])}>
+                📢
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'avisos' && styles.navLabelActive,
+                ])}>
+                Avisos
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={flattenStyles([styles.navItem, activeTab === 'historico' && styles.navItemActive])}
-            onPress={() => setActiveTab('historico')}
-          >
-            <Text style={flattenStyles([styles.navIcon, activeTab === 'historico' && styles.navIconActive])}>📚</Text>
-            <Text style={flattenStyles([styles.navLabel, activeTab === 'historico' && styles.navLabelActive])}>Histórico</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'historico' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('historico')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'historico' && styles.navIconActive,
+                ])}>
+                📚
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'historico' && styles.navLabelActive,
+                ])}>
+                Histórico
+              </Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       )}
-      
+
       {/* Modal de Confirmação */}
       <Modal
         visible={showConfirmModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={closeConfirmModal}
-      >
+        onRequestClose={closeConfirmModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.confirmModalContainer}>
             <Text style={styles.confirmModalIcon}>✅</Text>
@@ -605,10 +720,7 @@ export default function PorteiroDashboard() {
             <Text style={styles.countdownText}>
               Fechando automaticamente em {countdown} segundos...
             </Text>
-            <TouchableOpacity 
-              style={styles.closeModalButton}
-              onPress={closeConfirmModal}
-            >
+            <TouchableOpacity style={styles.closeModalButton} onPress={closeConfirmModal}>
               <Text style={styles.closeModalButtonText}>Fechar Manualmente</Text>
             </TouchableOpacity>
           </View>
@@ -1020,108 +1132,108 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusText: {
-      color: '#fff',
-      fontSize: 12,
-      fontWeight: 'bold',
-    },
-    // Estilos para menu superior
-    topMenu: {
-      backgroundColor: '#fff',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: '#e0e0e0',
-      elevation: 4,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    topMenuLeft: {
-      flex: 1,
-    },
-    welcomeText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: '#333',
-    },
-    shiftText: {
-      fontSize: 12,
-      color: '#666',
-      marginTop: 2,
-    },
-    topMenuRight: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      position: 'relative',
-    },
-    panicButton: {
-      backgroundColor: '#FF5722',
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 12,
-      elevation: 3,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-    },
-    panicButtonText: {
-      fontSize: 20,
-    },
-    userAvatar: {
-      backgroundColor: '#2196F3',
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      justifyContent: 'center',
-      alignItems: 'center',
-      elevation: 3,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-    },
-    avatarText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    userMenu: {
-      position: 'absolute',
-      top: 50,
-      right: 0,
-      backgroundColor: '#fff',
-      borderRadius: 12,
-      padding: 8,
-      minWidth: 120,
-      elevation: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      borderWidth: 1,
-      borderColor: '#e0e0e0',
-      zIndex: 1000,
-    },
-    userMenuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 12,
-      borderRadius: 8,
-    },
-    userMenuIcon: {
-      fontSize: 16,
-      marginRight: 8,
-    },
-    userMenuText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  // Estilos para menu superior
+  topMenu: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  topMenuLeft: {
+    flex: 1,
+  },
+  welcomeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  shiftText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  topMenuRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  panicButton: {
+    backgroundColor: '#FF5722',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  panicButtonText: {
+    fontSize: 20,
+  },
+  userAvatar: {
+    backgroundColor: '#2196F3',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  avatarText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  userMenu: {
+    position: 'absolute',
+    top: 50,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 120,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    zIndex: 1000,
+  },
+  userMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  userMenuIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  userMenuText: {
     fontSize: 14,
     color: '#333',
     fontWeight: '500',

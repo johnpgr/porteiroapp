@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,20 +24,17 @@ const visitTypeLabels = {
 };
 
 export default function FotoVisitante() {
-  const { tipo, nome, cpf } = useLocalSearchParams<{ 
-    tipo: VisitType; 
-    nome: string; 
-    cpf: string; 
+  const { tipo, nome, cpf } = useLocalSearchParams<{
+    tipo: VisitType;
+    nome: string;
+    cpf: string;
   }>();
   const [imageUri, setImageUri] = useState<string | null>(null);
 
   const requestPermissions = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        'Permissão necessária',
-        'Precisamos de permissão para acessar suas fotos.'
-      );
+      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
       return false;
     }
     return true;
@@ -53,10 +59,7 @@ export default function FotoVisitante() {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        'Permissão necessária',
-        'Precisamos de permissão para usar a câmera.'
-      );
+      Alert.alert('Permissão necessária', 'Precisamos de permissão para usar a câmera.');
       return;
     }
 
@@ -78,24 +81,24 @@ export default function FotoVisitante() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/visitantes/periodo',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
-        foto: imageUri || ''
-      }
+        foto: imageUri || '',
+      },
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/morador/visitantes/periodo',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
-        foto: ''
-      }
+        foto: '',
+      },
     });
   };
 
@@ -149,10 +152,7 @@ export default function FotoVisitante() {
               {imageUri ? (
                 <View style={styles.imageContainer}>
                   <Image source={{ uri: imageUri }} style={styles.image} />
-                  <TouchableOpacity 
-                    style={styles.removeButton}
-                    onPress={removeImage}
-                  >
+                  <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
                     <Ionicons name="close-circle" size={24} color="#f44336" />
                   </TouchableOpacity>
                 </View>
@@ -186,29 +186,20 @@ export default function FotoVisitante() {
         </ScrollView>
 
         <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
-              <Ionicons name="arrow-back" size={20} color="#666" />
-              <Text style={styles.backFooterButtonText}>Voltar</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={20} color="#666" />
+            <Text style={styles.backFooterButtonText}>Voltar</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-            >
-              <Text style={styles.skipButtonText}>Pular</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <Text style={styles.skipButtonText}>Pular</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
-              <Text style={styles.nextButtonText}>Continuar</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     </ProtectedRoute>
   );

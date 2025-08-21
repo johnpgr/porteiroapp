@@ -37,7 +37,9 @@ export default function AdminProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
@@ -104,30 +106,26 @@ export default function AdminProfilePage() {
     });
 
     if (!result.canceled) {
-      setFormData(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Confirmar Logout',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/admin/login');
-            } catch (error) {
-              Alert.alert('Erro', 'Falha ao fazer logout');
-            }
-          },
+    Alert.alert('Confirmar Logout', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/admin/login');
+          } catch (error) {
+            Alert.alert('Erro', 'Falha ao fazer logout');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -140,19 +138,14 @@ export default function AdminProfilePage() {
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <SafeAreaView style={{flex: 1}}>
+      <SafeAreaView style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Meu Perfil</Text>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => setIsEditing(!isEditing)}
-          >
-            <Text style={styles.editButtonText}>
-              {isEditing ? 'Cancelar' : 'Editar'}
-            </Text>
+          <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(!isEditing)}>
+            <Text style={styles.editButtonText}>{isEditing ? 'Cancelar' : 'Editar'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -183,7 +176,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.name}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, name: text }))}
                     placeholder="Digite seu nome completo"
                   />
                 ) : (
@@ -197,7 +190,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.email}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
                     placeholder="Digite seu e-mail"
                     keyboardType="email-address"
                   />
@@ -212,7 +205,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.phone}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
                     placeholder="Digite seu telefone"
                     keyboardType="phone-pad"
                   />
@@ -227,7 +220,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.cpf}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, cpf: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, cpf: text }))}
                     placeholder="Digite seu CPF"
                     keyboardType="numeric"
                   />
@@ -242,7 +235,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.birth_date}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, birth_date: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, birth_date: text }))}
                     placeholder="DD/MM/AAAA"
                   />
                 ) : (
@@ -260,7 +253,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     value={formData.address}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, address: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, address: text }))}
                     placeholder="Digite seu endereço completo"
                     multiline
                     numberOfLines={3}
@@ -310,24 +303,30 @@ export default function AdminProfilePage() {
 
           <View style={styles.actionsCard}>
             <Text style={styles.actionsTitle}>Configurações da Conta</Text>
-            
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
               <Text style={styles.actionButtonText}>🔐 Alterar Senha</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
               <Text style={styles.actionButtonText}>🔔 Configurações de Notificação</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
               <Text style={styles.actionButtonText}>🛡️ Privacidade e Segurança</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
-            
+
             <View style={styles.divider} />
-            
+
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutButtonText}>🚪 Sair da Conta</Text>
             </TouchableOpacity>

@@ -8,14 +8,16 @@ import { useAuth } from '../../hooks/useAuth';
 export default function PorteiroLogin() {
   const { signIn, user } = useAuth();
 
-
   useEffect(() => {
     if (user && user.user_type === 'porteiro') {
       router.replace('/porteiro');
     }
   }, [user]);
 
-  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const handleLogin = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await signIn(email, password);
 
@@ -45,8 +47,6 @@ export default function PorteiroLogin() {
       </View>
 
       <AuthForm onSubmit={handleLogin} submitText="Entrar como Porteiro" />
-
-
     </View>
   );
 }
@@ -80,5 +80,4 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-
 });

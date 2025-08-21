@@ -74,10 +74,7 @@ export default function Communications() {
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('id, name')
-        .order('name');
+      const { data, error } = await supabase.from('buildings').select('id, name').order('name');
 
       if (error) throw error;
       setBuildings(data || []);
@@ -90,7 +87,7 @@ export default function Communications() {
     let filtered = communications;
 
     if (buildingFilter) {
-      filtered = filtered.filter(comm => comm.building_id === buildingFilter);
+      filtered = filtered.filter((comm) => comm.building_id === buildingFilter);
     }
 
     setFilteredCommunications(filtered);
@@ -223,186 +220,185 @@ export default function Communications() {
 
   return (
     <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>📢 Comunicados</Text>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>← Voltar</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>📢 Comunicados</Text>
+      </View>
+
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
+          <Text style={styles.addButtonText}>
+            {showAddForm ? '❌ Cancelar' : '➕ Novo Comunicado'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterLabel}>Filtrar por prédio:</Text>
+          <Picker
+            selectedValue={buildingFilter}
+            style={styles.picker}
+            onValueChange={(itemValue) => setBuildingFilter(itemValue)}>
+            <Picker.Item label="Todos os prédios" value="" />
+            {buildings.map((building) => (
+              <Picker.Item key={building.id} label={building.name} value={building.id} />
+            ))}
+          </Picker>
         </View>
+      </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
-            <Text style={styles.addButtonText}>
-              {showAddForm ? '❌ Cancelar' : '➕ Novo Comunicado'}
-            </Text>
-          </TouchableOpacity>
+      {showAddForm && (
+        <View style={styles.addForm}>
+          <Text style={styles.formTitle}>Novo Comunicado</Text>
 
-          <View style={styles.filterContainer}>
-            <Text style={styles.filterLabel}>Filtrar por prédio:</Text>
-            <Picker
-              selectedValue={buildingFilter}
-              style={styles.picker}
-              onValueChange={(itemValue) => setBuildingFilter(itemValue)}
-            >
-              <Picker.Item label="Todos os prédios" value="" />
-              {buildings.map((building) => (
-                <Picker.Item
-                  key={building.id}
-                  label={building.name}
-                  value={building.id}
-                />
-              ))}
-            </Picker>
-          </View>
-        </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Título do comunicado"
+            value={newComm.title}
+            onChangeText={(text) => setNewComm((prev) => ({ ...prev, title: text }))}
+          />
 
-        {showAddForm && (
-          <View style={styles.addForm}>
-            <Text style={styles.formTitle}>Novo Comunicado</Text>
+          <TextInput
+            style={flattenStyles([styles.input, styles.textArea])}
+            placeholder="Mensagem do comunicado"
+            value={newComm.message}
+            onChangeText={(text) => setNewComm((prev) => ({ ...prev, message: text }))}
+            multiline
+            numberOfLines={4}
+          />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Título do comunicado"
-              value={newComm.title}
-              onChangeText={(text) => setNewComm((prev) => ({ ...prev, title: text }))}
-            />
-
-            <TextInput
-              style={flattenStyles([styles.input, styles.textArea])}
-              placeholder="Mensagem do comunicado"
-              value={newComm.message}
-              onChangeText={(text) => setNewComm((prev) => ({ ...prev, message: text }))}
-              multiline
-              numberOfLines={4}
-            />
-
-            <View style={styles.selector}>
-              <Text style={styles.selectorLabel}>Tipo:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.selectorButtons}>
-                  {[
-                    { key: 'geral', label: 'Geral', icon: '📢' },
-                    { key: 'emergencia', label: 'Emergência', icon: '🚨' },
-                    { key: 'manutencao', label: 'Manutenção', icon: '🔧' },
-                    { key: 'evento', label: 'Evento', icon: '🎉' },
-                  ].map((type) => (
-                    <TouchableOpacity
-                      key={type.key}
-                      style={flattenStyles([
-                        styles.selectorButton,
-                        newComm.type === type.key && styles.selectorButtonActive,
-                        { borderColor: getTypeColor(type.key) },
-                      ])}
-                      onPress={() => setNewComm((prev) => ({ ...prev, type: type.key as any }))}>
-                      <Text
-                        style={flattenStyles([
-                          styles.selectorButtonText,
-                          newComm.type === type.key && { color: getTypeColor(type.key) },
-                        ])}>
-                        {type.icon} {type.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={styles.selector}>
-              <Text style={styles.selectorLabel}>Prioridade:</Text>
+          <View style={styles.selector}>
+            <Text style={styles.selectorLabel}>Tipo:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.selectorButtons}>
                 {[
-                  { key: 'baixa', label: 'Baixa', icon: '🟢' },
-                  { key: 'media', label: 'Média', icon: '🟡' },
-                  { key: 'alta', label: 'Alta', icon: '🔴' },
-                ].map((priority) => (
+                  { key: 'geral', label: 'Geral', icon: '📢' },
+                  { key: 'emergencia', label: 'Emergência', icon: '🚨' },
+                  { key: 'manutencao', label: 'Manutenção', icon: '🔧' },
+                  { key: 'evento', label: 'Evento', icon: '🎉' },
+                ].map((type) => (
                   <TouchableOpacity
-                    key={priority.key}
+                    key={type.key}
                     style={flattenStyles([
                       styles.selectorButton,
-                      newComm.priority === priority.key && styles.selectorButtonActive,
-                      { borderColor: getPriorityColor(priority.key) },
+                      newComm.type === type.key && styles.selectorButtonActive,
+                      { borderColor: getTypeColor(type.key) },
                     ])}
-                    onPress={() =>
-                      setNewComm((prev) => ({ ...prev, priority: priority.key as any }))
-                    }>
+                    onPress={() => setNewComm((prev) => ({ ...prev, type: type.key as any }))}>
                     <Text
                       style={flattenStyles([
                         styles.selectorButtonText,
-                        newComm.priority === priority.key && {
-                          color: getPriorityColor(priority.key),
-                        },
+                        newComm.type === type.key && { color: getTypeColor(type.key) },
                       ])}>
-                      {priority.icon} {priority.label}
+                      {type.icon} {type.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Apartamento específico (opcional)"
-              value={newComm.target_apartment}
-              onChangeText={(text) => setNewComm((prev) => ({ ...prev, target_apartment: text }))}
-              keyboardType="numeric"
-            />
-
-            <TouchableOpacity style={styles.submitButton} onPress={handleAddCommunication}>
-              <Text style={styles.submitButtonText}>📤 Enviar Comunicado</Text>
-            </TouchableOpacity>
+            </ScrollView>
           </View>
-        )}
 
-        <ScrollView style={styles.commList}>
-          {filteredCommunications.map((comm) => {
-            const { date, time } = formatDate(comm.created_at);
-            return (
-              <View key={comm.id} style={styles.commCard}>
-                <View style={styles.commHeader}>
-                  <View style={styles.commType}>
-                    <Text style={styles.typeIcon}>{getTypeIcon(comm.type)}</Text>
-                    <Text style={flattenStyles([styles.typeText, { color: getTypeColor(comm.type) }])}>
-                      {comm.type.charAt(0).toUpperCase() + comm.type.slice(1)}
-                    </Text>
-                  </View>
+          <View style={styles.selector}>
+            <Text style={styles.selectorLabel}>Prioridade:</Text>
+            <View style={styles.selectorButtons}>
+              {[
+                { key: 'baixa', label: 'Baixa', icon: '🟢' },
+                { key: 'media', label: 'Média', icon: '🟡' },
+                { key: 'alta', label: 'Alta', icon: '🔴' },
+              ].map((priority) => (
+                <TouchableOpacity
+                  key={priority.key}
+                  style={flattenStyles([
+                    styles.selectorButton,
+                    newComm.priority === priority.key && styles.selectorButtonActive,
+                    { borderColor: getPriorityColor(priority.key) },
+                  ])}
+                  onPress={() =>
+                    setNewComm((prev) => ({ ...prev, priority: priority.key as any }))
+                  }>
+                  <Text
+                    style={flattenStyles([
+                      styles.selectorButtonText,
+                      newComm.priority === priority.key && {
+                        color: getPriorityColor(priority.key),
+                      },
+                    ])}>
+                    {priority.icon} {priority.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
-                  <View style={styles.commMeta}>
-                    <View style={styles.priority}>
-                      <Text style={styles.priorityIcon}>{getPriorityIcon(comm.priority)}</Text>
-                      <Text
-                        style={flattenStyles([styles.priorityText, { color: getPriorityColor(comm.priority) }])}>
-                        {comm.priority.charAt(0).toUpperCase() + comm.priority.slice(1)}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteCommunication(comm.id, comm.title)}>
-                      <Text style={styles.deleteButtonText}>🗑️</Text>
-                    </TouchableOpacity>
-                  </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Apartamento específico (opcional)"
+            value={newComm.target_apartment}
+            onChangeText={(text) => setNewComm((prev) => ({ ...prev, target_apartment: text }))}
+            keyboardType="numeric"
+          />
+
+          <TouchableOpacity style={styles.submitButton} onPress={handleAddCommunication}>
+            <Text style={styles.submitButtonText}>📤 Enviar Comunicado</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <ScrollView style={styles.commList}>
+        {filteredCommunications.map((comm) => {
+          const { date, time } = formatDate(comm.created_at);
+          return (
+            <View key={comm.id} style={styles.commCard}>
+              <View style={styles.commHeader}>
+                <View style={styles.commType}>
+                  <Text style={styles.typeIcon}>{getTypeIcon(comm.type)}</Text>
+                  <Text
+                    style={flattenStyles([styles.typeText, { color: getTypeColor(comm.type) }])}>
+                    {comm.type.charAt(0).toUpperCase() + comm.type.slice(1)}
+                  </Text>
                 </View>
 
-                <View style={styles.commContent}>
-                  <Text style={styles.commTitle}>{comm.title}</Text>
-                  <Text style={styles.commMessage}>{comm.message}</Text>
-
-                  {comm.target_apartment && (
-                    <View style={styles.targetInfo}>
-                      <Text style={styles.targetText}>🏠 Apartamento {comm.target_apartment}</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.commFooter}>
-                    <Text style={styles.commDate}>
-                      {date} às {time}
+                <View style={styles.commMeta}>
+                  <View style={styles.priority}>
+                    <Text style={styles.priorityIcon}>{getPriorityIcon(comm.priority)}</Text>
+                    <Text
+                      style={flattenStyles([
+                        styles.priorityText,
+                        { color: getPriorityColor(comm.priority) },
+                      ])}>
+                      {comm.priority.charAt(0).toUpperCase() + comm.priority.slice(1)}
                     </Text>
-                    <Text style={styles.commAuthor}>Por: {comm.created_by}</Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteCommunication(comm.id, comm.title)}>
+                    <Text style={styles.deleteButtonText}>🗑️</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            );
-          })}
-        </ScrollView>
+
+              <View style={styles.commContent}>
+                <Text style={styles.commTitle}>{comm.title}</Text>
+                <Text style={styles.commMessage}>{comm.message}</Text>
+
+                {comm.target_apartment && (
+                  <View style={styles.targetInfo}>
+                    <Text style={styles.targetText}>🏠 Apartamento {comm.target_apartment}</Text>
+                  </View>
+                )}
+
+                <View style={styles.commFooter}>
+                  <Text style={styles.commDate}>
+                    {date} às {time}
+                  </Text>
+                  <Text style={styles.commAuthor}>Por: {comm.created_by}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
     </SafeAreaView>
   );
 }

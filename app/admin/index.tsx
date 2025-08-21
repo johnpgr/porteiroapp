@@ -87,7 +87,10 @@ export default function AdminDashboard() {
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
   const [logMovementFilter, setLogMovementFilter] = useState('all');
-  const [logDateFilter, setLogDateFilter] = useState({ start: null as Date | null, end: null as Date | null });
+  const [logDateFilter, setLogDateFilter] = useState({
+    start: null as Date | null,
+    end: null as Date | null,
+  });
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -133,7 +136,15 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     filterLogs();
-  }, [logSearchType, logSearchQuery, logBuildingFilter, logMovementFilter, logDateFilter, logs, filterLogs]);
+  }, [
+    logSearchType,
+    logSearchQuery,
+    logBuildingFilter,
+    logMovementFilter,
+    logDateFilter,
+    logs,
+    filterLogs,
+  ]);
 
   useEffect(() => {
     filterVehicles();
@@ -145,13 +156,16 @@ export default function AdminDashboard() {
       return;
     }
 
-    const filtered = vehicles.filter(vehicle => 
-      vehicle.license_plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.model?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.brand?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.color?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.apartments?.number?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.apartments?.buildings?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+    const filtered = vehicles.filter(
+      (vehicle) =>
+        vehicle.license_plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+        vehicle.model?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+        vehicle.brand?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+        vehicle.color?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+        vehicle.apartments?.number?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+        vehicle.apartments?.buildings?.name
+          ?.toLowerCase()
+          .includes(vehicleSearchQuery.toLowerCase())
     );
     setFilteredVehicles(filtered);
   };
@@ -171,8 +185,15 @@ export default function AdminDashboard() {
       const [usersData, apartmentsData, activitiesData, logsData] = await Promise.all([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
         supabase.from('apartments').select('*').order('number'),
-        supabase.from('visitor_logs').select('*, apartments(number), buildings(name)').limit(10).order('created_at', { ascending: false }),
-        supabase.from('system_logs').select('*, users(name), buildings(name)').order('created_at', { ascending: false }),
+        supabase
+          .from('visitor_logs')
+          .select('*, apartments(number), buildings(name)')
+          .limit(10)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('system_logs')
+          .select('*, users(name), buildings(name)')
+          .order('created_at', { ascending: false }),
       ]);
 
       setUsers(usersData.data || []);
@@ -189,7 +210,8 @@ export default function AdminDashboard() {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select(`
+        .select(
+          `
           *,
           apartments(
             id,
@@ -199,7 +221,8 @@ export default function AdminDashboard() {
               name
             )
           )
-        `)
+        `
+        )
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -215,10 +238,11 @@ export default function AdminDashboard() {
       setFilteredUsers(users);
       return;
     }
-    const filtered = users.filter(user => 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.cpf?.includes(searchQuery) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filtered = users.filter(
+      (user) =>
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.cpf?.includes(searchQuery) ||
+        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredUsers(filtered);
   };
@@ -229,14 +253,20 @@ export default function AdminDashboard() {
     // Filtro por busca específica
     if (logSearchQuery && logSearchType !== 'all') {
       const query = logSearchQuery.toLowerCase();
-      filtered = filtered.filter(log => {
+      filtered = filtered.filter((log) => {
         switch (logSearchType) {
           case 'morador':
-            return log.user_name?.toLowerCase().includes(query) && 
-                   (log.action.toLowerCase().includes('morador') || log.user_name?.toLowerCase().includes(query));
+            return (
+              log.user_name?.toLowerCase().includes(query) &&
+              (log.action.toLowerCase().includes('morador') ||
+                log.user_name?.toLowerCase().includes(query))
+            );
           case 'porteiro':
-            return log.user_name?.toLowerCase().includes(query) && 
-                   (log.action.toLowerCase().includes('porteiro') || log.user_name?.toLowerCase().includes(query));
+            return (
+              log.user_name?.toLowerCase().includes(query) &&
+              (log.action.toLowerCase().includes('porteiro') ||
+                log.user_name?.toLowerCase().includes(query))
+            );
           case 'predio':
             return log.building_name?.toLowerCase().includes(query);
           case 'acao':
@@ -248,21 +278,22 @@ export default function AdminDashboard() {
     } else if (logSearchQuery && logSearchType === 'all') {
       // Busca geral quando tipo é 'all'
       const query = logSearchQuery.toLowerCase();
-      filtered = filtered.filter(log => 
-        log.action.toLowerCase().includes(query) ||
-        log.user_name?.toLowerCase().includes(query) ||
-        log.building_name?.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (log) =>
+          log.action.toLowerCase().includes(query) ||
+          log.user_name?.toLowerCase().includes(query) ||
+          log.building_name?.toLowerCase().includes(query)
       );
     }
 
     // Filtro por prédio
     if (logBuildingFilter) {
-      filtered = filtered.filter(log => log.building_name === logBuildingFilter);
+      filtered = filtered.filter((log) => log.building_name === logBuildingFilter);
     }
 
     // Filtro por tipo de movimentação
     if (logMovementFilter !== 'all') {
-      filtered = filtered.filter(log => {
+      filtered = filtered.filter((log) => {
         const action = log.action.toLowerCase();
         if (logMovementFilter === 'entrada') {
           return action.includes('entrada') || action.includes('entrou');
@@ -275,11 +306,11 @@ export default function AdminDashboard() {
 
     // Filtro por período
     if (logDateFilter.start || logDateFilter.end) {
-      filtered = filtered.filter(log => {
+      filtered = filtered.filter((log) => {
         const logDate = new Date(log.created_at);
         const startDate = logDateFilter.start;
         const endDate = logDateFilter.end;
-        
+
         if (startDate && logDate < startDate) return false;
         if (endDate && logDate > endDate) return false;
         return true;
@@ -312,7 +343,7 @@ export default function AdminDashboard() {
         userData.email = newUser.email;
         userData.building_id = newUser.building_id;
         userData.photo_url = newUser.photo_url;
-        
+
         if (newUser.role === 'morador') {
           userData.apartment_id = newUser.apartment_id;
         }
@@ -322,7 +353,17 @@ export default function AdminDashboard() {
       if (error) throw error;
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
-      setNewUser({ name: '', role: 'morador', cpf: '', phone: '', email: '', building_id: '', apartment_id: '', photo_url: '', password: '' });
+      setNewUser({
+        name: '',
+        role: 'morador',
+        cpf: '',
+        phone: '',
+        email: '',
+        building_id: '',
+        apartment_id: '',
+        photo_url: '',
+        password: '',
+      });
       setShowAddForm(false);
       fetchData();
     } catch (error) {
@@ -331,16 +372,18 @@ export default function AdminDashboard() {
   };
 
   const handleAddVehicle = async () => {
-    if (!newVehicle.license_plate || !newVehicle.model || !newVehicle.building_id || !newVehicle.resident_id) {
+    if (
+      !newVehicle.license_plate ||
+      !newVehicle.model ||
+      !newVehicle.building_id ||
+      !newVehicle.resident_id
+    ) {
       Alert.alert('Erro', 'Preencha todos os campos obrigatórios');
       return;
     }
 
     try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .insert([newVehicle])
-        .select();
+      const { data, error } = await supabase.from('vehicles').insert([newVehicle]).select();
 
       if (error) throw error;
 
@@ -377,7 +420,13 @@ export default function AdminDashboard() {
 
       if (error) throw error;
       Alert.alert('Sucesso', 'Comunicado enviado com sucesso');
-      setCommunication({ title: '', description: '', building_id: '', target_user: 'all', specific_user_id: '' });
+      setCommunication({
+        title: '',
+        description: '',
+        building_id: '',
+        target_user: 'all',
+        specific_user_id: '',
+      });
     } catch (error) {
       Alert.alert('Erro', 'Falha ao enviar comunicado');
     }
@@ -392,7 +441,7 @@ export default function AdminDashboard() {
     });
 
     if (!result.canceled) {
-      setNewUser(prev => ({ ...prev, photo_url: result.assets[0].uri }));
+      setNewUser((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
@@ -407,17 +456,16 @@ export default function AdminDashboard() {
           </TouchableOpacity>
           {showAvatarMenu && (
             <View style={styles.avatarMenu}>
-              <TouchableOpacity 
-                style={styles.menuItem} 
+              <TouchableOpacity
+                style={styles.menuItem}
                 onPress={() => {
                   setShowAvatarMenu(false);
                   router.push('/admin/profile');
-                }}
-              >
+                }}>
                 <Text style={styles.menuItemText}>👤 Meu Perfil</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.menuItemLast} 
+              <TouchableOpacity
+                style={styles.menuItemLast}
                 onPress={async () => {
                   setShowAvatarMenu(false);
                   try {
@@ -427,8 +475,7 @@ export default function AdminDashboard() {
                     console.error('Erro ao fazer logout:', error);
                     Alert.alert('Erro', 'Não foi possível fazer logout');
                   }
-                }}
-              >
+                }}>
                 <Text style={styles.menuItemText}>🚪 Sair</Text>
               </TouchableOpacity>
             </View>
@@ -448,25 +495,36 @@ export default function AdminDashboard() {
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{buildings.length}</Text>
           <Text style={styles.statLabel}>Prédios</Text>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/admin/buildings')}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push('/admin/buildings')}>
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{users.filter(u => u.role === 'morador' || u.role === 'porteiro').length}</Text>
+          <Text style={styles.statNumber}>
+            {users.filter((u) => u.role === 'morador' || u.role === 'porteiro').length}
+          </Text>
           <Text style={styles.statLabel}>Usuários</Text>
-          <TouchableOpacity style={styles.addButton} onPress={() => { setShowAddForm(true); setActiveTab('users'); }}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              setShowAddForm(true);
+              setActiveTab('users');
+            }}>
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
       </View>
-      
+
       <View style={styles.activitiesContainer}>
         <Text style={styles.sectionTitle}>Atividades Recentes</Text>
         {activities.map((activity, index) => (
           <View key={index} style={styles.activityItem}>
             <Text style={styles.activityText}>
-              Visitante {activity.visitor_name} chegou para o apartamento {activity.apartment_number} em {new Date(activity.created_at).toLocaleString('pt-BR')} - {activity.building_name}
+              Visitante {activity.visitor_name} chegou para o apartamento{' '}
+              {activity.apartment_number} em {new Date(activity.created_at).toLocaleString('pt-BR')}{' '}
+              - {activity.building_name}
             </Text>
           </View>
         ))}
@@ -478,17 +536,21 @@ export default function AdminDashboard() {
     <ScrollView style={styles.content}>
       {/* Abas de Usuários e Veículos */}
       <View style={styles.tabsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tabButton, userSubTab === 'users' && styles.tabButtonActive]}
-          onPress={() => setUserSubTab('users')}
-        >
-          <Text style={[styles.tabButtonText, userSubTab === 'users' && styles.tabButtonTextActive]}>👥 Usuários</Text>
+          onPress={() => setUserSubTab('users')}>
+          <Text
+            style={[styles.tabButtonText, userSubTab === 'users' && styles.tabButtonTextActive]}>
+            👥 Usuários
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.tabButton, userSubTab === 'vehicles' && styles.tabButtonActive]}
-          onPress={() => setUserSubTab('vehicles')}
-        >
-          <Text style={[styles.tabButtonText, userSubTab === 'vehicles' && styles.tabButtonTextActive]}>🚗 Veículos</Text>
+          onPress={() => setUserSubTab('vehicles')}>
+          <Text
+            style={[styles.tabButtonText, userSubTab === 'vehicles' && styles.tabButtonTextActive]}>
+            🚗 Veículos
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -504,7 +566,9 @@ export default function AdminDashboard() {
                 onChangeText={setSearchQuery}
               />
             </View>
-            <TouchableOpacity style={styles.newUserCard} onPress={() => setShowAddForm(!showAddForm)}>
+            <TouchableOpacity
+              style={styles.newUserCard}
+              onPress={() => setShowAddForm(!showAddForm)}>
               <Text style={styles.cardIcon}>{showAddForm ? '🔍' : '👤+'}</Text>
               <Text style={styles.newUserCardText}>{showAddForm ? 'Buscar' : 'Novo Usuário'}</Text>
             </TouchableOpacity>
@@ -517,9 +581,9 @@ export default function AdminDashboard() {
                 style={styles.input}
                 placeholder="Nome completo"
                 value={newUser.name}
-                onChangeText={(text) => setNewUser(prev => ({ ...prev, name: text }))}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
               />
-              
+
               <View style={styles.roleSelector}>
                 <Text style={styles.roleLabel}>Tipo:</Text>
                 <View style={styles.roleButtons}>
@@ -527,7 +591,7 @@ export default function AdminDashboard() {
                     <TouchableOpacity
                       key={role}
                       style={[styles.roleButton, newUser.role === role && styles.roleButtonActive]}
-                      onPress={() => setNewUser(prev => ({ ...prev, role: role as any }))}>
+                      onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
                       <Text style={styles.roleButtonText}>{role}</Text>
                     </TouchableOpacity>
                   ))}
@@ -536,24 +600,55 @@ export default function AdminDashboard() {
 
               {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
                 <>
-                  <TextInput style={styles.input} placeholder="CPF" value={newUser.cpf} onChangeText={(text) => setNewUser(prev => ({ ...prev, cpf: text }))} />
-                  <TextInput style={styles.input} placeholder="Telefone" value={newUser.phone} onChangeText={(text) => setNewUser(prev => ({ ...prev, phone: text }))} />
-                  <TextInput style={styles.input} placeholder={newUser.role === 'morador' ? 'Email (opcional)' : 'Email'} value={newUser.email} onChangeText={(text) => setNewUser(prev => ({ ...prev, email: text }))} />
-                  
+                  <TextInput
+                    style={styles.input}
+                    placeholder="CPF"
+                    value={newUser.cpf}
+                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Telefone"
+                    value={newUser.phone}
+                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder={newUser.role === 'morador' ? 'Email (opcional)' : 'Email'}
+                    value={newUser.email}
+                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
+                  />
+
                   <View style={styles.pickerContainer}>
-                    <Picker selectedValue={newUser.building_id} onValueChange={(value) => setNewUser(prev => ({ ...prev, building_id: value }))}>
+                    <Picker
+                      selectedValue={newUser.building_id}
+                      onValueChange={(value) =>
+                        setNewUser((prev) => ({ ...prev, building_id: value }))
+                      }>
                       <Picker.Item label="Selecione um prédio" value="" />
-                      {buildings.map(building => <Picker.Item key={building.id} label={building.name} value={building.id} />)}
+                      {buildings.map((building) => (
+                        <Picker.Item key={building.id} label={building.name} value={building.id} />
+                      ))}
                     </Picker>
                   </View>
 
                   {newUser.role === 'morador' && (
                     <View style={styles.pickerContainer}>
-                      <Picker selectedValue={newUser.apartment_id} onValueChange={(value) => setNewUser(prev => ({ ...prev, apartment_id: value }))}>
+                      <Picker
+                        selectedValue={newUser.apartment_id}
+                        onValueChange={(value) =>
+                          setNewUser((prev) => ({ ...prev, apartment_id: value }))
+                        }>
                         <Picker.Item label="Selecione um apartamento" value="" />
-                        {apartments.filter(apt => apt.building_id === newUser.building_id).map(apartment => 
-                          <Picker.Item key={apartment.id} label={apartment.number} value={apartment.id} />
-                        )}
+                        {apartments
+                          .filter((apt) => apt.building_id === newUser.building_id)
+                          .map((apartment) => (
+                            <Picker.Item
+                              key={apartment.id}
+                              label={apartment.number}
+                              value={apartment.id}
+                            />
+                          ))}
                       </Picker>
                     </View>
                   )}
@@ -571,7 +666,7 @@ export default function AdminDashboard() {
           )}
 
           <View style={styles.usersList}>
-            {filteredUsers.map(user => (
+            {filteredUsers.map((user) => (
               <View key={user.id} style={styles.userCard}>
                 <Text style={styles.userName}>{user.name}</Text>
                 <Text style={styles.userRole}>{user.role}</Text>
@@ -583,11 +678,15 @@ export default function AdminDashboard() {
       ) : (
         <>
           <View style={styles.vehicleActionsContainer}>
-            <TouchableOpacity style={styles.newUserCard} onPress={() => setShowAddVehicleForm(!showAddVehicleForm)}>
+            <TouchableOpacity
+              style={styles.newUserCard}
+              onPress={() => setShowAddVehicleForm(!showAddVehicleForm)}>
               <Text style={styles.cardIcon}>{showAddVehicleForm ? '❌' : '🚗+'}</Text>
-              <Text style={styles.newUserCardText}>{showAddVehicleForm ? 'Cancelar' : 'Novo Veículo'}</Text>
+              <Text style={styles.newUserCardText}>
+                {showAddVehicleForm ? 'Cancelar' : 'Novo Veículo'}
+              </Text>
             </TouchableOpacity>
-            
+
             <View style={styles.vehicleSearchContainer}>
               <View style={styles.searchCard}>
                 <Text style={styles.cardIcon}>🔍</Text>
@@ -607,52 +706,58 @@ export default function AdminDashboard() {
           {showAddVehicleForm && (
             <View style={styles.addForm}>
               <Text style={styles.formTitle}>Novo Veículo</Text>
-              
+
               <TextInput
                 style={styles.input}
                 placeholder="Placa do Carro"
                 value={newVehicle.license_plate}
-                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, license_plate: text.toUpperCase() }))}
+                onChangeText={(text) =>
+                  setNewVehicle((prev) => ({ ...prev, license_plate: text.toUpperCase() }))
+                }
               />
-              
+
               <TextInput
                 style={styles.input}
                 placeholder="Modelo do Carro"
                 value={newVehicle.model}
-                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, model: text }))}
+                onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, model: text }))}
               />
-              
+
               <TextInput
                 style={styles.input}
                 placeholder="Local da Vaga (opcional)"
                 value={newVehicle.parking_spot}
-                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, parking_spot: text }))}
+                onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, parking_spot: text }))}
               />
-              
+
               <View style={styles.pickerContainer}>
-                <Picker 
-                  selectedValue={newVehicle.building_id} 
-                  onValueChange={(value) => setNewVehicle(prev => ({ ...prev, building_id: value, resident_id: '' }))}
-                >
+                <Picker
+                  selectedValue={newVehicle.building_id}
+                  onValueChange={(value) =>
+                    setNewVehicle((prev) => ({ ...prev, building_id: value, resident_id: '' }))
+                  }>
                   <Picker.Item label="Selecione um prédio" value="" />
-                  {buildings.map(building => 
+                  {buildings.map((building) => (
                     <Picker.Item key={building.id} label={building.name} value={building.id} />
-                  )}
+                  ))}
                 </Picker>
               </View>
-              
+
               <View style={styles.pickerContainer}>
-                <Picker 
-                  selectedValue={newVehicle.resident_id} 
-                  onValueChange={(value) => setNewVehicle(prev => ({ ...prev, resident_id: value }))}
-                >
+                <Picker
+                  selectedValue={newVehicle.resident_id}
+                  onValueChange={(value) =>
+                    setNewVehicle((prev) => ({ ...prev, resident_id: value }))
+                  }>
                   <Picker.Item label="Selecione um morador" value="" />
                   {users
-                    .filter(user => user.role === 'morador' && user.building_id === newVehicle.building_id)
-                    .map(resident => 
-                      <Picker.Item key={resident.id} label={resident.name} value={resident.id} />
+                    .filter(
+                      (user) =>
+                        user.role === 'morador' && user.building_id === newVehicle.building_id
                     )
-                  }
+                    .map((resident) => (
+                      <Picker.Item key={resident.id} label={resident.name} value={resident.id} />
+                    ))}
                 </Picker>
               </View>
 
@@ -663,11 +768,13 @@ export default function AdminDashboard() {
           )}
 
           <View style={styles.usersList}>
-            {filteredVehicles.map(vehicle => (
+            {filteredVehicles.map((vehicle) => (
               <View key={vehicle.id} style={styles.userCard}>
                 <Text style={styles.userName}>{vehicle.license_plate}</Text>
                 <Text style={styles.userRole}>{vehicle.model}</Text>
-                <Text style={styles.userEmail}>Vaga: {vehicle.parking_spot || 'Não informada'}</Text>
+                <Text style={styles.userEmail}>
+                  Vaga: {vehicle.parking_spot || 'Não informada'}
+                </Text>
                 <Text style={styles.userEmail}>Morador: {vehicle.users?.name}</Text>
                 <Text style={styles.userEmail}>Prédio: {vehicle.buildings?.name}</Text>
               </View>
@@ -686,8 +793,7 @@ export default function AdminDashboard() {
             <Picker
               selectedValue={logSearchType}
               onValueChange={setLogSearchType}
-              style={styles.picker}
-            >
+              style={styles.picker}>
               <Picker.Item label="Buscar em Tudo" value="all" />
               <Picker.Item label="Buscar Morador" value="morador" />
               <Picker.Item label="Buscar Porteiro" value="porteiro" />
@@ -695,7 +801,7 @@ export default function AdminDashboard() {
               <Picker.Item label="Buscar Ação" value="acao" />
             </Picker>
           </View>
-          
+
           <TextInput
             style={[styles.filterInput, styles.searchInput]}
             placeholder={`Buscar ${logSearchType === 'all' ? 'em tudo' : logSearchType}...`}
@@ -703,62 +809,72 @@ export default function AdminDashboard() {
             onChangeText={setLogSearchQuery}
           />
         </View>
-        
+
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={logBuildingFilter}
             onValueChange={setLogBuildingFilter}
-            style={styles.picker}
-          >
+            style={styles.picker}>
             <Picker.Item label="Todos os Prédios" value="" />
-            {buildings.map(building => (
+            {buildings.map((building) => (
               <Picker.Item key={building.id} label={building.name} value={building.name} />
             ))}
           </Picker>
         </View>
-        
+
         <View style={styles.dateFilterContainer}>
           <View style={styles.datePickerGroup}>
             <TouchableOpacity
               style={styles.datePickerButton}
-              onPress={() => setShowStartDatePicker(true)}
-            >
+              onPress={() => setShowStartDatePicker(true)}>
               <Text style={styles.datePickerButtonText}>
-                📅 {logDateFilter.start ? logDateFilter.start.toLocaleDateString('pt-BR') : 'Data início'}
+                📅{' '}
+                {logDateFilter.start
+                  ? logDateFilter.start.toLocaleDateString('pt-BR')
+                  : 'Data início'}
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.timePickerButton}
-              onPress={() => setShowStartTimePicker(true)}
-            >
+              onPress={() => setShowStartTimePicker(true)}>
               <Text style={styles.timePickerButtonText}>
-                🕐 {logDateFilter.start ? logDateFilter.start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Hora'}
+                🕐{' '}
+                {logDateFilter.start
+                  ? logDateFilter.start.toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'Hora'}
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.datePickerGroup}>
             <TouchableOpacity
               style={styles.datePickerButton}
-              onPress={() => setShowEndDatePicker(true)}
-            >
+              onPress={() => setShowEndDatePicker(true)}>
               <Text style={styles.datePickerButtonText}>
                 📅 {logDateFilter.end ? logDateFilter.end.toLocaleDateString('pt-BR') : 'Data fim'}
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.timePickerButton}
-              onPress={() => setShowEndTimePicker(true)}
-            >
+              onPress={() => setShowEndTimePicker(true)}>
               <Text style={styles.timePickerButtonText}>
-                🕐 {logDateFilter.end ? logDateFilter.end.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Hora'}
+                🕐{' '}
+                {logDateFilter.end
+                  ? logDateFilter.end.toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'Hora'}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {showStartDatePicker && (
           <DateTimePicker
             value={logDateFilter.start || new Date()}
@@ -769,12 +885,12 @@ export default function AdminDashboard() {
               if (selectedDate) {
                 const currentTime = logDateFilter.start || new Date();
                 selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                setLogDateFilter(prev => ({ ...prev, start: selectedDate }));
+                setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
               }
             }}
           />
         )}
-        
+
         {showStartTimePicker && (
           <DateTimePicker
             value={logDateFilter.start || new Date()}
@@ -785,12 +901,12 @@ export default function AdminDashboard() {
               if (selectedTime) {
                 const currentDate = logDateFilter.start || new Date();
                 currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                setLogDateFilter(prev => ({ ...prev, start: currentDate }));
+                setLogDateFilter((prev) => ({ ...prev, start: currentDate }));
               }
             }}
           />
         )}
-        
+
         {showEndDatePicker && (
           <DateTimePicker
             value={logDateFilter.end || new Date()}
@@ -801,12 +917,12 @@ export default function AdminDashboard() {
               if (selectedDate) {
                 const currentTime = logDateFilter.end || new Date();
                 selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                setLogDateFilter(prev => ({ ...prev, end: selectedDate }));
+                setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
               }
             }}
           />
         )}
-        
+
         {showEndTimePicker && (
           <DateTimePicker
             value={logDateFilter.end || new Date()}
@@ -817,36 +933,51 @@ export default function AdminDashboard() {
               if (selectedTime) {
                 const currentDate = logDateFilter.end || new Date();
                 currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                setLogDateFilter(prev => ({ ...prev, end: currentDate }));
+                setLogDateFilter((prev) => ({ ...prev, end: currentDate }));
               }
             }}
           />
         )}
       </View>
-      
+
       <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[styles.tabButton, logMovementFilter === 'all' && styles.tabButtonActive]}
-          onPress={() => setLogMovementFilter('all')}
-        >
-          <Text style={[styles.tabButtonText, logMovementFilter === 'all' && styles.tabButtonTextActive]}>Todos</Text>
+          onPress={() => setLogMovementFilter('all')}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              logMovementFilter === 'all' && styles.tabButtonTextActive,
+            ]}>
+            Todos
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, logMovementFilter === 'entrada' && styles.tabButtonActive]}
-          onPress={() => setLogMovementFilter('entrada')}
-        >
-          <Text style={[styles.tabButtonText, logMovementFilter === 'entrada' && styles.tabButtonTextActive]}>Entrada</Text>
+          onPress={() => setLogMovementFilter('entrada')}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              logMovementFilter === 'entrada' && styles.tabButtonTextActive,
+            ]}>
+            Entrada
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, logMovementFilter === 'saida' && styles.tabButtonActive]}
-          onPress={() => setLogMovementFilter('saida')}
-        >
-          <Text style={[styles.tabButtonText, logMovementFilter === 'saida' && styles.tabButtonTextActive]}>Saída</Text>
+          onPress={() => setLogMovementFilter('saida')}>
+          <Text
+            style={[
+              styles.tabButtonText,
+              logMovementFilter === 'saida' && styles.tabButtonTextActive,
+            ]}>
+            Saída
+          </Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.logsList}>
-        {filteredLogs.map(log => (
+        {filteredLogs.map((log) => (
           <View key={log.id} style={styles.logItem}>
             <Text style={styles.logAction}>{log.action}</Text>
             <Text style={styles.logUser}>Usuário: {log.user_name}</Text>
@@ -861,76 +992,82 @@ export default function AdminDashboard() {
   const renderCommunications = () => (
     <ScrollView style={styles.content}>
       <View style={styles.communicationsHeader}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.listCommunicationsButton}
-          onPress={() => router.push('/admin/communications')}
-        >
+          onPress={() => router.push('/admin/communications')}>
           <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.communicationForm}>
         <Text style={styles.formTitle}>Enviar Comunicado</Text>
-        
+
         <TextInput
           style={styles.input}
           placeholder="Título do comunicado"
           value={communication.title}
-          onChangeText={(text) => setCommunication(prev => ({ ...prev, title: text }))}
+          onChangeText={(text) => setCommunication((prev) => ({ ...prev, title: text }))}
         />
-        
+
         <TextInput
           style={[styles.input, styles.textArea]}
           placeholder="Descrição detalhada"
           value={communication.description}
-          onChangeText={(text) => setCommunication(prev => ({ ...prev, description: text }))}
+          onChangeText={(text) => setCommunication((prev) => ({ ...prev, description: text }))}
           multiline
           numberOfLines={4}
         />
-        
+
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={communication.building_id}
-            onValueChange={(value) => setCommunication(prev => ({ ...prev, building_id: value }))}>
+            onValueChange={(value) =>
+              setCommunication((prev) => ({ ...prev, building_id: value }))
+            }>
             <Picker.Item label="Todos os prédios" value="" />
-            {buildings.map(building => 
+            {buildings.map((building) => (
               <Picker.Item key={building.id} label={building.name} value={building.id} />
-            )}
+            ))}
           </Picker>
         </View>
-        
+
         <View style={styles.pickerContainer}>
           <Picker
             selectedValue={communication.target_user}
-            onValueChange={(value) => setCommunication(prev => ({ ...prev, target_user: value, specific_user_id: '' }))}>
+            onValueChange={(value) =>
+              setCommunication((prev) => ({ ...prev, target_user: value, specific_user_id: '' }))
+            }>
             <Picker.Item label="Todos os moradores" value="all" />
             <Picker.Item label="Morador específico" value="specific" />
           </Picker>
         </View>
-        
+
         {communication.target_user === 'specific' && (
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={communication.specific_user_id}
-              onValueChange={(value) => setCommunication(prev => ({ ...prev, specific_user_id: value }))}>
+              onValueChange={(value) =>
+                setCommunication((prev) => ({ ...prev, specific_user_id: value }))
+              }>
               <Picker.Item label="Selecione um morador" value="" />
               {users
-                .filter(user => 
-                  user.role === 'morador' && 
-                  (communication.building_id === '' || user.building_id === communication.building_id)
+                .filter(
+                  (user) =>
+                    user.role === 'morador' &&
+                    (communication.building_id === '' ||
+                      user.building_id === communication.building_id)
                 )
-                .map(user => (
-                  <Picker.Item 
-                    key={user.id} 
-                    label={`${user.name}${user.building_id ? ` - ${buildings.find(b => b.id === user.building_id)?.name || ''}` : ''}`} 
-                    value={user.id} 
+                .map((user) => (
+                  <Picker.Item
+                    key={user.id}
+                    label={`${user.name}${user.building_id ? ` - ${buildings.find((b) => b.id === user.building_id)?.name || ''}` : ''}`}
+                    value={user.id}
                   />
-                ))
-              }
+                ))}
             </Picker>
           </View>
         )}
-        
+
         <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
           <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
         </TouchableOpacity>
@@ -946,21 +1083,21 @@ export default function AdminDashboard() {
         <Text style={styles.navIcon}>📊</Text>
         <Text style={styles.navLabel}>Dashboard</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'users' && styles.navItemActive]}
         onPress={() => setActiveTab('users')}>
         <Text style={styles.navIcon}>👥</Text>
         <Text style={styles.navLabel}>Usuários</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'logs' && styles.navItemActive]}
         onPress={() => setActiveTab('logs')}>
         <Text style={styles.navIcon}>📋</Text>
         <Text style={styles.navLabel}>Logs</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'communications' && styles.navItemActive]}
         onPress={() => setActiveTab('communications')}>
@@ -972,11 +1109,16 @@ export default function AdminDashboard() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return renderDashboard();
-      case 'users': return renderUsers();
-      case 'logs': return renderLogs();
-      case 'communications': return renderCommunications();
-      default: return renderDashboard();
+      case 'dashboard':
+        return renderDashboard();
+      case 'users':
+        return renderUsers();
+      case 'logs':
+        return renderLogs();
+      case 'communications':
+        return renderCommunications();
+      default:
+        return renderDashboard();
     }
   };
 

@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 export default function TelefoneCadastro() {
-  const { nome, relacionamento } = useLocalSearchParams<{ 
+  const { nome, relacionamento } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
   }>();
@@ -14,7 +22,7 @@ export default function TelefoneCadastro() {
   const formatPhone = (text: string) => {
     // Remove todos os caracteres não numéricos
     const numbers = text.replace(/\D/g, '');
-    
+
     // Aplica a máscara (XX) XXXXX-XXXX
     if (numbers.length <= 2) {
       return numbers;
@@ -44,14 +52,14 @@ export default function TelefoneCadastro() {
       );
       return;
     }
-    
+
     router.push({
       pathname: '/morador/cadastro/placa',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
-        telefone: phone
-      }
+        telefone: phone,
+      },
     });
   };
 
@@ -61,16 +69,16 @@ export default function TelefoneCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
@@ -104,7 +112,9 @@ export default function TelefoneCadastro() {
           <View style={styles.content}>
             <View style={styles.personInfo}>
               <Text style={styles.personName}>👤 {nome}</Text>
-              <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+              <Text style={styles.personRelationship}>
+                {getRelationshipLabel(relacionamento || '')}
+              </Text>
             </View>
 
             <View style={styles.section}>
@@ -126,7 +136,12 @@ export default function TelefoneCadastro() {
                     autoFocus
                   />
                   {isValidPhone() && (
-                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" style={styles.validIcon} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color="#4CAF50"
+                      style={styles.validIcon}
+                    />
                   )}
                 </View>
               </View>
@@ -134,16 +149,14 @@ export default function TelefoneCadastro() {
               <View style={styles.examplesContainer}>
                 <Text style={styles.examplesTitle}>📋 Exemplos:</Text>
                 <View style={styles.examplesList}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.exampleItem}
-                    onPress={() => setPhone('(11) 99999-9999')}
-                  >
+                    onPress={() => setPhone('(11) 99999-9999')}>
                     <Text style={styles.exampleText}>(11) 99999-9999</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.exampleItem}
-                    onPress={() => setPhone('(21) 98888-7777')}
-                  >
+                    onPress={() => setPhone('(21) 98888-7777')}>
                     <Text style={styles.exampleText}>(21) 98888-7777</Text>
                   </TouchableOpacity>
                 </View>
@@ -168,42 +181,27 @@ export default function TelefoneCadastro() {
               {isValidPhone() && (
                 <View style={styles.successContainer}>
                   <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.successText}>
-                    ✅ Número válido: {phone}
-                  </Text>
+                  <Text style={styles.successText}>✅ Número válido: {phone}</Text>
                 </View>
               )}
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
+            <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.nextButton,
-                !isValidPhone() && styles.nextButtonDisabled
-              ]}
+              style={[styles.nextButton, !isValidPhone() && styles.nextButtonDisabled]}
               onPress={handleNext}
-              disabled={!isValidPhone()}
-            >
-              <Text style={[
-                styles.nextButtonText,
-                !isValidPhone() && styles.nextButtonTextDisabled
-              ]}>
+              disabled={!isValidPhone()}>
+              <Text
+                style={[styles.nextButtonText, !isValidPhone() && styles.nextButtonTextDisabled]}>
                 Continuar
               </Text>
-              <Ionicons 
-                name="arrow-forward" 
-                size={20} 
-                color={isValidPhone() ? "#fff" : "#ccc"} 
-              />
+              <Ionicons name="arrow-forward" size={20} color={isValidPhone() ? '#fff' : '#ccc'} />
             </TouchableOpacity>
           </View>
         </View>

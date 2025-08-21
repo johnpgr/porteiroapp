@@ -120,10 +120,7 @@ export default function BuildingsManagement() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('buildings')
-                .delete()
-                .eq('id', buildingId);
+              const { error } = await supabase.from('buildings').delete().eq('id', buildingId);
 
               if (error) throw error;
 
@@ -150,97 +147,88 @@ export default function BuildingsManagement() {
   return (
     <ProtectedRoute requiredRole="admin">
       <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Text style={styles.backButtonText}>← Voltar</Text>
-            </TouchableOpacity>
-            <Text style={styles.title}>Gerenciar Prédios</Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setShowAddForm(!showAddForm)}
-            >
-              <Text style={styles.addButtonText}>
-                {showAddForm ? 'Cancelar' : '+ Novo'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>← Voltar</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Gerenciar Prédios</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
+            <Text style={styles.addButtonText}>{showAddForm ? 'Cancelar' : '+ Novo'}</Text>
+          </TouchableOpacity>
+        </View>
 
-          <ScrollView style={styles.content}>
-            {showAddForm && (
-              <View style={styles.addForm}>
-                <Text style={styles.formTitle}>Novo Prédio</Text>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Nome do Prédio *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ex: Edifício Residencial São Paulo"
-                    value={newBuilding.name}
-                    onChangeText={(text) => setNewBuilding(prev => ({ ...prev, name: text }))}
-                  />
-                </View>
+        <ScrollView style={styles.content}>
+          {showAddForm && (
+            <View style={styles.addForm}>
+              <Text style={styles.formTitle}>Novo Prédio</Text>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Endereço Completo *</Text>
-                  <TextInput
-                    style={flattenStyles([styles.input, styles.textArea])}
-                    placeholder="Ex: Rua das Flores, 123 - Centro - São Paulo/SP - CEP: 01234-567"
-                    value={newBuilding.address}
-                    onChangeText={(text) => setNewBuilding(prev => ({ ...prev, address: text }))}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
-
-                <TouchableOpacity style={styles.submitButton} onPress={handleAddBuilding}>
-                  <Text style={styles.submitButtonText}>Cadastrar Prédio</Text>
-                </TouchableOpacity>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome do Prédio *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Edifício Residencial São Paulo"
+                  value={newBuilding.name}
+                  onChangeText={(text) => setNewBuilding((prev) => ({ ...prev, name: text }))}
+                />
               </View>
-            )}
 
-            <View style={styles.buildingsList}>
-              <Text style={styles.sectionTitle}>
-                Prédios Cadastrados ({buildings.length})
-              </Text>
-              
-              {buildings.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>🏢</Text>
-                  <Text style={styles.emptyStateTitle}>Nenhum prédio cadastrado</Text>
-                  <Text style={styles.emptyStateDescription}>
-                    Clique em &quot;+ Novo&quot; para cadastrar o primeiro prédio
-                  </Text>
-                </View>
-              ) : (
-                buildings.map((building) => (
-                  <View key={building.id} style={styles.buildingCard}>
-                    <View style={styles.buildingInfo}>
-                      <Text style={styles.buildingName}>{building.name}</Text>
-                      <Text style={styles.buildingAddress}>{building.address}</Text>
-                      <Text style={styles.buildingDate}>
-                        Cadastrado em: {new Date(building.created_at).toLocaleDateString('pt-BR')}
-                      </Text>
-                    </View>
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => router.push(`/admin/buildings/edit/${building.id}`)}
-                      >
-                        <Text style={styles.editButtonText}>✏️</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteBuilding(building.id, building.name)}
-                      >
-                        <Text style={styles.deleteButtonText}>🗑️</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Endereço Completo *</Text>
+                <TextInput
+                  style={flattenStyles([styles.input, styles.textArea])}
+                  placeholder="Ex: Rua das Flores, 123 - Centro - São Paulo/SP - CEP: 01234-567"
+                  value={newBuilding.address}
+                  onChangeText={(text) => setNewBuilding((prev) => ({ ...prev, address: text }))}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              <TouchableOpacity style={styles.submitButton} onPress={handleAddBuilding}>
+                <Text style={styles.submitButtonText}>Cadastrar Prédio</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
+          )}
+
+          <View style={styles.buildingsList}>
+            <Text style={styles.sectionTitle}>Prédios Cadastrados ({buildings.length})</Text>
+
+            {buildings.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>🏢</Text>
+                <Text style={styles.emptyStateTitle}>Nenhum prédio cadastrado</Text>
+                <Text style={styles.emptyStateDescription}>
+                  Clique em &quot;+ Novo&quot; para cadastrar o primeiro prédio
+                </Text>
+              </View>
+            ) : (
+              buildings.map((building) => (
+                <View key={building.id} style={styles.buildingCard}>
+                  <View style={styles.buildingInfo}>
+                    <Text style={styles.buildingName}>{building.name}</Text>
+                    <Text style={styles.buildingAddress}>{building.address}</Text>
+                    <Text style={styles.buildingDate}>
+                      Cadastrado em: {new Date(building.created_at).toLocaleDateString('pt-BR')}
+                    </Text>
+                  </View>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={() => router.push(`/admin/buildings/edit/${building.id}`)}>
+                      <Text style={styles.editButtonText}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteBuilding(building.id, building.name)}>
+                      <Text style={styles.deleteButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </ProtectedRoute>
   );

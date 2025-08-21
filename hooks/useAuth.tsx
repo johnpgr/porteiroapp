@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
 // import { notificationService } from '../services/notificationService'; // DESABILITADO TEMPORARIAMENTE
@@ -32,7 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         await loadUserProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
@@ -46,7 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkSession = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.user) {
         await loadUserProfile(session.user);
       }
@@ -69,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error && error.code === 'PGRST116') {
         // Se não encontrou na tabela profiles, verifica se é um admin
         console.log('Perfil não encontrado em profiles, verificando admin_profiles...');
-        
+
         const { data: adminProfile, error: adminError } = await supabase
           .from('admin_profiles')
           .select('*')
@@ -124,7 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const signIn = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       setLoading(true);
 
@@ -135,11 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Erro de autenticação:', error);
-        return { 
-          success: false, 
-          error: error.message === 'Invalid login credentials' 
-            ? 'Email ou senha incorretos' 
-            : 'Erro na autenticação'
+        return {
+          success: false,
+          error:
+            error.message === 'Invalid login credentials'
+              ? 'Email ou senha incorretos'
+              : 'Erro na autenticação',
         };
       }
 
@@ -207,11 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // updatePushToken // DESABILITADO TEMPORARIAMENTE
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

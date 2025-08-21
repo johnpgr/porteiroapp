@@ -51,10 +51,10 @@ export default function NovoVisitante() {
 
   const handleNext = () => {
     if (!selectedType) return;
-    
+
     router.push({
       pathname: '/morador/visitantes/nome',
-      params: { tipo: selectedType }
+      params: { tipo: selectedType },
     });
   };
 
@@ -64,10 +64,9 @@ export default function NovoVisitante() {
       style={[
         styles.typeCard,
         selectedType === visitType.id && styles.typeCardSelected,
-        { borderLeftColor: visitType.color }
+        { borderLeftColor: visitType.color },
       ]}
-      onPress={() => setSelectedType(visitType.id)}
-    >
+      onPress={() => setSelectedType(visitType.id)}>
       <View style={styles.typeCardContent}>
         <View style={styles.typeCardHeader}>
           <Text style={styles.typeEmoji}>{visitType.emoji}</Text>
@@ -75,15 +74,10 @@ export default function NovoVisitante() {
         </View>
         <Text style={styles.typeDescription}>{visitType.description}</Text>
       </View>
-      
+
       <View style={styles.radioContainer}>
-        <View style={[
-          styles.radio,
-          selectedType === visitType.id && styles.radioSelected
-        ]}>
-          {selectedType === visitType.id && (
-            <Ionicons name="checkmark" size={16} color="#fff" />
-          )}
+        <View style={[styles.radio, selectedType === visitType.id && styles.radioSelected]}>
+          {selectedType === visitType.id && <Ionicons name="checkmark" size={16} color="#fff" />}
         </View>
       </View>
     </TouchableOpacity>
@@ -92,63 +86,50 @@ export default function NovoVisitante() {
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👥 Novo Visitante</Text>
-            <View style={styles.placeholder} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.title}>👥 Novo Visitante</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={flattenStyles([styles.progressStep, styles.progressStepActive])} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
           </View>
+          <Text style={styles.progressText}>Passo 1 de 7</Text>
+        </View>
 
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={flattenStyles([styles.progressStep, styles.progressStepActive])} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-              <View style={styles.progressStep} />
-            </View>
-            <Text style={styles.progressText}>Passo 1 de 7</Text>
+        <ScrollView style={styles.content}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tipo de Visita</Text>
+            <Text style={styles.sectionDescription}>
+              Selecione o tipo de visita que melhor descreve o visitante
+            </Text>
+
+            <View style={styles.typesContainer}>{visitTypes.map(renderVisitTypeCard)}</View>
           </View>
+        </ScrollView>
 
-          <ScrollView style={styles.content}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Tipo de Visita</Text>
-              <Text style={styles.sectionDescription}>
-                Selecione o tipo de visita que melhor descreve o visitante
-              </Text>
-
-              <View style={styles.typesContainer}>
-                {visitTypes.map(renderVisitTypeCard)}
-              </View>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[
-                styles.nextButton,
-                !selectedType && styles.nextButtonDisabled
-              ]}
-              onPress={handleNext}
-              disabled={!selectedType}
-            >
-              <Text style={[
-                styles.nextButtonText,
-                !selectedType && styles.nextButtonTextDisabled
-              ]}>
-                Continuar
-              </Text>
-              <Ionicons 
-                name="arrow-forward" 
-                size={20} 
-                color={selectedType ? "#fff" : "#ccc"} 
-              />
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.nextButton, !selectedType && styles.nextButtonDisabled]}
+            onPress={handleNext}
+            disabled={!selectedType}>
+            <Text style={[styles.nextButtonText, !selectedType && styles.nextButtonTextDisabled]}>
+              Continuar
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color={selectedType ? '#fff' : '#ccc'} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

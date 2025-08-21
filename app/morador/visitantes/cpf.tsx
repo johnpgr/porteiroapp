@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ScrollView,
+  SafeAreaView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -24,10 +33,10 @@ function formatCPF(value: string): string {
 
 function validateCPF(cpf: string): boolean {
   const numbers = cpf.replace(/\D/g, '');
-  
+
   if (numbers.length !== 11) return false;
   if (/^(\d)\1{10}$/.test(numbers)) return false;
-  
+
   let sum = 0;
   for (let i = 0; i < 9; i++) {
     sum += parseInt(numbers.charAt(i)) * (10 - i);
@@ -35,7 +44,7 @@ function validateCPF(cpf: string): boolean {
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(numbers.charAt(9))) return false;
-  
+
   sum = 0;
   for (let i = 0; i < 10; i++) {
     sum += parseInt(numbers.charAt(i)) * (11 - i);
@@ -43,7 +52,7 @@ function validateCPF(cpf: string): boolean {
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(numbers.charAt(10))) return false;
-  
+
   return true;
 }
 
@@ -55,7 +64,7 @@ export default function CPFVisitante() {
   const handleCPFChange = (value: string) => {
     const formatted = formatCPF(value);
     setCpf(formatted);
-    
+
     const numbers = value.replace(/\D/g, '');
     if (numbers.length === 11) {
       setIsValid(validateCPF(formatted));
@@ -66,35 +75,35 @@ export default function CPFVisitante() {
 
   const handleNext = () => {
     const numbers = cpf.replace(/\D/g, '');
-    
+
     if (numbers.length !== 11) {
       Alert.alert('CPF incompleto', 'Por favor, digite um CPF válido com 11 dígitos');
       return;
     }
-    
+
     if (!validateCPF(cpf)) {
       Alert.alert('CPF inválido', 'Por favor, digite um CPF válido');
       return;
     }
-    
+
     router.push({
       pathname: '/morador/visitantes/foto',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: cpf
-      }
+        cpf: cpf,
+      },
     });
   };
 
   const handleSkip = () => {
     router.push({
       pathname: '/morador/visitantes/foto',
-      params: { 
+      params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: ''
-      }
+        cpf: '',
+      },
     });
   };
 
@@ -149,10 +158,7 @@ export default function CPFVisitante() {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>CPF</Text>
               <TextInput
-                style={[
-                  styles.input,
-                  !isValid && styles.inputError
-                ]}
+                style={[styles.input, !isValid && styles.inputError]}
                 value={cpf}
                 onChangeText={handleCPFChange}
                 placeholder="000.000.000-00"
@@ -160,16 +166,8 @@ export default function CPFVisitante() {
                 keyboardType="numeric"
                 maxLength={14}
               />
-              {!isValid && (
-                <Text style={styles.errorText}>
-                  ❌ CPF inválido
-                </Text>
-              )}
-              {isComplete && (
-                <Text style={styles.successText}>
-                  ✅ CPF válido
-                </Text>
-              )}
+              {!isValid && <Text style={styles.errorText}>❌ CPF inválido</Text>}
+              {isComplete && <Text style={styles.successText}>✅ CPF válido</Text>}
             </View>
 
             <View style={styles.tipContainer}>
@@ -182,43 +180,26 @@ export default function CPFVisitante() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.backFooterButton}
-            onPress={handleBack}
-          >
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={20} color="#666" />
             <Text style={styles.backFooterButtonText}>Voltar</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkip}
-          >
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
             <Text style={styles.skipButtonText}>Pular</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.nextButton,
-              !isComplete && styles.nextButtonDisabled
-            ]}
+            style={[styles.nextButton, !isComplete && styles.nextButtonDisabled]}
             onPress={handleNext}
-            disabled={!isComplete}
-          >
-            <Text style={[
-              styles.nextButtonText,
-              !isComplete && styles.nextButtonTextDisabled
-            ]}>
+            disabled={!isComplete}>
+            <Text style={[styles.nextButtonText, !isComplete && styles.nextButtonTextDisabled]}>
               Continuar
             </Text>
-            <Ionicons 
-              name="arrow-forward" 
-              size={20} 
-              color={isComplete ? "#fff" : "#ccc"} 
-            />
+            <Ionicons name="arrow-forward" size={20} color={isComplete ? '#fff' : '#ccc'} />
           </TouchableOpacity>
-         </View>
-       </SafeAreaView>
+        </View>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

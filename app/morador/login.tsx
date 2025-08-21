@@ -8,15 +8,16 @@ import { useAuth } from '../../hooks/useAuth';
 export default function MoradorLogin() {
   const { signIn, user } = useAuth();
 
-
-
   useEffect(() => {
     if (user && user.user_type === 'morador') {
       router.replace('/morador');
     }
   }, [user]);
 
-  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const handleLogin = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const result = await signIn(email, password);
 
@@ -46,8 +47,6 @@ export default function MoradorLogin() {
       </View>
 
       <AuthForm onSubmit={handleLogin} submitText="Entrar como Morador" />
-
-
     </View>
   );
 }
@@ -81,5 +80,4 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-
 });

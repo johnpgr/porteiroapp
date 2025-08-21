@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -12,12 +20,12 @@ export default function NovoCadastro() {
       Alert.alert('Campo obrigatório', 'Por favor, digite o nome da pessoa');
       return;
     }
-    
+
     router.push({
       pathname: '/morador/cadastro/relacionamento',
-      params: { 
-        nome: nome.trim()
-      }
+      params: {
+        nome: nome.trim(),
+      },
     });
   };
 
@@ -71,9 +79,7 @@ export default function NovoCadastro() {
                   maxLength={100}
                   autoFocus
                 />
-                <Text style={styles.inputHelper}>
-                  {nome.length}/100 caracteres
-                </Text>
+                <Text style={styles.inputHelper}>{nome.length}/100 caracteres</Text>
               </View>
 
               <View style={styles.examplesContainer}>
@@ -90,40 +96,27 @@ export default function NovoCadastro() {
               <View style={styles.tipContainer}>
                 <Ionicons name="information-circle" size={20} color="#2196F3" />
                 <Text style={styles.tipText}>
-                  Pessoas cadastradas podem ter acesso facilitado ao condomínio e até mesmo ao aplicativo
+                  Pessoas cadastradas podem ter acesso facilitado ao condomínio e até mesmo ao
+                  aplicativo
                 </Text>
               </View>
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
+            <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.nextButton,
-                !nome.trim() && styles.nextButtonDisabled
-              ]}
+              style={[styles.nextButton, !nome.trim() && styles.nextButtonDisabled]}
               onPress={handleNext}
-              disabled={!nome.trim()}
-            >
-              <Text style={[
-                styles.nextButtonText,
-                !nome.trim() && styles.nextButtonTextDisabled
-              ]}>
+              disabled={!nome.trim()}>
+              <Text style={[styles.nextButtonText, !nome.trim() && styles.nextButtonTextDisabled]}>
                 Continuar
               </Text>
-              <Ionicons 
-                name="arrow-forward" 
-                size={20} 
-                color={nome.trim() ? "#fff" : "#ccc"} 
-              />
+              <Ionicons name="arrow-forward" size={20} color={nome.trim() ? '#fff' : '#ccc'} />
             </TouchableOpacity>
           </View>
         </View>

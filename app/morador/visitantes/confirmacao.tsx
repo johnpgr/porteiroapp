@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, SafeAreaView, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  SafeAreaView,
+  Image,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -32,37 +41,28 @@ function formatTime(dateString: string): string {
 }
 
 export default function ConfirmacaoVisitante() {
-  const { 
-    tipo, 
-    nome, 
-    cpf, 
-    foto, 
-    data, 
-    horaInicio, 
-    horaFim, 
-    observacoes, 
-    autoAuthorize 
-  } = useLocalSearchParams<{ 
-    tipo: VisitType; 
-    nome: string; 
-    cpf: string;
-    foto: string;
-    data: string;
-    horaInicio: string;
-    horaFim: string;
-    observacoes: string;
-    autoAuthorize: string;
-  }>();
-  
+  const { tipo, nome, cpf, foto, data, horaInicio, horaFim, observacoes, autoAuthorize } =
+    useLocalSearchParams<{
+      tipo: VisitType;
+      nome: string;
+      cpf: string;
+      foto: string;
+      data: string;
+      horaInicio: string;
+      horaFim: string;
+      observacoes: string;
+      autoAuthorize: string;
+    }>();
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
-    
+
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       Alert.alert(
         '✅ Visitante Cadastrado!',
         `${nome} foi pré-cadastrado com sucesso. ${autoAuthorize === 'true' ? 'A entrada será autorizada automaticamente no período definido.' : 'O porteiro será notificado quando o visitante chegar.'}`,
@@ -72,8 +72,8 @@ export default function ConfirmacaoVisitante() {
             onPress: () => {
               // Navigate back to the main visitors screen
               router.replace('/morador');
-            }
-          }
+            },
+          },
         ]
       );
     } catch {
@@ -148,7 +148,7 @@ export default function ConfirmacaoVisitante() {
                       <Ionicons name="person" size={40} color="#ccc" />
                     </View>
                   )}
-                  
+
                   <View style={styles.visitorDetails}>
                     <Text style={styles.visitorName}>{nome}</Text>
                     {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
@@ -158,18 +158,16 @@ export default function ConfirmacaoVisitante() {
                 <View style={styles.visitDetails}>
                   <View style={styles.detailRow}>
                     <Ionicons name="calendar" size={20} color="#4CAF50" />
-                    <Text style={styles.detailText}>
-                      {formatDate(data || '')}
-                    </Text>
+                    <Text style={styles.detailText}>{formatDate(data || '')}</Text>
                   </View>
-                  
+
                   <View style={styles.detailRow}>
                     <Ionicons name="time" size={20} color="#4CAF50" />
                     <Text style={styles.detailText}>
                       {formatTime(horaInicio || '')} - {formatTime(horaFim || '')}
                     </Text>
                   </View>
-                  
+
                   {observacoes && (
                     <View style={styles.detailRow}>
                       <Ionicons name="document-text" size={20} color="#4CAF50" />
@@ -182,7 +180,8 @@ export default function ConfirmacaoVisitante() {
                   <View style={styles.autoAuthInfo}>
                     <Ionicons name="information-circle" size={20} color="#FF9800" />
                     <Text style={styles.autoAuthInfoText}>
-                      Este visitante poderá entrar automaticamente no período definido, sem necessidade de aprovação manual.
+                      Este visitante poderá entrar automaticamente no período definido, sem
+                      necessidade de aprovação manual.
                     </Text>
                   </View>
                 )}
@@ -193,12 +192,11 @@ export default function ConfirmacaoVisitante() {
                   <Ionicons name="pencil" size={20} color="#2196F3" />
                   <Text style={styles.editButtonText}>Editar</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.confirmButton, isSubmitting && styles.confirmButtonDisabled]}
                   onPress={handleConfirm}
-                  disabled={isSubmitting}
-                >
+                  disabled={isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Text style={styles.confirmButtonText}>Cadastrando...</Text>
@@ -216,7 +214,8 @@ export default function ConfirmacaoVisitante() {
               <View style={styles.tipContainer}>
                 <Ionicons name="information-circle" size={20} color="#2196F3" />
                 <Text style={styles.tipText}>
-                  Após confirmar, o visitante será notificado e poderá acessar o condomínio no período definido.
+                  Após confirmar, o visitante será notificado e poderá acessar o condomínio no
+                  período definido.
                 </Text>
               </View>
             </View>
@@ -226,8 +225,7 @@ export default function ConfirmacaoVisitante() {
             <TouchableOpacity
               style={styles.backFooterButton}
               onPress={handleBack}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
@@ -235,11 +233,10 @@ export default function ConfirmacaoVisitante() {
             <TouchableOpacity
               style={[
                 styles.confirmFooterButton,
-                isSubmitting && styles.confirmFooterButtonDisabled
+                isSubmitting && styles.confirmFooterButtonDisabled,
               ]}
               onPress={handleConfirm}
-              disabled={isSubmitting}
-            >
+              disabled={isSubmitting}>
               {isSubmitting ? (
                 <Text style={styles.confirmFooterButtonText}>Cadastrando...</Text>
               ) : (

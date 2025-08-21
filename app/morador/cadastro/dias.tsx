@@ -22,7 +22,7 @@ const daysOfWeek: DayOfWeek[] = [
 ];
 
 export default function DiasCadastro() {
-  const { nome, relacionamento, telefone, placa, acesso, foto } = useLocalSearchParams<{ 
+  const { nome, relacionamento, telefone, placa, acesso, foto } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
     telefone: string;
@@ -30,12 +30,18 @@ export default function DiasCadastro() {
     acesso: string;
     foto: string;
   }>();
-  const [selectedDays, setSelectedDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']); // Default to weekdays
+  const [selectedDays, setSelectedDays] = useState<string[]>([
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+  ]); // Default to weekdays
 
   const toggleDay = (dayId: string) => {
-    setSelectedDays(prev => {
+    setSelectedDays((prev) => {
       if (prev.includes(dayId)) {
-        return prev.filter(id => id !== dayId);
+        return prev.filter((id) => id !== dayId);
       } else {
         return [...prev, dayId];
       }
@@ -43,7 +49,7 @@ export default function DiasCadastro() {
   };
 
   const selectAllDays = () => {
-    setSelectedDays(daysOfWeek.map(day => day.id));
+    setSelectedDays(daysOfWeek.map((day) => day.id));
   };
 
   const selectWeekdays = () => {
@@ -61,15 +67,15 @@ export default function DiasCadastro() {
   const handleNext = () => {
     router.push({
       pathname: '/morador/cadastro/horarios',
-      params: { 
+      params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
         telefone: telefone || '',
         placa: placa || '',
         acesso: acesso || '',
         foto: foto || '',
-        dias: selectedDays.join(',')
-      }
+        dias: selectedDays.join(','),
+      },
     });
   };
 
@@ -79,25 +85,25 @@ export default function DiasCadastro() {
 
   const getRelationshipLabel = (rel: string) => {
     const relationships: { [key: string]: string } = {
-      'conjuge': '💑 Cônjuge',
-      'filho': '👶 Filho(a)',
-      'pai_mae': '👨‍👩‍👧‍👦 Pai/Mãe',
-      'irmao': '👫 Irmão/Irmã',
-      'familiar': '👪 Outro Familiar',
-      'amigo': '👥 Amigo(a)',
-      'funcionario': '🏠 Funcionário',
-      'prestador': '🔧 Prestador de Serviço',
-      'motorista': '🚗 Motorista',
-      'outro': '👤 Outro',
+      conjuge: '💑 Cônjuge',
+      filho: '👶 Filho(a)',
+      pai_mae: '👨‍👩‍👧‍👦 Pai/Mãe',
+      irmao: '👫 Irmão/Irmã',
+      familiar: '👪 Outro Familiar',
+      amigo: '👥 Amigo(a)',
+      funcionario: '🏠 Funcionário',
+      prestador: '🔧 Prestador de Serviço',
+      motorista: '🚗 Motorista',
+      outro: '👤 Outro',
     };
     return relationships[rel] || rel;
   };
 
   const getAccessLabel = (acc: string) => {
     const accessTypes: { [key: string]: string } = {
-      'sem_acesso': '🚫 Sem Acesso',
-      'usuario': '👤 Usuário',
-      'administrador': '👑 Administrador',
+      sem_acesso: '🚫 Sem Acesso',
+      usuario: '👤 Usuário',
+      administrador: '👑 Administrador',
     };
     return accessTypes[acc] || acc;
   };
@@ -105,12 +111,14 @@ export default function DiasCadastro() {
   const getSelectedDaysText = () => {
     if (selectedDays.length === 0) return 'Nenhum dia selecionado';
     if (selectedDays.length === 7) return 'Todos os dias';
-    
-    const selectedLabels = selectedDays.map(dayId => {
-      const day = daysOfWeek.find(d => d.id === dayId);
-      return day?.shortLabel || '';
-    }).join(', ');
-    
+
+    const selectedLabels = selectedDays
+      .map((dayId) => {
+        const day = daysOfWeek.find((d) => d.id === dayId);
+        return day?.shortLabel || '';
+      })
+      .join(', ');
+
     return selectedLabels;
   };
 
@@ -142,7 +150,9 @@ export default function DiasCadastro() {
         <View style={styles.content}>
           <View style={styles.personInfo}>
             <Text style={styles.personName}>👤 {nome}</Text>
-            <Text style={styles.personRelationship}>{getRelationshipLabel(relacionamento || '')}</Text>
+            <Text style={styles.personRelationship}>
+              {getRelationshipLabel(relacionamento || '')}
+            </Text>
             <Text style={styles.personPhone}>📱 {telefone}</Text>
             {placa && <Text style={styles.personPlate}>🚗 {placa}</Text>}
             <Text style={styles.personAccess}>{getAccessLabel(acesso || '')}</Text>
@@ -172,38 +182,33 @@ export default function DiasCadastro() {
               </View>
             </View>
 
-            <ScrollView 
-              style={styles.daysList}
-              showsVerticalScrollIndicator={false}
-            >
+            <ScrollView style={styles.daysList} showsVerticalScrollIndicator={false}>
               {daysOfWeek.map((day) => (
                 <TouchableOpacity
                   key={day.id}
-                  style={[
-                    styles.dayCard,
-                    selectedDays.includes(day.id) && styles.dayCardSelected
-                  ]}
-                  onPress={() => toggleDay(day.id)}
-                >
+                  style={[styles.dayCard, selectedDays.includes(day.id) && styles.dayCardSelected]}
+                  onPress={() => toggleDay(day.id)}>
                   <View style={styles.dayIcon}>
                     <Text style={styles.dayIconText}>{day.icon}</Text>
                   </View>
-                  
+
                   <View style={styles.dayInfo}>
-                    <Text style={[
-                      styles.dayLabel,
-                      selectedDays.includes(day.id) && styles.dayLabelSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.dayLabel,
+                        selectedDays.includes(day.id) && styles.dayLabelSelected,
+                      ]}>
                       {day.label}
                     </Text>
-                    <Text style={[
-                      styles.dayShortLabel,
-                      selectedDays.includes(day.id) && styles.dayShortLabelSelected
-                    ]}>
+                    <Text
+                      style={[
+                        styles.dayShortLabel,
+                        selectedDays.includes(day.id) && styles.dayShortLabelSelected,
+                      ]}>
                       {day.shortLabel}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.dayCheck}>
                     {selectedDays.includes(day.id) ? (
                       <Ionicons name="checkmark-circle" size={24} color="#2196F3" />
@@ -217,9 +222,7 @@ export default function DiasCadastro() {
 
             <View style={styles.selectedInfo}>
               <Text style={styles.selectedInfoTitle}>📋 Dias selecionados:</Text>
-              <Text style={styles.selectedInfoText}>
-                {getSelectedDaysText()}
-              </Text>
+              <Text style={styles.selectedInfoText}>{getSelectedDaysText()}</Text>
             </View>
 
             <View style={styles.tipContainer}>
@@ -232,36 +235,30 @@ export default function DiasCadastro() {
         </View>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.backFooterButton}
-            onPress={handleBack}
-          >
+          <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={20} color="#666" />
             <Text style={styles.backFooterButtonText}>Voltar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.nextButton,
-              selectedDays.length === 0 && styles.nextButtonDisabled
-            ]}
+            style={[styles.nextButton, selectedDays.length === 0 && styles.nextButtonDisabled]}
             onPress={handleNext}
-            disabled={selectedDays.length === 0}
-          >
-            <Text style={[
-              styles.nextButtonText,
-              selectedDays.length === 0 && styles.nextButtonTextDisabled
-            ]}>
+            disabled={selectedDays.length === 0}>
+            <Text
+              style={[
+                styles.nextButtonText,
+                selectedDays.length === 0 && styles.nextButtonTextDisabled,
+              ]}>
               Continuar
             </Text>
-            <Ionicons 
-              name="arrow-forward" 
-              size={20} 
-              color={selectedDays.length === 0 ? "#ccc" : "#fff"} 
+            <Ionicons
+              name="arrow-forward"
+              size={20}
+              color={selectedDays.length === 0 ? '#ccc' : '#fff'}
             />
           </TouchableOpacity>
         </View>
-       </SafeAreaView>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

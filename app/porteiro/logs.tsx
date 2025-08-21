@@ -260,7 +260,9 @@ export default function ActivityLogs() {
             <Text style={styles.logTitle}>{log.title}</Text>
             <Text style={styles.logSubtitle}>{log.subtitle}</Text>
             <View style={styles.logMeta}>
-              <Text style={flattenStyles([styles.logStatus, { color: log.color }])}>{log.status}</Text>
+              <Text style={flattenStyles([styles.logStatus, { color: log.color }])}>
+                {log.status}
+              </Text>
               <Text style={styles.logTime}>{log.time}</Text>
             </View>
           </View>

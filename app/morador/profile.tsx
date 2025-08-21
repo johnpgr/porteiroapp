@@ -61,13 +61,15 @@ export default function MoradorProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select(`
+        .select(
+          `
           *,
           apartments!inner(
             number,
             building_id
           )
-        `)
+        `
+        )
         .eq('id', user.id)
         .single();
 
@@ -167,25 +169,21 @@ export default function MoradorProfile() {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Confirmar Logout',
-      'Tem certeza que deseja sair?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/');
-            } catch {
-              Alert.alert('Erro', 'Falha ao fazer logout');
-            }
-          },
+    Alert.alert('Confirmar Logout', 'Tem certeza que deseja sair?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace('/');
+          } catch {
+            Alert.alert('Erro', 'Falha ao fazer logout');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (loading) {
@@ -209,24 +207,18 @@ export default function MoradorProfile() {
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.title}>👤 Meu Perfil</Text>
-            <TouchableOpacity 
-              style={styles.editButton} 
-              onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-            >
-              <Ionicons 
-                name={isEditing ? "checkmark" : "pencil"} 
-                size={24} 
-                color="#fff" 
-              />
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
+              <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={24} color="#fff" />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content}>
             <View style={styles.photoSection}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.photoContainer}
-                onPress={isEditing ? handleImagePicker : undefined}
-              >
+                onPress={isEditing ? handleImagePicker : undefined}>
                 {formData.photo_url ? (
                   <Image source={{ uri: formData.photo_url }} style={styles.photo} />
                 ) : (
@@ -245,7 +237,7 @@ export default function MoradorProfile() {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📋 Informações Pessoais</Text>
-              
+
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome Completo</Text>
                 <TextInput
@@ -303,7 +295,7 @@ export default function MoradorProfile() {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>🏠 Informações do Apartamento</Text>
-              
+
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Número do Apartamento</Text>
                 <TextInput
@@ -317,13 +309,15 @@ export default function MoradorProfile() {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>🚨 Contato de Emergência</Text>
-              
+
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome do Contato</Text>
                 <TextInput
                   style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.emergency_contact_name}
-                  onChangeText={(text) => setFormData({ ...formData, emergency_contact_name: text })}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, emergency_contact_name: text })
+                  }
                   editable={isEditing}
                   placeholder="Nome do contato de emergência"
                 />
@@ -334,7 +328,9 @@ export default function MoradorProfile() {
                 <TextInput
                   style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
                   value={formData.emergency_contact_phone}
-                  onChangeText={(text) => setFormData({ ...formData, emergency_contact_phone: text })}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, emergency_contact_phone: text })
+                  }
                   editable={isEditing}
                   placeholder="(11) 99999-9999"
                   keyboardType="phone-pad"

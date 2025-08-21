@@ -16,61 +16,61 @@ const relationships: RelationshipType[] = [
     id: 'conjuge',
     label: 'Cônjuge',
     icon: '💑',
-    description: 'Esposo(a), companheiro(a)'
+    description: 'Esposo(a), companheiro(a)',
   },
   {
     id: 'filho',
     label: 'Filho(a)',
     icon: '👶',
-    description: 'Filhos, enteados'
+    description: 'Filhos, enteados',
   },
   {
     id: 'pai_mae',
     label: 'Pai/Mãe',
     icon: '👨‍👩‍👧‍👦',
-    description: 'Pais, sogros'
+    description: 'Pais, sogros',
   },
   {
     id: 'irmao',
     label: 'Irmão/Irmã',
     icon: '👫',
-    description: 'Irmãos, cunhados'
+    description: 'Irmãos, cunhados',
   },
   {
     id: 'familiar',
     label: 'Outro Familiar',
     icon: '👪',
-    description: 'Tios, primos, avós'
+    description: 'Tios, primos, avós',
   },
   {
     id: 'amigo',
     label: 'Amigo(a)',
     icon: '👥',
-    description: 'Amigos próximos'
+    description: 'Amigos próximos',
   },
   {
     id: 'funcionario',
     label: 'Funcionário',
     icon: '🏠',
-    description: 'Empregada, babá, cuidador'
+    description: 'Empregada, babá, cuidador',
   },
   {
     id: 'prestador',
     label: 'Prestador de Serviço',
     icon: '🔧',
-    description: 'Técnicos, profissionais'
+    description: 'Técnicos, profissionais',
   },
   {
     id: 'motorista',
     label: 'Motorista',
     icon: '🚗',
-    description: 'Motorista particular'
+    description: 'Motorista particular',
   },
   {
     id: 'outro',
     label: 'Outro',
     icon: '👤',
-    description: 'Outros relacionamentos'
+    description: 'Outros relacionamentos',
   },
 ];
 
@@ -82,13 +82,13 @@ export default function RelacionamentoCadastro() {
     if (!selectedRelationship) {
       return;
     }
-    
+
     router.push({
       pathname: '/morador/cadastro/telefone',
-      params: { 
+      params: {
         nome: nome || '',
-        relacionamento: selectedRelationship
-      }
+        relacionamento: selectedRelationship,
+      },
     });
   };
 
@@ -96,7 +96,7 @@ export default function RelacionamentoCadastro() {
     router.back();
   };
 
-  const selectedRelationshipData = relationships.find(r => r.id === selectedRelationship);
+  const selectedRelationshipData = relationships.find((r) => r.id === selectedRelationship);
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
@@ -135,38 +135,38 @@ export default function RelacionamentoCadastro() {
                 Qual é o relacionamento desta pessoa com você?
               </Text>
 
-              <ScrollView 
-                style={styles.relationshipsList}
-                showsVerticalScrollIndicator={false}
-              >
+              <ScrollView style={styles.relationshipsList} showsVerticalScrollIndicator={false}>
                 {relationships.map((relationship) => (
                   <TouchableOpacity
                     key={relationship.id}
                     style={[
                       styles.relationshipCard,
-                      selectedRelationship === relationship.id && styles.relationshipCardSelected
+                      selectedRelationship === relationship.id && styles.relationshipCardSelected,
                     ]}
-                    onPress={() => setSelectedRelationship(relationship.id)}
-                  >
+                    onPress={() => setSelectedRelationship(relationship.id)}>
                     <View style={styles.relationshipIcon}>
                       <Text style={styles.relationshipIconText}>{relationship.icon}</Text>
                     </View>
-                    
+
                     <View style={styles.relationshipInfo}>
-                      <Text style={[
-                        styles.relationshipLabel,
-                        selectedRelationship === relationship.id && styles.relationshipLabelSelected
-                      ]}>
+                      <Text
+                        style={[
+                          styles.relationshipLabel,
+                          selectedRelationship === relationship.id &&
+                            styles.relationshipLabelSelected,
+                        ]}>
                         {relationship.label}
                       </Text>
-                      <Text style={[
-                        styles.relationshipDescription,
-                        selectedRelationship === relationship.id && styles.relationshipDescriptionSelected
-                      ]}>
+                      <Text
+                        style={[
+                          styles.relationshipDescription,
+                          selectedRelationship === relationship.id &&
+                            styles.relationshipDescriptionSelected,
+                        ]}>
                         {relationship.description}
                       </Text>
                     </View>
-                    
+
                     <View style={styles.relationshipCheck}>
                       {selectedRelationship === relationship.id && (
                         <Ionicons name="checkmark-circle" size={24} color="#2196F3" />
@@ -194,32 +194,26 @@ export default function RelacionamentoCadastro() {
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.backFooterButton}
-              onPress={handleBack}
-            >
+            <TouchableOpacity style={styles.backFooterButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={20} color="#666" />
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.nextButton,
-                !selectedRelationship && styles.nextButtonDisabled
-              ]}
+              style={[styles.nextButton, !selectedRelationship && styles.nextButtonDisabled]}
               onPress={handleNext}
-              disabled={!selectedRelationship}
-            >
-              <Text style={[
-                styles.nextButtonText,
-                !selectedRelationship && styles.nextButtonTextDisabled
-              ]}>
+              disabled={!selectedRelationship}>
+              <Text
+                style={[
+                  styles.nextButtonText,
+                  !selectedRelationship && styles.nextButtonTextDisabled,
+                ]}>
                 Continuar
               </Text>
-              <Ionicons 
-                name="arrow-forward" 
-                size={20} 
-                color={selectedRelationship ? "#fff" : "#ccc"} 
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={selectedRelationship ? '#fff' : '#ccc'}
               />
             </TouchableOpacity>
           </View>
