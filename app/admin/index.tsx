@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import { supabase } from '~/utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -158,16 +158,25 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [usersData, buildingsData, apartmentsData, activitiesData, logsData] = await Promise.all([
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        return;
+      }
+
+      // Buscar apenas os prédios gerenciados pelo administrador atual
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+
+      const [usersData, apartmentsData, activitiesData, logsData] = await Promise.all([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
-        supabase.from('buildings').select('*').order('name'),
         supabase.from('apartments').select('*').order('number'),
         supabase.from('visitor_logs').select('*, apartments(number), buildings(name)').limit(10).order('created_at', { ascending: false }),
         supabase.from('system_logs').select('*, users(name), buildings(name)').order('created_at', { ascending: false }),
       ]);
 
       setUsers(usersData.data || []);
-      setBuildings(buildingsData.data || []);
+      setBuildings(adminBuildings || []);
       setApartments(apartmentsData.data || []);
       setActivities(activitiesData.data || []);
       setLogs(logsData.data || []);
