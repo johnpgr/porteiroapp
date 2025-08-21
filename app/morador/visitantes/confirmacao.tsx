@@ -76,7 +76,7 @@ export default function ConfirmacaoVisitante() {
           }
         ]
       );
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível cadastrar o visitante. Tente novamente.');
     } finally {
       setIsSubmitting(false);

@@ -54,7 +54,7 @@ export default function Communications() {
 
   useEffect(() => {
     filterCommunications();
-  }, [communications, buildingFilter]);
+  }, [communications, buildingFilter, filterCommunications]);
 
   const fetchCommunications = async () => {
     try {

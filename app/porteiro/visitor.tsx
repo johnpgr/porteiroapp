@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -45,9 +45,9 @@ export default function VisitorManagement() {
 
   useEffect(() => {
     fetchVisitors();
-  }, [filter]);
+  }, [filter, fetchVisitors]);
 
-  const fetchVisitors = async () => {
+  const fetchVisitors = useCallback(async () => {
     try {
       let query = supabase
         .from('visitors')
@@ -74,12 +74,12 @@ export default function VisitorManagement() {
         })) || [];
 
       setVisitors(formattedVisitors);
-    } catch (error) {
-      console.error('Erro ao carregar visitantes:', error);
+    } catch {
+      Alert.alert('Erro', 'Falha ao carregar visitantes');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   const handleVisitorAction = async (
     visitorId: string,
@@ -124,7 +124,7 @@ export default function VisitorManagement() {
       };
 
       Alert.alert('Sucesso', actionMessages[action]);
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Falha ao processar ação');
     }
   };
@@ -155,7 +155,7 @@ export default function VisitorManagement() {
         photoUrl = newVisitor.photo_uri;
       }
 
-      const { error } = await supabase.from('visitors').insert({
+      const { error: insertError } = await supabase.from('visitors').insert({
         name: newVisitor.name,
         document: newVisitor.document,
         apartment_id: apartment.id,
@@ -164,7 +164,7 @@ export default function VisitorManagement() {
         notes: newVisitor.notes || null,
       });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       Alert.alert('Sucesso', 'Visitante registrado com sucesso!');
       setNewVisitor({
@@ -176,8 +176,8 @@ export default function VisitorManagement() {
       });
       setShowAddForm(false);
       fetchVisitors();
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao registrar visitante');
+    } catch {
+      Alert.alert('Erro', 'Falha ao adicionar visitante');
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,9 +25,9 @@ export default function LogsScreen() {
 
   useEffect(() => {
     fetchLogs();
-  }, [user, filter]);
+  }, [user, filter, fetchLogs]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     if (!user?.apartment_number) return;
 
     try {
@@ -104,7 +104,7 @@ export default function LogsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);

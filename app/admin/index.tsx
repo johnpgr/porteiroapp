@@ -125,19 +125,19 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchData();
     loadVehicles();
-  }, []);
+  }, [fetchData, loadVehicles]);
 
   useEffect(() => {
     filterUsers();
-  }, [searchQuery, users]);
+  }, [searchQuery, users, filterUsers]);
 
   useEffect(() => {
     filterLogs();
-  }, [logSearchType, logSearchQuery, logBuildingFilter, logMovementFilter, logDateFilter, logs]);
+  }, [logSearchType, logSearchQuery, logBuildingFilter, logMovementFilter, logDateFilter, logs, filterLogs]);
 
   useEffect(() => {
     filterVehicles();
-  }, [vehicles, vehicleSearchQuery]);
+  }, [vehicles, vehicleSearchQuery, filterVehicles]);
 
   const filterVehicles = () => {
     if (!vehicleSearchQuery.trim()) {
@@ -147,10 +147,11 @@ export default function AdminDashboard() {
 
     const filtered = vehicles.filter(vehicle => 
       vehicle.license_plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.model.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.parking_spot?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.users?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-      vehicle.buildings?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
+      vehicle.model?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.brand?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.color?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.apartments?.number?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
+      vehicle.apartments?.buildings?.name?.toLowerCase().includes(vehicleSearchQuery.toLowerCase())
     );
     setFilteredVehicles(filtered);
   };
@@ -181,8 +182,14 @@ export default function AdminDashboard() {
         .from('vehicles')
         .select(`
           *,
-          buildings(name),
-          users(name)
+          apartments(
+            id,
+            number,
+            buildings(
+              id,
+              name
+            )
+          )
         `)
         .order('created_at', { ascending: false });
 

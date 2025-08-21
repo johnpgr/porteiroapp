@@ -250,7 +250,7 @@ export default function MoradorDashboard() {
         <View style={styles.noticeCard}>
           <Text style={styles.noticeTitle}>💧 Interrupção no Fornecimento de Água</Text>
           <Text style={styles.noticeDescription}>
-            Haverá interrupção no fornecimento de água no dia 30/12/2024 das 9h às 15h para manutenção da caixa d'água.
+            Haverá interrupção no fornecimento de água no dia 30/12/2024 das 9h às 15h para manutenção da caixa d&apos;água.
           </Text>
           <Text style={styles.noticeTime}>Publicado em 18/12/2024 às 14:15</Text>
         </View>

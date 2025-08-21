@@ -34,7 +34,7 @@ export default function EditBuilding() {
     if (id) {
       fetchBuilding();
     }
-  }, [id]);
+  }, [id, fetchBuilding]);
 
   const fetchBuilding = async () => {
     try {

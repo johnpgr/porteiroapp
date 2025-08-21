@@ -1,52 +1,181 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
-import { useAuth } from '../../hooks/useAuth';
+import { adminAuth } from '../../utils/supabase';
 
 export default function AdminLogin() {
-  const { signIn, user } = useAuth();
-
-
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const loginTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const isCheckingRef = useRef(false); // Flag para evitar múltiplas verificações
 
   useEffect(() => {
-    if (user && user.user_type === 'admin') {
-      router.replace('/admin');
+    // Verificar se já existe um administrador logado apenas uma vez
+    if (!isCheckingRef.current) {
+      checkCurrentAdmin();
     }
-  }, [user]);
-
-  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      const result = await signIn(email, password);
-
-      if (!result.success) {
-        Alert.alert('Erro de Login', result.error || 'Erro desconhecido');
-        return { success: false, error: result.error };
+    
+    // Cleanup na desmontagem do componente
+    return () => {
+      isMountedRef.current = false;
+      isCheckingRef.current = false;
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
       }
+    };
+  }, []);
 
-      // O redirecionamento será feito pelo useEffect quando user for atualizado
-      return { success: true };
+  const checkCurrentAdmin = async () => {
+    // Evitar múltiplas verificações simultâneas
+    if (isCheckingRef.current) {
+      console.log('🔄 Verificação já em andamento, ignorando...');
+      return;
+    }
+    
+    try {
+      isCheckingRef.current = true;
+      console.log('🔍 Verificando se há administrador logado...');
+      setIsCheckingAuth(true);
+      
+      // Timeout para verificação inicial
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout na verificação de autenticação')), 8000);
+      });
+      
+      const currentAdmin = await Promise.race([
+        adminAuth.getCurrentAdmin(),
+        timeoutPromise
+      ]);
+      
+      if (currentAdmin && isMountedRef.current) {
+        console.log('✅ Administrador já logado, redirecionando...');
+        router.replace('/admin');
+      } else {
+        console.log('👤 Nenhum administrador logado');
+      }
     } catch (error) {
-      const errorMessage = 'Ocorreu um erro inesperado';
-      Alert.alert('Erro', errorMessage);
-      return { success: false, error: errorMessage };
+      console.log('⚠️ Erro ao verificar administrador logado:', error);
+    } finally {
+      isCheckingRef.current = false;
+      if (isMountedRef.current) {
+        setIsCheckingAuth(false);
+      }
     }
   };
 
+  const handleLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    // Limpar timeout anterior se existir
+    if (loginTimeoutRef.current) {
+      clearTimeout(loginTimeoutRef.current);
+    }
+    
+    try {
+      console.log('🔐 Iniciando processo de login...');
+      setIsLoading(true);
+      
+      // Timeout de segurança para resetar loading em caso de travamento
+      loginTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          console.warn('⏰ Timeout de segurança ativado, resetando loading...');
+          setIsLoading(false);
+        }
+      }, 15000);
+      
+      const result = await adminAuth.signIn(email, password);
+      
+      // Limpar timeout se chegou até aqui
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+        loginTimeoutRef.current = null;
+      }
+      
+      if (result.user && result.adminProfile) {
+        console.log('✅ Login realizado com sucesso!');
+        
+        if (isMountedRef.current) {
+          Alert.alert(
+            'Login Realizado',
+            `Bem-vindo, ${result.adminProfile.name}!`,
+            [{
+              text: 'OK',
+              onPress: () => {
+                if (isMountedRef.current) {
+                  router.replace('/admin');
+                }
+              }
+            }]
+          );
+        }
+        return { success: true };
+      } else {
+        console.warn('⚠️ Falha na autenticação - dados incompletos');
+        return { success: false, error: 'Falha na autenticação' };
+      }
+    } catch (error: any) {
+      console.error('💥 Erro durante o login:', error);
+      
+      let errorMessage = 'Ocorreu um erro inesperado';
+      
+      if (error.message?.includes('Timeout')) {
+        errorMessage = 'A operação demorou muito para responder. Tente novamente.';
+      } else if (error.message === 'Invalid login credentials') {
+        errorMessage = 'Email ou senha incorretos';
+      } else if (error.message === 'Usuário não é um administrador') {
+        errorMessage = 'Este usuário não possui permissões de administrador';
+      } else if (error.message?.includes('Network')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      return { success: false, error: errorMessage };
+    } finally {
+      // Garantir que o loading seja sempre resetado
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+        loginTimeoutRef.current = null;
+      }
+      
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Mostrar loading durante verificação inicial
+  if (isCheckingAuth) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <Text style={styles.loadingText}>🔍 Verificando autenticação...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backButtonText}>← Voltar</Text>
+      <TouchableOpacity 
+        style={styles.backButton} 
+        onPress={() => router.back()}
+        disabled={isLoading}
+      >
+        <Text style={[styles.backButtonText, isLoading && styles.disabledText]}>← Voltar</Text>
       </TouchableOpacity>
 
       <View style={styles.header}>
         <Text style={styles.title}>🔐 Login Administrador</Text>
         <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
+        {isLoading && (
+          <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>
+        )}
       </View>
 
-      <AuthForm onSubmit={handleLogin} submitText="Entrar como Admin" />
-
-
+      <AuthForm 
+        onSubmit={handleLogin} 
+        submitText="Entrar como Admin" 
+        loading={isLoading}
+      />
     </View>
   );
 }
@@ -57,6 +186,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 20,
     justifyContent: 'center',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#2196F3',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   backButton: {
     position: 'absolute',
@@ -69,6 +208,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2196F3',
     fontWeight: '600',
+  },
+  disabledText: {
+    color: '#ccc',
   },
   header: {
     alignItems: 'center',
@@ -85,5 +227,11 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-
+  loadingIndicator: {
+    fontSize: 16,
+    color: '#FF9800',
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
+  },
 });

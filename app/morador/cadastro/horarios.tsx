@@ -311,40 +311,6 @@ export default function HorariosCadastro() {
                 </View>
               </View>
             )}
-                
-                <View style={styles.customTimePresets}>
-                  <Text style={styles.presetsTitle}>Sugestões:</Text>
-                  <View style={styles.presetsList}>
-                    <TouchableOpacity 
-                      style={styles.presetButton}
-                      onPress={() => {
-                        setCustomStartTime('07:00');
-                        setCustomEndTime('19:00');
-                      }}
-                    >
-                      <Text style={styles.presetText}>7h-19h</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.presetButton}
-                      onPress={() => {
-                        setCustomStartTime('09:00');
-                        setCustomEndTime('17:00');
-                      }}
-                    >
-                      <Text style={styles.presetText}>9h-17h</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.presetButton}
-                      onPress={() => {
-                        setCustomStartTime('14:00');
-                        setCustomEndTime('22:00');
-                      }}
-                    >
-                      <Text style={styles.presetText}>14h-22h</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
 
             {selectedSlotData && (
               <View style={styles.selectedInfo}>

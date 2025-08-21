@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { NotificationCard } from '../../components/NotificationCard';
 
 export default function NotificationsScreen() {
-  const { user } = useAuth();
+  const { } = useAuth();
   const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
     useNotifications();
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +30,7 @@ export default function NotificationsScreen() {
     try {
       await markAllAsRead();
       Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas');
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas');
     }
   };

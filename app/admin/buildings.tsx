@@ -182,7 +182,7 @@ export default function BuildingsManagement() {
                   <Text style={styles.emptyStateText}>🏢</Text>
                   <Text style={styles.emptyStateTitle}>Nenhum prédio cadastrado</Text>
                   <Text style={styles.emptyStateDescription}>
-                    Clique em "+ Novo" para cadastrar o primeiro prédio
+                    Clique em &quot;+ Novo&quot; para cadastrar o primeiro prédio
                   </Text>
                 </View>
               ) : (

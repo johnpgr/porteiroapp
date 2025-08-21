@@ -7,7 +7,7 @@ async function testSupabaseIntegration() {
   try {
     // 1. Testar conexão básica
     console.log('\n1. Testando conexão básica com o banco...');
-    const { data: connectionTest, error: connectionError } = await supabase
+    const { error: connectionError } = await supabase
       .from('admin_profiles')
       .select('count')
       .limit(1);

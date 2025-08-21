@@ -17,84 +17,19 @@ type Notice = {
   author: string;
 };
 
-const mockNotices: Notice[] = [
-  {
-    id: '1',
-    title: 'Manutenção do Elevador',
-    description: 'O elevador social ficará em manutenção das 8h às 17h. Utilize o elevador de serviço durante este período.',
-    category: 'maintenance',
-    date: '2024-01-20',
-    time: '07:30',
-    isRead: false,
-    priority: 'high',
-    author: 'Administração'
-  },
-  {
-    id: '2',
-    title: 'Festa de Confraternização',
-    description: 'Convidamos todos os moradores para a festa de confraternização no salão de festas. Haverá música, comida e diversão para toda a família!',
-    category: 'event',
-    date: '2024-01-19',
-    time: '14:20',
-    isRead: true,
-    priority: 'medium',
-    author: 'Síndico'
-  },
-  {
-    id: '3',
-    title: 'Corte de Água Programado',
-    description: 'A SABESP realizará manutenção na rede. Haverá interrupção no fornecimento de água das 9h às 15h.',
-    category: 'warning',
-    date: '2024-01-18',
-    time: '16:45',
-    isRead: true,
-    priority: 'high',
-    author: 'Administração'
-  },
-  {
-    id: '4',
-    title: 'Nova Regra de Estacionamento',
-    description: 'A partir de segunda-feira, será implementado o sistema de rodízio nas vagas de visitantes. Consulte o regulamento completo na portaria.',
-    category: 'info',
-    date: '2024-01-17',
-    time: '10:15',
-    isRead: false,
-    priority: 'medium',
-    author: 'Síndico'
-  },
-  {
-    id: '5',
-    title: 'Limpeza da Caixa d\'Água',
-    description: 'Será realizada a limpeza e desinfecção da caixa d\'água. Durante o processo, pode haver alteração na cor e sabor da água.',
-    category: 'maintenance',
-    date: '2024-01-16',
-    time: '08:00',
-    isRead: true,
-    priority: 'medium',
-    author: 'Administração'
-  },
-  {
-    id: '6',
-    title: 'Assembleia Extraordinária',
-    description: 'Convocamos todos os condôminos para assembleia extraordinária. Pauta: aprovação de obras no playground e aumento da taxa condominial.',
-    category: 'event',
-    date: '2024-01-15',
-    time: '19:30',
-    isRead: true,
-    priority: 'high',
-    author: 'Síndico'
-  },
-];
+// TODO: Carregar avisos reais do Supabase
+// const mockNotices: Notice[] = [];
 
 export default function Avisos() {
-  const [notices, setNotices] = useState<Notice[]>(mockNotices);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // TODO: Carregar avisos do Supabase
+    // const avisos = await getAvisosCondominio();
+    // setNotices(avisos);
     setRefreshing(false);
   };
 

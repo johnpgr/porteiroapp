@@ -39,7 +39,7 @@ export default function AudioPlayer({
       // Cleanup ao desmontar
       handleStop();
     };
-  }, [uri, autoPlay]);
+  }, [uri, autoPlay, handlePlay, handleStop]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -111,7 +111,7 @@ export default function AudioPlayer({
     }
   };
 
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     try {
       await audioService.stopAudio();
       setIsPlaying(false);
@@ -120,7 +120,7 @@ export default function AudioPlayer({
     } catch (error) {
       console.error('Erro ao parar áudio:', error);
     }
-  };
+  }, []);
 
   const formatTime = (milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000);

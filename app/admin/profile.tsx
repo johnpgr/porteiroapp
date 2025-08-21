@@ -16,30 +16,9 @@ import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 
-interface AdminProfile {
-  id: string;
-  email: string;
-  user_type: string;
-  condominium_id?: string;
-  building_id?: string;
-  apartment_id?: string;
-  is_active: boolean;
-  last_login?: string;
-  push_token?: string;
-  created_at: string;
-  updated_at: string;
-  // Campos adicionais para dados pessoais
-  name?: string;
-  phone?: string;
-  cpf?: string;
-  birth_date?: string;
-  address?: string;
-  photo_url?: string;
-}
-
-export default function AdminProfile() {
+export default function AdminProfilePage() {
   const { signOut } = useAuth();
-  const [profile, setProfile] = useState<AdminProfile | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -54,7 +33,7 @@ export default function AdminProfile() {
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [fetchProfile]);
 
   const fetchProfile = async () => {
     try {
@@ -80,8 +59,7 @@ export default function AdminProfile() {
         address: data.address || '',
         photo_url: data.photo_url || '',
       });
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
+    } catch {
       Alert.alert('Erro', 'Falha ao carregar dados do perfil');
     } finally {
       setLoading(false);

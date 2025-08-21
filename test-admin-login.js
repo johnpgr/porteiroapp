@@ -43,7 +43,7 @@ async function testAdminLogin() {
     
     // Verificar se o usuário existe no auth.users
     console.log('\n2. Verificando usuário no auth.users...');
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(adminProfile.user_id);
+    const { error: authError } = await supabase.auth.admin.getUserById(adminProfile.user_id);
     
     if (authError) {
       console.log('⚠️  Não foi possível verificar o usuário no auth (normal com anon key)');

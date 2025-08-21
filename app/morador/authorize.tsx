@@ -43,7 +43,7 @@ export default function AuthorizeScreen() {
 
   useEffect(() => {
     fetchPendingVisitors();
-  }, [user]);
+  }, [user, fetchPendingVisitors]);
 
   const fetchPendingVisitors = async () => {
     if (!user?.apartment_number) return;

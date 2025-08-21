@@ -16,27 +16,6 @@ import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 
-interface PorteiroProfile {
-  id: string;
-  email: string;
-  user_type: string;
-  condominium_id?: string;
-  building_id?: string;
-  apartment_id?: string;
-  is_active: boolean;
-  last_login?: string;
-  push_token?: string;
-  created_at: string;
-  updated_at: string;
-  // Campos adicionais para dados pessoais
-  name?: string;
-  phone?: string;
-  cpf?: string;
-  birth_date?: string;
-  address?: string;
-  photo_url?: string;
-}
-
 export default function PorteiroProfile() {
   const { signOut } = useAuth();
   const [profile, setProfile] = useState<PorteiroProfile | null>(null);
@@ -111,8 +90,8 @@ export default function PorteiroProfile() {
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso');
       setIsEditing(false);
       fetchProfile();
-    } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
+    } catch (saveError) {
+      console.error('Erro ao salvar perfil:', saveError);
       Alert.alert('Erro', 'Falha ao salvar dados do perfil');
     }
   };
@@ -164,7 +143,7 @@ export default function PorteiroProfile() {
             try {
               await signOut();
               router.replace('/porteiro/login');
-            } catch (error) {
+            } catch {
               Alert.alert('Erro', 'Falha ao fazer logout');
             }
           },

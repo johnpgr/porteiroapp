@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Alert, Modal } from 'react-native';
-import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
@@ -174,71 +173,9 @@ export default function PorteiroDashboard() {
   );
 
   const renderAutorizacoesTab = () => {
-    // Dados mockados de autorizações pré-aprovadas com mais variedade
-    const autorizacoes = [
-      {
-        id: 1,
-        nomeConvidado: 'Carlos Silva',
-        moradorAprovador: 'José Silva',
-        apartamento: '101',
-        dataAprovacao: '2024-01-15',
-        horaAprovacao: '14:30',
-        tipo: 'Visitante',
-        status: 'pre_autorizado',
-        statusLabel: 'Pré-autorizado',
-        statusColor: '#4CAF50'
-      },
-      {
-        id: 2,
-        nomeConvidado: 'Maria Santos',
-        moradorAprovador: 'Ana Costa',
-        apartamento: '205',
-        dataAprovacao: '2024-01-15',
-        horaAprovacao: '16:45',
-        tipo: 'Prestador de Serviço',
-        status: 'controle_livre',
-        statusLabel: 'Controle Livre',
-        statusColor: '#FF9800'
-      },
-      {
-        id: 3,
-        nomeConvidado: 'João Oliveira',
-        moradorAprovador: 'Pedro Lima',
-        apartamento: '304',
-        dataAprovacao: '2024-01-15',
-        horaAprovacao: '18:20',
-        tipo: 'Visitante',
-        status: 'horario_permitido',
-        statusLabel: 'Horário: 18h-22h',
-        statusColor: '#2196F3'
-      },
-      {
-        id: 4,
-        nomeConvidado: 'Rafael Costa',
-        moradorAprovador: 'Mariana Silva',
-        apartamento: '102',
-        dataAprovacao: '2024-01-15',
-        horaAprovacao: '19:15',
-        tipo: 'Convidado',
-        status: 'autorizado_subida',
-        statusLabel: 'Autorizado - Pode Subir',
-        statusColor: '#4CAF50',
-        jaAutorizado: true
-      },
-      {
-        id: 5,
-        nomeConvidado: 'Entregador Mercado Livre',
-        moradorAprovador: 'Carlos Mendes',
-        apartamento: '203',
-        dataAprovacao: '2024-01-15',
-        horaAprovacao: '20:00',
-        tipo: 'Encomenda',
-        status: 'deixar_portaria',
-        statusLabel: 'Deixar na Portaria',
-        statusColor: '#9C27B0',
-        isEncomenda: true
-      }
-    ];
+    // TODO: Carregar autorizações reais do Supabase
+    const autorizacoes: any[] = [];
+    // const autorizacoes = await getAutorizacoesPendentes();
 
     const confirmarChegada = (autorizacao: any) => {
       setSelectedAuth(autorizacao);
@@ -354,30 +291,9 @@ export default function PorteiroDashboard() {
   };
 
   const renderConsultaTab = () => {
-    // Dados mockados para consulta
-    const dadosConsulta = {
-      '12345678901': {
-        tipo: 'pessoa',
-        nome: 'Carlos Silva',
-        cpf: '123.456.789-01',
-        apartamento: '101',
-        telefone: '(11) 99999-9999',
-        foto: '👤',
-        ultimaVisita: '2024-01-10 às 15:30',
-        observacoes: 'Visitante frequente'
-      },
-      'ABC1234': {
-        tipo: 'veiculo',
-        placa: 'ABC-1234',
-        marca: 'Toyota',
-        modelo: 'Corolla',
-        cor: 'Prata',
-        proprietario: 'José Silva',
-        apartamento: '101',
-        foto: '🚗',
-        ultimaEntrada: '2024-01-12 às 08:45'
-      }
-    };
+    // TODO: Implementar consulta real no Supabase
+    const dadosConsulta: any = {};
+    // const dadosConsulta = await consultarPessoaOuVeiculo(termoBusca);
 
     const realizarBusca = () => {
       const query = searchQuery.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -466,59 +382,9 @@ export default function PorteiroDashboard() {
   };
 
   const renderAvisosTab = () => {
-    // Dados mockados de avisos do condomínio
-    const avisos = [
-      {
-        id: 1,
-        titulo: 'Manutenção do elevador',
-        descricao: 'Manutenção programada para amanhã às 8h. Elevador ficará indisponível das 8h às 17h.',
-        data: '2024-01-15',
-        hora: '09:30',
-        autor: 'Administração',
-        tipo: 'manutencao',
-        prioridade: 'alta'
-      },
-      {
-        id: 2,
-        titulo: 'Limpeza da caixa d\'água',
-        descricao: 'Limpeza e desinfecção da caixa d\'água será realizada no próximo sábado. Haverá interrupção no fornecimento de água das 6h às 14h.',
-        data: '2024-01-14',
-        hora: '14:15',
-        autor: 'Síndico João Silva',
-        tipo: 'manutencao',
-        prioridade: 'alta'
-      },
-      {
-        id: 3,
-        titulo: 'Reunião de condomínio',
-        descricao: 'Assembleia geral ordinária marcada para o dia 25/01 às 19h no salão de festas. Pauta: aprovação de contas e obras.',
-        data: '2024-01-13',
-        hora: '16:45',
-        autor: 'Administração',
-        tipo: 'reuniao',
-        prioridade: 'media'
-      },
-      {
-        id: 4,
-        titulo: 'Obras na garagem',
-        descricao: 'Início das obras de impermeabilização da garagem. Algumas vagas ficarão temporariamente indisponíveis.',
-        data: '2024-01-12',
-        hora: '11:20',
-        autor: 'Síndico João Silva',
-        tipo: 'obra',
-        prioridade: 'media'
-      },
-      {
-        id: 5,
-        titulo: 'Horário de funcionamento da portaria',
-        descricao: 'Novo horário de funcionamento da portaria: Segunda a sexta das 6h às 22h, fins de semana das 8h às 20h.',
-        data: '2024-01-10',
-        hora: '08:00',
-        autor: 'Administração',
-        tipo: 'informativo',
-        prioridade: 'baixa'
-      }
-    ];
+    // TODO: Carregar avisos reais do Supabase
+    const avisos: any[] = [];
+    // const avisos = await getAvisosCondominio();
 
     const getIconeAviso = (tipo: string) => {
       switch (tipo) {
@@ -567,63 +433,9 @@ export default function PorteiroDashboard() {
   };
 
   const renderHistoricoTab = () => {
-    // Dados mockados do histórico de ações do porteiro
-    const historico = [
-      {
-        id: 1,
-        acao: 'Visitante registrado',
-        detalhes: 'Carlos Silva visitando apartamento 101',
-        data: '2024-01-15',
-        hora: '14:30',
-        tipo: 'visitante',
-        status: 'concluido'
-      },
-      {
-        id: 2,
-        acao: 'Encomenda recebida',
-        detalhes: 'Correios - Entregador João Santos para apt 205',
-        data: '2024-01-15',
-        hora: '13:45',
-        tipo: 'encomenda',
-        status: 'concluido'
-      },
-      {
-        id: 3,
-        acao: 'Autorização confirmada',
-        detalhes: 'Chegada confirmada para Maria Santos (apt 205)',
-        data: '2024-01-15',
-        hora: '12:20',
-        tipo: 'autorizacao',
-        status: 'concluido'
-      },
-      {
-        id: 4,
-        acao: 'Veículo registrado',
-        detalhes: 'Toyota Corolla ABC-1234 para apartamento 304',
-        data: '2024-01-15',
-        hora: '11:15',
-        tipo: 'veiculo',
-        status: 'concluido'
-      },
-      {
-        id: 5,
-        acao: 'Consulta realizada',
-        detalhes: 'Busca por CPF 123.456.789-01 - Resultado encontrado',
-        data: '2024-01-15',
-        hora: '10:30',
-        tipo: 'consulta',
-        status: 'concluido'
-      },
-      {
-        id: 6,
-        acao: 'Início do turno',
-        detalhes: 'Porteiro João Silva iniciou turno das 08:00 às 20:00',
-        data: '2024-01-15',
-        hora: '08:00',
-        tipo: 'sistema',
-        status: 'ativo'
-      }
-    ];
+    // TODO: Carregar histórico real do Supabase
+    const historico: any[] = [];
+    // const historico = await getHistoricoPorteiro();
 
     const getIconeAcao = (tipo: string) => {
       switch (tipo) {
@@ -1410,14 +1222,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Estilos para modal de confirmação
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
   confirmModalContainer: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -1430,46 +1234,5 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     maxWidth: 350,
     width: '100%',
-  },
-  confirmModalIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  confirmModalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  confirmModalMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  countdownText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  closeModalButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  closeModalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

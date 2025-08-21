@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -48,9 +48,9 @@ export default function DeliveryManagement() {
 
   useEffect(() => {
     fetchDeliveries();
-  }, [filter]);
+  }, [filter, fetchDeliveries]);
 
-  const fetchDeliveries = async () => {
+  const fetchDeliveries = useCallback(async () => {
     try {
       let query = supabase
         .from('deliveries')
@@ -77,16 +77,16 @@ export default function DeliveryManagement() {
         })) || [];
 
       setDeliveries(formattedDeliveries);
-    } catch (error) {
-      console.error('Erro ao carregar encomendas:', error);
+    } catch {
+      Alert.alert('Erro', 'Falha ao carregar encomendas');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   const handleDeliveryAction = async (deliveryId: string, action: 'entregue', notes?: string) => {
     try {
-      const { error } = await supabase
+      await supabase
         .from('deliveries')
         .update({
           status: action,
@@ -100,7 +100,7 @@ export default function DeliveryManagement() {
 
       fetchDeliveries();
       Alert.alert('Sucesso', 'Encomenda marcada como entregue!');
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Falha ao marcar encomenda como entregue');
     }
   };
@@ -155,7 +155,7 @@ export default function DeliveryManagement() {
       });
       setShowAddForm(false);
       fetchDeliveries();
-    } catch (error) {
+    } catch {
       Alert.alert('Erro', 'Falha ao registrar encomenda');
     }
   };
@@ -196,8 +196,6 @@ export default function DeliveryManagement() {
   };
 
   const DeliveryCard = ({ delivery }: { delivery: Delivery }) => {
-    const [showNotes, setShowNotes] = useState(false);
-    const [deliveryNotes, setDeliveryNotes] = useState('');
 
     const handleDeliver = () => {
       if (delivery.status === 'entregue') return;

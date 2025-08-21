@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabase';
 // import { notificationService } from '../services/notificationService'; // DESABILITADO TEMPORARIAMENTE
@@ -42,9 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkSession]);
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -55,15 +55,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const loadUserProfile = async (authUser: User) => {
     try {
+      // Primeiro tenta carregar da tabela profiles
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
         .single();
+
+      if (error && error.code === 'PGRST116') {
+        // Se não encontrou na tabela profiles, verifica se é um admin
+        console.log('Perfil não encontrado em profiles, verificando admin_profiles...');
+        
+        const { data: adminProfile, error: adminError } = await supabase
+          .from('admin_profiles')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .single();
+
+        if (adminError) {
+          console.error('Erro ao carregar perfil de admin:', adminError);
+          return;
+        }
+
+        if (adminProfile) {
+          console.log('Perfil de admin encontrado, definindo user_type como admin');
+          setUser({
+            id: authUser.id,
+            email: adminProfile.email,
+            user_type: 'admin',
+            condominium_id: undefined,
+            building_id: undefined,
+            apartment_id: undefined,
+            is_active: true,
+            last_login: new Date().toISOString(),
+            push_token: undefined,
+          });
+          return;
+        }
+      }
 
       if (error) {
         console.error('Erro ao carregar perfil:', error);

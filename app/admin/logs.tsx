@@ -24,7 +24,7 @@ export default function SystemLogs() {
 
   useEffect(() => {
     fetchLogs();
-  }, [filter]);
+  }, [filter, fetchLogs]);
 
   const fetchLogs = async () => {
     try {

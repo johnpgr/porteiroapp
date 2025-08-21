@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 
-interface MoradorProfile {
+interface MoradorProfileData {
   id: string;
   name: string;
   email: string;
@@ -36,7 +36,7 @@ interface MoradorProfile {
 
 export default function MoradorProfile() {
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<MoradorProfile | null>(null);
+  const [, setProfile] = useState<MoradorProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -53,9 +53,9 @@ export default function MoradorProfile() {
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [fetchProfile]);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       if (!user?.id) return;
 
@@ -77,7 +77,7 @@ export default function MoradorProfile() {
         return;
       }
 
-      const profileData: MoradorProfile = {
+      const profileData: MoradorProfileData = {
         id: data.id,
         name: data.name || '',
         email: data.email || '',
@@ -105,13 +105,12 @@ export default function MoradorProfile() {
         emergency_contact_name: profileData.emergency_contact_name || '',
         emergency_contact_phone: profileData.emergency_contact_phone || '',
       });
-    } catch (error) {
-      console.error('Erro ao buscar perfil:', error);
+    } catch {
       Alert.alert('Erro', 'Erro interno do servidor');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   const handleSave = async () => {
     try {
@@ -139,8 +138,7 @@ export default function MoradorProfile() {
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
       setIsEditing(false);
       fetchProfile();
-    } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
+    } catch {
       Alert.alert('Erro', 'Erro interno do servidor');
     }
   };
@@ -163,8 +161,7 @@ export default function MoradorProfile() {
       if (!result.canceled && result.assets[0]) {
         setFormData({ ...formData, photo_url: result.assets[0].uri });
       }
-    } catch (error) {
-      console.error('Erro ao selecionar imagem:', error);
+    } catch {
       Alert.alert('Erro', 'Não foi possível selecionar a imagem');
     }
   };
@@ -182,7 +179,7 @@ export default function MoradorProfile() {
             try {
               await signOut();
               router.replace('/');
-            } catch (error) {
+            } catch {
               Alert.alert('Erro', 'Falha ao fazer logout');
             }
           },

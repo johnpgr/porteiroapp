@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
@@ -57,9 +57,9 @@ export default function ActivityLogs() {
 
   useEffect(() => {
     fetchLogs();
-  }, [filter, timeFilter]);
+  }, [filter, timeFilter, fetchLogs]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const promises = [];
 
@@ -216,7 +216,7 @@ export default function ActivityLogs() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter, timeFilter]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

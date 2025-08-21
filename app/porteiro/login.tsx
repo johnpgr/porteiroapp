@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,6 @@ import { useAuth } from '../../hooks/useAuth';
 
 export default function PorteiroLogin() {
   const { signIn, user } = useAuth();
-
 
 
   useEffect(() => {
@@ -27,7 +26,7 @@ export default function PorteiroLogin() {
 
       // O redirecionamento será feito pelo useEffect quando user for atualizado
       return { success: true };
-    } catch (error) {
+    } catch {
       const errorMessage = 'Ocorreu um erro inesperado';
       Alert.alert('Erro', errorMessage);
       return { success: false, error: errorMessage };

@@ -65,7 +65,7 @@ export default function UsersManagement() {
     fetchUsers();
     fetchBuildings();
     fetchApartments();
-  }, []);
+  }, [fetchUsers, fetchBuildings, fetchApartments]);
 
   useEffect(() => {
     if (newUser.building_id) {
@@ -79,7 +79,7 @@ export default function UsersManagement() {
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchQuery]);
+  }, [users, searchQuery, filterUsers]);
 
   const filterUsers = () => {
     if (!searchQuery.trim()) {
