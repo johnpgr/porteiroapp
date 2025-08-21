@@ -80,7 +80,8 @@ export default function EditBuilding() {
         .from('apartments')
         .select('*')
         .eq('building_id', id)
-        .order('number');
+        .order('floor', { ascending: true, nullsFirst: false })
+        .order('number', { ascending: true });
 
       if (error) throw error;
       setApartments(data || []);
@@ -735,8 +736,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
-  bulkAddContainer: {
-  },
+  bulkAddContainer: {},
   bulkAddToggle: {
     backgroundColor: '#2196F3',
     padding: 10,
@@ -782,8 +782,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  apartmentsList: {
-  },
+  apartmentsList: {},
   loadingText: {
     textAlign: 'center',
     color: '#666',

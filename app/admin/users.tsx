@@ -70,6 +70,10 @@ export default function UsersManagement() {
   useEffect(() => {
     if (newUser.building_id) {
       const filtered = apartments.filter((apt) => apt.building_id === newUser.building_id);
+      console.log('🏢 Prédio selecionado:', newUser.building_id);
+      console.log('🔍 Total de apartamentos disponíveis:', apartments.length);
+      console.log('✅ Apartamentos filtrados para este prédio:', filtered.length);
+      console.log('📝 Lista filtrada:', filtered);
       setFilteredApartments(filtered);
       setNewUser((prev) => ({ ...prev, apartment_id: '' }));
     } else {
@@ -131,6 +135,8 @@ export default function UsersManagement() {
       const { data, error } = await supabase.from('apartments').select('*').order('number');
 
       if (error) throw error;
+      console.log('🏠 Apartamentos carregados do banco:', data?.length || 0);
+      console.log('📋 Lista de apartamentos:', data);
       setApartments(data || []);
     } catch (error) {
       console.error('Erro ao carregar apartamentos:', error);
