@@ -47,9 +47,6 @@ export interface Database {
           id: string
           name: string
           address: string
-          city: string
-          state: string
-          zip_code: string
           created_at: string
           updated_at: string
         }
@@ -57,9 +54,6 @@ export interface Database {
           id?: string
           name: string
           address: string
-          city: string
-          state: string
-          zip_code: string
           created_at?: string
           updated_at?: string
         }
@@ -67,9 +61,6 @@ export interface Database {
           id?: string
           name?: string
           address?: string
-          city?: string
-          state?: string
-          zip_code?: string
           created_at?: string
           updated_at?: string
         }

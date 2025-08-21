@@ -67,10 +67,7 @@ async function testAdminLogin() {
         buildings (
           id,
           name,
-          address,
-          city,
-          state,
-          zip_code
+          address
         )
       `)
       .eq('admin_profile_id', adminProfile.id);

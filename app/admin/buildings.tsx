@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import { supabase } from '~/utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 
 interface Building {
@@ -19,6 +19,7 @@ interface Building {
   name: string;
   address: string;
   created_at: string;
+  updated_at: string;
 }
 
 export default function BuildingsManagement() {
@@ -36,13 +37,17 @@ export default function BuildingsManagement() {
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        setBuildings([]);
+        return;
+      }
 
-      if (error) throw error;
-      setBuildings(data || []);
+      // Buscar apenas os prédios gerenciados por este administrador
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      setBuildings(adminBuildings || []);
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
       Alert.alert('Erro', 'Falha ao carregar lista de prédios');
@@ -63,14 +68,36 @@ export default function BuildingsManagement() {
     }
 
     try {
-      const { error } = await supabase
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        Alert.alert('Erro', 'Não foi possível identificar o administrador atual');
+        return;
+      }
+
+      // Inserir o novo prédio
+      const { data: buildingData, error: buildingError } = await supabase
         .from('buildings')
         .insert({
           name: newBuilding.name.trim(),
           address: newBuilding.address.trim(),
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (buildingError) throw buildingError;
+
+      // Vincular o administrador ao prédio
+      const assignmentSuccess = await adminAuth.assignAdminToBuilding(
+        currentAdmin.id,
+        buildingData.id
+      );
+
+      if (!assignmentSuccess) {
+        // Se falhou a vinculação, remover o prédio criado
+        await supabase.from('buildings').delete().eq('id', buildingData.id);
+        throw new Error('Falha ao vincular administrador ao prédio');
+      }
 
       Alert.alert('Sucesso', 'Prédio cadastrado com sucesso');
       setNewBuilding({ name: '', address: '' });

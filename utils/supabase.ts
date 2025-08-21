@@ -47,9 +47,6 @@ export interface Building {
   id: string;
   name: string;
   address: string;
-  city: string;
-  state: string;
-  zip_code: string;
   created_at: string;
   updated_at: string;
 }
@@ -196,9 +193,6 @@ export const adminAuth = {
             id,
             name,
             address,
-            city,
-            state,
-            zip_code,
             created_at,
             updated_at
           )
