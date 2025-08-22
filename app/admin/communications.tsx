@@ -10,7 +10,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase } from '~/utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
 import { flattenStyles } from '~/utils/styles';
 
@@ -74,10 +74,14 @@ export default function Communications() {
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase.from('buildings').select('id, name').order('name');
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Admin não encontrado');
+        return;
+      }
 
-      if (error) throw error;
-      setBuildings(data || []);
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      setBuildings(adminBuildings || []);
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
     }

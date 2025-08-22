@@ -4,6 +4,21 @@
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
 
+// Interface para dados do morador para WhatsApp
+interface ResidentData {
+  name: string;
+  phone: string;
+  building: string;
+  apartment: string;
+}
+
+// Interface para resposta da API de notificação
+interface WhatsAppApiResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 // CONFIGURAÇÃO DE NOTIFICAÇÕES DESABILITADA TEMPORARIAMENTE
 // // Configurar como as notificações devem ser tratadas quando recebidas
 // // Evitar registrar handler na Web para prevenir problemas de symbolication
@@ -484,6 +499,58 @@ class NotificationService {
       onNotificationResponse?.(response);
     });
     */
+  }
+
+  /**
+   * Envia mensagem WhatsApp para morador via API de notificação
+   */
+  async sendResidentWhatsApp(
+    residentData: ResidentData,
+    registrationUrl?: string
+  ): Promise<WhatsAppApiResponse> {
+    console.log('📱 [DEBUG] sendResidentWhatsApp iniciado');
+    console.log('📱 [DEBUG] residentData:', residentData);
+    console.log('📱 [DEBUG] registrationUrl:', registrationUrl);
+
+    try {
+      const payload = {
+        name: residentData.name,
+        phone: residentData.phone,
+        building: residentData.building,
+        apartment: residentData.apartment,
+        registrationUrl: registrationUrl || undefined,
+      };
+
+      console.log('📱 [DEBUG] Payload para API:', payload);
+      console.log('📱 [DEBUG] Chamando API: http://192.168.0.2:3001/api/send-resident-whatsapp');
+
+      const response = await fetch('http://192.168.0.2:3001/api/send-resident-whatsapp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('📱 [DEBUG] Status da resposta:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('📱 [DEBUG] Erro da API:', errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+
+      const result: WhatsAppApiResponse = await response.json();
+      console.log('📱 [DEBUG] Resultado da API:', result);
+
+      return result;
+    } catch (error) {
+      console.error('📱 [DEBUG] Erro ao chamar API de notificação:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao enviar WhatsApp',
+      };
+    }
   }
 }
 

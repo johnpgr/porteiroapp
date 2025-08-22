@@ -13,18 +13,44 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase } from '~/utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
-import {
-  sendWhatsAppMessage,
-  sendBulkWhatsAppMessages,
-  validateBrazilianPhone,
-  formatBrazilianPhone,
-  isEvolutionApiConfigured,
-  showConfigurationAlert,
-  ResidentData,
-} from '~/utils/whatsapp';
+import { notificationService } from '~/services/notificationService';
+
+// Interface para dados do morador
+interface ResidentData {
+  name: string;
+  phone: string;
+  building: string;
+  apartment: string;
+}
+
+// Funções auxiliares para validação de telefone brasileiro
+const validateBrazilianPhone = (phone: string): boolean => {
+  const cleanPhone = phone.replace(/\D/g, '');
+  return cleanPhone.length === 10 || cleanPhone.length === 11;
+};
+
+const formatBrazilianPhone = (phone: string): string => {
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length === 10) {
+    return `+55${cleanPhone}`;
+  } else if (cleanPhone.length === 11) {
+    return `+55${cleanPhone}`;
+  }
+  return phone;
+};
+
+// Função para verificar se a API está configurada (sempre retorna true agora)
+const isEvolutionApiConfigured = (): boolean => {
+  return true; // A API de notificação cuida da configuração
+};
+
+// Função para mostrar alerta de configuração (não mais necessária)
+const showConfigurationAlert = (): void => {
+  Alert.alert('Configuração', 'API de notificação está sendo usada.');
+};
 
 interface User {
   id: string;
@@ -201,10 +227,16 @@ export default function UsersManagement() {
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase.from('buildings').select('*').order('name');
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        return;
+      }
 
-      if (error) throw error;
-      setBuildings(data || []);
+      // Buscar apenas os prédios que o administrador gerencia
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      setBuildings(adminBuildings || []);
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
     }
@@ -588,7 +620,7 @@ export default function UsersManagement() {
           // Enviar WhatsApp se habilitado
           if (sendWhatsApp) {
             setProcessingStatus(`Enviando WhatsApp para ${resident.name}...`);
-            const whatsappResult = await sendWhatsAppMessage(resident, whatsappBaseUrl);
+            const whatsappResult = await notificationService.sendResidentWhatsApp(resident, whatsappBaseUrl);
             if (!whatsappResult.success) {
               errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
             }
@@ -669,10 +701,10 @@ export default function UsersManagement() {
           };
 
           console.log('📱 [DEBUG] residentData criado:', residentData);
-          console.log('📱 [DEBUG] Chamando sendWhatsAppMessage...');
+          console.log('📱 [DEBUG] Chamando notificationService.sendResidentWhatsApp...');
           
-          const result = await sendWhatsAppMessage(residentData, whatsappBaseUrl);
-          console.log('📱 [DEBUG] Resultado do sendWhatsAppMessage:', result);
+          const result = await notificationService.sendResidentWhatsApp(residentData, whatsappBaseUrl);
+          console.log('📱 [DEBUG] Resultado do sendResidentWhatsApp:', result);
           
           if (!result.success) {
             console.log('📱 [DEBUG] Erro no envio:', result.error);
@@ -872,6 +904,7 @@ export default function UsersManagement() {
                 <Picker
                   selectedValue={newUser.selectedBuildingId}
                   style={styles.picker}
+                  itemStyle={styles.pickerItem}
                   onValueChange={(itemValue) =>
                     setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
                   }>
@@ -1057,6 +1090,7 @@ export default function UsersManagement() {
                   <Picker
                     selectedValue={resident.selectedBuildingId}
                     style={styles.picker}
+                    itemStyle={styles.pickerItem}
                     onValueChange={(value) =>
                       updateMultipleResident(index, 'selectedBuildingId', value)
                     }>
@@ -1073,6 +1107,7 @@ export default function UsersManagement() {
                     <Picker
                       selectedValue={resident.selectedApartmentId}
                       style={styles.picker}
+                      itemStyle={styles.pickerItem}
                       onValueChange={(value) =>
                         updateMultipleResident(index, 'selectedApartmentId', value)
                       }>
@@ -1190,6 +1225,7 @@ export default function UsersManagement() {
               <Picker
                 selectedValue={newVehicle.selectedBuildingId}
                 style={styles.picker}
+                itemStyle={styles.pickerItem}
                 onValueChange={(itemValue) => {
                   setNewVehicle((prev) => ({
                     ...prev,
@@ -1222,6 +1258,7 @@ export default function UsersManagement() {
                 <Picker
                   selectedValue={newVehicle.selectedOwnerId}
                   style={styles.picker}
+                  itemStyle={styles.pickerItem}
                   onValueChange={(itemValue) =>
                     setNewVehicle((prev) => ({ ...prev, selectedOwnerId: itemValue }))
                   }>
@@ -1528,6 +1565,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 12,
     overflow: 'hidden',
+    minHeight: 60,
   },
   pickerLabel: {
     fontSize: 16,
@@ -1543,7 +1581,14 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+    width: '100%',
     backgroundColor: 'transparent',
+    color: '#000',
+  },
+  pickerItem: {
+    color: '#000',
+    fontSize: 16,
+    height: 50,
   },
   apartmentOption: {
     padding: 15,
