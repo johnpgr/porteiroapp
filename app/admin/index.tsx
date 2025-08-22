@@ -21,15 +21,16 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 interface User {
   id: string;
   name: string;
-  role: 'admin' | 'porteiro' | 'morador';
+  role?: 'admin' | 'porteiro' | 'morador';
+  user_type?: 'admin' | 'porteiro' | 'morador';
   cpf?: string;
   phone?: string;
   email?: string;
   building_id?: string;
-  apartment_id?: string;
   photo_url?: string;
   last_login?: string;
   created_at: string;
+  apartments?: { id: string; number: string; building_id: string }[];
 }
 
 interface Building {
@@ -105,7 +106,7 @@ export default function AdminDashboard() {
     phone: '',
     email: '',
     building_id: '',
-    apartment_id: '',
+    selected_apartments: [] as string[],
     photo_url: '',
     password: '',
   });
@@ -183,7 +184,21 @@ export default function AdminDashboard() {
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
 
       const [usersData, apartmentsData, activitiesData, logsData] = await Promise.all([
-        supabase.from('users').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('profiles')
+          .select(
+            `
+            *,
+            apartment_residents(
+              apartments(
+                id,
+                number,
+                building_id
+              )
+            )
+          `
+          )
+          .order('created_at', { ascending: false }),
         supabase.from('apartments').select('*').order('number'),
         supabase
           .from('visitor_logs')
@@ -192,11 +207,18 @@ export default function AdminDashboard() {
           .order('created_at', { ascending: false }),
         supabase
           .from('system_logs')
-          .select('*, users(name), buildings(name)')
+          .select('*, profiles(name), buildings(name)')
           .order('created_at', { ascending: false }),
       ]);
 
-      setUsers(usersData.data || []);
+      // Mapear os dados dos usuários para incluir apartamentos
+      const mappedUsers = (usersData.data || []).map((user) => ({
+        ...user,
+        role: user.user_type || user.role,
+        apartments: user.apartment_residents?.map((ar) => ar.apartments) || [],
+      }));
+
+      setUsers(mappedUsers);
       setBuildings(adminBuildings || []);
       setApartments(apartmentsData.data || []);
       setActivities(activitiesData.data || []);
@@ -330,10 +352,16 @@ export default function AdminDashboard() {
       return;
     }
 
+    // Validar apartamentos para moradores
+    if (newUser.role === 'morador' && newUser.selected_apartments.length === 0) {
+      Alert.alert('Erro', 'Selecione pelo menos um apartamento para o morador');
+      return;
+    }
+
     try {
       const userData: any = {
         name: newUser.name,
-        role: newUser.role,
+        user_type: newUser.role,
         password: newUser.password || null,
       };
 
@@ -343,14 +371,31 @@ export default function AdminDashboard() {
         userData.email = newUser.email;
         userData.building_id = newUser.building_id;
         userData.photo_url = newUser.photo_url;
-
-        if (newUser.role === 'morador') {
-          userData.apartment_id = newUser.apartment_id;
-        }
       }
 
-      const { error } = await supabase.from('users').insert(userData);
-      if (error) throw error;
+      // Inserir usuário na tabela profiles
+      const { data: insertedUser, error: userError } = await supabase
+        .from('profiles')
+        .insert(userData)
+        .select()
+        .single();
+
+      if (userError) throw userError;
+
+      // Se for morador, associar aos apartamentos selecionados
+      if (newUser.role === 'morador' && newUser.selected_apartments.length > 0) {
+        const apartmentAssociations = newUser.selected_apartments.map((apartmentId) => ({
+          profile_id: insertedUser.id,
+          apartment_id: apartmentId,
+          is_owner: false,
+        }));
+
+        const { error: associationError } = await supabase
+          .from('apartment_residents')
+          .insert(apartmentAssociations);
+
+        if (associationError) throw associationError;
+      }
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
       setNewUser({
@@ -360,13 +405,14 @@ export default function AdminDashboard() {
         phone: '',
         email: '',
         building_id: '',
-        apartment_id: '',
+        selected_apartments: [],
         photo_url: '',
         password: '',
       });
       setShowAddForm(false);
       fetchData();
     } catch (error) {
+      console.error('Erro ao criar usuário:', error);
       Alert.alert('Erro', 'Falha ao criar usuário');
     }
   };

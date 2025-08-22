@@ -138,7 +138,10 @@ export interface Database {
           name: string;
           email: string;
           phone: string | null;
-          apartment_id: string | null;
+          user_type: string | null;
+          building_id: string | null;
+          cpf: string | null;
+          photo_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -148,7 +151,10 @@ export interface Database {
           name: string;
           email: string;
           phone?: string | null;
-          apartment_id?: string | null;
+          user_type?: string | null;
+          building_id?: string | null;
+          cpf?: string | null;
+          photo_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -158,16 +164,19 @@ export interface Database {
           name?: string;
           email?: string;
           phone?: string | null;
-          apartment_id?: string | null;
+          user_type?: string | null;
+          building_id?: string | null;
+          cpf?: string | null;
+          photo_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'profiles_apartment_id_fkey';
-            columns: ['apartment_id'];
+            foreignKeyName: 'profiles_building_id_fkey';
+            columns: ['building_id'];
             isOneToOne: false;
-            referencedRelation: 'apartments';
+            referencedRelation: 'buildings';
             referencedColumns: ['id'];
           },
         ];

@@ -16,7 +16,6 @@ export interface AuthUser {
   user_type: 'admin' | 'porteiro' | 'morador';
   condominium_id?: string;
   building_id?: string;
-  apartment_id?: string;
   is_active: boolean;
   last_login?: string;
   push_token?: string;
@@ -100,7 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user_type: 'admin',
             condominium_id: undefined,
             building_id: undefined,
-            apartment_id: undefined,
             is_active: true,
             last_login: new Date().toISOString(),
             push_token: undefined,
@@ -125,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user_type: profile.user_type,
         condominium_id: profile.condominium_id,
         building_id: profile.building_id,
-        apartment_id: profile.apartment_id,
         is_active: profile.is_active,
         last_login: profile.last_login,
         push_token: profile.push_token,

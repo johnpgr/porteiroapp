@@ -30,10 +30,28 @@ export function useNotifications() {
     if (!user) return;
 
     try {
+      // Buscar apartamentos do usuário se for morador
+      let apartmentIds: string[] = [];
+      if (user.user_type === 'morador') {
+        const { data: apartmentData } = await supabase
+          .from('apartment_residents')
+          .select('apartment_id')
+          .eq('user_id', user.id);
+
+        apartmentIds = apartmentData?.map((item) => item.apartment_id) || [];
+      }
+
+      // Construir filtro baseado no tipo de usuário
+      let filter = `user_id.eq.${user.id}`;
+      if (apartmentIds.length > 0) {
+        const apartmentFilter = apartmentIds.map((id) => `apartment_id.eq.${id}`).join(',');
+        filter = `user_id.eq.${user.id},${apartmentFilter}`;
+      }
+
       const { data, error } = await supabase
         .from('communications')
         .select('*')
-        .or(`user_id.eq.${user.id},apartment_id.eq.${user.apartment_id}`)
+        .or(filter)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -121,10 +139,28 @@ export function useNotifications() {
     if (!user) return;
 
     try {
+      // Buscar apartamentos do usuário se for morador
+      let apartmentIds: string[] = [];
+      if (user.user_type === 'morador') {
+        const { data: apartmentData } = await supabase
+          .from('apartment_residents')
+          .select('apartment_id')
+          .eq('user_id', user.id);
+
+        apartmentIds = apartmentData?.map((item) => item.apartment_id) || [];
+      }
+
+      // Construir filtro baseado no tipo de usuário
+      let filter = `user_id.eq.${user.id}`;
+      if (apartmentIds.length > 0) {
+        const apartmentFilter = apartmentIds.map((id) => `apartment_id.eq.${id}`).join(',');
+        filter = `user_id.eq.${user.id},${apartmentFilter}`;
+      }
+
       const { error } = await supabase
         .from('communications')
         .update({ read: true })
-        .or(`user_id.eq.${user.id},apartment_id.eq.${user.apartment_id}`)
+        .or(filter)
         .eq('read', false);
 
       if (error) throw error;

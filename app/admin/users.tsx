@@ -23,10 +23,10 @@ interface User {
   phone?: string;
   email?: string;
   building_id?: string;
-  apartment_id?: string;
   photo_url?: string;
   last_login?: string;
   created_at: string;
+  apartments?: { id: string; number: string; building_id: string }[];
 }
 
 interface Building {
@@ -56,7 +56,7 @@ export default function UsersManagement() {
     phone: '',
     email: '',
     building_id: '',
-    apartment_id: '',
+    selected_apartments: [] as string[],
     photo_url: '',
     password: '',
   });
@@ -75,7 +75,7 @@ export default function UsersManagement() {
       console.log('✅ Apartamentos filtrados para este prédio:', filtered.length);
       console.log('📝 Lista filtrada:', filtered);
       setFilteredApartments(filtered);
-      setNewUser((prev) => ({ ...prev, apartment_id: '' }));
+      setNewUser((prev) => ({ ...prev, selected_apartments: [] }));
     } else {
       setFilteredApartments([]);
     }
@@ -105,13 +105,30 @@ export default function UsersManagement() {
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from('profiles')
+        .select(
+          `
+          *,
+          apartments:apartment_residents(
+            apartment:apartments(
+              id,
+              number,
+              building_id
+            )
+          )
+        `
+        )
+        .order('name');
 
       if (error) throw error;
-      setUsers(data || []);
-      setFilteredUsers(data || []);
+
+      const usersWithApartments = (data || []).map((user) => ({
+        ...user,
+        apartments: user.apartments?.map((ar: any) => ar.apartment) || [],
+      }));
+
+      setUsers(usersWithApartments);
+      setFilteredUsers(usersWithApartments);
     } catch (error) {
       Alert.alert('Erro', 'Falha ao carregar usuários');
     } finally {
@@ -178,8 +195,8 @@ export default function UsersManagement() {
         Alert.alert('Erro', 'Prédio é obrigatório');
         return;
       }
-      if (newUser.role === 'morador' && !newUser.apartment_id) {
-        Alert.alert('Erro', 'Apartamento é obrigatório para moradores');
+      if (newUser.role === 'morador' && newUser.selected_apartments.length === 0) {
+        Alert.alert('Erro', 'Pelo menos um apartamento é obrigatório para moradores');
         return;
       }
     }
@@ -187,7 +204,7 @@ export default function UsersManagement() {
     try {
       const userData: any = {
         name: newUser.name,
-        role: newUser.role,
+        user_type: newUser.role,
         password: newUser.password || null,
       };
 
@@ -195,15 +212,33 @@ export default function UsersManagement() {
         userData.cpf = newUser.cpf;
         userData.phone = newUser.phone;
         userData.email = newUser.email;
+        userData.condominium_id = newUser.building_id;
         userData.building_id = newUser.building_id;
         userData.photo_url = newUser.photo_url;
-
-        if (newUser.role === 'morador') {
-          userData.apartment_id = newUser.apartment_id;
-        }
       }
 
-      const { error } = await supabase.from('users').insert(userData);
+      const { data: insertedUser, error } = await supabase
+        .from('profiles')
+        .insert(userData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Se for morador, associar aos apartamentos selecionados
+      if (newUser.role === 'morador' && newUser.selected_apartments.length > 0) {
+        const apartmentAssociations = newUser.selected_apartments.map((apartmentId) => ({
+          profile_id: insertedUser.id,
+          apartment_id: apartmentId,
+          is_owner: false, // Por padrão, não é proprietário
+        }));
+
+        const { error: associationError } = await supabase
+          .from('apartment_residents')
+          .insert(apartmentAssociations);
+
+        if (associationError) throw associationError;
+      }
 
       if (error) throw error;
 
@@ -215,7 +250,7 @@ export default function UsersManagement() {
         phone: '',
         email: '',
         building_id: '',
-        apartment_id: '',
+        selected_apartments: [],
         photo_url: '',
         password: '',
       });
@@ -234,7 +269,11 @@ export default function UsersManagement() {
         style: 'destructive',
         onPress: async () => {
           try {
-            const { error } = await supabase.from('users').delete().eq('id', userId);
+            // Primeiro, remover associações de apartamentos
+            await supabase.from('apartment_residents').delete().eq('profile_id', userId);
+
+            // Depois, remover o usuário
+            const { error } = await supabase.from('profiles').delete().eq('id', userId);
 
             if (error) throw error;
             fetchUsers();
@@ -389,22 +428,43 @@ export default function UsersManagement() {
 
               {newUser.role === 'morador' && newUser.building_id && (
                 <View style={styles.pickerContainer}>
-                  <Text style={styles.pickerLabel}>Apartamento:</Text>
-                  <Picker
-                    selectedValue={newUser.apartment_id}
-                    style={styles.picker}
-                    onValueChange={(itemValue) =>
-                      setNewUser((prev) => ({ ...prev, apartment_id: itemValue }))
-                    }>
-                    <Picker.Item label="Selecione um apartamento" value="" />
-                    {filteredApartments.map((apartment) => (
-                      <Picker.Item
-                        key={apartment.id}
-                        label={apartment.number}
-                        value={apartment.id}
-                      />
-                    ))}
-                  </Picker>
+                  <Text style={styles.pickerLabel}>Apartamentos:</Text>
+                  <Text style={styles.pickerSubLabel}>Selecione um ou mais apartamentos</Text>
+                  {filteredApartments.map((apartment) => (
+                    <TouchableOpacity
+                      key={apartment.id}
+                      style={[
+                        styles.apartmentOption,
+                        newUser.selected_apartments.includes(apartment.id) &&
+                          styles.apartmentOptionSelected,
+                      ]}
+                      onPress={() => {
+                        const isSelected = newUser.selected_apartments.includes(apartment.id);
+                        if (isSelected) {
+                          setNewUser((prev) => ({
+                            ...prev,
+                            selected_apartments: prev.selected_apartments.filter(
+                              (id) => id !== apartment.id
+                            ),
+                          }));
+                        } else {
+                          setNewUser((prev) => ({
+                            ...prev,
+                            selected_apartments: [...prev.selected_apartments, apartment.id],
+                          }));
+                        }
+                      }}>
+                      <Text
+                        style={[
+                          styles.apartmentOptionText,
+                          newUser.selected_apartments.includes(apartment.id) &&
+                            styles.apartmentOptionTextSelected,
+                        ]}>
+                        {newUser.selected_apartments.includes(apartment.id) ? '✓' : '○'} Apartamento{' '}
+                        {apartment.number}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
 
@@ -450,9 +510,16 @@ export default function UsersManagement() {
                 {user.cpf && <Text style={styles.userInfo}>CPF: {user.cpf}</Text>}
                 {user.phone && <Text style={styles.userInfo}>Tel: {user.phone}</Text>}
                 {user.email && <Text style={styles.userInfo}>Email: {user.email}</Text>}
-                <Text style={[styles.userRole, { color: getRoleColor(user.role) }]}>
-                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                <Text
+                  style={[styles.userRole, { color: getRoleColor(user.user_type || user.role) }]}>
+                  {(user.user_type || user.role).charAt(0).toUpperCase() +
+                    (user.user_type || user.role).slice(1)}
                 </Text>
+                {user.apartments && user.apartments.length > 0 && (
+                  <Text style={styles.userApartments}>
+                    Apartamentos: {user.apartments.map((apt) => apt.number).join(', ')}
+                  </Text>
+                )}
                 {user.last_login && (
                   <Text style={styles.lastLogin}>
                     Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
@@ -645,6 +712,12 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 2,
   },
+  userApartments: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 2,
+    fontWeight: '500',
+  },
   deleteButton: {
     padding: 10,
   },
@@ -675,8 +748,33 @@ const styles = StyleSheet.create({
     marginTop: 5,
     color: '#333',
   },
+  pickerSubLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 10,
+  },
   picker: {
     height: 50,
+  },
+  apartmentOption: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f9f9f9',
+  },
+  apartmentOptionSelected: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#2196F3',
+  },
+  apartmentOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  apartmentOptionTextSelected: {
+    color: '#2196F3',
+    fontWeight: '600',
   },
   photoSection: {
     marginBottom: 15,
