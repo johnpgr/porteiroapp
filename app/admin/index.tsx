@@ -15,23 +15,8 @@ import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
-interface User {
-  id: string;
-  name: string;
-  role?: 'admin' | 'porteiro' | 'morador';
-  user_type?: 'admin' | 'porteiro' | 'morador';
-  cpf?: string;
-  phone?: string;
-  email?: string;
-  building_id?: string;
-  photo_url?: string;
-  last_login?: string;
-  created_at: string;
-  apartments?: { id: string; number: string; building_id: string }[];
-}
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface Building {
   id: string;
@@ -60,30 +45,13 @@ interface Log {
   created_at: string;
 }
 
-interface Vehicle {
-  id: string;
-  license_plate: string;
-  model: string;
-  parking_spot?: string;
-  building_id: string;
-  resident_id: string;
-  created_at: string;
-}
-
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [userSubTab, setUserSubTab] = useState('users'); // 'users' or 'vehicles'
-  const [users, setUsers] = useState<User[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const [logSearchType, setLogSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
@@ -96,44 +64,19 @@ export default function AdminDashboard() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showAddVehicleForm, setShowAddVehicleForm] = useState(false);
-  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
-  const [newUser, setNewUser] = useState({
-    name: '',
-    role: 'morador' as 'admin' | 'porteiro' | 'morador',
-    cpf: '',
-    phone: '',
-    email: '',
-    building_id: '',
-    selected_apartments: [] as string[],
-    photo_url: '',
-    password: '',
-  });
 
-  const [newVehicle, setNewVehicle] = useState({
-    license_plate: '',
-    model: '',
-    parking_spot: '',
-    building_id: '',
-    resident_id: '',
-  });
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+
   const [communication, setCommunication] = useState({
     title: '',
     description: '',
     building_id: '',
     target_user: 'all',
-    specific_user_id: '',
   });
 
   useEffect(() => {
     fetchData();
-    loadVehicles();
-  }, [fetchData, loadVehicles]);
-
-  useEffect(() => {
-    filterUsers();
-  }, [searchQuery, users, filterUsers]);
+  }, [fetchData]);
 
   useEffect(() => {
     filterLogs();
@@ -147,30 +90,6 @@ export default function AdminDashboard() {
     filterLogs,
   ]);
 
-  useEffect(() => {
-    filterVehicles();
-  }, [vehicles, vehicleSearchQuery, filterVehicles]);
-
-  const filterVehicles = () => {
-    if (!vehicleSearchQuery.trim()) {
-      setFilteredVehicles(vehicles);
-      return;
-    }
-
-    const filtered = vehicles.filter(
-      (vehicle) =>
-        vehicle.license_plate.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-        vehicle.model?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-        vehicle.brand?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-        vehicle.color?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-        vehicle.apartments?.number?.toLowerCase().includes(vehicleSearchQuery.toLowerCase()) ||
-        vehicle.apartments?.buildings?.name
-          ?.toLowerCase()
-          .includes(vehicleSearchQuery.toLowerCase())
-    );
-    setFilteredVehicles(filtered);
-  };
-
   const fetchData = async () => {
     try {
       // Obter o administrador atual
@@ -183,22 +102,7 @@ export default function AdminDashboard() {
       // Buscar apenas os prédios gerenciados pelo administrador atual
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
 
-      const [usersData, apartmentsData, activitiesData, logsData] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select(
-            `
-            *,
-            apartment_residents(
-              apartments(
-                id,
-                number,
-                building_id
-              )
-            )
-          `
-          )
-          .order('created_at', { ascending: false }),
+      const [apartmentsData, activitiesData, logsData] = await Promise.all([
         supabase.from('apartments').select('*').order('number'),
         supabase
           .from('visitor_logs')
@@ -210,15 +114,6 @@ export default function AdminDashboard() {
           .select('*, profiles(name), buildings(name)')
           .order('created_at', { ascending: false }),
       ]);
-
-      // Mapear os dados dos usuários para incluir apartamentos
-      const mappedUsers = (usersData.data || []).map((user) => ({
-        ...user,
-        role: user.user_type || user.role,
-        apartments: user.apartment_residents?.map((ar) => ar.apartments) || [],
-      }));
-
-      setUsers(mappedUsers);
       setBuildings(adminBuildings || []);
       setApartments(apartmentsData.data || []);
       setActivities(activitiesData.data || []);
@@ -226,47 +121,6 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     }
-  };
-
-  const loadVehicles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select(
-          `
-          *,
-          apartments(
-            id,
-            number,
-            buildings(
-              id,
-              name
-            )
-          )
-        `
-        )
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setVehicles(data || []);
-      setFilteredVehicles(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar veículos:', error);
-    }
-  };
-
-  const filterUsers = () => {
-    if (!searchQuery) {
-      setFilteredUsers(users);
-      return;
-    }
-    const filtered = users.filter(
-      (user) =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.cpf?.includes(searchQuery) ||
-        user.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredUsers(filtered);
   };
 
   const filterLogs = () => {
@@ -346,109 +200,6 @@ export default function AdminDashboard() {
     router.push('/admin/emergency');
   };
 
-  const handleAddUser = async () => {
-    if (!newUser.name) {
-      Alert.alert('Erro', 'Nome é obrigatório');
-      return;
-    }
-
-    // Validar apartamentos para moradores
-    if (newUser.role === 'morador' && newUser.selected_apartments.length === 0) {
-      Alert.alert('Erro', 'Selecione pelo menos um apartamento para o morador');
-      return;
-    }
-
-    try {
-      const userData: any = {
-        name: newUser.name,
-        user_type: newUser.role,
-        password: newUser.password || null,
-      };
-
-      if (newUser.role === 'morador' || newUser.role === 'porteiro') {
-        userData.cpf = newUser.cpf;
-        userData.phone = newUser.phone;
-        userData.email = newUser.email;
-        userData.building_id = newUser.building_id;
-        userData.photo_url = newUser.photo_url;
-      }
-
-      // Inserir usuário na tabela profiles
-      const { data: insertedUser, error: userError } = await supabase
-        .from('profiles')
-        .insert(userData)
-        .select()
-        .single();
-
-      if (userError) throw userError;
-
-      // Se for morador, associar aos apartamentos selecionados
-      if (newUser.role === 'morador' && newUser.selected_apartments.length > 0) {
-        const apartmentAssociations = newUser.selected_apartments.map((apartmentId) => ({
-          profile_id: insertedUser.id,
-          apartment_id: apartmentId,
-          is_owner: false,
-        }));
-
-        const { error: associationError } = await supabase
-          .from('apartment_residents')
-          .insert(apartmentAssociations);
-
-        if (associationError) throw associationError;
-      }
-
-      Alert.alert('Sucesso', 'Usuário criado com sucesso');
-      setNewUser({
-        name: '',
-        role: 'morador',
-        cpf: '',
-        phone: '',
-        email: '',
-        building_id: '',
-        selected_apartments: [],
-        photo_url: '',
-        password: '',
-      });
-      setShowAddForm(false);
-      fetchData();
-    } catch (error) {
-      console.error('Erro ao criar usuário:', error);
-      Alert.alert('Erro', 'Falha ao criar usuário');
-    }
-  };
-
-  const handleAddVehicle = async () => {
-    if (
-      !newVehicle.license_plate ||
-      !newVehicle.model ||
-      !newVehicle.building_id ||
-      !newVehicle.resident_id
-    ) {
-      Alert.alert('Erro', 'Preencha todos os campos obrigatórios');
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase.from('vehicles').insert([newVehicle]).select();
-
-      if (error) throw error;
-
-      Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!');
-      setNewVehicle({
-        license_plate: '',
-        model: '',
-        parking_spot: '',
-        building_id: '',
-        resident_id: '',
-      });
-      setShowAddVehicleForm(false);
-      loadVehicles();
-    } catch (error) {
-      console.error('Erro ao cadastrar veículo:', error);
-      Alert.alert('Erro', 'Falha ao cadastrar veículo');
-    }
-  };
-
   const handleSendCommunication = async () => {
     if (!communication.title || !communication.description) {
       Alert.alert('Erro', 'Título e descrição são obrigatórios');
@@ -471,23 +222,9 @@ export default function AdminDashboard() {
         description: '',
         building_id: '',
         target_user: 'all',
-        specific_user_id: '',
       });
     } catch (error) {
       Alert.alert('Erro', 'Falha ao enviar comunicado');
-    }
-  };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setNewUser((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
     }
   };
 
@@ -540,24 +277,10 @@ export default function AdminDashboard() {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{buildings.length}</Text>
-          <Text style={styles.statLabel}>Prédios</Text>
+          <Text style={styles.statLabel}>Prédios gerenciados</Text>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => router.push('/admin/buildings')}>
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {users.filter((u) => u.role === 'morador' || u.role === 'porteiro').length}
-          </Text>
-          <Text style={styles.statLabel}>Usuários</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => {
-              setShowAddForm(true);
-              setActiveTab('users');
-            }}>
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
@@ -575,259 +298,6 @@ export default function AdminDashboard() {
           </View>
         ))}
       </View>
-    </ScrollView>
-  );
-
-  const renderUsers = () => (
-    <ScrollView style={styles.content}>
-      {/* Abas de Usuários e Veículos */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, userSubTab === 'users' && styles.tabButtonActive]}
-          onPress={() => setUserSubTab('users')}>
-          <Text
-            style={[styles.tabButtonText, userSubTab === 'users' && styles.tabButtonTextActive]}>
-            👥 Usuários
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, userSubTab === 'vehicles' && styles.tabButtonActive]}
-          onPress={() => setUserSubTab('vehicles')}>
-          <Text
-            style={[styles.tabButtonText, userSubTab === 'vehicles' && styles.tabButtonTextActive]}>
-            🚗 Veículos
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {userSubTab === 'users' ? (
-        <>
-          <View style={styles.cardsContainer}>
-            <View style={styles.searchCard}>
-              <Text style={styles.cardIcon}>🔍</Text>
-              <TextInput
-                style={styles.searchCardInput}
-                placeholder="Buscar por CPF, nome, email..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-            <TouchableOpacity
-              style={styles.newUserCard}
-              onPress={() => setShowAddForm(!showAddForm)}>
-              <Text style={styles.cardIcon}>{showAddForm ? '🔍' : '👤+'}</Text>
-              <Text style={styles.newUserCardText}>{showAddForm ? 'Buscar' : 'Novo Usuário'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {showAddForm && (
-            <View style={styles.addForm}>
-              <Text style={styles.formTitle}>Novo Usuário</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nome completo"
-                value={newUser.name}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-              />
-
-              <View style={styles.roleSelector}>
-                <Text style={styles.roleLabel}>Tipo:</Text>
-                <View style={styles.roleButtons}>
-                  {['morador', 'porteiro'].map((role) => (
-                    <TouchableOpacity
-                      key={role}
-                      style={[styles.roleButton, newUser.role === role && styles.roleButtonActive]}
-                      onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
-                      <Text style={styles.roleButtonText}>{role}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="CPF"
-                    value={newUser.cpf}
-                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Telefone"
-                    value={newUser.phone}
-                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder={newUser.role === 'morador' ? 'Email (opcional)' : 'Email'}
-                    value={newUser.email}
-                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
-                  />
-
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={newUser.building_id}
-                      onValueChange={(value) =>
-                        setNewUser((prev) => ({ ...prev, building_id: value }))
-                      }>
-                      <Picker.Item label="Selecione um prédio" value="" />
-                      {buildings.map((building) => (
-                        <Picker.Item key={building.id} label={building.name} value={building.id} />
-                      ))}
-                    </Picker>
-                  </View>
-
-                  {newUser.role === 'morador' && (
-                    <View style={styles.pickerContainer}>
-                      <Picker
-                        selectedValue={newUser.apartment_id}
-                        onValueChange={(value) =>
-                          setNewUser((prev) => ({ ...prev, apartment_id: value }))
-                        }>
-                        <Picker.Item label="Selecione um apartamento" value="" />
-                        {apartments
-                          .filter((apt) => apt.building_id === newUser.building_id)
-                          .map((apartment) => (
-                            <Picker.Item
-                              key={apartment.id}
-                              label={apartment.number}
-                              value={apartment.id}
-                            />
-                          ))}
-                      </Picker>
-                    </View>
-                  )}
-
-                  <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-                    <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-
-              <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
-                <Text style={styles.submitButtonText}>Criar Usuário</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.usersList}>
-            {filteredUsers.map((user) => (
-              <View key={user.id} style={styles.userCard}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <Text style={styles.userRole}>{user.role}</Text>
-                {user.email && <Text style={styles.userEmail}>{user.email}</Text>}
-              </View>
-            ))}
-          </View>
-        </>
-      ) : (
-        <>
-          <View style={styles.vehicleActionsContainer}>
-            <TouchableOpacity
-              style={styles.newUserCard}
-              onPress={() => setShowAddVehicleForm(!showAddVehicleForm)}>
-              <Text style={styles.cardIcon}>{showAddVehicleForm ? '❌' : '🚗+'}</Text>
-              <Text style={styles.newUserCardText}>
-                {showAddVehicleForm ? 'Cancelar' : 'Novo Veículo'}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.vehicleSearchContainer}>
-              <View style={styles.searchCard}>
-                <Text style={styles.cardIcon}>🔍</Text>
-                <TextInput
-                  style={styles.searchCardInput}
-                  placeholder="Buscar por placa, modelo, vaga, morador..."
-                  value={vehicleSearchQuery}
-                  onChangeText={setVehicleSearchQuery}
-                />
-              </View>
-              <TouchableOpacity style={styles.vehicleSearchButton} onPress={() => filterVehicles()}>
-                <Text style={styles.vehicleSearchButtonText}>🔍 Procurar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {showAddVehicleForm && (
-            <View style={styles.addForm}>
-              <Text style={styles.formTitle}>Novo Veículo</Text>
-
-              <TextInput
-                style={styles.input}
-                placeholder="Placa do Carro"
-                value={newVehicle.license_plate}
-                onChangeText={(text) =>
-                  setNewVehicle((prev) => ({ ...prev, license_plate: text.toUpperCase() }))
-                }
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Modelo do Carro"
-                value={newVehicle.model}
-                onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, model: text }))}
-              />
-
-              <TextInput
-                style={styles.input}
-                placeholder="Local da Vaga (opcional)"
-                value={newVehicle.parking_spot}
-                onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, parking_spot: text }))}
-              />
-
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={newVehicle.building_id}
-                  onValueChange={(value) =>
-                    setNewVehicle((prev) => ({ ...prev, building_id: value, resident_id: '' }))
-                  }>
-                  <Picker.Item label="Selecione um prédio" value="" />
-                  {buildings.map((building) => (
-                    <Picker.Item key={building.id} label={building.name} value={building.id} />
-                  ))}
-                </Picker>
-              </View>
-
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={newVehicle.resident_id}
-                  onValueChange={(value) =>
-                    setNewVehicle((prev) => ({ ...prev, resident_id: value }))
-                  }>
-                  <Picker.Item label="Selecione um morador" value="" />
-                  {users
-                    .filter(
-                      (user) =>
-                        user.role === 'morador' && user.building_id === newVehicle.building_id
-                    )
-                    .map((resident) => (
-                      <Picker.Item key={resident.id} label={resident.name} value={resident.id} />
-                    ))}
-                </Picker>
-              </View>
-
-              <TouchableOpacity style={styles.submitButton} onPress={handleAddVehicle}>
-                <Text style={styles.submitButtonText}>Cadastrar Veículo</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.usersList}>
-            {filteredVehicles.map((vehicle) => (
-              <View key={vehicle.id} style={styles.userCard}>
-                <Text style={styles.userName}>{vehicle.license_plate}</Text>
-                <Text style={styles.userRole}>{vehicle.model}</Text>
-                <Text style={styles.userEmail}>
-                  Vaga: {vehicle.parking_spot || 'Não informada'}
-                </Text>
-                <Text style={styles.userEmail}>Morador: {vehicle.users?.name}</Text>
-                <Text style={styles.userEmail}>Prédio: {vehicle.buildings?.name}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
     </ScrollView>
   );
 
@@ -1081,38 +551,11 @@ export default function AdminDashboard() {
           <Picker
             selectedValue={communication.target_user}
             onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, target_user: value, specific_user_id: '' }))
+              setCommunication((prev) => ({ ...prev, target_user: value }))
             }>
             <Picker.Item label="Todos os moradores" value="all" />
-            <Picker.Item label="Morador específico" value="specific" />
           </Picker>
         </View>
-
-        {communication.target_user === 'specific' && (
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={communication.specific_user_id}
-              onValueChange={(value) =>
-                setCommunication((prev) => ({ ...prev, specific_user_id: value }))
-              }>
-              <Picker.Item label="Selecione um morador" value="" />
-              {users
-                .filter(
-                  (user) =>
-                    user.role === 'morador' &&
-                    (communication.building_id === '' ||
-                      user.building_id === communication.building_id)
-                )
-                .map((user) => (
-                  <Picker.Item
-                    key={user.id}
-                    label={`${user.name}${user.building_id ? ` - ${buildings.find((b) => b.id === user.building_id)?.name || ''}` : ''}`}
-                    value={user.id}
-                  />
-                ))}
-            </Picker>
-          </View>
-        )}
 
         <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
           <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
@@ -1130,9 +573,7 @@ export default function AdminDashboard() {
         <Text style={styles.navLabel}>Dashboard</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.navItem, activeTab === 'users' && styles.navItemActive]}
-        onPress={() => setActiveTab('users')}>
+      <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
         <Text style={styles.navIcon}>👥</Text>
         <Text style={styles.navLabel}>Usuários</Text>
       </TouchableOpacity>
@@ -1157,8 +598,6 @@ export default function AdminDashboard() {
     switch (activeTab) {
       case 'dashboard':
         return renderDashboard();
-      case 'users':
-        return renderUsers();
       case 'logs':
         return renderLogs();
       case 'communications':

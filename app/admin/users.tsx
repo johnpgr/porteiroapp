@@ -9,11 +9,22 @@ import {
   Alert,
   Image,
   SafeAreaView,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
+import {
+  sendWhatsAppMessage,
+  sendBulkWhatsAppMessages,
+  validateBrazilianPhone,
+  formatBrazilianPhone,
+  isEvolutionApiConfigured,
+  showConfigurationAlert,
+  ResidentData,
+} from '~/utils/whatsapp';
 
 interface User {
   id: string;
@@ -40,6 +51,17 @@ interface Apartment {
   building_id: string;
 }
 
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  model: string;
+  color: string;
+  parking_spot?: string;
+  owner_id: string;
+  building_id: string;
+  created_at: string;
+}
+
 export default function UsersManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -51,39 +73,61 @@ export default function UsersManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
-    role: 'morador' as 'admin' | 'porteiro' | 'morador',
-    cpf: '',
+    type: 'morador' as 'morador' | 'porteiro',
     phone: '',
-    email: '',
-    building_id: '',
-    selected_apartments: [] as string[],
-    photo_url: '',
-    password: '',
+    selectedBuildingId: '',
+    selectedApartmentIds: [] as string[],
   });
+
+  const [multipleResidents, setMultipleResidents] = useState([
+    { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+  ]);
+  const [showMultipleForm, setShowMultipleForm] = useState(false);
+
+  // Estados para cadastro em massa e WhatsApp
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkResidents, setBulkResidents] = useState<ResidentData[]>([]);
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  const [whatsappBaseUrl, setWhatsappBaseUrl] = useState('https://cadastro.porteiroapp.com');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+  // Estados para cadastro de veículos
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [newVehicle, setNewVehicle] = useState({
+    license_plate: '',
+    model: '',
+    color: '',
+    parking_spot: '',
+    selectedBuildingId: '',
+    selectedOwnerId: '',
+  });
+  const [vehicleOwners, setVehicleOwners] = useState<User[]>([]);
 
   useEffect(() => {
     fetchUsers();
     fetchBuildings();
     fetchApartments();
-  }, [fetchUsers, fetchBuildings, fetchApartments]);
+  }, []);
 
   useEffect(() => {
-    if (newUser.building_id) {
-      const filtered = apartments.filter((apt) => apt.building_id === newUser.building_id);
-      console.log('🏢 Prédio selecionado:', newUser.building_id);
+    if (newUser.selectedBuildingId) {
+      const filtered = apartments.filter((apt) => apt.building_id === newUser.selectedBuildingId);
+      console.log('🏢 Prédio selecionado:', newUser.selectedBuildingId);
       console.log('🔍 Total de apartamentos disponíveis:', apartments.length);
       console.log('✅ Apartamentos filtrados para este prédio:', filtered.length);
       console.log('📝 Lista filtrada:', filtered);
       setFilteredApartments(filtered);
-      setNewUser((prev) => ({ ...prev, selected_apartments: [] }));
+      setNewUser((prev) => ({ ...prev, selectedApartmentIds: [] }));
     } else {
       setFilteredApartments([]);
     }
-  }, [newUser.building_id, apartments]);
+  }, [newUser.selectedBuildingId, apartments]);
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchQuery, filterUsers]);
+  }, [users, searchQuery]);
 
   const filterUsers = () => {
     if (!searchQuery.trim()) {
@@ -180,42 +224,169 @@ export default function UsersManagement() {
     }
   };
 
-  const handleAddUser = async () => {
-    if (!newUser.name) {
+  const validateUser = () => {
+    if (!newUser.name.trim()) {
       Alert.alert('Erro', 'Nome é obrigatório');
+      return false;
+    }
+    if (!newUser.phone.trim()) {
+      Alert.alert('Erro', 'Telefone é obrigatório');
+      return false;
+    }
+    if (!validateBrazilianPhone(newUser.phone)) {
+      Alert.alert('Erro', 'Telefone deve estar no formato brasileiro válido');
+      return false;
+    }
+    if (!newUser.selectedBuildingId) {
+      Alert.alert('Erro', 'Prédio é obrigatório');
+      return false;
+    }
+    if (newUser.type === 'morador' && newUser.selectedApartmentIds.length === 0) {
+      Alert.alert('Erro', 'Pelo menos um apartamento deve ser selecionado para moradores');
+      return false;
+    }
+    return true;
+  };
+
+  const validateMultipleResidents = () => {
+    for (let i = 0; i < multipleResidents.length; i++) {
+      const resident = multipleResidents[i];
+      if (!resident.name.trim()) {
+        Alert.alert('Erro', `Nome é obrigatório para o morador ${i + 1}`);
+        return false;
+      }
+      if (!resident.phone.trim()) {
+        Alert.alert('Erro', `Telefone é obrigatório para o morador ${i + 1}`);
+        return false;
+      }
+      if (!validateBrazilianPhone(resident.phone)) {
+        Alert.alert('Erro', `Telefone inválido para o morador ${i + 1}`);
+        return false;
+      }
+      if (!resident.selectedBuildingId) {
+        Alert.alert('Erro', `Prédio é obrigatório para o morador ${i + 1}`);
+        return false;
+      }
+      if (!resident.selectedApartmentId) {
+        Alert.alert('Erro', `Apartamento é obrigatório para o morador ${i + 1}`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const addMultipleResident = () => {
+    setMultipleResidents([
+      ...multipleResidents,
+      { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+    ]);
+  };
+
+  const removeMultipleResident = (index: number) => {
+    if (multipleResidents.length > 1) {
+      const updated = multipleResidents.filter((_, i) => i !== index);
+      setMultipleResidents(updated);
+    }
+  };
+
+  const updateMultipleResident = (index: number, field: string, value: string) => {
+    const updated = [...multipleResidents];
+    updated[index] = { ...updated[index], [field]: value };
+    setMultipleResidents(updated);
+  };
+
+  const handleMultipleResidents = async () => {
+    if (!validateMultipleResidents()) {
       return;
     }
 
-    if (newUser.role === 'morador' || newUser.role === 'porteiro') {
-      if (!newUser.cpf || !newUser.phone || !newUser.email) {
-        Alert.alert('Erro', 'CPF, telefone e email são obrigatórios');
-        return;
+    try {
+      setLoading(true);
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const resident of multipleResidents) {
+        try {
+          // Criar usuário
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .insert({
+              name: resident.name,
+              phone: resident.phone,
+              role: 'morador',
+            })
+            .select()
+            .single();
+
+          if (userError) throw userError;
+
+          // Associar ao apartamento
+          const { error: residentsError } = await supabase.from('residents').insert({
+            user_id: userData.id,
+            apartment_id: resident.selectedApartmentId,
+            building_id: resident.selectedBuildingId,
+          });
+
+          if (residentsError) throw residentsError;
+
+          // Enviar WhatsApp se habilitado
+          if (sendWhatsApp && whatsappBaseUrl) {
+            const building = buildings.find((b) => b.id === resident.selectedBuildingId);
+            const apartment = apartments.find((a) => a.id === resident.selectedApartmentId);
+
+            if (building && apartment) {
+              const residentData: ResidentData = {
+                name: resident.name,
+                phone: resident.phone,
+                building: building.name,
+                apartment: apartment.number,
+              };
+              await sendWhatsAppMessage(residentData, whatsappBaseUrl);
+            }
+          }
+
+          successCount++;
+        } catch (error) {
+          console.error('Erro ao cadastrar morador:', error);
+          errorCount++;
+          errors.push(`${resident.name}: ${error.message}`);
+        }
       }
-      if (!newUser.building_id) {
-        Alert.alert('Erro', 'Prédio é obrigatório');
-        return;
+
+      // Mostrar resultado
+      const message = `Cadastro concluído!\n${successCount} moradores cadastrados com sucesso.${errorCount > 0 ? `\n${errorCount} erros encontrados.` : ''}`;
+      Alert.alert('Resultado', message);
+
+      if (successCount > 0) {
+        // Limpar formulário
+        setMultipleResidents([
+          { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+        ]);
+        setShowMultipleForm(false);
+        fetchUsers();
       }
-      if (newUser.role === 'morador' && newUser.selected_apartments.length === 0) {
-        Alert.alert('Erro', 'Pelo menos um apartamento é obrigatório para moradores');
-        return;
-      }
+    } catch (error) {
+      console.error('Erro geral:', error);
+      Alert.alert('Erro', 'Erro ao processar cadastros');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!validateUser()) {
+      return;
     }
 
     try {
+      setLoading(true);
       const userData: any = {
         name: newUser.name,
-        user_type: newUser.role,
-        password: newUser.password || null,
+        user_type: newUser.type,
+        phone: newUser.phone,
+        building_id: newUser.selectedBuildingId,
       };
-
-      if (newUser.role === 'morador' || newUser.role === 'porteiro') {
-        userData.cpf = newUser.cpf;
-        userData.phone = newUser.phone;
-        userData.email = newUser.email;
-        userData.condominium_id = newUser.building_id;
-        userData.building_id = newUser.building_id;
-        userData.photo_url = newUser.photo_url;
-      }
 
       const { data: insertedUser, error } = await supabase
         .from('profiles')
@@ -226,11 +397,11 @@ export default function UsersManagement() {
       if (error) throw error;
 
       // Se for morador, associar aos apartamentos selecionados
-      if (newUser.role === 'morador' && newUser.selected_apartments.length > 0) {
-        const apartmentAssociations = newUser.selected_apartments.map((apartmentId) => ({
+      if (newUser.type === 'morador' && newUser.selectedApartmentIds.length > 0) {
+        const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
           profile_id: insertedUser.id,
           apartment_id: apartmentId,
-          is_owner: false, // Por padrão, não é proprietário
+          is_owner: false,
         }));
 
         const { error: associationError } = await supabase
@@ -240,24 +411,26 @@ export default function UsersManagement() {
         if (associationError) throw associationError;
       }
 
-      if (error) throw error;
+      // Enviar WhatsApp se habilitado
+      if (sendWhatsApp && newUser.type === 'morador') {
+        await handleSingleUserWhatsApp(insertedUser, newUser.selectedApartmentIds);
+      }
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
       setNewUser({
         name: '',
-        role: 'morador',
-        cpf: '',
+        type: 'morador',
         phone: '',
-        email: '',
-        building_id: '',
-        selected_apartments: [],
-        photo_url: '',
-        password: '',
+        selectedBuildingId: '',
+        selectedApartmentIds: [],
       });
       setShowAddForm(false);
       fetchUsers();
     } catch (error) {
+      console.error('Erro ao criar usuário:', error);
       Alert.alert('Erro', 'Falha ao criar usuário');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -283,6 +456,223 @@ export default function UsersManagement() {
         },
       },
     ]);
+  };
+
+  // Funções para cadastro em massa e WhatsApp
+  const addBulkResident = () => {
+    setBulkResidents([...bulkResidents, { name: '', phone: '', building: '', apartment: '' }]);
+  };
+
+  const removeBulkResident = (index: number) => {
+    setBulkResidents(bulkResidents.filter((_, i) => i !== index));
+  };
+
+  const updateBulkResident = (index: number, field: keyof ResidentData, value: string) => {
+    const updated = [...bulkResidents];
+    updated[index] = { ...updated[index], [field]: value };
+    setBulkResidents(updated);
+  };
+
+  const validateBulkResidents = (): boolean => {
+    for (let i = 0; i < bulkResidents.length; i++) {
+      const resident = bulkResidents[i];
+      if (!resident.name || !resident.phone || !resident.building || !resident.apartment) {
+        Alert.alert('Erro', `Morador ${i + 1}: Todos os campos são obrigatórios`);
+        return false;
+      }
+      if (!validateBrazilianPhone(resident.phone)) {
+        Alert.alert('Erro', `Morador ${i + 1}: Número de telefone inválido`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleBulkRegistration = async () => {
+    if (!validateBulkResidents()) return;
+
+    if (sendWhatsApp && !isEvolutionApiConfigured()) {
+      showConfigurationAlert();
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingStatus('Iniciando cadastro em massa...');
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < bulkResidents.length; i++) {
+        const resident = bulkResidents[i];
+        setProcessingStatus(`Processando ${resident.name} (${i + 1}/${bulkResidents.length})...`);
+
+        try {
+          // Buscar building_id pelo nome
+          const building = buildings.find((b) => b.name === resident.building);
+          if (!building) {
+            errors.push(`${resident.name}: Prédio '${resident.building}' não encontrado`);
+            errorCount++;
+            continue;
+          }
+
+          // Buscar apartment_id pelo número e building_id
+          const apartment = apartments.find(
+            (a) => a.number === resident.apartment && a.building_id === building.id
+          );
+          if (!apartment) {
+            errors.push(
+              `${resident.name}: Apartamento '${resident.apartment}' não encontrado no prédio '${resident.building}'`
+            );
+            errorCount++;
+            continue;
+          }
+
+          // Criar usuário
+          const userData = {
+            name: resident.name,
+            user_type: 'morador',
+            phone: resident.phone,
+            condominium_id: building.id,
+            building_id: building.id,
+          };
+
+          const { data: insertedUser, error } = await supabase
+            .from('profiles')
+            .insert(userData)
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          // Associar ao apartamento
+          const { error: associationError } = await supabase.from('residents').insert({
+            user_id: insertedUser.id,
+            apartment_id: apartment.id,
+            is_owner: false,
+          });
+
+          if (associationError) throw associationError;
+
+          successCount++;
+
+          // Enviar WhatsApp se habilitado
+          if (sendWhatsApp) {
+            setProcessingStatus(`Enviando WhatsApp para ${resident.name}...`);
+            const whatsappResult = await sendWhatsAppMessage(resident, whatsappBaseUrl);
+            if (!whatsappResult.success) {
+              errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
+            }
+          }
+        } catch (error) {
+          errorCount++;
+          errors.push(
+            `${resident.name}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+          );
+        }
+
+        // Delay entre processamentos
+        if (i < bulkResidents.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
+      // Mostrar resultado
+      let message = `Cadastro concluído!\n\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`;
+      if (errors.length > 0) {
+        message += `\n\nErros:\n${errors.slice(0, 5).join('\n')}`;
+        if (errors.length > 5) {
+          message += `\n... e mais ${errors.length - 5} erros`;
+        }
+      }
+
+      Alert.alert('Resultado do Cadastro', message);
+
+      if (successCount > 0) {
+        setBulkResidents([]);
+        setShowBulkForm(false);
+        fetchUsers();
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Falha no cadastro em massa');
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
+    }
+  };
+
+  const handleSingleUserWhatsApp = async (userData: any, apartmentIds: string[]) => {
+    if (!sendWhatsApp || !isEvolutionApiConfigured()) return;
+
+    try {
+      // Para cada apartamento selecionado, enviar WhatsApp
+      for (const apartmentId of apartmentIds) {
+        const apartment = apartments.find((a) => a.id === apartmentId);
+        const building = buildings.find((b) => b.id === apartment?.building_id);
+
+        if (apartment && building) {
+          const residentData: ResidentData = {
+            name: userData.name,
+            phone: userData.phone,
+            building: building.name,
+            apartment: apartment.number,
+          };
+
+          const result = await sendWhatsAppMessage(residentData, whatsappBaseUrl);
+          if (!result.success) {
+            Alert.alert('Aviso', `Erro ao enviar WhatsApp: ${result.error}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao enviar WhatsApp:', error);
+    }
+  };
+
+  const handleAddVehicle = async () => {
+    if (!newVehicle.license_plate || !newVehicle.model || !newVehicle.color) {
+      Alert.alert(
+        'Erro',
+        'Por favor, preencha todos os campos obrigatórios (placa, modelo e cor).'
+      );
+      return;
+    }
+
+    if (!newVehicle.selectedBuildingId || !newVehicle.selectedOwnerId) {
+      Alert.alert('Erro', 'Por favor, selecione um prédio e proprietário.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('vehicles').insert({
+        license_plate: newVehicle.license_plate,
+        model: newVehicle.model,
+        color: newVehicle.color,
+        parking_spot: newVehicle.parking_spot || null,
+        owner_id: newVehicle.selectedOwnerId,
+      });
+
+      if (error) throw error;
+
+      Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!');
+      setShowVehicleForm(false);
+      setNewVehicle({
+        license_plate: '',
+        model: '',
+        color: '',
+        parking_spot: '',
+        selectedBuildingId: '',
+        selectedOwnerId: '',
+      });
+      setVehicleOwners([]);
+    } catch (error) {
+      console.error('Erro ao cadastrar veículo:', error);
+      Alert.alert('Erro', 'Erro ao cadastrar veículo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -335,10 +725,26 @@ export default function UsersManagement() {
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.multipleButton}
+          onPress={() => setShowMultipleForm(!showMultipleForm)}>
+          <Text style={styles.multipleButtonText}>
+            {showMultipleForm ? '❌ Cancelar' : '👥 Múltiplos Disparos'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.vehicleButton}
+          onPress={() => setShowVehicleForm(!showVehicleForm)}>
+          <Text style={styles.vehicleButtonText}>
+            {showVehicleForm ? '❌ Cancelar' : '🚗 Adicionar Veículo'}
+          </Text>
+        </TouchableOpacity>
+
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
-            placeholder="🔍 Buscar por nome, email, CPF, telefone ou tipo..."
+            placeholder="🔍 Buscar por nome, telefone ou tipo..."
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -349,32 +755,27 @@ export default function UsersManagement() {
       </View>
 
       {showAddForm && (
-        <ScrollView style={styles.addForm}>
-          <Text style={styles.formTitle}>Novo Usuário</Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Nome completo"
-            value={newUser.name}
-            onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-          />
+        <ScrollView
+          style={[styles.addForm, { paddingVertical: 20 }]}
+          contentContainerStyle={{ paddingBottom: 40 }}>
+          <Text style={styles.formTitle}>✨ Novo Usuário</Text>
 
           <View style={styles.roleSelector}>
             <Text style={styles.roleLabel}>Tipo de usuário:</Text>
             <View style={styles.roleButtons}>
-              {['morador', 'porteiro', 'admin'].map((role) => (
+              {['morador', 'porteiro'].map((role) => (
                 <TouchableOpacity
                   key={role}
                   style={[
                     styles.roleButton,
-                    newUser.role === role && styles.roleButtonActive,
+                    newUser.type === role && styles.roleButtonActive,
                     { borderColor: getRoleColor(role) },
                   ]}
-                  onPress={() => setNewUser((prev) => ({ ...prev, role: role as any }))}>
+                  onPress={() => setNewUser((prev) => ({ ...prev, type: role as any }))}>
                   <Text
                     style={[
                       styles.roleButtonText,
-                      newUser.role === role && { color: getRoleColor(role) },
+                      newUser.type === role && { color: getRoleColor(role) },
                     ]}>
                     {getRoleIcon(role)} {role.charAt(0).toUpperCase() + role.slice(1)}
                   </Text>
@@ -383,41 +784,210 @@ export default function UsersManagement() {
             </View>
           </View>
 
-          {(newUser.role === 'morador' || newUser.role === 'porteiro') && (
-            <>
-              <TextInput
-                style={styles.input}
-                placeholder="CPF"
-                value={newUser.cpf}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, cpf: text }))}
-                keyboardType="numeric"
-                maxLength={14}
-              />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Nome Completo *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Digite o nome completo"
+              value={newUser.name}
+              onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
+              autoCapitalize="words"
+            />
+          </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Telefone"
-                value={newUser.phone}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
-                keyboardType="phone-pad"
-              />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Telefone WhatsApp *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="(11) 99999-9999"
+              value={newUser.phone}
+              onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
+              keyboardType="phone-pad"
+            />
+          </View>
 
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                value={newUser.email}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Prédio *</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={newUser.selectedBuildingId}
+                style={styles.picker}
+                onValueChange={(itemValue) =>
+                  setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
+                }>
+                <Picker.Item label="Selecione um prédio" value="" />
+                {buildings.map((building) => (
+                  <Picker.Item key={building.id} label={building.name} value={building.id} />
+                ))}
+              </Picker>
+            </View>
+          </View>
 
-              <View style={styles.pickerContainer}>
-                <Text style={styles.pickerLabel}>Prédio:</Text>
+          {newUser.type === 'morador' && newUser.selectedBuildingId && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Apartamentos *</Text>
+              <Text style={styles.sublabel}>Selecione um ou mais apartamentos</Text>
+              <View style={styles.apartmentsList}>
+                {filteredApartments.map((apartment) => (
+                  <TouchableOpacity
+                    key={apartment.id}
+                    style={[
+                      styles.apartmentOption,
+                      newUser.selectedApartmentIds.includes(apartment.id) &&
+                        styles.apartmentOptionSelected,
+                    ]}
+                    onPress={() => {
+                      const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
+                      if (isSelected) {
+                        setNewUser((prev) => ({
+                          ...prev,
+                          selectedApartmentIds: prev.selectedApartmentIds.filter(
+                            (id) => id !== apartment.id
+                          ),
+                        }));
+                      } else {
+                        setNewUser((prev) => ({
+                          ...prev,
+                          selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
+                        }));
+                      }
+                    }}>
+                    <Text
+                      style={[
+                        styles.apartmentOptionText,
+                        newUser.selectedApartmentIds.includes(apartment.id) &&
+                          styles.apartmentOptionTextSelected,
+                      ]}>
+                      {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '⭕'}{' '}
+                      Apartamento {apartment.number}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {newUser.type === 'morador' && (
+            <View style={styles.whatsappSection}>
+              <View style={styles.checkboxContainer}>
+                <TouchableOpacity
+                  style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
+                  onPress={() => setSendWhatsApp(!sendWhatsApp)}>
+                  {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
+                </TouchableOpacity>
+                <Text style={styles.checkboxLabel}>📱 Enviar mensagem via WhatsApp</Text>
+              </View>
+
+              {sendWhatsApp && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>URL Base do Site de Cadastro</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://seusite.com/cadastro"
+                    value={whatsappBaseUrl}
+                    onChangeText={setWhatsappBaseUrl}
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.submitButton, loading && styles.disabledButton]}
+            onPress={handleAddUser}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* Formulário de Múltiplos Disparos */}
+      {showMultipleForm && (
+        <ScrollView
+          style={[styles.multipleForm, { paddingVertical: 20 }]}
+          contentContainerStyle={{ paddingBottom: 40 }}>
+          <View style={styles.multipleHeader}>
+            <Text style={styles.multipleTitle}>Múltiplos Disparos</Text>
+            <TouchableOpacity onPress={() => setShowMultipleForm(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Configurações do WhatsApp */}
+          <View style={styles.whatsappSection}>
+            <View style={styles.checkboxContainer}>
+              <TouchableOpacity
+                style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
+                onPress={() => setSendWhatsApp(!sendWhatsApp)}>
+                {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
+              </TouchableOpacity>
+              <Text style={styles.checkboxLabel}>Enviar mensagem via WhatsApp</Text>
+            </View>
+
+            {sendWhatsApp && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>URL Base do Site de Cadastro</Text>
+                <TextInput
+                  style={styles.input}
+                  value={whatsappBaseUrl}
+                  onChangeText={setWhatsappBaseUrl}
+                  placeholder="https://seusite.com/cadastro"
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Lista de moradores */}
+          {multipleResidents.map((resident, index) => (
+            <View key={index} style={styles.residentCard}>
+              <View style={styles.residentHeader}>
+                <Text style={styles.residentTitle}>Morador {index + 1}</Text>
+                <View style={styles.residentActions}>
+                  {multipleResidents.length > 1 && (
+                    <TouchableOpacity onPress={() => removeMultipleResident(index)}>
+                      <Text style={styles.removeButton}>➖</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={addMultipleResident}>
+                    <Text style={styles.addButton}>➕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome Completo *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={resident.name}
+                  onChangeText={(value) => updateMultipleResident(index, 'name', value)}
+                  placeholder="Nome completo do morador"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Telefone WhatsApp *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={resident.phone}
+                  onChangeText={(value) => updateMultipleResident(index, 'phone', value)}
+                  placeholder="(11) 99999-9999"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Prédio *</Text>
                 <Picker
-                  selectedValue={newUser.building_id}
+                  selectedValue={resident.selectedBuildingId}
                   style={styles.picker}
-                  onValueChange={(itemValue) =>
-                    setNewUser((prev) => ({ ...prev, building_id: itemValue }))
+                  onValueChange={(value) =>
+                    updateMultipleResident(index, 'selectedBuildingId', value)
                   }>
                   <Picker.Item label="Selecione um prédio" value="" />
                   {buildings.map((building) => (
@@ -426,72 +996,180 @@ export default function UsersManagement() {
                 </Picker>
               </View>
 
-              {newUser.role === 'morador' && newUser.building_id && (
-                <View style={styles.pickerContainer}>
-                  <Text style={styles.pickerLabel}>Apartamentos:</Text>
-                  <Text style={styles.pickerSubLabel}>Selecione um ou mais apartamentos</Text>
-                  {filteredApartments.map((apartment) => (
-                    <TouchableOpacity
-                      key={apartment.id}
-                      style={[
-                        styles.apartmentOption,
-                        newUser.selected_apartments.includes(apartment.id) &&
-                          styles.apartmentOptionSelected,
-                      ]}
-                      onPress={() => {
-                        const isSelected = newUser.selected_apartments.includes(apartment.id);
-                        if (isSelected) {
-                          setNewUser((prev) => ({
-                            ...prev,
-                            selected_apartments: prev.selected_apartments.filter(
-                              (id) => id !== apartment.id
-                            ),
-                          }));
-                        } else {
-                          setNewUser((prev) => ({
-                            ...prev,
-                            selected_apartments: [...prev.selected_apartments, apartment.id],
-                          }));
-                        }
-                      }}>
-                      <Text
-                        style={[
-                          styles.apartmentOptionText,
-                          newUser.selected_apartments.includes(apartment.id) &&
-                            styles.apartmentOptionTextSelected,
-                        ]}>
-                        {newUser.selected_apartments.includes(apartment.id) ? '✓' : '○'} Apartamento{' '}
-                        {apartment.number}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              {resident.selectedBuildingId && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Apartamento *</Text>
+                  <Picker
+                    selectedValue={resident.selectedApartmentId}
+                    style={styles.picker}
+                    onValueChange={(value) =>
+                      updateMultipleResident(index, 'selectedApartmentId', value)
+                    }>
+                    <Picker.Item label="Selecione um apartamento" value="" />
+                    {apartments
+                      .filter((apt) => apt.building_id === resident.selectedBuildingId)
+                      .map((apartment) => (
+                        <Picker.Item
+                          key={apartment.id}
+                          label={apartment.number}
+                          value={apartment.id}
+                        />
+                      ))}
+                  </Picker>
                 </View>
               )}
+            </View>
+          ))}
 
-              <View style={styles.photoSection}>
-                <Text style={styles.photoLabel}>Foto do usuário:</Text>
-                <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-                  <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
-                </TouchableOpacity>
-                {newUser.photo_url && (
-                  <Image source={{ uri: newUser.photo_url }} style={styles.photoPreview} />
-                )}
-              </View>
-            </>
-          )}
+          <TouchableOpacity
+            style={[styles.submitButton, isProcessing && styles.disabledButton]}
+            onPress={handleMultipleResidents}
+            disabled={isProcessing}>
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>📤 Enviar Todos os Disparos</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      )}
 
-          {newUser.role !== 'morador' && (
+      {/* Modal de Status de Processamento */}
+      <Modal visible={isProcessing} transparent animationType="fade">
+        <View style={styles.processingOverlay}>
+          <View style={styles.processingModal}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.processingText}>{processingStatus}</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Cadastro de Veículos */}
+      {showVehicleForm && (
+        <ScrollView
+          style={[styles.vehicleForm, { paddingVertical: 20 }]}
+          contentContainerStyle={{ paddingBottom: 40 }}>
+          <View style={styles.vehicleHeader}>
+            <Text style={styles.vehicleTitle}>🚗 Novo Veículo</Text>
+            <TouchableOpacity onPress={() => setShowVehicleForm(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Placa do Veículo *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Senha (opcional)"
-              value={newUser.password}
-              onChangeText={(text) => setNewUser((prev) => ({ ...prev, password: text }))}
-              secureTextEntry
+              placeholder="ABC-1234"
+              value={newVehicle.license_plate}
+              onChangeText={(text) =>
+                setNewVehicle((prev) => ({ ...prev, license_plate: text.toUpperCase() }))
+              }
+              autoCapitalize="characters"
+              maxLength={8}
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Modelo do Veículo *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Honda Civic, Toyota Corolla"
+              value={newVehicle.model}
+              onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, model: text }))}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Cor do Veículo *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Branco, Preto, Prata"
+              value={newVehicle.color}
+              onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, color: text }))}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Vaga de Estacionamento</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: A-15, B-23 (opcional)"
+              value={newVehicle.parking_spot}
+              onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, parking_spot: text }))}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Prédio *</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={newVehicle.selectedBuildingId}
+                style={styles.picker}
+                onValueChange={(itemValue) => {
+                  setNewVehicle((prev) => ({
+                    ...prev,
+                    selectedBuildingId: itemValue,
+                    selectedOwnerId: '',
+                  }));
+                  if (itemValue) {
+                    const buildingResidents = users.filter(
+                      (user) =>
+                        user.role === 'morador' &&
+                        user.apartments?.some((apt) => apt.building_id === itemValue)
+                    );
+                    setVehicleOwners(buildingResidents);
+                  } else {
+                    setVehicleOwners([]);
+                  }
+                }}>
+                <Picker.Item label="Selecione um prédio" value="" />
+                {buildings.map((building) => (
+                  <Picker.Item key={building.id} label={building.name} value={building.id} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {newVehicle.selectedBuildingId && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Proprietário (Morador) *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={newVehicle.selectedOwnerId}
+                  style={styles.picker}
+                  onValueChange={(itemValue) =>
+                    setNewVehicle((prev) => ({ ...prev, selectedOwnerId: itemValue }))
+                  }>
+                  <Picker.Item label="Selecione o proprietário" value="" />
+                  {vehicleOwners.map((owner) => {
+                    const apartmentNumbers =
+                      owner.apartments?.map((apt) => apt.number).join(', ') || '';
+                    return (
+                      <Picker.Item
+                        key={owner.id}
+                        label={`${owner.name} - Apt: ${apartmentNumbers}`}
+                        value={owner.id}
+                      />
+                    );
+                  })}
+                </Picker>
+              </View>
+            </View>
           )}
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleAddUser}>
-            <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
+          <TouchableOpacity
+            style={[styles.submitButton, loading && styles.disabledButton]}
+            onPress={handleAddVehicle}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.submitButtonText}>🚗 Cadastrar Veículo</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -603,6 +1281,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
+  apartmentsList: {
+    maxHeight: 200,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 5,
+  },
   addButtonText: {
     color: '#fff',
     fontSize: 16,
@@ -631,36 +1316,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   roleSelector: {
-    marginBottom: 15,
+    marginBottom: 25,
   },
   roleLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 15,
+    color: '#2c3e50',
   },
   roleButtons: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     gap: 10,
   },
   roleButton: {
     flex: 1,
-    padding: 10,
+    padding: 15,
     borderWidth: 2,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
   roleButtonActive: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#e8f4fd',
+    borderWidth: 3,
   },
   roleButtonText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
+    color: '#34495e',
   },
   submitButton: {
     backgroundColor: '#2196F3',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  sublabel: {
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 5,
+    fontStyle: 'italic',
   },
   submitButtonText: {
     color: '#fff',
@@ -734,12 +1430,13 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderRadius: 10,
     marginBottom: 15,
     backgroundColor: '#fff',
     paddingHorizontal: 12,
+    overflow: 'hidden',
   },
   pickerLabel: {
     fontSize: 16,
@@ -755,26 +1452,28 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+    backgroundColor: 'transparent',
   },
   apartmentOption: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginBottom: 8,
-    backgroundColor: '#f9f9f9',
+    padding: 15,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: '#fff',
   },
   apartmentOptionSelected: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#2196F3',
+    backgroundColor: '#d4edda',
+    borderColor: '#28a745',
   },
   apartmentOptionText: {
     fontSize: 16,
-    color: '#333',
+    color: '#2c3e50',
+    fontWeight: '500',
   },
   apartmentOptionTextSelected: {
-    color: '#2196F3',
-    fontWeight: '600',
+    color: '#155724',
+    fontWeight: 'bold',
   },
   photoSection: {
     marginBottom: 15,
@@ -801,5 +1500,280 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     alignSelf: 'center',
+  },
+  userPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E0E0E0',
+    marginRight: 10,
+  },
+  bulkActions: {
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  bulkButton: {
+    backgroundColor: '#FF9800',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  bulkButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    fontSize: 24,
+    color: '#666',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  whatsappSection: {
+    marginTop: 25,
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    marginBottom: 20,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderWidth: 2,
+    borderColor: '#007bff',
+    borderRadius: 6,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#007bff',
+    borderColor: '#0056b3',
+  },
+  checkmark: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '500',
+    flex: 1,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 5,
+    color: '#333',
+  },
+  residentCard: {
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  residentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  residentTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  removeButton: {
+    fontSize: 20,
+  },
+  addResidentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  addResidentText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 5,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    gap: 10,
+  },
+  button: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  processingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  multipleButton: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginLeft: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  multipleButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  processingModal: {
+    backgroundColor: 'white',
+    padding: 30,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  processingText: {
+    marginTop: 15,
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#333',
+  },
+  multipleForm: {
+    backgroundColor: '#fff',
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  multipleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  multipleTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  residentActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  addResidentButtonStyle: {
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  vehicleButton: {
+    backgroundColor: '#9C27B0',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  vehicleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  vehicleForm: {
+    backgroundColor: '#fff',
+    margin: 20,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  vehicleTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
   },
 });

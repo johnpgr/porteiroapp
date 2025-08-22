@@ -35,6 +35,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const checkSession = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar sessão:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     checkSession();
 
@@ -51,21 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, [checkSession]);
-
-  const checkSession = useCallback(async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserProfile(session.user);
-      }
-    } catch (error) {
-      console.error('Erro ao verificar sessão:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const loadUserProfile = async (authUser: User) => {
     try {
