@@ -206,7 +206,119 @@ export default function UsersManagement() {
     setShowMultipleForm(true);
   };
 
-  // Função para seleção de foto
+  // Função para upload seguro de imagem para o Supabase Storage
+  const uploadImageToStorage = async (imageUri: string, userId: string): Promise<string | null> => {
+    try {
+      console.log('📸 [DEBUG] Iniciando upload - URI:', imageUri);
+      console.log('📸 [DEBUG] User ID:', userId);
+      
+      // Verificar se a URI é válida
+      if (!imageUri || !imageUri.startsWith('file://')) {
+        throw new Error('URI da imagem inválida');
+      }
+      
+      // Converter URI para blob com timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+      
+      const response = await fetch(imageUri, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Falha ao carregar imagem: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      console.log('📸 [DEBUG] Blob criado - Tipo:', blob.type, 'Tamanho:', blob.size);
+      
+      // Validar tipo de arquivo
+      if (!blob.type.startsWith('image/')) {
+        throw new Error('Arquivo deve ser uma imagem');
+      }
+      
+      // Validar tamanho (máximo 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (blob.size > maxSize) {
+        throw new Error('Imagem deve ter no máximo 5MB');
+      }
+      
+      // Gerar nome único para o arquivo
+      const fileExt = blob.type.split('/')[1] || 'jpg';
+      const fileName = `${userId}/${Date.now()}.${fileExt}`;
+      console.log('📸 [DEBUG] Nome do arquivo:', fileName);
+      
+      // Upload para o bucket profiles-images com retry
+      let uploadAttempts = 0;
+      const maxAttempts = 3;
+      let uploadError;
+      
+      while (uploadAttempts < maxAttempts) {
+        try {
+          uploadAttempts++;
+          console.log(`📸 [DEBUG] Tentativa de upload ${uploadAttempts}/${maxAttempts}`);
+          
+          const { data, error } = await supabase.storage
+            .from('profiles-images')
+            .upload(fileName, blob, {
+              cacheControl: '3600',
+              upsert: true
+            });
+          
+          if (error) {
+            uploadError = error;
+            console.error(`❌ [DEBUG] Erro na tentativa ${uploadAttempts}:`, error);
+            
+            if (uploadAttempts < maxAttempts) {
+              console.log('🔄 [DEBUG] Aguardando antes da próxima tentativa...');
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2 segundos
+              continue;
+            }
+            throw error;
+          }
+          
+          // Upload bem-sucedido
+          console.log('✅ [DEBUG] Upload realizado com sucesso:', data);
+          
+          // Obter URL pública da imagem
+          const { data: { publicUrl } } = supabase.storage
+            .from('profiles-images')
+            .getPublicUrl(fileName);
+          
+          console.log('✅ [DEBUG] URL pública gerada:', publicUrl);
+          return publicUrl;
+          
+        } catch (attemptError) {
+          uploadError = attemptError;
+          console.error(`❌ [DEBUG] Erro na tentativa ${uploadAttempts}:`, attemptError);
+          
+          if (uploadAttempts < maxAttempts) {
+            console.log('🔄 [DEBUG] Aguardando antes da próxima tentativa...');
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2 segundos
+          }
+        }
+      }
+      
+      throw uploadError || new Error('Falha no upload após múltiplas tentativas');
+      
+    } catch (error) {
+      console.error('❌ [DEBUG] Erro final no upload da imagem:', error);
+      
+      // Retornar null em vez de lançar erro para permitir que o cadastro continue
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error('❌ [DEBUG] Upload cancelado por timeout');
+        } else if (error.message.includes('Network request failed')) {
+          console.error('❌ [DEBUG] Falha de rede no upload');
+        }
+      }
+      
+      return null; // Retorna null em vez de lançar erro
+    }
+  };
+
+  // Função para seleção e upload automático de foto
   const handleSelectPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -216,18 +328,34 @@ export default function UsersManagement() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets[0]) {
-        setNewUser(prev => ({ ...prev, photoUri: result.assets[0].uri }));
+        const selectedImage = result.assets[0];
+        
+        // Validar tamanho do arquivo (máximo 5MB)
+        if (selectedImage.fileSize && selectedImage.fileSize > 5 * 1024 * 1024) {
+          Alert.alert('Erro', 'A imagem deve ter no máximo 5MB. Por favor, selecione uma imagem menor.');
+          return;
+        }
+        
+        // Atualizar URI local temporariamente para preview
+        setNewUser(prev => ({ ...prev, photoUri: selectedImage.uri }));
+        
+        // Mostrar feedback detalhado
+        Alert.alert(
+          'Imagem Selecionada', 
+          'Foto selecionada com sucesso! A imagem será enviada automaticamente para o servidor quando você salvar o porteiro.',
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
       console.error('Erro ao selecionar foto:', error);
-      Alert.alert('Erro', 'Falha ao selecionar foto');
+      Alert.alert('Erro', 'Falha ao selecionar foto. Tente novamente.');
     }
   };
 
@@ -367,7 +495,7 @@ export default function UsersManagement() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaType.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -665,8 +793,24 @@ export default function UsersManagement() {
         userData.work_schedule = formattedSchedule;
         userData.user_type = 'porteiro';
         userData.building_id = newUser.selectedBuildingId;
+        
+        // Upload da imagem para o Supabase Storage se uma foto foi selecionada
         if (newUser.photoUri) {
-          userData.photo_url = newUser.photoUri;
+          console.log('📸 [DEBUG] Iniciando upload da imagem para o Storage...');
+          const imageUrl = await uploadImageToStorage(newUser.photoUri, authUserId);
+          
+          if (imageUrl) {
+            userData.avatar_url = imageUrl;
+            console.log('✅ [DEBUG] Upload concluído. URL:', imageUrl);
+          } else {
+            console.log('⚠️ [DEBUG] Upload da imagem falhou, continuando cadastro sem imagem');
+            Alert.alert(
+              'Aviso', 
+              'Não foi possível fazer upload da imagem. O porteiro será cadastrado sem foto de perfil.',
+              [{ text: 'Continuar', style: 'default' }]
+            );
+            // Continua o cadastro sem a imagem
+          }
         }
       } else {
         // Para moradores
