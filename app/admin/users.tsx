@@ -155,11 +155,11 @@ export default function UsersManagement() {
 
     const filtered = users.filter(
       (user) =>
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.cpf?.includes(searchQuery) ||
         user.phone?.includes(searchQuery) ||
-        user.role.toLowerCase().includes(searchQuery.toLowerCase())
+        user.role?.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredUsers(filtered);
   };
@@ -180,19 +180,20 @@ export default function UsersManagement() {
           )
         `
         )
-        .order('name');
+        .order('full_name');
 
       if (error) throw error;
 
       const usersWithApartments = (data || []).map((user) => ({
         ...user,
+        name: user.full_name, // Mapear full_name para name para compatibilidade
         apartments: user.apartments?.map((ar: any) => ar.apartment) || [],
       }));
 
       setUsers(usersWithApartments);
       setFilteredUsers(usersWithApartments);
     } catch (error) {
-      Alert.alert('Erro', 'Falha ao carregar usuários');
+      console.error('Erro ao carregar usuários:', error);
     } finally {
       setLoading(false);
     }
@@ -328,11 +329,10 @@ export default function UsersManagement() {
         try {
           // Criar usuário
           const { data: userData, error: userError } = await supabase
-            .from('users')
+            .from('profiles')
             .insert({
-              name: resident.name,
+              full_name: resident.name,
               phone: resident.phone,
-              role: 'morador',
             })
             .select()
             .single();
@@ -340,10 +340,10 @@ export default function UsersManagement() {
           if (userError) throw userError;
 
           // Associar ao apartamento
-          const { error: residentsError } = await supabase.from('residents').insert({
-            user_id: userData.id,
+          const { error: residentsError } = await supabase.from('apartment_residents').insert({
+            profile_id: userData.id,
             apartment_id: resident.selectedApartmentId,
-            building_id: resident.selectedBuildingId,
+            is_owner: false,
           });
 
           if (residentsError) throw residentsError;
@@ -393,6 +393,11 @@ export default function UsersManagement() {
   };
 
   const handleAddUser = async () => {
+    console.log('🚀 [DEBUG] handleAddUser iniciado');
+    console.log('🚀 [DEBUG] sendWhatsApp:', sendWhatsApp);
+    console.log('🚀 [DEBUG] newUser.type:', newUser.type);
+    console.log('🚀 [DEBUG] newUser.selectedApartmentIds:', newUser.selectedApartmentIds);
+    
     if (!validateUser()) {
       return;
     }
@@ -400,11 +405,11 @@ export default function UsersManagement() {
     try {
       setLoading(true);
       const userData: any = {
-        name: newUser.name,
-        user_type: newUser.type,
+        full_name: newUser.name,
         phone: newUser.phone,
-        building_id: newUser.selectedBuildingId,
       };
+
+      console.log('🚀 [DEBUG] userData criado:', userData);
 
       const { data: insertedUser, error } = await supabase
         .from('profiles')
@@ -414,6 +419,8 @@ export default function UsersManagement() {
 
       if (error) throw error;
 
+      console.log('🚀 [DEBUG] usuário inserido:', insertedUser);
+
       // Se for morador, associar aos apartamentos selecionados
       if (newUser.type === 'morador' && newUser.selectedApartmentIds.length > 0) {
         const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
@@ -422,16 +429,22 @@ export default function UsersManagement() {
           is_owner: false,
         }));
 
+        console.log('🚀 [DEBUG] apartmentAssociations:', apartmentAssociations);
+
         const { error: associationError } = await supabase
           .from('apartment_residents')
           .insert(apartmentAssociations);
 
         if (associationError) throw associationError;
+        console.log('🚀 [DEBUG] associações de apartamento criadas com sucesso');
       }
 
       // Enviar WhatsApp apenas para moradores
       if (sendWhatsApp && newUser.type === 'morador') {
+        console.log('🚀 [DEBUG] Condições para WhatsApp atendidas, chamando handleSingleUserWhatsApp');
         await handleSingleUserWhatsApp(insertedUser, newUser.selectedApartmentIds);
+      } else {
+        console.log('🚀 [DEBUG] WhatsApp não será enviado - sendWhatsApp:', sendWhatsApp, 'tipo:', newUser.type);
       }
 
       Alert.alert('Sucesso', 'Usuário criado com sucesso');
@@ -549,11 +562,8 @@ export default function UsersManagement() {
 
           // Criar usuário
           const userData = {
-            name: resident.name,
-            user_type: 'morador',
+            full_name: resident.name,
             phone: resident.phone,
-            condominium_id: building.id,
-            building_id: building.id,
           };
 
           const { data: insertedUser, error } = await supabase
@@ -565,8 +575,8 @@ export default function UsersManagement() {
           if (error) throw error;
 
           // Associar ao apartamento
-          const { error: associationError } = await supabase.from('residents').insert({
-            user_id: insertedUser.id,
+          const { error: associationError } = await supabase.from('apartment_residents').insert({
+            profile_id: insertedUser.id,
             apartment_id: apartment.id,
             is_owner: false,
           });
@@ -621,30 +631,61 @@ export default function UsersManagement() {
   };
 
   const handleSingleUserWhatsApp = async (userData: any, apartmentIds: string[]) => {
-    if (!sendWhatsApp || !isEvolutionApiConfigured()) return;
+    console.log('📱 [DEBUG] handleSingleUserWhatsApp iniciado');
+    console.log('📱 [DEBUG] sendWhatsApp:', sendWhatsApp);
+    console.log('📱 [DEBUG] isEvolutionApiConfigured():', isEvolutionApiConfigured());
+    console.log('📱 [DEBUG] userData:', userData);
+    console.log('📱 [DEBUG] apartmentIds:', apartmentIds);
+    console.log('📱 [DEBUG] whatsappBaseUrl:', whatsappBaseUrl);
+    
+    if (!sendWhatsApp || !isEvolutionApiConfigured()) {
+      console.log('📱 [DEBUG] Condições não atendidas - retornando sem enviar');
+      console.log('📱 [DEBUG] sendWhatsApp:', sendWhatsApp);
+      console.log('📱 [DEBUG] isEvolutionApiConfigured():', isEvolutionApiConfigured());
+      return;
+    }
 
     try {
+      console.log('📱 [DEBUG] Iniciando loop pelos apartamentos');
+      console.log('📱 [DEBUG] Total de apartamentos disponíveis:', apartments.length);
+      console.log('📱 [DEBUG] Total de prédios disponíveis:', buildings.length);
+      
       // Para cada apartamento selecionado, enviar WhatsApp
       for (const apartmentId of apartmentIds) {
+        console.log('📱 [DEBUG] Processando apartmentId:', apartmentId);
+        
         const apartment = apartments.find((a) => a.id === apartmentId);
+        console.log('📱 [DEBUG] Apartamento encontrado:', apartment);
+        
         const building = buildings.find((b) => b.id === apartment?.building_id);
+        console.log('📱 [DEBUG] Prédio encontrado:', building);
 
         if (apartment && building) {
           const residentData: ResidentData = {
-            name: userData.name,
+            name: userData.full_name,
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
           };
 
+          console.log('📱 [DEBUG] residentData criado:', residentData);
+          console.log('📱 [DEBUG] Chamando sendWhatsAppMessage...');
+          
           const result = await sendWhatsAppMessage(residentData, whatsappBaseUrl);
+          console.log('📱 [DEBUG] Resultado do sendWhatsAppMessage:', result);
+          
           if (!result.success) {
+            console.log('📱 [DEBUG] Erro no envio:', result.error);
             Alert.alert('Aviso', `Erro ao enviar WhatsApp: ${result.error}`);
+          } else {
+            console.log('📱 [DEBUG] WhatsApp enviado com sucesso!');
           }
+        } else {
+          console.log('📱 [DEBUG] Apartamento ou prédio não encontrado para apartmentId:', apartmentId);
         }
       }
     } catch (error) {
-      console.error('Erro ao enviar WhatsApp:', error);
+      console.error('📱 [DEBUG] Erro ao enviar WhatsApp:', error);
     }
   };
 
@@ -766,10 +807,7 @@ export default function UsersManagement() {
       </View>
 
       {/* Modal de Novo Usuário */}
-      <Modal
-        visible={showAddForm}
-        animationType="slide"
-        presentationStyle="fullScreen">
+      <Modal visible={showAddForm} animationType="slide" presentationStyle="fullScreen">
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>✨ Novo Usuário</Text>
@@ -777,155 +815,152 @@ export default function UsersManagement() {
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView
             style={styles.modalContent}
             contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}>
-
-
-          <View style={styles.roleSelector}>
-            <Text style={styles.roleLabel}>Tipo de usuário:</Text>
-            <View style={styles.roleButtons}>
-              {['morador', 'porteiro'].map((role) => (
-                <TouchableOpacity
-                  key={role}
-                  style={[
-                    styles.roleButton,
-                    newUser.type === role && styles.roleButtonActive,
-                    { borderColor: getRoleColor(role) },
-                  ]}
-                  onPress={() => setNewUser((prev) => ({ ...prev, type: role as any }))}>
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      newUser.type === role && { color: getRoleColor(role) },
-                    ]}>
-                    {getRoleIcon(role)} {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nome Completo *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Digite o nome completo"
-              value={newUser.name}
-              onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-              autoCapitalize="words"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Telefone WhatsApp *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="(11) 99999-9999"
-              value={newUser.phone}
-              onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Prédio *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={newUser.selectedBuildingId}
-                style={styles.picker}
-                onValueChange={(itemValue) =>
-                  setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
-                }>
-                <Picker.Item label="Selecione um prédio" value="" />
-                {buildings.map((building) => (
-                  <Picker.Item key={building.id} label={building.name} value={building.id} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {newUser.type === 'morador' && newUser.selectedBuildingId && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Apartamentos *</Text>
-              <Text style={styles.sublabel}>Selecione um ou mais apartamentos</Text>
-              <View style={styles.apartmentsList}>
-                {filteredApartments.map((apartment) => (
+            <View style={styles.roleSelector}>
+              <Text style={styles.roleLabel}>Tipo de usuário:</Text>
+              <View style={styles.roleButtons}>
+                {['morador', 'porteiro'].map((role) => (
                   <TouchableOpacity
-                    key={apartment.id}
+                    key={role}
                     style={[
-                      styles.apartmentOption,
-                      newUser.selectedApartmentIds.includes(apartment.id) &&
-                        styles.apartmentOptionSelected,
+                      styles.roleButton,
+                      newUser.type === role && styles.roleButtonActive,
+                      { borderColor: getRoleColor(role) },
                     ]}
-                    onPress={() => {
-                      const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
-                      if (isSelected) {
-                        setNewUser((prev) => ({
-                          ...prev,
-                          selectedApartmentIds: prev.selectedApartmentIds.filter(
-                            (id) => id !== apartment.id
-                          ),
-                        }));
-                      } else {
-                        setNewUser((prev) => ({
-                          ...prev,
-                          selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
-                        }));
-                      }
-                    }}>
+                    onPress={() => setNewUser((prev) => ({ ...prev, type: role as any }))}>
                     <Text
                       style={[
-                        styles.apartmentOptionText,
-                        newUser.selectedApartmentIds.includes(apartment.id) &&
-                          styles.apartmentOptionTextSelected,
+                        styles.roleButtonText,
+                        newUser.type === role && { color: getRoleColor(role) },
                       ]}>
-                      {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '⭕'}{' '}
-                      Apartamento {apartment.number}
+                      {getRoleIcon(role)} {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Indefinido'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-          )}
 
-          {newUser.type === 'morador' && (
-            <View style={styles.whatsappSection}>
-              <View style={styles.checkboxContainer}>
-                <TouchableOpacity
-                  style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
-                  onPress={() => setSendWhatsApp(!sendWhatsApp)}>
-                  {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
-                </TouchableOpacity>
-                <Text style={styles.checkboxLabel}>📱 Enviar mensagem via WhatsApp</Text>
-              </View>
-
-              {sendWhatsApp && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>URL Base do Site de Cadastro</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="https://seusite.com/cadastro"
-                    value={whatsappBaseUrl}
-                    onChangeText={setWhatsappBaseUrl}
-                    autoCapitalize="none"
-                  />
-                </View>
-              )}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nome Completo *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Digite o nome completo"
+                value={newUser.name}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
+                autoCapitalize="words"
+              />
             </View>
-          )}
 
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Telefone WhatsApp *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="(11) 99999-9999"
+                value={newUser.phone}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Prédio *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={newUser.selectedBuildingId}
+                  style={styles.picker}
+                  onValueChange={(itemValue) =>
+                    setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
+                  }>
+                  <Picker.Item label="Selecione um prédio" value="" />
+                  {buildings.map((building) => (
+                    <Picker.Item key={building.id} label={building.name} value={building.id} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            {newUser.type === 'morador' && newUser.selectedBuildingId && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Apartamentos *</Text>
+                <Text style={styles.sublabel}>Selecione um ou mais apartamentos</Text>
+                <View style={styles.apartmentsList}>
+                  {filteredApartments.map((apartment) => (
+                    <TouchableOpacity
+                      key={apartment.id}
+                      style={[
+                        styles.apartmentOption,
+                        newUser.selectedApartmentIds.includes(apartment.id) &&
+                          styles.apartmentOptionSelected,
+                      ]}
+                      onPress={() => {
+                        const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
+                        if (isSelected) {
+                          setNewUser((prev) => ({
+                            ...prev,
+                            selectedApartmentIds: prev.selectedApartmentIds.filter(
+                              (id) => id !== apartment.id
+                            ),
+                          }));
+                        } else {
+                          setNewUser((prev) => ({
+                            ...prev,
+                            selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
+                          }));
+                        }
+                      }}>
+                      <Text
+                        style={[
+                          styles.apartmentOptionText,
+                          newUser.selectedApartmentIds.includes(apartment.id) &&
+                            styles.apartmentOptionTextSelected,
+                        ]}>
+                        {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '⭕'}{' '}
+                        Apartamento {apartment.number}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {newUser.type === 'morador' && (
+              <View style={styles.whatsappSection}>
+                <View style={styles.checkboxContainer}>
+                  <TouchableOpacity
+                    style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
+                    onPress={() => setSendWhatsApp(!sendWhatsApp)}>
+                    {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                  <Text style={styles.checkboxLabel}>📱 Enviar mensagem via WhatsApp</Text>
+                </View>
+
+                {sendWhatsApp && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>URL Base do Site de Cadastro</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="https://seusite.com/cadastro"
+                      value={whatsappBaseUrl}
+                      onChangeText={setWhatsappBaseUrl}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
+              </View>
+            )}
           </ScrollView>
-          
+
           <View style={styles.modalFooter}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
               onPress={() => setShowAddForm(false)}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
               onPress={handleAddUser}
@@ -941,10 +976,7 @@ export default function UsersManagement() {
       </Modal>
 
       {/* Modal de Múltiplos Disparos */}
-      <Modal
-        visible={showMultipleForm}
-        animationType="slide"
-        presentationStyle="fullScreen">
+      <Modal visible={showMultipleForm} animationType="slide" presentationStyle="fullScreen">
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>👥 Múltiplos Disparos</Text>
@@ -952,125 +984,122 @@ export default function UsersManagement() {
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView
             style={styles.modalContent}
             contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}>
-
-
-          {/* Configurações do WhatsApp */}
-          <View style={styles.whatsappSection}>
-            <View style={styles.checkboxContainer}>
-              <TouchableOpacity
-                style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
-                onPress={() => setSendWhatsApp(!sendWhatsApp)}>
-                {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
-              </TouchableOpacity>
-              <Text style={styles.checkboxLabel}>Enviar mensagem via WhatsApp</Text>
-            </View>
-
-            {sendWhatsApp && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>URL Base do Site de Cadastro</Text>
-                <TextInput
-                  style={styles.input}
-                  value={whatsappBaseUrl}
-                  onChangeText={setWhatsappBaseUrl}
-                  placeholder="https://seusite.com/cadastro"
-                  autoCapitalize="none"
-                />
-              </View>
-            )}
-          </View>
-
-          {/* Lista de moradores */}
-          {multipleResidents.map((resident, index) => (
-            <View key={index} style={styles.residentCard}>
-              <View style={styles.residentHeader}>
-                <Text style={styles.residentTitle}>Morador {index + 1}</Text>
-                <View style={styles.residentActions}>
-                  {multipleResidents.length > 1 && (
-                    <TouchableOpacity onPress={() => removeMultipleResident(index)}>
-                      <Text style={styles.removeButton}>➖</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={addMultipleResident}>
-                    <Text style={styles.addButton}>➕</Text>
-                  </TouchableOpacity>
-                </View>
+            {/* Configurações do WhatsApp */}
+            <View style={styles.whatsappSection}>
+              <View style={styles.checkboxContainer}>
+                <TouchableOpacity
+                  style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
+                  onPress={() => setSendWhatsApp(!sendWhatsApp)}>
+                  {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
+                </TouchableOpacity>
+                <Text style={styles.checkboxLabel}>Enviar mensagem via WhatsApp</Text>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome Completo *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={resident.name}
-                  onChangeText={(value) => updateMultipleResident(index, 'name', value)}
-                  placeholder="Nome completo do morador"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Telefone WhatsApp *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={resident.phone}
-                  onChangeText={(value) => updateMultipleResident(index, 'phone', value)}
-                  placeholder="(11) 99999-9999"
-                  keyboardType="phone-pad"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Prédio *</Text>
-                <Picker
-                  selectedValue={resident.selectedBuildingId}
-                  style={styles.picker}
-                  onValueChange={(value) =>
-                    updateMultipleResident(index, 'selectedBuildingId', value)
-                  }>
-                  <Picker.Item label="Selecione um prédio" value="" />
-                  {buildings.map((building) => (
-                    <Picker.Item key={building.id} label={building.name} value={building.id} />
-                  ))}
-                </Picker>
-              </View>
-
-              {resident.selectedBuildingId && (
+              {sendWhatsApp && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Apartamento *</Text>
-                  <Picker
-                    selectedValue={resident.selectedApartmentId}
-                    style={styles.picker}
-                    onValueChange={(value) =>
-                      updateMultipleResident(index, 'selectedApartmentId', value)
-                    }>
-                    <Picker.Item label="Selecione um apartamento" value="" />
-                    {apartments
-                      .filter((apt) => apt.building_id === resident.selectedBuildingId)
-                      .map((apartment) => (
-                        <Picker.Item
-                          key={apartment.id}
-                          label={apartment.number}
-                          value={apartment.id}
-                        />
-                      ))}
-                  </Picker>
+                  <Text style={styles.label}>URL Base do Site de Cadastro</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={whatsappBaseUrl}
+                    onChangeText={setWhatsappBaseUrl}
+                    placeholder="https://seusite.com/cadastro"
+                    autoCapitalize="none"
+                  />
                 </View>
               )}
             </View>
-          ))}
 
+            {/* Lista de moradores */}
+            {multipleResidents.map((resident, index) => (
+              <View key={index} style={styles.residentCard}>
+                <View style={styles.residentHeader}>
+                  <Text style={styles.residentTitle}>Morador {index + 1}</Text>
+                  <View style={styles.residentActions}>
+                    {multipleResidents.length > 1 && (
+                      <TouchableOpacity onPress={() => removeMultipleResident(index)}>
+                        <Text style={styles.removeButton}>➖</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={addMultipleResident}>
+                      <Text style={styles.addButton}>➕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nome Completo *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={resident.name}
+                    onChangeText={(value) => updateMultipleResident(index, 'name', value)}
+                    placeholder="Nome completo do morador"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Telefone WhatsApp *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={resident.phone}
+                    onChangeText={(value) => updateMultipleResident(index, 'phone', value)}
+                    placeholder="(11) 99999-9999"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Prédio *</Text>
+                  <Picker
+                    selectedValue={resident.selectedBuildingId}
+                    style={styles.picker}
+                    onValueChange={(value) =>
+                      updateMultipleResident(index, 'selectedBuildingId', value)
+                    }>
+                    <Picker.Item label="Selecione um prédio" value="" />
+                    {buildings.map((building) => (
+                      <Picker.Item key={building.id} label={building.name} value={building.id} />
+                    ))}
+                  </Picker>
+                </View>
+
+                {resident.selectedBuildingId && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Apartamento *</Text>
+                    <Picker
+                      selectedValue={resident.selectedApartmentId}
+                      style={styles.picker}
+                      onValueChange={(value) =>
+                        updateMultipleResident(index, 'selectedApartmentId', value)
+                      }>
+                      <Picker.Item label="Selecione um apartamento" value="" />
+                      {apartments
+                        .filter((apt) => apt.building_id === resident.selectedBuildingId)
+                        .map((apartment) => (
+                          <Picker.Item
+                            key={apartment.id}
+                            label={apartment.number}
+                            value={apartment.id}
+                          />
+                        ))}
+                    </Picker>
+                  </View>
+                )}
+              </View>
+            ))}
           </ScrollView>
-          
+
           <View style={styles.modalFooter}>
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
               onPress={() => setShowMultipleForm(false)}>
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.button, styles.saveButton, isProcessing && styles.disabledButton]}
               onPress={handleMultipleResidents}
@@ -1096,10 +1125,11 @@ export default function UsersManagement() {
       </Modal>
 
       {/* Modal de Cadastro de Veículos */}
-      {showVehicleForm && (
-        <ScrollView
-          style={[styles.vehicleForm, { paddingVertical: 20 }]}
-          contentContainerStyle={{ paddingBottom: 40 }}>
+      <Modal visible={showVehicleForm} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <ScrollView
+            style={[styles.vehicleForm, { paddingVertical: 20 }]}
+            contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.vehicleHeader}>
             <Text style={styles.vehicleTitle}>🚗 Novo Veículo</Text>
             <TouchableOpacity onPress={() => setShowVehicleForm(false)}>
@@ -1222,49 +1252,59 @@ export default function UsersManagement() {
               <Text style={styles.submitButtonText}>🚗 Cadastrar Veículo</Text>
             )}
           </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {filteredUsers.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateIcon}>👥</Text>
+        <Text style={styles.emptyStateTitle}>Não há usuários cadastrados ainda</Text>
+        <Text style={styles.emptyStateSubtitle}>Use o botão "Novo Usuário" para adicionar o primeiro usuário</Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.usersList}>
+          {filteredUsers.map((user) => (
+            <View key={user.id} style={styles.userCard}>
+              <View style={styles.userInfo}>
+                {user.photo_url ? (
+                  <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
+                ) : (
+                  <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
+                )}
+                <View style={styles.userDetails}>
+                  <Text style={styles.userName}>{user.name}</Text>
+                  {user.cpf && <Text style={styles.userCode}>CPF: {user.cpf}</Text>}
+                  {user.phone && <Text style={styles.userCode}>Tel: {user.phone}</Text>}
+                  {user.email && <Text style={styles.userCode}>Email: {user.email}</Text>}
+                  <Text
+                    style={[styles.userRole, { color: getRoleColor(user.user_type || user.role) }]}>
+                    {(user.user_type || user.role) ? 
+                      (user.user_type || user.role).charAt(0).toUpperCase() +
+                      (user.user_type || user.role).slice(1) : 'Indefinido'}
+                  </Text>
+                  {user.apartments && user.apartments.length > 0 && (
+                    <Text style={styles.userApartments}>
+                      Apartamentos: {user.apartments.map((apt) => apt.number).join(', ')}
+                    </Text>
+                  )}
+                  {user.last_login && (
+                    <Text style={styles.lastLogin}>
+                      Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteUser(user.id, user.name)}>
+                <Text style={styles.deleteButtonText}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </ScrollView>
       )}
-
-      <ScrollView style={styles.usersList}>
-        {filteredUsers.map((user) => (
-          <View key={user.id} style={styles.userCard}>
-            <View style={styles.userInfo}>
-              {user.photo_url ? (
-                <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
-              ) : (
-                <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
-              )}
-              <View style={styles.userDetails}>
-                <Text style={styles.userName}>{user.name}</Text>
-                {user.cpf && <Text style={styles.userInfo}>CPF: {user.cpf}</Text>}
-                {user.phone && <Text style={styles.userInfo}>Tel: {user.phone}</Text>}
-                {user.email && <Text style={styles.userInfo}>Email: {user.email}</Text>}
-                <Text
-                  style={[styles.userRole, { color: getRoleColor(user.user_type || user.role) }]}>
-                  {(user.user_type || user.role).charAt(0).toUpperCase() +
-                    (user.user_type || user.role).slice(1)}
-                </Text>
-                {user.apartments && user.apartments.length > 0 && (
-                  <Text style={styles.userApartments}>
-                    Apartamentos: {user.apartments.map((apt) => apt.number).join(', ')}
-                  </Text>
-                )}
-                {user.last_login && (
-                  <Text style={styles.lastLogin}>
-                    Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDeleteUser(user.id, user.name)}>
-              <Text style={styles.deleteButtonText}>🗑️</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -1831,5 +1871,30 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+    marginTop: 50,
+  },
+  emptyStateIcon: {
+    fontSize: 64,
+    marginBottom: 20,
+    opacity: 0.5,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
