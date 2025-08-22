@@ -26,7 +26,7 @@ interface ResidentData {
   apartment: string;
 }
 
-// Funções auxiliares para validação de telefone brasileiro
+// Funções auxiliares para validação
 const validateBrazilianPhone = (phone: string): boolean => {
   const cleanPhone = phone.replace(/\D/g, '');
   return cleanPhone.length === 10 || cleanPhone.length === 11;
@@ -40,6 +40,65 @@ const formatBrazilianPhone = (phone: string): string => {
     return `+55${cleanPhone}`;
   }
   return phone;
+};
+
+const validateCPF = (cpf: string): boolean => {
+  const cleanCPF = cpf.replace(/\D/g, '');
+  if (cleanCPF.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
+  
+  // Validação dos dígitos verificadores
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanCPF.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
+  
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
+  
+  return true;
+};
+
+const formatCPF = (cpf: string): string => {
+  const cleanCPF = cpf.replace(/\D/g, '');
+  return cleanCPF.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const formatDate = (date: string): string => {
+  const cleanDate = date.replace(/\D/g, '');
+  if (cleanDate.length <= 2) return cleanDate;
+  if (cleanDate.length <= 4) return `${cleanDate.slice(0, 2)}/${cleanDate.slice(2)}`;
+  return `${cleanDate.slice(0, 2)}/${cleanDate.slice(2, 4)}/${cleanDate.slice(4, 8)}`;
+};
+
+const validateDate = (date: string): boolean => {
+  const cleanDate = date.replace(/\D/g, '');
+  if (cleanDate.length !== 8) return false;
+  
+  const day = parseInt(cleanDate.slice(0, 2));
+  const month = parseInt(cleanDate.slice(2, 4));
+  const year = parseInt(cleanDate.slice(4, 8));
+  
+  if (day < 1 || day > 31) return false;
+  if (month < 1 || month > 12) return false;
+  if (year < 1900 || year > new Date().getFullYear()) return false;
+  
+  return true;
 };
 
 // Função para verificar se a API está configurada (sempre retorna true agora)
@@ -59,6 +118,8 @@ interface User {
   cpf?: string;
   phone?: string;
   email?: string;
+  birth_date?: string;
+  address?: string;
   building_id?: string;
   photo_url?: string;
   last_login?: string;
@@ -101,6 +162,23 @@ export default function UsersManagement() {
     name: '',
     type: 'morador' as 'morador' | 'porteiro',
     phone: '',
+    cpf: '',
+    email: '',
+    birthDate: '',
+    address: '',
+    workSchedule: '',
+    workDays: {
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      sunday: false,
+    },
+    workStartTime: '',
+    workEndTime: '',
+    photoUri: '',
     selectedBuildingId: '',
     selectedApartmentIds: [] as string[],
   });
@@ -126,6 +204,31 @@ export default function UsersManagement() {
   const openMultipleModal = () => {
     closeAllModals();
     setShowMultipleForm(true);
+  };
+
+  // Função para seleção de foto
+  const handleSelectPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setNewUser(prev => ({ ...prev, photoUri: result.assets[0].uri }));
+      }
+    } catch (error) {
+      console.error('Erro ao selecionar foto:', error);
+      Alert.alert('Erro', 'Falha ao selecionar foto');
+    }
   };
 
   // Estados para cadastro em massa e WhatsApp
@@ -280,22 +383,85 @@ export default function UsersManagement() {
       Alert.alert('Erro', 'Nome é obrigatório');
       return false;
     }
-    if (!newUser.phone.trim()) {
-      Alert.alert('Erro', 'Telefone é obrigatório');
-      return false;
+    
+    if (newUser.type === 'porteiro') {
+      // Validações específicas para porteiro
+      if (!newUser.cpf.trim()) {
+        Alert.alert('Erro', 'CPF é obrigatório para porteiros');
+        return false;
+      }
+      if (!validateCPF(newUser.cpf)) {
+        Alert.alert('Erro', 'CPF inválido');
+        return false;
+      }
+      if (!newUser.email.trim()) {
+        Alert.alert('Erro', 'E-mail é obrigatório para porteiros');
+        return false;
+      }
+      if (!validateEmail(newUser.email)) {
+        Alert.alert('Erro', 'E-mail inválido');
+        return false;
+      }
+      if (!newUser.birthDate.trim()) {
+        Alert.alert('Erro', 'Data de nascimento é obrigatória para porteiros');
+        return false;
+      }
+      if (!validateDate(newUser.birthDate)) {
+        Alert.alert('Erro', 'Data de nascimento inválida');
+        return false;
+      }
+      if (!newUser.address.trim()) {
+        Alert.alert('Erro', 'Endereço é obrigatório para porteiros');
+        return false;
+      }
+      // Validar dias da semana
+      const selectedDays = Object.values(newUser.workDays).some(day => day);
+      if (!selectedDays) {
+        Alert.alert('Erro', 'Pelo menos um dia da semana deve ser selecionado para porteiros');
+        return false;
+      }
+      
+      // Validar horários de trabalho
+      if (!newUser.workStartTime.trim()) {
+        Alert.alert('Erro', 'Horário de início é obrigatório para porteiros');
+        return false;
+      }
+      if (!newUser.workEndTime.trim()) {
+        Alert.alert('Erro', 'Horário de fim é obrigatório para porteiros');
+        return false;
+      }
+      
+      // Validar formato dos horários (HH:MM)
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(newUser.workStartTime)) {
+        Alert.alert('Erro', 'Horário de início deve estar no formato HH:MM (ex: 08:00)');
+        return false;
+      }
+      if (!timeRegex.test(newUser.workEndTime)) {
+        Alert.alert('Erro', 'Horário de fim deve estar no formato HH:MM (ex: 18:00)');
+        return false;
+      }
+    } else {
+      // Validações para morador
+      if (!newUser.phone.trim()) {
+        Alert.alert('Erro', 'Telefone é obrigatório');
+        return false;
+      }
+      if (!validateBrazilianPhone(newUser.phone)) {
+        Alert.alert('Erro', 'Telefone deve estar no formato brasileiro válido');
+        return false;
+      }
+      if (newUser.selectedApartmentIds.length === 0) {
+        Alert.alert('Erro', 'Pelo menos um apartamento deve ser selecionado para moradores');
+        return false;
+      }
     }
-    if (!validateBrazilianPhone(newUser.phone)) {
-      Alert.alert('Erro', 'Telefone deve estar no formato brasileiro válido');
-      return false;
-    }
+    
     if (!newUser.selectedBuildingId) {
       Alert.alert('Erro', 'Prédio é obrigatório');
       return false;
     }
-    if (newUser.type === 'morador' && newUser.selectedApartmentIds.length === 0) {
-      Alert.alert('Erro', 'Pelo menos um apartamento deve ser selecionado para moradores');
-      return false;
-    }
+    
     return true;
   };
 
@@ -436,10 +602,76 @@ export default function UsersManagement() {
 
     try {
       setLoading(true);
+      let authUserId = null;
+      
+      // Se for porteiro, criar usuário no Supabase Auth primeiro
+      if (newUser.type === 'porteiro') {
+        console.log('🔐 [DEBUG] Criando login para porteiro...');
+        
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: newUser.email,
+          password: '123456', // Senha padrão
+          options: {
+            data: {
+              full_name: newUser.name,
+              user_type: 'porteiro'
+            }
+          }
+        });
+
+        if (authError) {
+          console.error('❌ [DEBUG] Erro ao criar login:', authError);
+          throw new Error(`Erro ao criar login: ${authError.message}`);
+        }
+
+        if (!authData.user) {
+          throw new Error('Falha ao criar usuário de autenticação');
+        }
+
+        authUserId = authData.user.id;
+        console.log('✅ [DEBUG] Login criado com sucesso. User ID:', authUserId);
+      }
+      
+      // Preparar dados base do usuário
       const userData: any = {
         full_name: newUser.name,
-        phone: newUser.phone,
+        role: newUser.type,
       };
+
+      // Se for porteiro, usar o ID do auth.users
+      if (newUser.type === 'porteiro' && authUserId) {
+        userData.id = authUserId;
+        userData.cpf = newUser.cpf;
+        userData.email = newUser.email;
+        userData.birth_date = newUser.birthDate;
+        userData.address = newUser.address;
+        // Formatar horário de expediente expandido
+        const selectedDaysNames = Object.entries(newUser.workDays)
+          .filter(([_, isSelected]) => isSelected)
+          .map(([day, _]) => {
+            const dayNames = {
+              monday: 'Segunda-feira',
+              tuesday: 'Terça-feira', 
+              wednesday: 'Quarta-feira',
+              thursday: 'Quinta-feira',
+              friday: 'Sexta-feira',
+              saturday: 'Sábado',
+              sunday: 'Domingo'
+            };
+            return dayNames[day as keyof typeof dayNames];
+          });
+        
+        const formattedSchedule = `${selectedDaysNames.join(', ')}: ${newUser.workStartTime}-${newUser.workEndTime}`;
+        userData.work_schedule = formattedSchedule;
+        userData.user_type = 'porteiro';
+        userData.building_id = newUser.selectedBuildingId;
+        if (newUser.photoUri) {
+          userData.photo_url = newUser.photoUri;
+        }
+      } else {
+        // Para moradores
+        userData.phone = newUser.phone;
+      }
 
       console.log('🚀 [DEBUG] userData criado:', userData);
 
@@ -449,7 +681,15 @@ export default function UsersManagement() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Se houve erro ao inserir o profile e foi criado um usuário auth, fazer rollback
+        if (authUserId) {
+          console.log('🔄 [DEBUG] Fazendo rollback do usuário auth...');
+          // Nota: O Supabase não permite deletar usuários via client, apenas via admin API
+          // Em produção, seria necessário usar uma função server-side para isso
+        }
+        throw error;
+      }
 
       console.log('🚀 [DEBUG] usuário inserido:', insertedUser);
 
@@ -471,7 +711,7 @@ export default function UsersManagement() {
         console.log('🚀 [DEBUG] associações de apartamento criadas com sucesso');
       }
 
-      // Enviar WhatsApp apenas para moradores
+      // Enviar WhatsApp APENAS para moradores (porteiros nunca recebem WhatsApp)
       if (sendWhatsApp && newUser.type === 'morador') {
         console.log('🚀 [DEBUG] Condições para WhatsApp atendidas, chamando handleSingleUserWhatsApp');
         await handleSingleUserWhatsApp(insertedUser, newUser.selectedApartmentIds);
@@ -479,11 +719,37 @@ export default function UsersManagement() {
         console.log('🚀 [DEBUG] WhatsApp não será enviado - sendWhatsApp:', sendWhatsApp, 'tipo:', newUser.type);
       }
 
-      Alert.alert('Sucesso', 'Usuário criado com sucesso');
+      // Mensagem de sucesso específica para cada tipo
+      if (newUser.type === 'porteiro') {
+        Alert.alert(
+          'Porteiro Criado com Sucesso!', 
+          `O porteiro ${newUser.name} foi cadastrado e pode fazer login com:\n\nE-mail: ${newUser.email}\nSenha: 123456\n\nO porteiro poderá alterar sua senha após o primeiro login.`
+        );
+      } else {
+        Alert.alert('Sucesso', 'Usuário criado com sucesso');
+      }
+      
+      // Resetar formulário
       setNewUser({
         name: '',
         type: 'morador',
         phone: '',
+        cpf: '',
+        email: '',
+        birthDate: '',
+        address: '',
+        workDays: {
+          monday: false,
+          tuesday: false,
+          wednesday: false,
+          thursday: false,
+          friday: false,
+          saturday: false,
+          sunday: false,
+        },
+        workStartTime: '',
+        workEndTime: '',
+        photoUri: '',
         selectedBuildingId: '',
         selectedApartmentIds: [],
       });
@@ -888,7 +1154,7 @@ export default function UsersManagement() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Telefone WhatsApp *</Text>
+              <Text style={styles.label}>Telefone {newUser.type === 'morador' ? 'WhatsApp ' : ''}*</Text>
               <TextInput
                 style={styles.input}
                 placeholder="(11) 99999-9999"
@@ -897,6 +1163,166 @@ export default function UsersManagement() {
                 keyboardType="phone-pad"
               />
             </View>
+
+            {newUser.type === 'porteiro' && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>CPF *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="000.000.000-00"
+                    value={newUser.cpf}
+                    onChangeText={(text) => {
+                      const formatted = formatCPF(text);
+                      setNewUser((prev) => ({ ...prev, cpf: formatted }));
+                    }}
+                    keyboardType="numeric"
+                    maxLength={14}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>E-mail *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="email@exemplo.com"
+                    value={newUser.email}
+                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Data de Nascimento *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="DD/MM/AAAA"
+                    value={newUser.birthDate}
+                    onChangeText={(text) => {
+                      const formatted = formatDate(text);
+                      setNewUser((prev) => ({ ...prev, birthDate: formatted }));
+                    }}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Endereço *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Rua, número, bairro, cidade"
+                    value={newUser.address}
+                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, address: text }))}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Dias da Semana *</Text>
+                  <Text style={styles.sublabel}>Selecione os dias de trabalho</Text>
+                  <View style={styles.daysContainer}>
+                    {[
+                      { key: 'monday', label: 'Segunda' },
+                      { key: 'tuesday', label: 'Terça' },
+                      { key: 'wednesday', label: 'Quarta' },
+                      { key: 'thursday', label: 'Quinta' },
+                      { key: 'friday', label: 'Sexta' },
+                      { key: 'saturday', label: 'Sábado' },
+                      { key: 'sunday', label: 'Domingo' },
+                    ].map((day) => (
+                      <TouchableOpacity
+                        key={day.key}
+                        style={[
+                          styles.dayOption,
+                          newUser.workDays[day.key as keyof typeof newUser.workDays] &&
+                            styles.dayOptionSelected,
+                        ]}
+                        onPress={() => {
+                          setNewUser((prev) => ({
+                            ...prev,
+                            workDays: {
+                              ...prev.workDays,
+                              [day.key]: !prev.workDays[day.key as keyof typeof prev.workDays],
+                            },
+                          }));
+                        }}>
+                        <Text
+                          style={[
+                            styles.dayOptionText,
+                            newUser.workDays[day.key as keyof typeof newUser.workDays] &&
+                              styles.dayOptionTextSelected,
+                          ]}>
+                          {newUser.workDays[day.key as keyof typeof newUser.workDays] ? '✅' : '⭕'}{' '}
+                          {day.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Horário de Trabalho *</Text>
+                  <View style={styles.timeContainer}>
+                    <View style={styles.timeInputContainer}>
+                      <Text style={styles.timeLabel}>Início</Text>
+                      <TextInput
+                        style={styles.timeInput}
+                        placeholder="08:00"
+                        value={newUser.workStartTime}
+                        onChangeText={(text) => {
+                          const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
+                          if (formatted.length === 2 && !formatted.includes(':')) {
+                            setNewUser((prev) => ({ ...prev, workStartTime: formatted + ':' }));
+                          } else {
+                            setNewUser((prev) => ({ ...prev, workStartTime: formatted }));
+                          }
+                        }}
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                    <Text style={styles.timeSeparator}>às</Text>
+                    <View style={styles.timeInputContainer}>
+                      <Text style={styles.timeLabel}>Fim</Text>
+                      <TextInput
+                        style={styles.timeInput}
+                        placeholder="18:00"
+                        value={newUser.workEndTime}
+                        onChangeText={(text) => {
+                          const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
+                          if (formatted.length === 2 && !formatted.includes(':')) {
+                            setNewUser((prev) => ({ ...prev, workEndTime: formatted + ':' }));
+                          } else {
+                            setNewUser((prev) => ({ ...prev, workEndTime: formatted }));
+                          }
+                        }}
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Foto (Opcional)</Text>
+                  <TouchableOpacity
+                    style={styles.photoButton}
+                    onPress={handleSelectPhoto}>
+                    {newUser.photoUri ? (
+                      <View style={styles.photoPreview}>
+                        <Image source={{ uri: newUser.photoUri }} style={styles.photoImage} />
+                        <Text style={styles.photoButtonText}>Alterar Foto</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Prédio *</Text>
@@ -960,7 +1386,7 @@ export default function UsersManagement() {
               </View>
             )}
 
-            {newUser.type === 'morador' && (
+            {newUser.type === 'morador' && sendWhatsApp && (
               <View style={styles.whatsappSection}>
                 <View style={styles.checkboxContainer}>
                   <TouchableOpacity
@@ -1941,5 +2367,91 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  photoButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
+  },
+  photoButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoPreview: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+  },
+  daysContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  dayOption: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  dayOptionSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  dayOptionText: {
+    fontSize: 14,
+    color: '#495057',
+    fontWeight: '500',
+  },
+  dayOptionTextSelected: {
+    color: '#fff',
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  timeInputContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timeLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  timeInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    width: '100%',
+    maxWidth: 80,
+  },
+  timeSeparator: {
+    fontSize: 16,
+    color: '#666',
+    marginHorizontal: 15,
+    fontWeight: '500',
   },
 });
