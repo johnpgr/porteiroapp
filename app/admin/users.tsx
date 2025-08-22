@@ -84,6 +84,24 @@ export default function UsersManagement() {
   ]);
   const [showMultipleForm, setShowMultipleForm] = useState(false);
 
+  // Controle de abertura única dos modais
+  const closeAllModals = () => {
+    setShowAddForm(false);
+    setShowMultipleForm(false);
+    setShowVehicleForm(false);
+    setShowBulkForm(false);
+  };
+
+  const openAddUserModal = () => {
+    closeAllModals();
+    setShowAddForm(true);
+  };
+
+  const openMultipleModal = () => {
+    closeAllModals();
+    setShowMultipleForm(true);
+  };
+
   // Estados para cadastro em massa e WhatsApp
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkResidents, setBulkResidents] = useState<ResidentData[]>([]);
@@ -411,7 +429,7 @@ export default function UsersManagement() {
         if (associationError) throw associationError;
       }
 
-      // Enviar WhatsApp se habilitado
+      // Enviar WhatsApp apenas para moradores
       if (sendWhatsApp && newUser.type === 'morador') {
         await handleSingleUserWhatsApp(insertedUser, newUser.selectedApartmentIds);
       }
@@ -719,18 +737,11 @@ export default function UsersManagement() {
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
-          <Text style={styles.addButtonText}>
-            {showAddForm ? '❌ Cancelar' : '➕ Novo Usuário'}
-          </Text>
+        <TouchableOpacity style={styles.addButton} onPress={openAddUserModal}>
+          <Text style={styles.addButtonText}>➕ Novo Usuário</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.multipleButton}
-          onPress={() => setShowMultipleForm(!showMultipleForm)}>
-          <Text style={styles.multipleButtonText}>
-            {showMultipleForm ? '❌ Cancelar' : '👥 Múltiplos Disparos'}
-          </Text>
+        <TouchableOpacity style={styles.multipleButton} onPress={openMultipleModal}>
+          <Text style={styles.multipleButtonText}>👥 Múltiplos Disparos</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -754,11 +765,24 @@ export default function UsersManagement() {
         </View>
       </View>
 
-      {showAddForm && (
-        <ScrollView
-          style={[styles.addForm, { paddingVertical: 20 }]}
-          contentContainerStyle={{ paddingBottom: 40 }}>
-          <Text style={styles.formTitle}>✨ Novo Usuário</Text>
+      {/* Modal de Novo Usuário */}
+      <Modal
+        visible={showAddForm}
+        animationType="slide"
+        presentationStyle="fullScreen">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>✨ Novo Usuário</Text>
+            <TouchableOpacity onPress={() => setShowAddForm(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={{ paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}>
+
 
           <View style={styles.roleSelector}>
             <Text style={styles.roleLabel}>Tipo de usuário:</Text>
@@ -893,30 +917,47 @@ export default function UsersManagement() {
             </View>
           )}
 
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.disabledButton]}
-            onPress={handleAddUser}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.submitButtonText}>✅ Criar Usuário</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      )}
+          </ScrollView>
+          
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => setShowAddForm(false)}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
+              onPress={handleAddUser}
+              disabled={loading}>
+              {loading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.saveButtonText}>✅ Criar Usuário</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
-      {/* Formulário de Múltiplos Disparos */}
-      {showMultipleForm && (
-        <ScrollView
-          style={[styles.multipleForm, { paddingVertical: 20 }]}
-          contentContainerStyle={{ paddingBottom: 40 }}>
-          <View style={styles.multipleHeader}>
-            <Text style={styles.multipleTitle}>Múltiplos Disparos</Text>
+      {/* Modal de Múltiplos Disparos */}
+      <Modal
+        visible={showMultipleForm}
+        animationType="slide"
+        presentationStyle="fullScreen">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>👥 Múltiplos Disparos</Text>
             <TouchableOpacity onPress={() => setShowMultipleForm(false)}>
               <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
+          
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={{ paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}>
+
 
           {/* Configurações do WhatsApp */}
           <View style={styles.whatsappSection}>
@@ -1021,18 +1062,28 @@ export default function UsersManagement() {
             </View>
           ))}
 
-          <TouchableOpacity
-            style={[styles.submitButton, isProcessing && styles.disabledButton]}
-            onPress={handleMultipleResidents}
-            disabled={isProcessing}>
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.submitButtonText}>📤 Enviar Todos os Disparos</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      )}
+          </ScrollView>
+          
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => setShowMultipleForm(false)}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.button, styles.saveButton, isProcessing && styles.disabledButton]}
+              onPress={handleMultipleResidents}
+              disabled={isProcessing}>
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.saveButtonText}>📤 Enviar Todos os Disparos</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       {/* Modal de Status de Processamento */}
       <Modal visible={isProcessing} transparent animationType="fade">
@@ -1547,6 +1598,41 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+    gap: 15,
+  },
+  button: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  cancelButtonText: {
+    color: '#6c757d',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   whatsappSection: {
     marginTop: 25,
     padding: 20,
@@ -1633,37 +1719,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 5,
   },
-  modalFooter: {
-    flexDirection: 'row',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    gap: 10,
-  },
-  button: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  saveButton: {
-    backgroundColor: '#007AFF',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
   disabledButton: {
     backgroundColor: '#ccc',
   },
