@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,13 +17,26 @@ import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
+import { useAuth } from '~/hooks/useAuth';
 
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'historico';
 
 export default function PorteiroDashboard() {
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [selectedAuth, setSelectedAuth] = useState<any>(null);
+
+  // Estados para dados do porteiro
+  const [porteiroData, setPorteiroData] = useState<{
+    name: string;
+    initials: string;
+    shift_start?: string;
+    shift_end?: string;
+  } | null>(null);
+  const [loadingPorteiro, setLoadingPorteiro] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
 
   // Estados para a aba Consulta
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,6 +47,73 @@ export default function PorteiroDashboard() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
+
+  // Carregar dados do porteiro
+  useEffect(() => {
+    const loadPorteiroData = async () => {
+      if (!user || authLoading) return;
+      
+      try {
+        setLoadingPorteiro(true);
+        setConnectionError(false);
+        
+        // Verificar conexão com Supabase
+        const { error: connectionError } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1);
+          
+        if (connectionError) {
+          console.error('Erro de conexão:', connectionError);
+          setConnectionError(true);
+          return;
+        }
+        
+        // Buscar dados do perfil do porteiro
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .eq('user_type', 'porteiro')
+          .single();
+          
+        if (profileError) {
+          console.error('Erro ao carregar perfil:', profileError);
+          // Usar dados básicos do user se não encontrar perfil
+          const nameParts = user.email.split('@')[0].split('.');
+          const name = nameParts.map(part => 
+            part.charAt(0).toUpperCase() + part.slice(1)
+          ).join(' ');
+          const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
+          
+          setPorteiroData({
+            name,
+            initials,
+            shift_start: '08:00',
+            shift_end: '20:00'
+          });
+        } else {
+          // Usar dados do perfil
+          const nameParts = (profile.full_name || profile.email.split('@')[0]).split(' ');
+          const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('').slice(0, 2);
+          
+          setPorteiroData({
+            name: profile.full_name || profile.email.split('@')[0],
+            initials,
+            shift_start: profile.shift_start || '08:00',
+            shift_end: profile.shift_end || '20:00'
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do porteiro:', error);
+        setConnectionError(true);
+      } finally {
+        setLoadingPorteiro(false);
+      }
+    };
+    
+    loadPorteiroData();
+  }, [user, authLoading]);
 
   const handlePanicButton = () => {
     router.push('/emergency');
@@ -90,45 +170,71 @@ export default function PorteiroDashboard() {
     ]);
   };
 
-  const renderTopMenu = () => (
-    <View style={styles.topMenu}>
-      <View style={styles.topMenuLeft}>
-        <Text style={styles.welcomeText}>Olá, João Silva</Text>
-        <Text style={styles.shiftText}>Turno: 08:00 - 20:00</Text>
-      </View>
-
-      <View style={styles.topMenuRight}>
-        {/* Botão de Pânico */}
-        <TouchableOpacity style={styles.panicButton} onPress={handlePanicButton}>
-          <Text style={styles.panicButtonText}>🚨</Text>
-        </TouchableOpacity>
-
-        {/* Avatar do Usuário */}
-        <TouchableOpacity style={styles.userAvatar} onPress={handleUserMenuToggle}>
-          <Text style={styles.avatarText}>JS</Text>
-        </TouchableOpacity>
-
-        {/* Menu do Usuário */}
-        {showUserMenu && (
-          <View style={styles.userMenu}>
-            <TouchableOpacity
-              style={styles.userMenuItem}
-              onPress={() => {
-                setShowUserMenu(false);
-                router.push('/porteiro/profile');
-              }}>
-              <Text style={styles.userMenuIcon}>👤</Text>
-              <Text style={styles.userMenuText}>Perfil</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.userMenuItem} onPress={handleLogout}>
-              <Text style={styles.userMenuIcon}>🚪</Text>
-              <Text style={styles.userMenuText}>Logout</Text>
-            </TouchableOpacity>
+  const renderTopMenu = () => {
+    if (connectionError) {
+      return (
+        <View style={styles.topMenu}>
+          <View style={styles.topMenuLeft}>
+            <Text style={styles.welcomeText}>❌ Erro de Conexão</Text>
+            <Text style={styles.shiftText}>Verifique sua conexão com a internet</Text>
           </View>
-        )}
+        </View>
+      );
+    }
+    
+    if (loadingPorteiro || !porteiroData) {
+      return (
+        <View style={styles.topMenu}>
+          <View style={styles.topMenuLeft}>
+            <Text style={styles.welcomeText}>Carregando...</Text>
+            <Text style={styles.shiftText}>Aguarde</Text>
+          </View>
+        </View>
+      );
+    }
+    
+    return (
+      <View style={styles.topMenu}>
+        <View style={styles.topMenuLeft}>
+          <Text style={styles.welcomeText}>Olá, {porteiroData.name}</Text>
+          <Text style={styles.shiftText}>
+            Turno: {porteiroData.shift_start} - {porteiroData.shift_end}
+          </Text>
+        </View>
+
+        <View style={styles.topMenuRight}>
+          {/* Botão de Pânico */}
+          <TouchableOpacity style={styles.panicButton} onPress={handlePanicButton}>
+            <Text style={styles.panicButtonText}>🚨</Text>
+          </TouchableOpacity>
+
+          {/* Avatar do Usuário */}
+          <TouchableOpacity style={styles.userAvatar} onPress={handleUserMenuToggle}>
+            <Text style={styles.avatarText}>{porteiroData.initials}</Text>
+          </TouchableOpacity>
+
+          {/* Menu do Usuário */}
+          {showUserMenu && (
+            <View style={styles.userMenu}>
+              <TouchableOpacity
+                style={styles.userMenuItem}
+                onPress={() => {
+                  setShowUserMenu(false);
+                  router.push('/porteiro/profile');
+                }}>
+                <Text style={styles.userMenuIcon}>👤</Text>
+                <Text style={styles.userMenuText}>Perfil</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.userMenuItem} onPress={handleLogout}>
+                <Text style={styles.userMenuIcon}>🚪</Text>
+                <Text style={styles.userMenuText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderChegadaTab = () => (
     <ScrollView style={styles.tabContent}>
@@ -744,7 +850,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#2196F3',
     padding: 20,
-    paddingTop: 60,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     marginBottom: 20,
@@ -1213,14 +1318,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 8,
     minWidth: 120,
-    elevation: 8,
+    elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    zIndex: 1000,
+    zIndex: 9999,
   },
   userMenuItem: {
     flexDirection: 'row',
