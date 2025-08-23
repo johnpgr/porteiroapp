@@ -72,12 +72,20 @@ export default function SystemLogs() {
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
 
       const logsData = await supabase
-        .from('system_logs')
-        .select('*, profiles(name), buildings(name)')
+        .from('visitor_logs')
+        .select('*')
         .order('created_at', { ascending: false });
 
       setBuildings(adminBuildings || []);
-      setLogs(logsData.data || []);
+      setLogs(
+        (logsData.data || []).map((log) => ({
+          id: log.id,
+          action: `${log.entry_time ? 'Entrada' : 'Saída'} de visitante`,
+          user_name: log.profiles?.name || 'Não identificado',
+          building_name: log.buildings?.name || 'Não identificado',
+          created_at: log.created_at
+        }))
+      );
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     }
