@@ -48,6 +48,43 @@ export default function PorteiroDashboard() {
   const [confirmMessage, setConfirmMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
 
+  // Função para processar work_schedule
+  const parseWorkSchedule = (workSchedule: string | null) => {
+    if (!workSchedule) {
+      return { start: '08:00', end: '20:00' };
+    }
+    
+    try {
+      // Extrair horário do formato "Segunda-feira, Quarta-feira, Sexta-feira: 08:00-18:00"
+      // ou do formato simples "08:00-18:00"
+      let timeRange = workSchedule;
+      
+      // Se contém ":", pegar a parte após os dois pontos
+      if (workSchedule.includes(': ')) {
+        timeRange = workSchedule.split(': ')[1];
+      }
+      
+      // Verificar se tem o formato HH:MM-HH:MM
+      if (!timeRange.includes('-')) {
+        return { start: '08:00', end: '20:00' };
+      }
+      
+      const [start, end] = timeRange.split('-').map(time => time.trim());
+      
+      // Validar formato HH:MM
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      const validStart = timeRegex.test(start) ? start : '08:00';
+      const validEnd = timeRegex.test(end) ? end : '20:00';
+      
+      console.log('🔧 parseWorkSchedule - input:', workSchedule, 'output:', { start: validStart, end: validEnd });
+      
+      return { start: validStart, end: validEnd };
+    } catch (error) {
+      console.error('Erro ao processar work_schedule:', error);
+      return { start: '08:00', end: '20:00' };
+    }
+  };
+
   // Carregar dados do porteiro
   useEffect(() => {
     const loadPorteiroData = async () => {
@@ -69,39 +106,49 @@ export default function PorteiroDashboard() {
           return;
         }
         
-        // Buscar dados do perfil do porteiro
+        // Buscar dados do perfil do porteiro incluindo work_schedule
+        console.log('🔍 Buscando dados do perfil para usuário:', user.id);
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('full_name, email, work_schedule')
           .eq('id', user.id)
           .eq('user_type', 'porteiro')
           .single();
           
+        console.log('📊 Resultado da consulta:', { profile, profileError });
+        
         if (profileError) {
-          console.error('Erro ao carregar perfil:', profileError);
+          console.error('❌ Erro ao carregar perfil:', profileError);
           // Usar dados básicos do user se não encontrar perfil
           const nameParts = user.email.split('@')[0].split('.');
           const name = nameParts.map(part => 
             part.charAt(0).toUpperCase() + part.slice(1)
           ).join(' ');
           const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
+          const schedule = parseWorkSchedule(null);
+          
+          console.log('⚠️ Usando dados padrão - schedule:', schedule);
           
           setPorteiroData({
             name,
             initials,
-            shift_start: '08:00',
-            shift_end: '20:00'
+            shift_start: schedule.start,
+            shift_end: schedule.end
           });
         } else {
           // Usar dados do perfil
+          console.log('✅ Perfil encontrado - work_schedule:', profile.work_schedule);
           const nameParts = (profile.full_name || profile.email.split('@')[0]).split(' ');
           const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('').slice(0, 2);
+          const schedule = parseWorkSchedule(profile.work_schedule);
+          
+          console.log('🕐 Schedule processado:', schedule);
           
           setPorteiroData({
             name: profile.full_name || profile.email.split('@')[0],
             initials,
-            shift_start: profile.shift_start || '08:00',
-            shift_end: profile.shift_end || '20:00'
+            shift_start: schedule.start,
+            shift_end: schedule.end
           });
         }
       } catch (error) {
@@ -1325,7 +1372,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    zIndex: 9999,
+    zIndex: 99999,
   },
   userMenuItem: {
     flexDirection: 'row',
