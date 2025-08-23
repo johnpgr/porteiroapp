@@ -646,7 +646,7 @@ export default function PorteiroDashboard() {
                   </Text>
                   <View style={styles.authCardInfo}>
                     <View style={styles.authCardTitleRow}>
-                      <Text style={styles.authCardTitle}>
+                      <Text style={styles.authCardTitle} numberOfLines={2} ellipsizeMode='tail'>
                         {autorizacao.isEncomenda ? 'Encomenda' : 'Convidado'}{' '}
                         {autorizacao.nomeConvidado}
                       </Text>
@@ -1756,6 +1756,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
+    flex: 1,
+    marginRight: 8,
   },
   authCardSubtitle: {
     fontSize: 14,
@@ -2287,7 +2289,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
+    flexShrink: 0,
   },
   statusTagText: {
     color: '#fff',
