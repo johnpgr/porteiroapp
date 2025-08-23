@@ -1290,12 +1290,12 @@ const styles = StyleSheet.create({
   },
   // Estilos para menu superior
   topMenu: {
-    backgroundColor: '#fff',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     elevation: 4,
@@ -1303,6 +1303,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    zIndex: 100,
   },
   topMenuLeft: {
     flex: 1,
@@ -1372,7 +1373,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    zIndex: 99999,
+    zIndex: 999999,
   },
   userMenuItem: {
     flexDirection: 'row',
