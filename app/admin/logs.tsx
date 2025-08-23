@@ -23,14 +23,14 @@ interface Log {
   id: string;
   visitor_name: string;
   visitor_document: string;
-  visitor_phone: string;
   apartment_number: string;
   building_name: string;
-  entry_time: string;
-  exit_time: string | null;
-  purpose: string | null;
+  log_time: string;
+  tipo_log: 'IN' | 'OUT';
+  visit_session_id: string;
+  purpose?: string;
   status: string;
-  authorized_by_name: string | null;
+  authorized_by_name?: string;
   created_at: string;
 }
 
@@ -91,15 +91,15 @@ export default function SystemLogs() {
         .from('visitor_logs')
         .select(`
           id,
-          entry_time,
-          exit_time,
+          log_time,
+          tipo_log,
+          visit_session_id,
           purpose,
           status,
           created_at,
           visitors!inner(
             name,
-            document,
-            phone
+            document
           ),
           apartments!inner(
             number,
@@ -113,7 +113,7 @@ export default function SystemLogs() {
           )
         `)
         .in('building_id', buildingIds)
-        .order('created_at', { ascending: false });
+        .order('log_time', { ascending: false });
 
       setBuildings(adminBuildings || []);
       setLogs(
@@ -121,11 +121,11 @@ export default function SystemLogs() {
           id: log.id,
           visitor_name: log.visitors?.name || 'Não identificado',
           visitor_document: log.visitors?.document || 'N/A',
-          visitor_phone: log.visitors?.phone || 'N/A',
           apartment_number: log.apartments?.number || 'N/A',
           building_name: log.buildings?.name || 'Não identificado',
-          entry_time: log.entry_time,
-          exit_time: log.exit_time,
+          log_time: log.log_time,
+          tipo_log: log.tipo_log,
+          visit_session_id: log.visit_session_id,
           purpose: log.purpose,
           status: log.status || 'pending',
           authorized_by_name: log.authorized_by_profile?.full_name || null,
@@ -189,9 +189,9 @@ export default function SystemLogs() {
     if (logMovementFilter !== 'all') {
       filtered = filtered.filter((log) => {
         if (logMovementFilter === 'entrada') {
-          return log.entry_time && !log.exit_time;
+          return log.tipo_log === 'IN';
         } else if (logMovementFilter === 'saida') {
-          return log.exit_time;
+          return log.tipo_log === 'OUT';
         }
         return true;
       });
@@ -200,7 +200,7 @@ export default function SystemLogs() {
     // Filtro por período
     if (logDateFilter.start || logDateFilter.end) {
       filtered = filtered.filter((log) => {
-        const logDate = new Date(log.created_at);
+        const logDate = new Date(log.log_time);
         const startDate = logDateFilter.start;
         const endDate = logDateFilter.end;
 
@@ -415,11 +415,22 @@ export default function SystemLogs() {
 
           <View style={styles.logsList}>
             {filteredLogs.map((log) => (
-              <View key={log.id} style={styles.logItem}>
+              <View key={log.id} style={[
+                styles.logItem,
+                log.tipo_log === 'IN' ? styles.logItemEntry : styles.logItemExit
+              ]}>
                 <View style={styles.logHeader}>
                   <Text style={styles.logTime}>
-                    {new Date(log.entry_time).toLocaleString('pt-BR')}
+                    {new Date(log.log_time).toLocaleString('pt-BR')}
                   </Text>
+                  <View style={[
+                    styles.movementBadge,
+                    log.tipo_log === 'IN' ? styles.movementEntry : styles.movementExit
+                  ]}>
+                    <Text style={styles.movementText}>
+                      {log.tipo_log === 'IN' ? '🔵 ENTRADA' : '🔴 SAÍDA'}
+                    </Text>
+                  </View>
                   <View style={[styles.statusBadge, 
                     log.status === 'approved' ? styles.statusApproved :
                     log.status === 'rejected' ? styles.statusRejected :
@@ -447,14 +458,13 @@ export default function SystemLogs() {
                 )}
                 
                 <View style={styles.timeInfo}>
-                  <Text style={styles.entryTime}>
-                    Entrada: {new Date(log.entry_time).toLocaleString('pt-BR')}
+                  <Text style={[
+                    styles.logTimeDetail,
+                    log.tipo_log === 'IN' ? styles.entryTime : styles.exitTime
+                  ]}>
+                    {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}: {new Date(log.log_time).toLocaleString('pt-BR')}
                   </Text>
-                  {log.exit_time && (
-                    <Text style={styles.exitTime}>
-                      Saída: {new Date(log.exit_time).toLocaleString('pt-BR')}
-                    </Text>
-                  )}
+                  <Text style={styles.sessionId}>Sessão: {log.visit_session_id.slice(0, 8)}</Text>
                 </View>
                 
                 {log.authorized_by_name && (
@@ -602,7 +612,6 @@ const styles = StyleSheet.create({
     marginVertical: 5,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -611,6 +620,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 2.22,
     elevation: 3,
+  },
+  logItemEntry: {
+    borderLeftColor: '#4CAF50',
+  },
+  logItemExit: {
+    borderLeftColor: '#F44336',
   },
   logHeader: {
     flexDirection: 'row',
@@ -641,6 +656,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#fff',
     fontWeight: '600',
+  },
+  movementBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginHorizontal: 5,
+  },
+  movementEntry: {
+    backgroundColor: '#E8F5E8',
+  },
+  movementExit: {
+    backgroundColor: '#FFEBEE',
+  },
+  movementText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#333',
   },
   visitorInfo: {
     flexDirection: 'row',
@@ -685,15 +717,20 @@ const styles = StyleSheet.create({
   timeInfo: {
     marginBottom: 6,
   },
-  entryTime: {
+  logTimeDetail: {
     fontSize: 12,
-    color: '#4CAF50',
     fontWeight: '500',
   },
+  entryTime: {
+    color: '#4CAF50',
+  },
   exitTime: {
-    fontSize: 12,
     color: '#F44336',
-    fontWeight: '500',
+  },
+  sessionId: {
+    fontSize: 10,
+    color: '#999',
+    fontStyle: 'italic',
     marginTop: 2,
   },
   authorizedBy: {

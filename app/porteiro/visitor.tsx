@@ -98,20 +98,48 @@ export default function VisitorManagement() {
 
       if (updateError) throw updateError;
 
-      // Registrar no log
+      // Registrar no log com nova estrutura
       const visitor = visitors.find((v) => v.id === visitorId);
       if (visitor) {
-        const { error: logError } = await supabase.from('visitor_logs').insert({
-          visitor_name: visitor.name,
-          document: visitor.document,
-          apartment_id: visitor.apartment_id,
-          action: action === 'aprovado' ? 'entrada' : action,
-          authorized_by: 'Porteiro',
-          photo_url: visitor.photo_url,
-          notes: notes,
-        });
+        // Buscar building_id do apartamento
+        const { data: apartment, error: aptError } = await supabase
+          .from('apartments')
+          .select('building_id')
+          .eq('id', visitor.apartment_id)
+          .single();
 
-        if (logError) console.error('Erro ao registrar log:', logError);
+        if (aptError || !apartment) {
+          console.error('Erro ao buscar building_id:', aptError);
+          return;
+        }
+
+        // Gerar visit_session_id único para agrupar entrada/saída
+        const visitSessionId = crypto.randomUUID();
+        
+        // Determinar o tipo de log baseado na ação
+        let tipoLog: 'IN' | 'OUT' | null = null;
+        if (action === 'aprovado' || action === 'entrada') {
+          tipoLog = 'IN';
+        } else if (action === 'saida') {
+          tipoLog = 'OUT';
+        }
+
+        // Só criar log se for entrada ou saída
+        if (tipoLog) {
+          const { error: logError } = await supabase.from('visitor_logs').insert({
+            visitor_id: visitor.id,
+            apartment_id: visitor.apartment_id,
+            building_id: apartment.building_id,
+            log_time: new Date().toISOString(),
+            tipo_log: tipoLog,
+            visit_session_id: visitSessionId,
+            purpose: notes || 'Visita registrada pelo porteiro',
+            authorized_by: 'Porteiro', // TODO: pegar ID do usuário logado
+            status: 'authorized'
+          });
+
+          if (logError) console.error('Erro ao registrar log:', logError);
+        }
       }
 
       fetchVisitors();

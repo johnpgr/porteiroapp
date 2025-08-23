@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { flattenStyles } from '../../utils/styles';
+import { supabase } from '../../utils/supabase';
 
 type FlowStep =
   | 'apartamento'
@@ -350,30 +351,93 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   const renderConfirmacaoStep = () => {
-    const handleConfirm = () => {
-      // Aqui você implementaria a lógica para salvar os dados
-      console.log('Visitante registrado:', {
-        apartamento,
-        tipo: tipoVisita,
-        empresa:
-          tipoVisita === 'prestador'
-            ? empresaPrestador
-            : tipoVisita === 'entrega'
-              ? empresaEntrega
-              : null,
-        nome: nomeVisitante,
-        cpf: cpfVisitante,
-        observacoes,
-        fotoTirada,
-      });
+    const handleConfirm = async () => {
+      try {
+        // Buscar informações do apartamento e prédio
+        const { data: apartmentData, error: apartmentError } = await supabase
+          .from('apartments')
+          .select('id, building_id')
+          .eq('number', apartamento)
+          .single();
 
-      const message = `O apartamento ${apartamento} foi notificado sobre a chegada de ${nomeVisitante}.`;
+        if (apartmentError || !apartmentData) {
+          Alert.alert('Erro', 'Apartamento não encontrado.');
+          return;
+        }
 
-      if (onConfirm) {
-        onConfirm(message);
-      } else {
-        Alert.alert('✅ Visitante Registrado!', message, [{ text: 'OK' }]);
-        onClose();
+        // Primeiro, inserir ou buscar o visitante
+        let visitorId;
+        const { data: existingVisitor } = await supabase
+          .from('visitors')
+          .select('id')
+          .eq('document', cpfVisitante)
+          .single();
+
+        if (existingVisitor) {
+          visitorId = existingVisitor.id;
+        } else {
+          // Inserir novo visitante
+          const { data: newVisitor, error: visitorError } = await supabase
+            .from('visitors')
+            .insert({
+              name: nomeVisitante,
+              document: cpfVisitante,
+              apartment_number: apartamento,
+              photo_url: fotoTirada || null,
+              notes: observacoes || null,
+              status: 'approved'
+            })
+            .select('id')
+            .single();
+
+          if (visitorError || !newVisitor) {
+            Alert.alert('Erro', 'Falha ao registrar visitante.');
+            return;
+          }
+          visitorId = newVisitor.id;
+        }
+
+        // Gerar visit_session_id único
+        const visitSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Determinar o propósito baseado no tipo de visita
+        let purpose = tipoVisita;
+        if (tipoVisita === 'prestador' && empresaPrestador) {
+          purpose = `prestador - ${empresaPrestador.replace('_', ' ')}`;
+        } else if (tipoVisita === 'entrega' && empresaEntrega) {
+          purpose = `entrega - ${empresaEntrega.replace('_', ' ')}`;
+        }
+
+        // Inserir log de entrada na tabela visitor_logs
+        const { error: logError } = await supabase
+          .from('visitor_logs')
+          .insert({
+            visitor_id: visitorId,
+            apartment_id: apartmentData.id,
+            building_id: apartmentData.building_id,
+            log_time: new Date().toISOString(),
+            tipo_log: 'IN',
+            visit_session_id: visitSessionId,
+            purpose: purpose,
+            status: 'approved'
+          });
+
+        if (logError) {
+          Alert.alert('Erro', 'Falha ao registrar entrada do visitante.');
+          return;
+        }
+
+        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
+
+        if (onConfirm) {
+          onConfirm(message);
+        } else {
+          Alert.alert('✅ Visitante Registrado!', message, [{ text: 'OK' }]);
+          onClose();
+        }
+      } catch (error) {
+        console.error('Erro ao registrar visitante:', error);
+        Alert.alert('Erro', 'Falha ao registrar visitante. Tente novamente.');
       }
     };
 
