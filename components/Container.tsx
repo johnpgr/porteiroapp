@@ -6,15 +6,7 @@ export const Container = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top + 16,
-          paddingBottom: insets.bottom + 16,
-          paddingLeft: 24,
-          paddingRight: 24,
-        },
-      ]}>
+      style={[styles.container,]}>
       {children}
     </View>
   );

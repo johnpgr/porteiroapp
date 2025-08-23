@@ -1,227 +1,373 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  SafeAreaView,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Container } from '~/components/Container';
-import { supabase } from '~/utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-interface LogEntry {
+interface Building {
   id: string;
-  visitor_name: string;
-  document: string;
-  apartment_number: string;
-  action: 'entrada' | 'saida' | 'negado';
-  authorized_by?: string;
-  photo_url?: string;
-  notes?: string;
+  name: string;
+}
+
+interface Log {
+  id: string;
+  action: string;
+  user_name: string;
+  building_name: string;
   created_at: string;
 }
 
 export default function SystemLogs() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'entrada' | 'saida' | 'negado'>('all');
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
+  const [logSearchType, setLogSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [logBuildingFilter, setLogBuildingFilter] = useState('');
+  const [logMovementFilter, setLogMovementFilter] = useState('all');
+  const [logDateFilter, setLogDateFilter] = useState({
+    start: null as Date | null,
+    end: null as Date | null,
+  });
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   useEffect(() => {
-    fetchLogs();
-  }, [filter, fetchLogs]);
+    fetchData();
+  }, []);
 
-  const fetchLogs = async () => {
+  useEffect(() => {
+    filterLogs();
+  }, [
+    logSearchType,
+    logSearchQuery,
+    logBuildingFilter,
+    logMovementFilter,
+    logDateFilter,
+    logs,
+  ]);
+
+  const fetchData = async () => {
     try {
-      let query = supabase
-        .from('visitor_logs')
-        .select(
-          `
-          *,
-          apartments!inner(number)
-        `
-        )
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (filter !== 'all') {
-        query = query.eq('action', filter);
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        return;
       }
 
-      const { data, error } = await query;
+      // Buscar apenas os prédios gerenciados pelo administrador atual
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
 
-      if (error) throw error;
+      const logsData = await supabase
+        .from('system_logs')
+        .select('*, profiles(name), buildings(name)')
+        .order('created_at', { ascending: false });
 
-      const formattedLogs =
-        data?.map((log) => ({
-          ...log,
-          apartment_number: log.apartments?.number || 'N/A',
-        })) || [];
-
-      setLogs(formattedLogs);
+      setBuildings(adminBuildings || []);
+      setLogs(logsData.data || []);
     } catch (error) {
-      console.error('Erro ao carregar logs:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      console.error('Erro ao carregar dados:', error);
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchLogs();
-  };
+  const filterLogs = () => {
+    let filtered = logs;
 
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case 'entrada':
-        return '#4CAF50';
-      case 'saida':
-        return '#2196F3';
-      case 'negado':
-        return '#F44336';
-      default:
-        return '#666';
+    // Filtro por busca específica
+    if (logSearchQuery && logSearchType !== 'all') {
+      const query = logSearchQuery.toLowerCase();
+      filtered = filtered.filter((log) => {
+        switch (logSearchType) {
+          case 'morador':
+            return (
+              log.user_name?.toLowerCase().includes(query) &&
+              (log.action.toLowerCase().includes('morador') ||
+                log.user_name?.toLowerCase().includes(query))
+            );
+          case 'porteiro':
+            return (
+              log.user_name?.toLowerCase().includes(query) &&
+              (log.action.toLowerCase().includes('porteiro') ||
+                log.user_name?.toLowerCase().includes(query))
+            );
+          case 'predio':
+            return log.building_name?.toLowerCase().includes(query);
+          case 'acao':
+            return log.action.toLowerCase().includes(query);
+          default:
+            return true;
+        }
+      });
+    } else if (logSearchQuery && logSearchType === 'all') {
+      // Busca geral quando tipo é 'all'
+      const query = logSearchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (log) =>
+          log.action.toLowerCase().includes(query) ||
+          log.user_name?.toLowerCase().includes(query) ||
+          log.building_name?.toLowerCase().includes(query)
+      );
     }
-  };
 
-  const getActionIcon = (action: string) => {
-    switch (action) {
-      case 'entrada':
-        return '✅';
-      case 'saida':
-        return '🚪';
-      case 'negado':
-        return '❌';
-      default:
-        return '📝';
+    // Filtro por prédio
+    if (logBuildingFilter) {
+      filtered = filtered.filter((log) => log.building_name === logBuildingFilter);
     }
-  };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString('pt-BR'),
-      time: date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    };
-  };
+    // Filtro por tipo de movimentação
+    if (logMovementFilter !== 'all') {
+      filtered = filtered.filter((log) => {
+        const action = log.action.toLowerCase();
+        if (logMovementFilter === 'entrada') {
+          return action.includes('entrada') || action.includes('entrou');
+        } else if (logMovementFilter === 'saida') {
+          return action.includes('saída') || action.includes('saiu') || action.includes('saida');
+        }
+        return true;
+      });
+    }
 
-  const getFilterCount = (action: string) => {
-    if (action === 'all') return logs.length;
-    return logs.filter((log) => log.action === action).length;
+    // Filtro por período
+    if (logDateFilter.start || logDateFilter.end) {
+      filtered = filtered.filter((log) => {
+        const logDate = new Date(log.created_at);
+        const startDate = logDateFilter.start;
+        const endDate = logDateFilter.end;
+
+        if (startDate && logDate < startDate) return false;
+        if (endDate && logDate > endDate) return false;
+        return true;
+      });
+    }
+
+    setFilteredLogs(filtered);
   };
 
   return (
     <Container>
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>📊 Logs do Sistema</Text>
+          <Text style={styles.title}>📊 Historico de visitantes</Text>
         </View>
 
-        <View style={styles.filters}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.filterButtons}>
-              {[
-                { key: 'all', label: 'Todos', icon: '📋' },
-                { key: 'entrada', label: 'Entradas', icon: '✅' },
-                { key: 'saida', label: 'Saídas', icon: '🚪' },
-                { key: 'negado', label: 'Negados', icon: '❌' },
-              ].map((filterOption) => (
+        <ScrollView style={styles.content}>
+          <View style={styles.filterContainer}>
+            <View style={styles.searchTypeContainer}>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={logSearchType}
+                  onValueChange={setLogSearchType}
+                  style={styles.picker}>
+                  <Picker.Item label="Buscar em Tudo" value="all" />
+                  <Picker.Item label="Buscar Morador" value="morador" />
+                  <Picker.Item label="Buscar Porteiro" value="porteiro" />
+                  <Picker.Item label="Buscar Prédio" value="predio" />
+                  <Picker.Item label="Buscar Ação" value="acao" />
+                </Picker>
+              </View>
+
+              <TextInput
+                style={[styles.filterInput, styles.searchInput]}
+                placeholder={`Buscar ${logSearchType === 'all' ? 'em tudo' : logSearchType}...`}
+                value={logSearchQuery}
+                onChangeText={setLogSearchQuery}
+              />
+            </View>
+
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={logBuildingFilter}
+                onValueChange={setLogBuildingFilter}
+                style={styles.picker}>
+                <Picker.Item label="Todos os Prédios" value="" />
+                {buildings.map((building) => (
+                  <Picker.Item key={building.id} label={building.name} value={building.name} />
+                ))}
+              </Picker>
+            </View>
+
+            <View style={styles.dateFilterContainer}>
+              <View style={styles.datePickerGroup}>
                 <TouchableOpacity
-                  key={filterOption.key}
-                  style={[
-                    styles.filterButton,
-                    filter === filterOption.key && styles.filterButtonActive,
-                  ]}
-                  onPress={() => setFilter(filterOption.key as any)}>
-                  <Text
-                    style={[
-                      styles.filterButtonText,
-                      filter === filterOption.key && styles.filterButtonTextActive,
-                    ]}>
-                    {filterOption.icon} {filterOption.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.filterCount,
-                      filter === filterOption.key && styles.filterCountActive,
-                    ]}>
-                    {getFilterCount(filterOption.key)}
+                  style={styles.datePickerButton}
+                  onPress={() => setShowStartDatePicker(true)}>
+                  <Text style={styles.datePickerButtonText}>
+                    📅{' '}
+                    {logDateFilter.start
+                      ? logDateFilter.start.toLocaleDateString('pt-BR')
+                      : 'Data início'}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
 
-        <ScrollView
-          style={styles.logsList}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Carregando logs...</Text>
+                <TouchableOpacity
+                  style={styles.timePickerButton}
+                  onPress={() => setShowStartTimePicker(true)}>
+                  <Text style={styles.timePickerButtonText}>
+                    🕐{' '}
+                    {logDateFilter.start
+                      ? logDateFilter.start.toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Hora'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.datePickerGroup}>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => setShowEndDatePicker(true)}>
+                  <Text style={styles.datePickerButtonText}>
+                    📅 {logDateFilter.end ? logDateFilter.end.toLocaleDateString('pt-BR') : 'Data fim'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.timePickerButton}
+                  onPress={() => setShowEndTimePicker(true)}>
+                  <Text style={styles.timePickerButtonText}>
+                    🕐{' '}
+                    {logDateFilter.end
+                      ? logDateFilter.end.toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Hora'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          ) : logs.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📝</Text>
-              <Text style={styles.emptyText}>Nenhum log encontrado</Text>
-              <Text style={styles.emptySubtext}>
-                {filter === 'all'
-                  ? 'Ainda não há atividades registradas'
-                  : `Nenhuma atividade do tipo "${filter}" encontrada`}
+
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={logDateFilter.start || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowStartDatePicker(false);
+                  if (selectedDate) {
+                    const currentTime = logDateFilter.start || new Date();
+                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                    setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
+                  }
+                }}
+              />
+            )}
+
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={logDateFilter.start || new Date()}
+                mode="time"
+                display="default"
+                onChange={(event, selectedTime) => {
+                  setShowStartTimePicker(false);
+                  if (selectedTime) {
+                    const currentDate = logDateFilter.start || new Date();
+                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setLogDateFilter((prev) => ({ ...prev, start: currentDate }));
+                  }
+                }}
+              />
+            )}
+
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={logDateFilter.end || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowEndDatePicker(false);
+                  if (selectedDate) {
+                    const currentTime = logDateFilter.end || new Date();
+                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+                    setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
+                  }
+                }}
+              />
+            )}
+
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={logDateFilter.end || new Date()}
+                mode="time"
+                display="default"
+                onChange={(event, selectedTime) => {
+                  setShowEndTimePicker(false);
+                  if (selectedTime) {
+                    const currentDate = logDateFilter.end || new Date();
+                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setLogDateFilter((prev) => ({ ...prev, end: currentDate }));
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity
+              style={[styles.tabButton, logMovementFilter === 'all' && styles.tabButtonActive]}
+              onPress={() => setLogMovementFilter('all')}>
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  logMovementFilter === 'all' && styles.tabButtonTextActive,
+                ]}>
+                Todos
               </Text>
-            </View>
-          ) : (
-            logs.map((log) => {
-              const { date, time } = formatDate(log.created_at);
-              return (
-                <View key={log.id} style={styles.logCard}>
-                  <View style={styles.logHeader}>
-                    <View style={styles.logAction}>
-                      <Text style={styles.actionIcon}>{getActionIcon(log.action)}</Text>
-                      <Text style={[styles.actionText, { color: getActionColor(log.action) }]}>
-                        {log.action.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.logTime}>
-                      <Text style={styles.timeText}>{time}</Text>
-                      <Text style={styles.dateText}>{date}</Text>
-                    </View>
-                  </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, logMovementFilter === 'entrada' && styles.tabButtonActive]}
+              onPress={() => setLogMovementFilter('entrada')}>
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  logMovementFilter === 'entrada' && styles.tabButtonTextActive,
+                ]}>
+                Entrada
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, logMovementFilter === 'saida' && styles.tabButtonActive]}
+              onPress={() => setLogMovementFilter('saida')}>
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  logMovementFilter === 'saida' && styles.tabButtonTextActive,
+                ]}>
+                Saída
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-                  <View style={styles.logContent}>
-                    <View style={styles.visitorInfo}>
-                      <Text style={styles.visitorName}>👤 {log.visitor_name}</Text>
-                      <Text style={styles.visitorDocument}>📄 {log.document}</Text>
-                      <Text style={styles.apartmentInfo}>
-                        🏠 Apartamento {log.apartment_number}
-                      </Text>
-                    </View>
-
-                    {log.authorized_by && (
-                      <View style={styles.authInfo}>
-                        <Text style={styles.authLabel}>Autorizado por:</Text>
-                        <Text style={styles.authName}>{log.authorized_by}</Text>
-                      </View>
-                    )}
-
-                    {log.notes && (
-                      <View style={styles.notesContainer}>
-                        <Text style={styles.notesLabel}>📝 Observações:</Text>
-                        <Text style={styles.notesText}>{log.notes}</Text>
-                      </View>
-                    )}
-
-                    {log.photo_url && (
-                      <View style={styles.photoIndicator}>
-                        <Text style={styles.photoText}>📷 Foto anexada</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          )}
+          <View style={styles.logsList}>
+            {filteredLogs.map((log) => (
+              <View key={log.id} style={styles.logItem}>
+                <Text style={styles.logAction}>{log.action}</Text>
+                <Text style={styles.logUser}>Usuário: {log.user_name}</Text>
+                <Text style={styles.logBuilding}>Prédio: {log.building_name}</Text>
+                <Text style={styles.logDate}>{new Date(log.created_at).toLocaleString('pt-BR')}</Text>
+              </View>
+            ))}
+          </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Container>
   );
 }
@@ -233,7 +379,6 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -253,181 +398,130 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
-  filters: {
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  content: {
+    flex: 1,
   },
-  filterButtons: {
+  filterContainer: {
+    padding: 20,
+  },
+  filterInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    marginBottom: 10,
+  },
+  dateFilterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 10,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  datePickerGroup: {
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  datePickerButton: {
     backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    minWidth: 80,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
-  filterButtonActive: {
-    backgroundColor: '#2196F3',
+  datePickerButtonText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
   },
-  filterButtonText: {
+  timePickerButton: {
+    backgroundColor: '#e8f4f8',
+    padding: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#b3d9e6',
+  },
+  timePickerButtonText: {
     fontSize: 12,
+    color: '#2c5aa0',
+    textAlign: 'center',
+  },
+  searchTypeContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+  },
+  picker: {
+    height: 50,
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    margin: 20,
+    marginBottom: 0,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  tabButton: {
+    flex: 1,
+    padding: 15,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  tabButtonText: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#666',
   },
-  filterButtonTextActive: {
-    color: '#fff',
-  },
-  filterCount: {
-    fontSize: 10,
-    color: '#999',
-    marginTop: 2,
-  },
-  filterCountActive: {
+  tabButtonTextActive: {
     color: '#fff',
   },
   logsList: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    padding: 20,
   },
-  logCard: {
+  logItem: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  logHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderRadius: 8,
+    marginBottom: 10,
+    elevation: 1,
   },
   logAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIcon: {
-    fontSize: 20,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  logTime: {
-    alignItems: 'flex-end',
-  },
-  timeText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
   },
-  dateText: {
+  logUser: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  logBuilding: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  logDate: {
     fontSize: 12,
-    color: '#666',
-  },
-  logContent: {
-    padding: 15,
-  },
-  visitorInfo: {
-    marginBottom: 10,
-  },
-  visitorName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  visitorDocument: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  apartmentInfo: {
-    fontSize: 14,
-    color: '#666',
-  },
-  authInfo: {
-    backgroundColor: '#f8f9fa',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  authLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  authName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  notesContainer: {
-    backgroundColor: '#fff3cd',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  notesLabel: {
-    fontSize: 12,
-    color: '#856404',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#856404',
-  },
-  photoIndicator: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#e3f2fd',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  photoText: {
-    fontSize: 12,
-    color: '#1976d2',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 50,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 50,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    paddingHorizontal: 40,
+    color: '#999',
+    marginTop: 5,
   },
 });
