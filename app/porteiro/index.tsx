@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -50,7 +50,9 @@ export default function PorteiroDashboard() {
   const [communications, setCommunications] = useState<any[]>([]);
   const [loadingCommunications, setLoadingCommunications] = useState(false);
   
-
+  // Estados para a aba Histórico
+  const [visitorLogs, setVisitorLogs] = useState<any[]>([]);
+  const [loadingVisitorLogs, setLoadingVisitorLogs] = useState(false);
 
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -95,7 +97,7 @@ export default function PorteiroDashboard() {
   };
 
   // Função para carregar comunicados
-  const loadCommunications = async () => {
+  const loadCommunications = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -144,7 +146,48 @@ export default function PorteiroDashboard() {
     } finally {
       setLoadingCommunications(false);
     }
-  };
+  }, [user]);
+
+  // Função para carregar histórico de visitantes
+  const loadVisitorLogs = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingVisitorLogs(true);
+      
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
+      // Buscar logs de visitantes do prédio - consulta simples sem joins
+      const { data: logs, error: logsError } = await supabase
+        .from('visitor_logs')
+        .select('id, visitor_id, apartment_id, log_time, tipo_log, purpose, status')
+        .eq('building_id', profile.building_id)
+        .order('log_time', { ascending: false })
+        .limit(50);
+        
+      if (logsError) {
+        console.error('Erro ao carregar logs de visitantes:', logsError);
+        return;
+      }
+      
+      setVisitorLogs(logs || []);
+    } catch (error) {
+      console.error('Erro ao carregar logs de visitantes:', error);
+    } finally {
+      setLoadingVisitorLogs(false);
+    }
+  }, [user]);
 
   // Carregar dados do porteiro
   useEffect(() => {
@@ -228,7 +271,14 @@ export default function PorteiroDashboard() {
     if (activeTab === 'avisos' && user) {
       loadCommunications();
     }
-  }, [activeTab, user]);
+  }, [activeTab, user, loadCommunications]);
+
+  // Carregar histórico de visitantes quando a aba histórico for ativada
+  useEffect(() => {
+    if (activeTab === 'historico' && user) {
+      loadVisitorLogs();
+    }
+  }, [activeTab, user, loadVisitorLogs]);
 
   const handlePanicButton = () => {
     router.push('/emergency');
@@ -1124,78 +1174,105 @@ export default function PorteiroDashboard() {
   };
 
   const renderHistoricoTab = () => {
-    // TODO: Carregar histórico real do Supabase
-    const historico: any[] = [];
-    // const historico = await getHistoricoPorteiro();
-
-    const getIconeAcao = (tipo: string) => {
-      switch (tipo) {
-        case 'visitante':
-          return '👤';
-        case 'encomenda':
-          return '📦';
-        case 'veiculo':
-          return '🚗';
-        case 'autorizacao':
-          return '✅';
-        case 'consulta':
-          return '🔍';
-        case 'sistema':
-          return '⚙️';
+    const getIconeTipoLog = (tipoLog: string) => {
+      switch (tipoLog) {
+        case 'IN':
+          return '🔵'; // Entrada
+        case 'OUT':
+          return '🔴'; // Saída
         default:
-          return '📝';
+          return '👤';
       }
     };
 
     const getCorStatus = (status: string) => {
       switch (status) {
-        case 'concluido':
+        case 'approved':
+        case 'completed':
           return '#4CAF50';
-        case 'ativo':
-          return '#2196F3';
-        case 'pendente':
+        case 'pending':
           return '#FF9800';
+        case 'rejected':
+          return '#F44336';
         default:
           return '#666';
       }
     };
 
+    const formatDateTime = (dateTime: string) => {
+      const date = new Date(dateTime);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${day}/${month}/${year} às ${hours}:${minutes}`;
+    };
+
+    if (loadingVisitorLogs) {
+      return (
+        <ScrollView style={styles.tabContent}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>📚 Histórico</Text>
+            <Text style={styles.headerSubtitle}>Registros de visitantes</Text>
+          </View>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Carregando histórico...</Text>
+          </View>
+        </ScrollView>
+      );
+    }
+
     return (
       <ScrollView style={styles.tabContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>📚 Histórico</Text>
-          <Text style={styles.headerSubtitle}>Atividades do turno</Text>
+          <Text style={styles.headerSubtitle}>Registros de visitantes</Text>
         </View>
 
         <View style={styles.buttonsContainer}>
-          {historico.map((item) => (
-            <View
-              key={item.id}
-              style={flattenStyles([
-                styles.historicoCard,
-                { borderLeftColor: getCorStatus(item.status) },
-              ])}>
-              <View style={styles.historicoHeader}>
-                <Text style={styles.historicoIcon}>{getIconeAcao(item.tipo)}</Text>
-                <View style={styles.historicoInfo}>
-                  <Text style={styles.historicoAcao}>{item.acao}</Text>
-                  <Text style={styles.historicoDetalhes}>{item.detalhes}</Text>
-                  <Text style={styles.historicoDateTime}>
-                    {item.data} às {item.hora}
-                  </Text>
-                </View>
-                <View
-                  style={flattenStyles([
-                    styles.statusBadge,
-                    { backgroundColor: getCorStatus(item.status) },
-                  ])}>
-                  <Text style={styles.statusText}>
-                    {item.status === 'concluido' ? '✓' : item.status === 'ativo' ? '●' : '⏳'}
-                  </Text>
+          {visitorLogs.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.historicoEmptyIcon}>📋</Text>
+              <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
+              <Text style={styles.emptySubtitle}>Os registros de visitantes aparecerão aqui</Text>
+            </View>
+          ) : (
+            visitorLogs.map((log) => (
+              <View
+                key={log.id}
+                style={flattenStyles([
+                  styles.historicoCard,
+                  { borderLeftColor: getCorStatus(log.status) },
+                ])}>
+                <View style={styles.historicoHeader}>
+                  <Text style={styles.historicoIcon}>{getIconeTipoLog(log.tipo_log)}</Text>
+                  <View style={styles.historicoInfo}>
+                    <Text style={styles.historicoAcao}>
+                      Visitante ID: {log.visitor_id} - Apt. ID: {log.apartment_id}
+                    </Text>
+                    <Text style={styles.historicoDetalhes}>
+                      {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}
+                      {log.purpose ? ` - ${log.purpose}` : ''}
+                    </Text>
+                    <Text style={styles.historicoDateTime}>
+                      {formatDateTime(log.log_time)}
+                    </Text>
+                  </View>
+                  <View
+                    style={flattenStyles([
+                      styles.historicoStatusBadge,
+                      { backgroundColor: getCorStatus(log.status) },
+                    ])}>
+                    <Text style={styles.statusText}>
+                      {log.status === 'approved' || log.status === 'completed' ? '✓' : 
+                       log.status === 'pending' ? '⏳' : '✗'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
     );
@@ -2015,7 +2092,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  statusBadge: {
+  historicoStatusBadge: {
     backgroundColor: '#4CAF50',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -2274,7 +2351,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 20,
   },
-  emptyIcon: {
+  historicoEmptyIcon: {
     fontSize: 64,
     marginBottom: 16,
   },
