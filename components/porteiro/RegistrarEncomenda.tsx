@@ -10,8 +10,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../utils/supabase';
+import * as Crypto from 'expo-crypto';
 
-type FlowStep = 'apartamento' | 'empresa' | 'entregador' | 'observacoes' | 'foto' | 'confirmacao';
+type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
 interface RegistrarEncomendaProps {
   onClose: () => void;
@@ -31,14 +34,17 @@ const empresasEntrega = [
 ];
 
 export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEncomendaProps) {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [empresaSelecionada, setEmpresaSelecionada] = useState<(typeof empresasEntrega)[0] | null>(
     null
   );
-  const [nomeEntregador, setNomeEntregador] = useState('');
+  const [nomeDestinatario, setNomeDestinatario] = useState('');
+  const [descricaoEncomenda, setDescricaoEncomenda] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const renderNumericKeypad = (
@@ -106,7 +112,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
               ]}
               onPress={() => {
                 setEmpresaSelecionada(empresa);
-                setCurrentStep('entregador');
+                setCurrentStep('destinatario');
               }}>
               <Text style={styles.empresaIcon}>{empresa.icon}</Text>
               <Text style={styles.empresaNome}>{empresa.nome}</Text>
@@ -117,29 +123,59 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     </View>
   );
 
-  const renderEntregadorStep = () => (
+  const renderDestinatarioStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>👤 Entregador</Text>
-      <Text style={styles.stepSubtitle}>Digite o nome do entregador</Text>
+      <Text style={styles.stepTitle}>👤 Destinatário</Text>
+      <Text style={styles.stepSubtitle}>Digite o nome do destinatário</Text>
 
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
-          value={nomeEntregador}
-          onChangeText={setNomeEntregador}
-          placeholder="Nome do entregador"
+          value={nomeDestinatario}
+          onChangeText={setNomeDestinatario}
+          placeholder="Nome do destinatário"
           autoFocus
           autoCapitalize="words"
         />
 
         <TouchableOpacity
-          style={[styles.nextButton, !nomeEntregador && styles.nextButtonDisabled]}
+          style={[styles.nextButton, !nomeDestinatario && styles.nextButtonDisabled]}
           onPress={() => {
-            if (nomeEntregador.trim()) {
+            if (nomeDestinatario.trim()) {
+              setCurrentStep('descricao');
+            }
+          }}
+          disabled={!nomeDestinatario.trim()}>
+          <Text style={styles.nextButtonText}>Continuar →</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderDescricaoStep = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>📦 Descrição da Encomenda</Text>
+      <Text style={styles.stepSubtitle}>Descreva o conteúdo da encomenda</Text>
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={[styles.textInput, styles.textArea]}
+          value={descricaoEncomenda}
+          onChangeText={setDescricaoEncomenda}
+          placeholder="Ex: Caixa com roupas, eletrônicos, documentos..."
+          multiline
+          numberOfLines={4}
+          autoFocus
+        />
+
+        <TouchableOpacity
+          style={[styles.nextButton, !descricaoEncomenda.trim() && styles.nextButtonDisabled]}
+          onPress={() => {
+            if (descricaoEncomenda.trim()) {
               setCurrentStep('observacoes');
             }
           }}
-          disabled={!nomeEntregador.trim()}>
+          disabled={!descricaoEncomenda.trim()}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -220,15 +256,121 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   const renderConfirmacaoStep = () => {
-    const handleConfirm = () => {
-      // Aqui você implementaria a lógica para salvar os dados
-      const message = `O apartamento ${apartamento} foi notificado sobre a chegada da encomenda ${empresaSelecionada?.nome}.`;
+    const handleConfirm = async () => {
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
 
-      if (onConfirm) {
-        onConfirm(message);
-      } else {
-        Alert.alert('✅ Encomenda Registrada!', message, [{ text: 'OK' }]);
-        onClose();
+      if (!apartamento || !empresaSelecionada || !nomeDestinatario || !descricaoEncomenda) {
+        Alert.alert('Erro', 'Todos os campos obrigatórios devem ser preenchidos');
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        // Validar se o apartamento existe no prédio do porteiro
+        const { data: apartmentData, error: apartmentError } = await supabase
+          .from('apartments')
+          .select('id, number, floor')
+          .eq('number', apartamento)
+          .eq('building_id', user.building_id)
+          .single();
+
+        if (apartmentError) {
+          console.error('Erro ao buscar apartamento:', apartmentError);
+          Alert.alert(
+            'Apartamento não encontrado', 
+            `O apartamento ${apartamento} não existe neste prédio. Verifique o número e tente novamente.`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        if (!apartmentData) {
+          Alert.alert(
+            'Apartamento não encontrado', 
+            `O apartamento ${apartamento} não foi encontrado neste prédio.`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        const apartmentId = apartmentData.id;
+        const visitSessionId = Crypto.randomUUID();
+        const currentTime = new Date().toISOString();
+
+        // Inserir dados na tabela deliveries
+        const { error: deliveryError } = await supabase
+          .from('deliveries')
+          .insert({
+            apartment_id: apartmentId,
+            building_id: user.building_id,
+            recipient_name: nomeDestinatario,
+            delivery_company: empresaSelecionada,
+            description: descricaoEncomenda,
+            status: 'DELIVERED',
+            received_at: currentTime,
+            notes: observacoes || null
+          });
+
+        if (deliveryError) {
+          console.error('Erro ao inserir entrega:', deliveryError);
+          Alert.alert('Erro ao registrar entrega', 'Não foi possível salvar os dados da entrega. Tente novamente.');
+          setIsLoading(false);
+          return;
+        }
+
+        // Inserir dados na tabela visitor_logs
+        const { error: logError } = await supabase
+          .from('visitor_logs')
+          .insert({
+            apartment_id: apartmentId,
+            building_id: user.building_id,
+            authorized_by: user.id,
+            log_time: currentTime,
+            tipo_log: 'DELIVERY',
+            visit_session_id: visitSessionId,
+            purpose: `Entrega: ${descricaoEncomenda}`,
+            status: 'COMPLETED'
+          });
+
+        if (logError) {
+          console.error('Erro ao inserir log:', logError);
+          Alert.alert('Erro ao registrar log', 'A entrega foi salva, mas houve um problema ao registrar o log.');
+          setIsLoading(false);
+          return;
+        }
+
+        Alert.alert(
+          'Sucesso!', 
+          `Encomenda registrada com sucesso para o apartamento ${apartamento}!`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset do formulário
+                setApartamento('');
+                setEmpresaSelecionada('');
+                setNomeDestinatario('');
+                setDescricaoEncomenda('');
+                setObservacoes('');
+                setFotoTirada(null);
+                setCurrentStep('apartamento');
+              }
+            }
+          ]
+        );
+        
+      } catch (error) {
+        console.error('Erro geral:', error);
+        Alert.alert(
+          'Erro inesperado', 
+          'Ocorreu um erro inesperado. Verifique sua conexão e tente novamente.'
+        );
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -249,8 +391,13 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           </View>
 
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Entregador:</Text>
-            <Text style={styles.summaryValue}>{nomeEntregador}</Text>
+            <Text style={styles.summaryLabel}>Destinatário:</Text>
+            <Text style={styles.summaryValue}>{nomeDestinatario}</Text>
+          </View>
+
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Descrição:</Text>
+            <Text style={styles.summaryValue}>{descricaoEncomenda}</Text>
           </View>
 
           {observacoes && (
@@ -261,8 +408,13 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           )}
         </View>
 
-        <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
-          <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
+        <TouchableOpacity 
+          style={[styles.confirmFinalButton, isLoading && styles.confirmFinalButtonDisabled]} 
+          onPress={handleConfirm}
+          disabled={isLoading}>
+          <Text style={styles.confirmFinalButtonText}>
+            {isLoading ? 'Registrando...' : 'Confirmar Registro'}
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -274,8 +426,10 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         return renderApartamentoStep();
       case 'empresa':
         return renderEmpresaStep();
-      case 'entregador':
-        return renderEntregadorStep();
+      case 'destinatario':
+        return renderDestinatarioStep();
+      case 'descricao':
+        return renderDescricaoStep();
       case 'observacoes':
         return renderObservacoesStep();
       case 'foto':
@@ -302,7 +456,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ apartamento, empresa: empresaSelecionada, entregador: nomeEntregador, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
+                width: `${(Object.keys({ apartamento, empresa: empresaSelecionada, destinatario: nomeDestinatario, descricao: descricaoEncomenda, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
               },
             ]}
           />
@@ -551,6 +705,10 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  confirmFinalButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
   },
   confirmFinalButtonText: {
     color: '#fff',
