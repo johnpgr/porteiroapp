@@ -366,10 +366,7 @@ export default function VisitorManagement() {
             visitors.map((visitor) => (
               <VisitorCard
                 key={visitor.id}
-                visitor={{
-                  ...visitor,
-                  apartment: visitor.apartment_number,
-                }}
+                visitor={visitor}
                 onAction={handleVisitorAction}
                 showActions={true}
               />

@@ -355,57 +355,51 @@ export interface Database {
       };
       communications: {
         Row: {
-          id: string;
           building_id: string;
-          title: string;
           content: string;
-          type: string;
-          priority: string;
-          author_id: string;
-          published_at: string | null;
-          expires_at: string | null;
           created_at: string;
+          created_by: string;
+          id: string;
+          priority: string | null;
+          title: string;
+          type: string | null;
           updated_at: string;
         };
         Insert: {
-          id?: string;
           building_id: string;
-          title: string;
           content: string;
-          type: string;
-          priority: string;
-          author_id: string;
-          published_at?: string | null;
-          expires_at?: string | null;
           created_at?: string;
+          created_by: string;
+          id?: string;
+          priority?: string | null;
+          title: string;
+          type?: string | null;
           updated_at?: string;
         };
         Update: {
-          id?: string;
           building_id?: string;
-          title?: string;
           content?: string;
-          type?: string;
-          priority?: string;
-          author_id?: string;
-          published_at?: string | null;
-          expires_at?: string | null;
           created_at?: string;
+          created_by?: string;
+          id?: string;
+          priority?: string | null;
+          title?: string;
+          type?: string | null;
           updated_at?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: 'communications_author_id_fkey';
-            columns: ['author_id'];
-            isOneToOne: false;
-            referencedRelation: 'admin_profiles';
-            referencedColumns: ['id'];
-          },
           {
             foreignKeyName: 'communications_building_id_fkey';
             columns: ['building_id'];
             isOneToOne: false;
             referencedRelation: 'buildings';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'communications_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'admin_profiles';
             referencedColumns: ['id'];
           },
         ];

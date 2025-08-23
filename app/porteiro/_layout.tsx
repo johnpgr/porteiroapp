@@ -9,6 +9,7 @@ export default function PorteiroLayout() {
       <Stack.Screen name="delivery" />
       <Stack.Screen name="logs" />
       <Stack.Screen name="profile" />
+
     </Stack>
   );
 }

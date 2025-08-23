@@ -39,9 +39,18 @@ export default function PorteiroDashboard() {
   const [connectionError, setConnectionError] = useState(false);
 
   // Estados para a aba Consulta
+  const [searchType, setSearchType] = useState<'cpf' | 'placa'>('cpf');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResult, setSearchResult] = useState<any>(null);
-  const [expandedCard, setExpandedCard] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [profileResult, setProfileResult] = useState<any | null>(null);
+  const [vehicleResult, setVehicleResult] = useState<any | null>(null);
+  
+  // Estados para a aba Avisos
+  const [communications, setCommunications] = useState<any[]>([]);
+  const [loadingCommunications, setLoadingCommunications] = useState(false);
+  
+
 
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -82,6 +91,58 @@ export default function PorteiroDashboard() {
     } catch (error) {
       console.error('Erro ao processar work_schedule:', error);
       return { start: '08:00', end: '20:00' };
+    }
+  };
+
+  // Função para carregar comunicados
+  const loadCommunications = async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingCommunications(true);
+      
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
+      // Buscar comunicados do prédio
+      const { data: comms, error: commsError } = await supabase
+        .from('communications')
+        .select(`
+          id,
+          title,
+          content,
+          type,
+          priority,
+          created_at,
+          created_by,
+          admin_profiles!communications_created_by_fkey(
+            full_name
+          )
+        `)
+        .eq('building_id', profile.building_id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+        
+      if (commsError) {
+        console.error('Erro ao carregar comunicados:', commsError);
+        return;
+      }
+      
+      setCommunications(comms || []);
+    } catch (error) {
+      console.error('Erro ao carregar comunicados:', error);
+    } finally {
+      setLoadingCommunications(false);
     }
   };
 
@@ -161,6 +222,13 @@ export default function PorteiroDashboard() {
     
     loadPorteiroData();
   }, [user, authLoading]);
+  
+  // Carregar comunicados quando a aba avisos for ativada
+  useEffect(() => {
+    if (activeTab === 'avisos' && user) {
+      loadCommunications();
+    }
+  }, [activeTab, user]);
 
   const handlePanicButton = () => {
     router.push('/emergency');
@@ -277,8 +345,40 @@ export default function PorteiroDashboard() {
                 <Text style={styles.userMenuText}>Logout</Text>
               </TouchableOpacity>
             </View>
+           )}
+
+          {/* Resultado da Consulta */}
+          {profileResult && (
+            <View style={styles.resultsContainer}>
+              <Text style={styles.resultsTitle}>✅ Morador Encontrado</Text>
+              <View style={styles.resultCard}>
+                <View style={styles.resultHeader}>
+                  <Text style={styles.resultName}>{profileResult.name}</Text>
+                  <Text style={styles.resultType}>Cadastrado</Text>
+                </View>
+                <Text style={styles.resultDetail}>🆔 CPF: {profileResult.cpf}</Text>
+                 <Text style={styles.resultDetail}>
+                   🏠 Apartamento {profileResult.apartment?.number || 'N/A'} - {profileResult.building?.name || 'N/A'}
+                 </Text>
+                {profileResult.phone && (
+                  <Text style={styles.resultDetail}>📱 {profileResult.phone}</Text>
+                )}
+              </View>
+            </View>
           )}
-        </View>
+
+          {/* Mensagem quando não encontrado */}
+          {searchError && searchError.includes('não encontrado') && (
+            <View style={styles.resultsContainer}>
+              <Text style={styles.resultsTitle}>❌ Morador Não Encontrado</Text>
+              <View style={styles.resultCard}>
+                <Text style={styles.resultDetail}>
+                  O CPF informado não está cadastrado no sistema.
+                </Text>
+              </View>
+            </View>
+          )}
+         </View>
       </View>
     );
   };
@@ -442,102 +542,480 @@ export default function PorteiroDashboard() {
   };
 
   const renderConsultaTab = () => {
-    // TODO: Implementar consulta real no Supabase
-    const dadosConsulta: any = {};
-    // const dadosConsulta = await consultarPessoaOuVeiculo(termoBusca);
 
-    const realizarBusca = () => {
-      const query = searchQuery.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      const resultado = dadosConsulta[query as keyof typeof dadosConsulta];
-      setSearchResult(resultado || null);
-      setExpandedCard(false);
+    // Função para validar CPF com verificação de dígitos verificadores
+    const isValidCPF = (cpf: string) => {
+      const cleanCPF = cpf.replace(/[^0-9]/g, '');
+      
+      // Verificar se tem 11 dígitos
+      if (cleanCPF.length !== 11) {
+        return false;
+      }
+      
+      // Verificar se todos os dígitos são iguais (CPF inválido)
+      if (/^(\d)\1{10}$/.test(cleanCPF)) {
+        return false;
+      }
+      
+      // Calcular primeiro dígito verificador
+      let sum = 0;
+      for (let i = 0; i < 9; i++) {
+        sum += parseInt(cleanCPF.charAt(i)) * (10 - i);
+      }
+      let firstDigit = 11 - (sum % 11);
+      if (firstDigit >= 10) firstDigit = 0;
+      
+      // Verificar primeiro dígito
+      if (parseInt(cleanCPF.charAt(9)) !== firstDigit) {
+        return false;
+      }
+      
+      // Calcular segundo dígito verificador
+      sum = 0;
+      for (let i = 0; i < 10; i++) {
+        sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
+      }
+      let secondDigit = 11 - (sum % 11);
+      if (secondDigit >= 10) secondDigit = 0;
+      
+      // Verificar segundo dígito
+      return parseInt(cleanCPF.charAt(10)) === secondDigit;
     };
 
-    const toggleExpanded = () => {
-      setExpandedCard(!expandedCard);
+    // Função para validar placa (formato antigo e Mercosul)
+    const isValidPlate = (plate: string) => {
+      const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      
+      // Verificar se tem 7 caracteres
+      if (cleanPlate.length !== 7) {
+        return false;
+      }
+      
+      // Formato antigo: ABC1234 (3 letras + 4 números)
+      const oldFormat = /^[A-Z]{3}[0-9]{4}$/.test(cleanPlate);
+      
+      // Formato Mercosul: ABC1D23 (3 letras + 1 número + 1 letra + 2 números)
+      const mercosulFormat = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate);
+      
+      return oldFormat || mercosulFormat;
     };
+
+    // Função para formatar CPF
+    const formatCPF = (cpf: string) => {
+      const cleanCPF = cpf.replace(/[^0-9]/g, '');
+      if (cleanCPF.length <= 3) return cleanCPF;
+      if (cleanCPF.length <= 6) return `${cleanCPF.slice(0, 3)}.${cleanCPF.slice(3)}`;
+      if (cleanCPF.length <= 9) return `${cleanCPF.slice(0, 3)}.${cleanCPF.slice(3, 6)}.${cleanCPF.slice(6)}`;
+      return `${cleanCPF.slice(0, 3)}.${cleanCPF.slice(3, 6)}.${cleanCPF.slice(6, 9)}-${cleanCPF.slice(9, 11)}`;
+    };
+
+    // Função para formatar placa
+    const formatPlate = (plate: string) => {
+      const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (cleanPlate.length <= 3) return cleanPlate;
+      if (cleanPlate.length === 7) {
+        // Verificar se é formato Mercosul
+        if (/^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate)) {
+          return `${cleanPlate.slice(0, 3)}-${cleanPlate.slice(3)}`;
+        } else {
+          return `${cleanPlate.slice(0, 3)}-${cleanPlate.slice(3)}`;
+        }
+      }
+      return `${cleanPlate.slice(0, 3)}-${cleanPlate.slice(3)}`;
+    };
+
+    // Função para buscar morador por CPF
+    const searchByCPF = async (cpf: string) => {
+      try {
+        const cleanCPF = cpf.replace(/[^0-9]/g, '');
+        console.log('Buscando CPF:', cleanCPF);
+        
+        // Buscar o perfil do morador
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            full_name,
+            cpf,
+            phone,
+            user_type,
+            building_id
+          `)
+          .eq('cpf', cleanCPF)
+          .single();
+
+        if (profileError) {
+          if (profileError.code === 'PGRST116') {
+            return null; // Não encontrado
+          }
+          console.error('Erro ao buscar perfil:', profileError);
+          throw profileError;
+        }
+
+        if (!profileData) {
+          return null;
+        }
+
+        // Buscar informações do apartamento através da tabela apartment_residents
+        const { data: residentData, error: residentError } = await supabase
+          .from('apartment_residents')
+          .select(`
+            apartment_id,
+            is_owner,
+            apartments!inner(
+              id,
+              number,
+              building_id,
+              buildings!inner(
+                id,
+                name
+              )
+            )
+          `)
+          .eq('profile_id', profileData.id)
+          .single();
+
+        if (residentError && residentError.code !== 'PGRST116') {
+          console.error('Erro ao buscar dados do apartamento:', residentError);
+        }
+
+        // Combinar os dados
+        const result = {
+          ...profileData,
+          apartment: residentData?.apartments ? {
+            number: residentData.apartments.number,
+            id: residentData.apartments.id
+          } : null,
+          building: residentData?.apartments?.buildings ? {
+            name: residentData.apartments.buildings.name,
+            id: residentData.apartments.buildings.id
+          } : null,
+          is_owner: residentData?.is_owner || false
+        };
+
+        console.log('Resultado da busca CPF:', result);
+        return result;
+      } catch (error) {
+        console.error('Erro na busca por CPF:', error);
+        throw error;
+      }
+    };
+
+    // Função para buscar veículo por placa
+    const searchByPlate = async (plate: string) => {
+      try {
+        const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        console.log('Buscando placa:', cleanPlate);
+        
+        // Buscar o veículo com informações do apartamento
+        const { data: vehicleData, error: vehicleError } = await supabase
+          .from('vehicles')
+          .select(`
+            id,
+            license_plate,
+            brand,
+            model,
+            color,
+            type,
+            apartment_id,
+            apartments!inner(
+              id,
+              number,
+              building_id,
+              buildings!inner(
+                id,
+                name
+              )
+            )
+          `)
+          .eq('license_plate', cleanPlate)
+          .single();
+
+        if (vehicleError) {
+          if (vehicleError.code === 'PGRST116') {
+            return null; // Não encontrado
+          }
+          console.error('Erro ao buscar veículo:', vehicleError);
+          throw vehicleError;
+        }
+
+        if (!vehicleData) {
+          return null;
+        }
+
+        // Buscar o proprietário do veículo através da tabela apartment_residents
+        const { data: ownerData, error: ownerError } = await supabase
+          .from('apartment_residents')
+          .select(`
+            profile_id,
+            is_owner,
+            profiles!inner(
+              id,
+              full_name,
+              phone
+            )
+          `)
+          .eq('apartment_id', vehicleData.apartment_id)
+          .eq('is_owner', true)
+          .single();
+
+        if (ownerError && ownerError.code !== 'PGRST116') {
+          console.error('Erro ao buscar proprietário:', ownerError);
+        }
+
+        // Combinar os dados
+        const result = {
+          ...vehicleData,
+          owner: ownerData?.profiles || null,
+          apartment: vehicleData.apartments ? {
+            number: vehicleData.apartments.number,
+            id: vehicleData.apartments.id
+          } : null,
+          building: vehicleData.apartments?.buildings ? {
+            name: vehicleData.apartments.buildings.name,
+            id: vehicleData.apartments.buildings.id
+          } : null
+        };
+
+        console.log('Resultado da busca placa:', result);
+        return result;
+      } catch (error) {
+        console.error('Erro na busca por placa:', error);
+        throw error;
+      }
+    };
+
+    // Função para lidar com mudança no input
+    const handleInputChange = (text: string) => {
+      if (searchType === 'cpf') {
+        const formatted = formatCPF(text);
+        setSearchQuery(formatted);
+      } else {
+        const formatted = formatPlate(text);
+        setSearchQuery(formatted);
+      }
+    };
+
+    // Função principal de busca
+    const realizarBusca = async () => {
+      const query = searchQuery.trim();
+      
+      // Validação de entrada
+      if (!query) {
+        setSearchError(`Digite ${searchType === 'cpf' ? 'um CPF' : 'uma placa'} para consultar`);
+        return;
+      }
+
+      if (searchType === 'cpf' && !isValidCPF(query)) {
+        setSearchError('CPF inválido. Verifique se possui 11 dígitos e é um CPF válido.');
+        return;
+      }
+
+      if (searchType === 'placa' && !isValidPlate(query)) {
+        setSearchError('Placa inválida. Use formato ABC1234 (antigo) ou ABC1D23 (Mercosul).');
+        return;
+      }
+
+      setIsSearching(true);
+      setSearchError(null);
+      setProfileResult(null);
+      setVehicleResult(null);
+
+      try {
+        if (searchType === 'cpf') {
+          const result = await searchByCPF(query);
+          if (result) {
+            setProfileResult(result);
+          } else {
+            setSearchError('CPF não encontrado no sistema');
+          }
+        } else {
+          const result = await searchByPlate(query);
+          if (result) {
+            setVehicleResult(result);
+          } else {
+            setSearchError('Placa não encontrada no sistema');
+          }
+        }
+      } catch (error: any) {
+        console.error('Erro na busca:', error);
+        
+        // Tratamento específico de erros
+        if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
+          setSearchError('Erro de conexão. Verifique sua internet e tente novamente.');
+        } else if (error?.code === 'PGRST301') {
+          setSearchError('Erro de permissão no banco de dados. Contate o administrador.');
+        } else {
+          setSearchError(`Erro ao consultar ${searchType === 'cpf' ? 'CPF' : 'placa'}. Tente novamente.`);
+        }
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Função para alternar tipo de busca
+    const handleSearchTypeChange = (type: 'cpf' | 'placa') => {
+      setSearchType(type);
+      setSearchQuery('');
+      setSearchError(null);
+      setProfileResult(null);
+      setVehicleResult(null);
+    };
+
+
 
     return (
       <ScrollView style={styles.tabContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🔍 Consulta</Text>
-          <Text style={styles.headerSubtitle}>Buscar por CPF ou placa</Text>
+          <Text style={styles.headerSubtitle}>Buscar moradores e veículos cadastrados</Text>
         </View>
 
         <View style={styles.buttonsContainer}>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Digite CPF (123.456.789-01) ou placa (ABC-1234)"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="characters"
-            />
-            <TouchableOpacity style={styles.searchButton} onPress={realizarBusca}>
-              <Text style={styles.searchButtonText}>🔍 Buscar</Text>
+          {/* Botões de alternância */}
+          <View style={styles.searchTypeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.searchTypeButton,
+                searchType === 'cpf' && styles.searchTypeButtonActive,
+              ]}
+              onPress={() => handleSearchTypeChange('cpf')}>
+              <Text style={[
+                styles.searchTypeButtonText,
+                searchType === 'cpf' && styles.searchTypeButtonTextActive,
+              ]}>👤 CPF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.searchTypeButton,
+                searchType === 'placa' && styles.searchTypeButtonActive,
+              ]}
+              onPress={() => handleSearchTypeChange('placa')}>
+              <Text style={[
+                styles.searchTypeButtonText,
+                searchType === 'placa' && styles.searchTypeButtonTextActive,
+              ]}>🚗 Placa</Text>
             </TouchableOpacity>
           </View>
 
-          {searchResult ? (
-            <TouchableOpacity style={styles.resultCard} onPress={toggleExpanded}>
-              <View style={styles.resultHeader}>
-                <Text style={styles.resultIcon}>{searchResult.foto}</Text>
-                <View style={styles.resultInfo}>
-                  <Text style={styles.resultTitle}>
-                    {searchResult.tipo === 'pessoa'
-                      ? searchResult.nome
-                      : `${searchResult.marca} ${searchResult.modelo}`}
-                  </Text>
-                  <Text style={styles.resultSubtitle}>
-                    {searchResult.tipo === 'pessoa'
-                      ? `CPF: ${searchResult.cpf}`
-                      : `Placa: ${searchResult.placa}`}
-                  </Text>
-                  {searchResult.apartamento && (
-                    <Text style={styles.resultApartment}>
-                      Apartamento {searchResult.apartamento}
-                    </Text>
-                  )}
+          {/* Campo de busca */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder={searchType === 'cpf' ? 'Digite o CPF (000.000.000-00)' : 'Digite a placa (ABC-1234)'}
+              value={searchQuery}
+              onChangeText={handleInputChange}
+              keyboardType={searchType === 'cpf' ? 'numeric' : 'default'}
+              maxLength={searchType === 'cpf' ? 14 : 8}
+              editable={!isSearching}
+              autoCapitalize={searchType === 'placa' ? 'characters' : 'none'}
+            />
+            <TouchableOpacity
+              style={[
+                styles.searchButton,
+                isSearching && styles.searchButtonDisabled,
+              ]}
+              onPress={realizarBusca}
+              disabled={isSearching}>
+              <Text style={styles.searchButtonText}>
+                {isSearching ? '⏳ Consultando...' : '🔍 Consultar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Mensagem de Erro */}
+          {searchError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>❌ {searchError}</Text>
+            </View>
+          )}
+
+          {/* Resultado CPF */}
+          {profileResult && (
+            <View style={styles.moradorCard}>
+              {/* Header do Card */}
+              <View style={styles.moradorCardHeader}>
+                <View style={styles.moradorHeaderLeft}>
+                  <Text style={styles.moradorIcon}>👤</Text>
+                  <Text style={styles.moradorHeaderTitle}>Morador Encontrado</Text>
                 </View>
-                <Text style={styles.expandIcon}>{expandedCard ? '▼' : '▶'}</Text>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>✓ Ativo</Text>
+                </View>
               </View>
 
-              {expandedCard && (
-                <View style={styles.expandedContent}>
-                  {searchResult.tipo === 'pessoa' ? (
-                    <>
-                      <Text style={styles.detailItem}>📞 Telefone: {searchResult.telefone}</Text>
-                      <Text style={styles.detailItem}>
-                        🕒 Última visita: {searchResult.ultimaVisita}
-                      </Text>
-                      <Text style={styles.detailItem}>
-                        📝 Observações: {searchResult.observacoes}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.detailItem}>🎨 Cor: {searchResult.cor}</Text>
-                      <Text style={styles.detailItem}>
-                        👤 Proprietário: {searchResult.proprietario}
-                      </Text>
-                      <Text style={styles.detailItem}>
-                        🕒 Última entrada: {searchResult.ultimaEntrada}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-          ) : (
-            searchQuery && (
-              <View style={styles.noResultCard}>
-                <Text style={styles.noResultIcon}>❌</Text>
-                <Text style={styles.noResultText}>Nenhum resultado encontrado</Text>
-                <Text style={styles.noResultSubtext}>
-                  Verifique se o CPF ou placa estão corretos
+              {/* Informações Principais */}
+              <View style={styles.moradorMainInfo}>
+                <Text style={styles.moradorName}>{profileResult.full_name}</Text>
+                <Text style={styles.moradorLocation}>
+                  🏠 Apartamento {profileResult.apartment?.number || 'N/A'} - {profileResult.building?.name || 'N/A'}
                 </Text>
               </View>
-            )
+
+              {/* Informações Secundárias */}
+              <View style={styles.moradorSecondaryInfo}>
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>CPF</Text>
+                    <Text style={styles.infoValue}>{formatCPF(profileResult.cpf)}</Text>
+                  </View>
+                  {profileResult.phone && (
+                    <View style={styles.infoItem}>
+                      <Text style={styles.infoLabel}>Telefone</Text>
+                      <Text style={styles.infoValue}>{profileResult.phone}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Resultado Placa */}
+          {vehicleResult && (
+            <View style={styles.moradorCard}>
+              {/* Header do Card */}
+              <View style={styles.moradorCardHeader}>
+                <View style={styles.moradorHeaderLeft}>
+                  <Text style={styles.moradorIcon}>🚗</Text>
+                  <Text style={styles.moradorHeaderTitle}>Veículo Encontrado</Text>
+                </View>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>✓ Ativo</Text>
+                </View>
+              </View>
+
+              {/* Informações Principais */}
+              <View style={styles.moradorMainInfo}>
+                <Text style={styles.moradorName}>{vehicleResult.brand} {vehicleResult.model}</Text>
+                <Text style={styles.moradorLocation}>
+                  🏠 Apartamento {vehicleResult.apartment?.number || 'N/A'} - {vehicleResult.building?.name || 'N/A'}
+                </Text>
+              </View>
+
+              {/* Informações Secundárias */}
+              <View style={styles.moradorSecondaryInfo}>
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Placa</Text>
+                    <Text style={styles.infoValue}>{formatPlate(vehicleResult.license_plate)}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Cor</Text>
+                    <Text style={styles.infoValue}>{vehicleResult.color}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Tipo</Text>
+                    <Text style={styles.infoValue}>{vehicleResult.type || 'Carro'}</Text>
+                  </View>
+                  {vehicleResult.owner?.full_name && (
+                    <View style={styles.infoItem}>
+                      <Text style={styles.infoLabel}>Proprietário</Text>
+                      <Text style={styles.infoValue}>{vehicleResult.owner.full_name}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -545,10 +1023,6 @@ export default function PorteiroDashboard() {
   };
 
   const renderAvisosTab = () => {
-    // TODO: Carregar avisos reais do Supabase
-    const avisos: any[] = [];
-    // const avisos = await getAvisosCondominio();
-
     const getIconeAviso = (tipo: string) => {
       switch (tipo) {
         case 'manutencao':
@@ -559,6 +1033,14 @@ export default function PorteiroDashboard() {
           return '🏗️';
         case 'informativo':
           return 'ℹ️';
+        case 'notice':
+          return '📢';
+        case 'urgent':
+          return '🚨';
+        case 'maintenance':
+          return '🔧';
+        case 'meeting':
+          return '👥';
         default:
           return '📢';
       }
@@ -567,14 +1049,25 @@ export default function PorteiroDashboard() {
     const getCorPrioridade = (prioridade: string) => {
       switch (prioridade) {
         case 'alta':
+        case 'high':
           return '#FF5722';
         case 'media':
+        case 'medium':
           return '#FF9800';
         case 'baixa':
+        case 'low':
           return '#4CAF50';
+        case 'normal':
         default:
           return '#2196F3';
       }
+    };
+
+    const formatDateTime = (dateString: string) => {
+      const date = new Date(dateString);
+      const day = date.toLocaleDateString('pt-BR');
+      const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return { day, time };
     };
 
     return (
@@ -584,29 +1077,48 @@ export default function PorteiroDashboard() {
           <Text style={styles.headerSubtitle}>Comunicados do condomínio</Text>
         </View>
 
-        <View style={styles.buttonsContainer}>
-          {avisos.map((aviso) => (
-            <View
-              key={aviso.id}
-              style={flattenStyles([
-                styles.avisoCard,
-                { borderLeftColor: getCorPrioridade(aviso.prioridade) },
-              ])}>
-              <View style={styles.avisoHeader}>
-                <Text style={styles.avisoIcon}>{getIconeAviso(aviso.tipo)}</Text>
-                <View style={styles.avisoInfo}>
-                  <Text style={styles.avisoTitle}>{aviso.titulo}</Text>
-                  <Text style={styles.avisoAuthor}>Por {aviso.autor}</Text>
-                  <Text style={styles.avisoDateTime}>
-                    {aviso.data} às {aviso.hora}
-                  </Text>
-                </View>
+        {loadingCommunications ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Carregando comunicados...</Text>
+          </View>
+        ) : (
+          <View style={styles.buttonsContainer}>
+            {communications.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>📭</Text>
+                <Text style={styles.emptyTitle}>Nenhum comunicado</Text>
+                <Text style={styles.emptySubtitle}>Não há comunicados disponíveis no momento</Text>
               </View>
+            ) : (
+              communications.map((comunicado) => {
+                const { day, time } = formatDateTime(comunicado.created_at);
+                const authorName = comunicado.admin_profiles?.full_name || 'Administração';
+                
+                return (
+                  <View
+                    key={comunicado.id}
+                    style={flattenStyles([
+                      styles.avisoCard,
+                      { borderLeftColor: getCorPrioridade(comunicado.priority) },
+                    ])}>
+                    <View style={styles.avisoHeader}>
+                      <Text style={styles.avisoIcon}>{getIconeAviso(comunicado.type)}</Text>
+                      <View style={styles.avisoInfo}>
+                        <Text style={styles.avisoTitle}>{comunicado.title}</Text>
+                        <Text style={styles.avisoAuthor}>Por {authorName}</Text>
+                        <Text style={styles.avisoDateTime}>
+                          {day} às {time}
+                        </Text>
+                      </View>
+                    </View>
 
-              <Text style={styles.avisoDescription}>{aviso.descricao}</Text>
-            </View>
-          ))}
-        </View>
+                    <Text style={styles.avisoDescription}>{comunicado.content}</Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
       </ScrollView>
     );
   };
@@ -1364,6 +1876,100 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#fff',
     borderRadius: 12,
+    minWidth: 180,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    paddingVertical: 8,
+    zIndex: 1000,
+  },
+  userMenuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  userMenuItemText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  userMenuItemLast: {
+    borderBottomWidth: 0,
+  },
+  // Estilos para consulta
+  searchTypeContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  searchTypeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  searchTypeButtonActive: {
+    backgroundColor: '#2196F3',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  searchTypeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  searchTypeButtonTextActive: {
+    color: '#fff',
+  },
+  resultContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    borderLeftWidth: 5,
+    borderLeftColor: '#4CAF50',
+  },
+  resultContent: {
+    gap: 12,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  resultLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    flex: 1,
+  },
+  resultValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 2,
+    textAlign: 'right',
+  },
+  statusActive: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  statusInactive: {
+    color: '#FF5722',
+    fontWeight: 'bold',
     padding: 8,
     minWidth: 120,
     elevation: 12,
@@ -1375,13 +1981,92 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
     zIndex: 999999,
   },
-  userMenuItem: {
+  // Novos estilos para cards de morador/veículo
+  moradorCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  moradorCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  moradorHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    flex: 1,
   },
+  moradorIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  moradorHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  statusBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  moradorMainInfo: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  moradorName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  moradorLocation: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 22,
+  },
+  moradorSecondaryInfo: {
+    padding: 20,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  infoItem: {
+    flex: 1,
+    minWidth: '45%',
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#999',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+
   userMenuIcon: {
     fontSize: 16,
     marginRight: 8,
@@ -1499,5 +2184,111 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     maxWidth: 350,
     width: '100%',
+  },
+  // Novos estilos para resultados de busca
+  resultsSection: {
+    marginBottom: 20,
+  },
+  resultsSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  resultDetail: {
+    fontSize: 13,
+    color: '#555',
+    marginBottom: 3,
+  },
+  resultBuilding: {
+    fontSize: 12,
+    color: '#34C759',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  resultType: {
+    fontSize: 12,
+    color: '#FF9500',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  // Estilos para filtros de busca
+  searchFilters: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 4,
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#2196F3',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  searchButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  errorText: {
+    color: '#FF5722',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+    backgroundColor: '#ffebee',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  // Estilos para a aba de avisos
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
