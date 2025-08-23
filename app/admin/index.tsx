@@ -14,7 +14,7 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase, adminAuth } from '~/utils/supabase';
-import { Picker } from '@react-native-picker/picker';
+
 
 interface Building {
   id: string;
@@ -43,12 +43,7 @@ export default function AdminDashboard() {
 
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
-  const [communication, setCommunication] = useState({
-    title: '',
-    description: '',
-    building_id: '',
-    target_user: 'all',
-  });
+
 
   useEffect(() => {
     fetchData();
@@ -88,33 +83,7 @@ export default function AdminDashboard() {
     router.push('/admin/emergency');
   };
 
-  const handleSendCommunication = async () => {
-    if (!communication.title || !communication.description) {
-      Alert.alert('Erro', 'Título e descrição são obrigatórios');
-      return;
-    }
 
-    try {
-      const { error } = await supabase.from('communications').insert({
-        title: communication.title,
-        description: communication.description,
-        building_id: communication.building_id || null,
-        target_user: communication.target_user,
-        created_by: 'admin',
-      });
-
-      if (error) throw error;
-      Alert.alert('Sucesso', 'Comunicado enviado com sucesso');
-      setCommunication({
-        title: '',
-        description: '',
-        building_id: '',
-        target_user: 'all',
-      });
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao enviar comunicado');
-    }
-  };
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -191,64 +160,7 @@ export default function AdminDashboard() {
 
 
 
-  const renderCommunications = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.communicationsHeader}>
-        <TouchableOpacity
-          style={styles.listCommunicationsButton}
-          onPress={() => router.push('/admin/communications')}>
-          <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.communicationForm}>
-        <Text style={styles.formTitle}>Enviar Comunicado</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Título do comunicado"
-          value={communication.title}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, title: text }))}
-        />
-
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Descrição detalhada"
-          value={communication.description}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, description: text }))}
-          multiline
-          numberOfLines={4}
-        />
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={communication.building_id}
-            onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, building_id: value }))
-            }>
-            <Picker.Item label="Todos os prédios" value="" />
-            {buildings.map((building) => (
-              <Picker.Item key={building.id} label={building.name} value={building.id} />
-            ))}
-          </Picker>
-        </View>
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={communication.target_user}
-            onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, target_user: value }))
-            }>
-            <Picker.Item label="Todos os moradores" value="all" />
-          </Picker>
-        </View>
-
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
-          <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
 
   const renderBottomNavigation = () => (
     <View style={styles.bottomNav}>
@@ -270,8 +182,8 @@ export default function AdminDashboard() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.navItem, activeTab === 'communications' && styles.navItemActive]}
-        onPress={() => setActiveTab('communications')}>
+        style={styles.navItem}
+        onPress={() => router.push('/admin/communications')}>
         <Text style={styles.navIcon}>📢</Text>
         <Text style={styles.navLabel}>Avisos</Text>
       </TouchableOpacity>
@@ -279,14 +191,7 @@ export default function AdminDashboard() {
   );
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return renderDashboard();
-      case 'communications':
-        return renderCommunications();
-      default:
-        return renderDashboard();
-    }
+    return renderDashboard();
   };
 
   return (
@@ -585,36 +490,7 @@ const styles = StyleSheet.create({
     height: 50,
   },
 
-  communicationsHeader: {
-    padding: 20,
-    paddingBottom: 0,
-  },
-  listCommunicationsButton: {
-    backgroundColor: '#2196F3',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  listCommunicationsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  communicationForm: {
-    padding: 20,
-  },
-  sendButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+
   bottomNav: {
     position: 'absolute',
     bottom: 0,
