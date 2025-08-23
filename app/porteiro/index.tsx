@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -53,6 +53,10 @@ export default function PorteiroDashboard() {
   // Estados para a aba Histórico
   const [visitorLogs, setVisitorLogs] = useState<any[]>([]);
   const [loadingVisitorLogs, setLoadingVisitorLogs] = useState(false);
+
+  // Estados para a aba Autorizações
+  const [autorizacoes, setAutorizacoes] = useState<any[]>([]);
+  const [loadingAutorizacoes, setLoadingAutorizacoes] = useState(false);
 
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -189,6 +193,85 @@ export default function PorteiroDashboard() {
     }
   }, [user]);
 
+  // Função para carregar autorizações (visitantes aprovados)
+  const loadAutorizacoes = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingAutorizacoes(true);
+      
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
+      // Buscar visitor_logs com status 'approved' do prédio
+      const { data: logs, error: logsError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          visitor_id,
+          apartment_id,
+          log_time,
+          status,
+          visitors!inner(
+            id,
+            name,
+            document,
+            phone,
+            visitor_type,
+            status
+          ),
+          apartments!inner(
+            number,
+            building_id
+          )
+        `)
+        .eq('building_id', profile.building_id)
+        .eq('status', 'approved')
+        .order('log_time', { ascending: false })
+        .limit(20);
+        
+      if (logsError) {
+        console.error('Erro ao carregar visitantes aprovados:', logsError);
+        return;
+      }
+      
+      // Transformar dados para o formato esperado pela interface
+      const autorizacoesFormatadas = (logs || []).map(log => ({
+        id: log.visitor_id,
+        logId: log.id,
+        tipo: 'Visitante',
+        nomeConvidado: log.visitors?.name || 'N/A',
+        moradorAprovador: 'Morador',
+        apartamento: log.apartments?.number || 'N/A',
+        dataAprovacao: new Date(log.log_time).toLocaleDateString('pt-BR'),
+        horaAprovacao: new Date(log.log_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        statusLabel: 'Aprovado',
+        statusColor: '#10B981',
+        jaAutorizado: false,
+        isEncomenda: false,
+        cpf: log.visitors?.document || '',
+        phone: log.visitors?.phone || '',
+        visitor_type: log.visitors?.visitor_type || 'comum'
+      }));
+      
+      setAutorizacoes(autorizacoesFormatadas);
+    } catch (error) {
+      console.error('Erro ao carregar autorizações:', error);
+    } finally {
+      setLoadingAutorizacoes(false);
+    }
+  }, [user]);
+
   // Carregar dados do porteiro
   useEffect(() => {
     const loadPorteiroData = async () => {
@@ -279,6 +362,13 @@ export default function PorteiroDashboard() {
       loadVisitorLogs();
     }
   }, [activeTab, user, loadVisitorLogs]);
+
+  // Carregar autorizações quando a aba autorizações for ativada
+  useEffect(() => {
+    if (activeTab === 'autorizacoes' && user) {
+      loadAutorizacoes();
+    }
+  }, [activeTab, user, loadAutorizacoes]);
 
   const handlePanicButton = () => {
     router.push('/porteiro/emergency');
@@ -438,28 +528,77 @@ export default function PorteiroDashboard() {
     </ScrollView>
   );
 
-  const renderAutorizacoesTab = () => {
-    // TODO: Carregar autorizações reais do Supabase
-    const autorizacoes: any[] = [];
-    // const autorizacoes = await getAutorizacoesPendentes();
+  const confirmarChegada = async (autorizacao: any) => {
+    try {
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        Alert.alert('Erro', 'Não foi possível confirmar a chegada.');
+        return;
+      }
 
-    const confirmarChegada = (autorizacao: any) => {
-      setSelectedAuth(autorizacao);
-      setShowConfirmModal(true);
-      setCountdown(5);
+      // Determinar o novo status baseado no visitor_type
+      const visitorType = autorizacao.visitor_type || 'comum';
+      const newStatus = visitorType === 'frequente' ? 'approved' : 'pending';
 
-      // Iniciar countdown
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setShowConfirmModal(false);
-            return 5;
-          }
-          return prev - 1;
+      // Atualizar status do visitante baseado no tipo
+      const { error: updateError } = await supabase
+        .from('visitors')
+        .update({ 
+          status: newStatus
+        })
+        .eq('id', autorizacao.id);
+
+      if (updateError) {
+        console.error('Erro ao atualizar status do visitante:', updateError);
+        Alert.alert('Erro', 'Não foi possível confirmar a chegada do visitante.');
+        return;
+      }
+
+      // Registrar novo log de entrada (IN)
+      const { error: logError } = await supabase
+        .from('visitor_logs')
+        .insert({
+          visitor_id: autorizacao.id,
+          apartment_id: autorizacao.apartamento ? parseInt(autorizacao.apartamento) : null,
+          building_id: profile.building_id,
+          log_time: new Date().toISOString(),
+          tipo_log: 'IN',
+          status: 'entered',
+          purpose: `Check-in realizado pelo porteiro ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Novo status: ${newStatus}`
         });
+
+      if (logError) {
+        console.error('Erro ao registrar log:', logError);
+      }
+
+      // Mostrar modal de confirmação
+      setSelectedAuth(autorizacao);
+      showConfirmationModal(
+        autorizacao.isEncomenda
+          ? `A encomenda de ${autorizacao.nomeConvidado} foi registrada na portaria.`
+          : `${autorizacao.nomeConvidado} teve sua chegada confirmada. ${visitorType === 'frequente' ? 'Visitante frequente mantém acesso aprovado.' : 'Visitante comum retorna ao status pendente.'}`
+      );
+
+      // Recarregar autorizações após o check-in
+      setTimeout(() => {
+        loadAutorizacoes();
       }, 1000);
-    };
+
+    } catch (error) {
+      console.error('Erro ao confirmar chegada:', error);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
+    }
+  };
+
+  const renderAutorizacoesTab = () => {
 
     const getStatusTag = (autorizacao: any) => {
       return (
@@ -478,8 +617,20 @@ export default function PorteiroDashboard() {
             <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
           </View>
 
-          <View style={styles.buttonsContainer}>
-            {autorizacoes.map((autorizacao) => (
+          {loadingAutorizacoes ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Carregando autorizações...</Text>
+            </View>
+          ) : (
+            <View style={styles.buttonsContainer}>
+              {autorizacoes.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyIcon}>📋</Text>
+                  <Text style={styles.emptyTitle}>Nenhuma autorização pendente</Text>
+                  <Text style={styles.emptySubtitle}>Não há visitantes aprovados aguardando check-in</Text>
+                </View>
+              ) : (
+                autorizacoes.map((autorizacao) => (
               <View key={autorizacao.id} style={styles.authorizationCard}>
                 <View style={styles.authCardHeader}>
                   <Text style={styles.authCardIcon}>
@@ -531,8 +682,10 @@ export default function PorteiroDashboard() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            ))}
-          </View>
+                ))
+              )}
+            </View>
+          )}
         </ScrollView>
 
         {/* Modal de Confirmação */}
