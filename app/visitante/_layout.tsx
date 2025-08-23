@@ -7,6 +7,7 @@ export default function VisitanteLayout() {
       <Stack.Screen name="register" />
       <Stack.Screen name="status" />
       <Stack.Screen name="help" />
+      <Stack.Screen name="emergency" />
     </Stack>
   );
 }

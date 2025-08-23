@@ -189,6 +189,7 @@ export default function VisitorManagement() {
         document: newVisitor.document,
         phone: null,
         photo_url: photoUrl,
+        status: 'aprovado', // Porteiro pode aprovar diretamente
         is_active: true,
       });
 

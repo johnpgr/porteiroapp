@@ -281,7 +281,7 @@ export default function PorteiroDashboard() {
   }, [activeTab, user, loadVisitorLogs]);
 
   const handlePanicButton = () => {
-    router.push('/emergency');
+    router.push('/porteiro/emergency');
   };
 
   // Função para mostrar modal de confirmação

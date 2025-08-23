@@ -92,7 +92,7 @@ export const formatBrazilianPhone = (phone: string): string => {
  */
 export const generateRegistrationLink = (
   residentData: ResidentData,
-  baseUrl: string = 'https://cadastro.porteiroapp.com'
+  baseUrl: string = 'https://cadastro.jamesconcierge.com/'
 ): string => {
   const cleanPhone = residentData.phone.replace(/\D/g, '');
 

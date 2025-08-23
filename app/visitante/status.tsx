@@ -118,6 +118,7 @@ export default function StatusScreen() {
 
   const getStatusInfo = (status: string) => {
     switch (status) {
+      case 'pendente':
       case 'pending':
         return {
           icon: 'time-outline',
@@ -125,6 +126,7 @@ export default function StatusScreen() {
           text: 'Aguardando Autorização',
           description: 'Sua solicitação foi enviada ao morador',
         };
+      case 'aprovado':
       case 'approved':
         return {
           icon: 'checkmark-circle',
@@ -132,6 +134,7 @@ export default function StatusScreen() {
           text: 'Visita Autorizada',
           description: 'Você pode acessar o prédio',
         };
+      case 'negado':
       case 'denied':
         return {
           icon: 'close-circle',
@@ -270,7 +273,7 @@ export default function StatusScreen() {
             </View>
 
             {/* Action Buttons */}
-            {visitor.status === 'approved' && (
+            {(visitor.status === 'aprovado' || visitor.status === 'approved') && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity style={styles.actionButton}>
                   <Ionicons name="call" size={20} color="#fff" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,25 +8,159 @@ import {
   Alert,
   TextInput,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../utils/supabase';
 
+interface Building {
+  id: string;
+  name: string;
+  address: string;
+}
+
+interface Apartment {
+  id: string;
+  building_id: string;
+  number: string;
+  floor: number;
+}
+
 export default function RegisterScreen() {
   const [formData, setFormData] = useState({
     name: '',
     document: '',
     phone: '',
+    building_id: '',
+    apartment_id: '',
     apartment_number: '',
     notes: '',
     photo_url: '',
   });
   const [loading, setLoading] = useState(false);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [loadingBuildings, setLoadingBuildings] = useState(true);
+  const [loadingApartments, setLoadingApartments] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
+  const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
+  const [buildingSearchText, setBuildingSearchText] = useState('');
+  const [filteredBuildings, setFilteredBuildings] = useState<Building[]>([]);
+  const [showBuildingList, setShowBuildingList] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Carregar prédios ao inicializar
+  useEffect(() => {
+    loadBuildings();
+  }, []);
+
+  // Carregar apartamentos quando prédio for selecionado
+  useEffect(() => {
+    if (formData.building_id) {
+      loadApartments(formData.building_id);
+    } else {
+      setApartments([]);
+      setSelectedApartment(null);
+      setFormData(prev => ({ ...prev, apartment_id: '', apartment_number: '' }));
+    }
+  }, [formData.building_id]);
+
+  const loadBuildings = async () => {
+    try {
+      setLoadingBuildings(true);
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Erro ao carregar prédios:', error);
+        Alert.alert('Erro', 'Não foi possível carregar os prédios');
+        return;
+      }
+
+      const buildingsData = data || [];
+      setBuildings(buildingsData);
+      setFilteredBuildings(buildingsData);
+    } catch (error) {
+      console.error('Erro ao carregar prédios:', error);
+      Alert.alert('Erro', 'Não foi possível carregar os prédios');
+    } finally {
+      setLoadingBuildings(false);
+    }
+  };
+
+  const filterBuildings = (searchText: string) => {
+    if (!searchText.trim()) {
+      setFilteredBuildings(buildings);
+      return;
+    }
+
+    const filtered = buildings.filter(building => 
+      building.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      building.address.toLowerCase().includes(searchText.toLowerCase())
+    ).slice(0, 10); // Limitar a 10 resultados
+
+    setFilteredBuildings(filtered);
+  };
+
+  const loadApartments = async (buildingId: string) => {
+    try {
+      setLoadingApartments(true);
+      const { data, error } = await supabase
+        .from('apartments')
+        .select('id, building_id, number, floor')
+        .eq('building_id', buildingId)
+        .order('number');
+
+      if (error) throw error;
+      setApartments(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar apartamentos:', error);
+      Alert.alert('Erro', 'Não foi possível carregar a lista de apartamentos.');
+    } finally {
+      setLoadingApartments(false);
+    }
+  };
+
+  const handleBuildingSelect = (building: Building) => {
+    setSelectedBuilding(building);
+    setFormData(prev => ({ 
+      ...prev, 
+      building_id: building.id,
+      apartment_id: '',
+      apartment_number: ''
+    }));
+    setSelectedApartment(null);
+    setBuildingSearchText(building.name);
+    setShowBuildingList(false);
+  };
+
+  const handleBuildingSearchChange = (text: string) => {
+    setBuildingSearchText(text);
+    filterBuildings(text);
+    setShowBuildingList(text.length > 0);
+    
+    // Se o texto foi limpo, limpar também a seleção
+    if (!text.trim()) {
+      setSelectedBuilding(null);
+      setSelectedApartment(null);
+      setApartments([]);
+    }
+  };
+
+  const handleApartmentSelect = (apartment: Apartment) => {
+    setSelectedApartment(apartment);
+    setFormData(prev => ({ 
+      ...prev, 
+      apartment_id: apartment.id,
+      apartment_number: apartment.number
+    }));
   };
 
   const pickImage = async () => {
@@ -40,11 +174,11 @@ export default function RegisterScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
     if (!result.canceled && result.assets[0]) {
       setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
@@ -86,12 +220,16 @@ export default function RegisterScreen() {
       Alert.alert('Erro', 'Documento é obrigatório');
       return false;
     }
-    if (!formData.apartment_number.trim()) {
-      Alert.alert('Erro', 'Número do apartamento é obrigatório');
-      return false;
-    }
     if (!formData.phone.trim()) {
       Alert.alert('Erro', 'Telefone é obrigatório para contato');
+      return false;
+    }
+    if (!formData.building_id) {
+      Alert.alert('Erro', 'Selecione um prédio');
+      return false;
+    }
+    if (!formData.apartment_id) {
+      Alert.alert('Erro', 'Selecione um apartamento');
       return false;
     }
     return true;
@@ -102,18 +240,6 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      // Verificar se o apartamento existe
-      const { data: apartment, error: aptError } = await supabase
-        .from('apartments')
-        .select('number')
-        .eq('number', formData.apartment_number.trim())
-        .single();
-
-      if (aptError || !apartment) {
-        Alert.alert('Erro', 'Apartamento não encontrado. Verifique o número informado.');
-        return;
-      }
-
       // Inserir visitante
       const { data: visitor, error: visitorError } = await supabase
         .from('visitors')
@@ -121,32 +247,37 @@ export default function RegisterScreen() {
           name: formData.name.trim(),
           document: formData.document.trim(),
           phone: formData.phone.trim(),
-          apartment_number: formData.apartment_number.trim(),
           photo_url: formData.photo_url || null,
-          notes: formData.notes.trim() || 'Registro via acesso sem porteiro',
-          status: 'pending',
-          created_at: new Date().toISOString(),
+          status: 'pendente',
         })
         .select()
         .single();
 
       if (visitorError) throw visitorError;
 
-      // Criar log da atividade
+      // Gerar ID único para a sessão de visita
+      const visitSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Criar log da atividade com building_id e apartment_id
       await supabase.from('visitor_logs').insert({
         visitor_id: visitor.id,
-        action: 'registered',
-        performed_by: null, // Registro próprio
-        notes: 'Visitante registrado via acesso sem porteiro',
-        timestamp: new Date().toISOString(),
+        building_id: formData.building_id,
+        apartment_id: formData.apartment_id,
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: visitSessionId,
+        purpose: `Visita ao apartamento ${formData.apartment_number} - ${selectedBuilding?.name}`,
+        authorized_by: null,
+        status: 'pending',
       });
 
       // Criar notificação para o morador
       await supabase.from('communications').insert({
         title: 'Novo Visitante Registrado',
-        message: `${formData.name} deseja visitá-lo. Documento: ${formData.document}`,
+        message: `${formData.name} deseja visitá-lo no ${selectedBuilding?.name}, Apt ${formData.apartment_number}. Documento: ${formData.document}`,
         type: 'visitor',
         priority: 'medium',
+        building_id: formData.building_id,
         target_apartment: formData.apartment_number.trim(),
         target_user_type: 'morador',
       });
@@ -154,9 +285,10 @@ export default function RegisterScreen() {
       // Criar notificação para o porteiro (se houver)
       await supabase.from('communications').insert({
         title: 'Visitante Aguardando',
-        message: `${formData.name} registrou-se para visitar o apt. ${formData.apartment_number}`,
+        message: `${formData.name} registrou-se para visitar ${selectedBuilding?.name}, Apt ${formData.apartment_number}`,
         type: 'visitor',
         priority: 'medium',
+        building_id: formData.building_id,
         target_user_type: 'porteiro',
       });
 
@@ -180,10 +312,14 @@ export default function RegisterScreen() {
         name: '',
         document: '',
         phone: '',
+        building_id: '',
+        apartment_id: '',
         apartment_number: '',
         notes: '',
         photo_url: '',
       });
+      setSelectedBuilding(null);
+      setSelectedApartment(null);
     } catch (error) {
       console.error('Erro ao registrar visitante:', error);
       Alert.alert('Erro', 'Não foi possível realizar o registro. Tente novamente.');
@@ -214,6 +350,108 @@ export default function RegisterScreen() {
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.form}>
+          {/* Destination Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🏢 Selecione o Destino</Text>
+            
+            {/* Building Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Prédio *</Text>
+              {loadingBuildings ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FF9800" />
+                  <Text style={styles.loadingText}>Carregando prédios...</Text>
+                </View>
+              ) : (
+                <View>
+                  {/* Campo de Busca de Prédio */}
+                  <View style={styles.searchContainer}>
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder={loadingBuildings ? 'Carregando prédios...' : 'Digite para buscar o prédio...'}
+                      value={buildingSearchText}
+                      onChangeText={handleBuildingSearchChange}
+                      onFocus={() => {
+                        if (buildingSearchText.length > 0) {
+                          setShowBuildingList(true);
+                        }
+                      }}
+                      editable={!loadingBuildings}
+                    />
+                    <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                  </View>
+
+                  {/* Lista de Prédios Filtrados */}
+                  {showBuildingList && filteredBuildings.length > 0 && (
+                    <View style={styles.buildingList}>
+                      <ScrollView style={styles.buildingScrollView} nestedScrollEnabled>
+                        {filteredBuildings.map((building) => (
+                          <TouchableOpacity
+                            key={building.id}
+                            style={[
+                              styles.buildingItem,
+                              selectedBuilding?.id === building.id && styles.selectedBuildingItem
+                            ]}
+                            onPress={() => handleBuildingSelect(building)}
+                          >
+                            <View style={styles.buildingInfo}>
+                              <Text style={styles.buildingName}>{building.name}</Text>
+                              <Text style={styles.buildingAddress}>{building.address}</Text>
+                            </View>
+                            {selectedBuilding?.id === building.id && (
+                              <Ionicons name="checkmark" size={20} color="#007AFF" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Apartment Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Apartamento *</Text>
+              {loadingApartments ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FF9800" />
+                  <Text style={styles.loadingText}>Carregando apartamentos...</Text>
+                </View>
+              ) : !formData.building_id ? (
+                <View style={styles.disabledDropdown}>
+                  <Text style={styles.disabledText}>Selecione um prédio primeiro</Text>
+                  <Ionicons name="chevron-down" size={20} color="#ccc" />
+                </View>
+              ) : (
+                <View style={styles.dropdownContainer}>
+                  <TouchableOpacity
+                    style={[styles.dropdown, selectedApartment && styles.dropdownSelected]}
+                    onPress={() => {
+                      if (apartments.length === 0) {
+                        Alert.alert('Aviso', 'Nenhum apartamento disponível neste prédio');
+                        return;
+                      }
+                      Alert.alert(
+                        'Selecionar Apartamento',
+                        'Escolha um apartamento:',
+                        apartments.map(apartment => ({
+                          text: `Apartamento ${apartment.number}${apartment.floor ? ` - ${apartment.floor}º andar` : ''}`,
+                          onPress: () => handleApartmentSelect(apartment)
+                        })).concat([{ text: 'Cancelar', style: 'cancel' }])
+                      );
+                    }}
+                  >
+                    <Text style={[styles.dropdownText, selectedApartment && styles.dropdownTextSelected]}>
+                      {selectedApartment ? `Apartamento ${selectedApartment.number}${selectedApartment.floor ? ` - ${selectedApartment.floor}º andar` : ''}` : 'Selecione um apartamento'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={selectedApartment ? '#FF9800' : '#999'} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+
           {/* Photo Section */}
           <View style={styles.photoSection}>
             <Text style={styles.sectionTitle}>📸 Sua Foto</Text>
@@ -382,15 +620,29 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 0,
   },
-  photoSection: {
+  section: {
     marginBottom: 25,
-    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
     marginBottom: 15,
+    textAlign: 'center',
+  },
+  photoSection: {
+    alignItems: 'center',
+    marginBottom: 30,
+    backgroundColor: '#f8f9fa',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   photoButton: {
     alignItems: 'center',
@@ -423,16 +675,67 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  section: {
+  dropdownContainer: {
+    marginBottom: 15,
+  },
+  dropdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    minHeight: 50,
+  },
+  dropdownSelected: {
+    borderColor: '#FF9800',
+    backgroundColor: '#fff8f0',
+  },
+  dropdownText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#999',
+  },
+  dropdownTextSelected: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  disabledDropdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    minHeight: 50,
+  },
+  disabledText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#ccc',
+    fontStyle: 'italic',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingVertical: 15,
+    marginBottom: 15,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#666',
   },
   inputGroup: {
     marginBottom: 15,
@@ -491,5 +794,58 @@ const styles = StyleSheet.create({
     color: '#1976D2',
     marginLeft: 10,
     lineHeight: 20,
+  },
+  searchContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    paddingRight: 40,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  searchIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 15,
+  },
+  buildingList: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    maxHeight: 200,
+    marginBottom: 15,
+  },
+  buildingScrollView: {
+    maxHeight: 200,
+  },
+  buildingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  selectedBuildingItem: {
+    backgroundColor: '#f0f8ff',
+  },
+  buildingInfo: {
+    flex: 1,
+  },
+  buildingName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  buildingAddress: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
   },
 });

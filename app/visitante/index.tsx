@@ -49,11 +49,13 @@ export default function VisitanteDashboard() {
             </TouchableOpacity>
           </Link>
 
-          <TouchableOpacity style={flattenStyles([styles.card, styles.emergencyCard])}>
-            <Text style={styles.cardIcon}>🚨</Text>
-            <Text style={styles.cardTitle}>Emergência</Text>
-            <Text style={styles.cardDescription}>Contatos de emergência</Text>
-          </TouchableOpacity>
+          <Link href="/visitante/emergency" asChild>
+            <TouchableOpacity style={flattenStyles([styles.card, styles.emergencyCard])}>
+              <Text style={styles.cardIcon}>🚨</Text>
+              <Text style={styles.cardTitle}>Emergência</Text>
+              <Text style={styles.cardDescription}>Contatos de emergência</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
 
         <View style={styles.footer}>

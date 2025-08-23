@@ -37,29 +37,6 @@ export default function HelpScreen() {
       </View>
 
       <ScrollView style={styles.scrollView}>
-        {/* Emergency Section */}
-        <View style={styles.emergencySection}>
-          <View style={styles.emergencyHeader}>
-            <Ionicons name="warning" size={24} color="#F44336" />
-            <Text style={styles.emergencyTitle}>🚨 Emergência</Text>
-          </View>
-          <Text style={styles.emergencyText}>Em caso de emergência, ligue imediatamente:</Text>
-          <View style={styles.emergencyButtons}>
-            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('190')}>
-              <Ionicons name="call" size={20} color="#fff" />
-              <Text style={styles.emergencyButtonText}>Polícia - 190</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('192')}>
-              <Ionicons name="medical" size={20} color="#fff" />
-              <Text style={styles.emergencyButtonText}>SAMU - 192</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.emergencyButton} onPress={() => handleCall('193')}>
-              <Ionicons name="flame" size={20} color="#fff" />
-              <Text style={styles.emergencyButtonText}>Bombeiros - 193</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* How it Works */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>❓ Como Funciona</Text>
@@ -308,52 +285,7 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  emergencySection: {
-    backgroundColor: '#FFEBEE',
-    margin: 20,
-    padding: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#F44336',
-  },
-  emergencyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  emergencyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#F44336',
-    marginLeft: 10,
-  },
-  emergencyText: {
-    fontSize: 14,
-    color: '#D32F2F',
-    marginBottom: 15,
-  },
-  emergencyButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  emergencyButton: {
-    backgroundColor: '#F44336',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    flex: 1,
-    minWidth: 100,
-    justifyContent: 'center',
-  },
-  emergencyButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginLeft: 5,
-  },
+
   section: {
     backgroundColor: '#fff',
     margin: 20,
