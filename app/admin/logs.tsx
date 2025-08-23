@@ -21,9 +21,16 @@ interface Building {
 
 interface Log {
   id: string;
-  action: string;
-  user_name: string;
+  visitor_name: string;
+  visitor_document: string;
+  visitor_phone: string;
+  apartment_number: string;
   building_name: string;
+  entry_time: string;
+  exit_time: string | null;
+  purpose: string | null;
+  status: string;
+  authorized_by_name: string | null;
   created_at: string;
 }
 
@@ -70,19 +77,58 @@ export default function SystemLogs() {
 
       // Buscar apenas os prédios gerenciados pelo administrador atual
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      const buildingIds = adminBuildings?.map(b => b.id) || [];
 
+      if (buildingIds.length === 0) {
+        console.log('Nenhum prédio encontrado para este administrador');
+        setBuildings([]);
+        setLogs([]);
+        return;
+      }
+
+      // Buscar logs de visitantes com joins para obter informações completas
       const logsData = await supabase
         .from('visitor_logs')
-        .select('*')
+        .select(`
+          id,
+          entry_time,
+          exit_time,
+          purpose,
+          status,
+          created_at,
+          visitors!inner(
+            name,
+            document,
+            phone
+          ),
+          apartments!inner(
+            number,
+            building_id
+          ),
+          buildings!inner(
+            name
+          ),
+          authorized_by_profile:profiles(
+            full_name
+          )
+        `)
+        .in('building_id', buildingIds)
         .order('created_at', { ascending: false });
 
       setBuildings(adminBuildings || []);
       setLogs(
         (logsData.data || []).map((log) => ({
           id: log.id,
-          action: `${log.entry_time ? 'Entrada' : 'Saída'} de visitante`,
-          user_name: log.profiles?.name || 'Não identificado',
+          visitor_name: log.visitors?.name || 'Não identificado',
+          visitor_document: log.visitors?.document || 'N/A',
+          visitor_phone: log.visitors?.phone || 'N/A',
+          apartment_number: log.apartments?.number || 'N/A',
           building_name: log.buildings?.name || 'Não identificado',
+          entry_time: log.entry_time,
+          exit_time: log.exit_time,
+          purpose: log.purpose,
+          status: log.status || 'pending',
+          authorized_by_name: log.authorized_by_profile?.full_name || null,
           created_at: log.created_at
         }))
       );
@@ -101,20 +147,20 @@ export default function SystemLogs() {
         switch (logSearchType) {
           case 'morador':
             return (
-              log.user_name?.toLowerCase().includes(query) &&
-              (log.action.toLowerCase().includes('morador') ||
-                log.user_name?.toLowerCase().includes(query))
+              log.authorized_by_name?.toLowerCase().includes(query) ||
+              log.visitor_name?.toLowerCase().includes(query)
             );
           case 'porteiro':
             return (
-              log.user_name?.toLowerCase().includes(query) &&
-              (log.action.toLowerCase().includes('porteiro') ||
-                log.user_name?.toLowerCase().includes(query))
+              log.authorized_by_name?.toLowerCase().includes(query)
             );
           case 'predio':
             return log.building_name?.toLowerCase().includes(query);
           case 'acao':
-            return log.action.toLowerCase().includes(query);
+            return (
+              log.purpose?.toLowerCase().includes(query) ||
+              log.status?.toLowerCase().includes(query)
+            );
           default:
             return true;
         }
@@ -124,9 +170,13 @@ export default function SystemLogs() {
       const query = logSearchQuery.toLowerCase();
       filtered = filtered.filter(
         (log) =>
-          log.action.toLowerCase().includes(query) ||
-          log.user_name?.toLowerCase().includes(query) ||
-          log.building_name?.toLowerCase().includes(query)
+          log.visitor_name?.toLowerCase().includes(query) ||
+          log.visitor_document?.toLowerCase().includes(query) ||
+          log.apartment_number?.toLowerCase().includes(query) ||
+          log.building_name?.toLowerCase().includes(query) ||
+          log.purpose?.toLowerCase().includes(query) ||
+          log.status?.toLowerCase().includes(query) ||
+          log.authorized_by_name?.toLowerCase().includes(query)
       );
     }
 
@@ -138,11 +188,10 @@ export default function SystemLogs() {
     // Filtro por tipo de movimentação
     if (logMovementFilter !== 'all') {
       filtered = filtered.filter((log) => {
-        const action = log.action.toLowerCase();
         if (logMovementFilter === 'entrada') {
-          return action.includes('entrada') || action.includes('entrou');
+          return log.entry_time && !log.exit_time;
         } else if (logMovementFilter === 'saida') {
-          return action.includes('saída') || action.includes('saiu') || action.includes('saida');
+          return log.exit_time;
         }
         return true;
       });
@@ -367,10 +416,52 @@ export default function SystemLogs() {
           <View style={styles.logsList}>
             {filteredLogs.map((log) => (
               <View key={log.id} style={styles.logItem}>
-                <Text style={styles.logAction}>{log.action}</Text>
-                <Text style={styles.logUser}>Usuário: {log.user_name}</Text>
-                <Text style={styles.logBuilding}>Prédio: {log.building_name}</Text>
-                <Text style={styles.logDate}>{new Date(log.created_at).toLocaleString('pt-BR')}</Text>
+                <View style={styles.logHeader}>
+                  <Text style={styles.logTime}>
+                    {new Date(log.entry_time).toLocaleString('pt-BR')}
+                  </Text>
+                  <View style={[styles.statusBadge, 
+                    log.status === 'approved' ? styles.statusApproved :
+                    log.status === 'rejected' ? styles.statusRejected :
+                    styles.statusPending
+                  ]}>
+                    <Text style={styles.statusText}>
+                      {log.status === 'approved' ? 'Aprovado' :
+                       log.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={styles.visitorInfo}>
+                  <Text style={styles.visitorName}>{log.visitor_name}</Text>
+                  <Text style={styles.visitorDocument}>Doc: {log.visitor_document}</Text>
+                </View>
+                
+                <View style={styles.locationInfo}>
+                  <Text style={styles.buildingName}>{log.building_name}</Text>
+                  <Text style={styles.apartmentNumber}>Apt: {log.apartment_number}</Text>
+                </View>
+                
+                {log.purpose && (
+                  <Text style={styles.purpose}>Propósito: {log.purpose}</Text>
+                )}
+                
+                <View style={styles.timeInfo}>
+                  <Text style={styles.entryTime}>
+                    Entrada: {new Date(log.entry_time).toLocaleString('pt-BR')}
+                  </Text>
+                  {log.exit_time && (
+                    <Text style={styles.exitTime}>
+                      Saída: {new Date(log.exit_time).toLocaleString('pt-BR')}
+                    </Text>
+                  )}
+                </View>
+                
+                {log.authorized_by_name && (
+                  <Text style={styles.authorizedBy}>
+                    Autorizado por: {log.authorized_by_name}
+                  </Text>
+                )}
               </View>
             ))}
           </View>
@@ -508,9 +599,107 @@ const styles = StyleSheet.create({
   logItem: {
     backgroundColor: '#fff',
     padding: 15,
+    marginVertical: 5,
     borderRadius: 8,
-    marginBottom: 10,
-    elevation: 1,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
+  },
+  logHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logTime: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusApproved: {
+    backgroundColor: '#4CAF50',
+  },
+  statusRejected: {
+    backgroundColor: '#F44336',
+  },
+  statusPending: {
+    backgroundColor: '#FF9800',
+  },
+  statusText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  visitorInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  visitorName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    flex: 1,
+  },
+  visitorDocument: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  locationInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  buildingName: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '600',
+    flex: 1,
+  },
+  apartmentNumber: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  purpose: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+  timeInfo: {
+    marginBottom: 6,
+  },
+  entryTime: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  exitTime: {
+    fontSize: 12,
+    color: '#F44336',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  authorizedBy: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
   },
   logAction: {
     fontSize: 16,
