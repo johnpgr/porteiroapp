@@ -200,6 +200,7 @@ export default function Communications() {
         .from('polls')
         .insert({
           title: poll.title,
+          question: poll.description, // Campo obrigatório 'question'
           description: poll.description,
           expires_at: poll.expires_at,
           building_id: poll.building_id,
