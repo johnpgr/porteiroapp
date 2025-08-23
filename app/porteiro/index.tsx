@@ -397,37 +397,7 @@ export default function PorteiroDashboard() {
             </View>
            )}
 
-          {/* Resultado da Consulta */}
-          {profileResult && (
-            <View style={styles.resultsContainer}>
-              <Text style={styles.resultsTitle}>✅ Morador Encontrado</Text>
-              <View style={styles.resultCard}>
-                <View style={styles.resultHeader}>
-                  <Text style={styles.resultName}>{profileResult.name}</Text>
-                  <Text style={styles.resultType}>Cadastrado</Text>
-                </View>
-                <Text style={styles.resultDetail}>🆔 CPF: {profileResult.cpf}</Text>
-                 <Text style={styles.resultDetail}>
-                   🏠 Apartamento {profileResult.apartment?.number || 'N/A'} - {profileResult.building?.name || 'N/A'}
-                 </Text>
-                {profileResult.phone && (
-                  <Text style={styles.resultDetail}>📱 {profileResult.phone}</Text>
-                )}
-              </View>
-            </View>
-          )}
 
-          {/* Mensagem quando não encontrado */}
-          {searchError && searchError.includes('não encontrado') && (
-            <View style={styles.resultsContainer}>
-              <Text style={styles.resultsTitle}>❌ Morador Não Encontrado</Text>
-              <View style={styles.resultCard}>
-                <Text style={styles.resultDetail}>
-                  O CPF informado não está cadastrado no sistema.
-                </Text>
-              </View>
-            </View>
-          )}
          </View>
       </View>
     );

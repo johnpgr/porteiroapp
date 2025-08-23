@@ -7,7 +7,8 @@ interface Visitor {
   document: string;
   apartment_number: string;
   photo_url?: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: 'pending' | 'approved' | 'denied' | 'pendente' | 'aprovado' | 'negado' | 'entrada' | 'saida';
+  visitor_type?: 'comum' | 'frequente';
   created_at: string;
   purpose?: string;
 }
@@ -16,16 +17,23 @@ interface VisitorCardProps {
   visitor: Visitor;
   onApprove?: (id: string) => void;
   onDeny?: (id: string) => void;
+  onAction?: (id: string, action: 'aprovado' | 'negado' | 'entrada' | 'saida', notes?: string) => void;
   showActions?: boolean;
 }
 
-export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }: VisitorCardProps) {
+export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions = false }: VisitorCardProps) {
   const getStatusColor = () => {
     switch (visitor.status) {
       case 'approved':
+      case 'aprovado':
         return '#4CAF50';
       case 'denied':
+      case 'negado':
         return '#F44336';
+      case 'entrada':
+        return '#2196F3';
+      case 'saida':
+        return '#9C27B0';
       default:
         return '#FF9800';
     }
@@ -34,9 +42,15 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
   const getStatusText = () => {
     switch (visitor.status) {
       case 'approved':
+      case 'aprovado':
         return '✅ Aprovado';
       case 'denied':
+      case 'negado':
         return '❌ Negado';
+      case 'entrada':
+        return '🏢 No prédio';
+      case 'saida':
+        return '🚪 Saiu';
       default:
         return '⏳ Pendente';
     }
@@ -51,7 +65,11 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
   };
 
   return (
-    <View style={[styles.card, { borderLeftColor: getStatusColor() }]}>
+    <View style={[
+      styles.card,
+      { borderLeftColor: getStatusColor() },
+      visitor.visitor_type === 'frequente' && styles.frequentVisitorCard
+    ]}>
       <View style={styles.header}>
         <View style={styles.photoContainer}>
           {visitor.photo_url ? (
@@ -67,6 +85,19 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
           <Text style={styles.name}>{visitor.name}</Text>
           <Text style={styles.document}>Doc: {visitor.document}</Text>
           <Text style={styles.apartment}>Apt: {visitor.apartment_number}</Text>
+          {visitor.visitor_type && (
+            <View style={[
+              styles.visitorTypeContainer,
+              visitor.visitor_type === 'frequente' ? styles.frequentVisitorTypeContainer : styles.commonVisitorTypeContainer
+            ]}>
+              <Text style={[
+                styles.visitorTypeText,
+                visitor.visitor_type === 'frequente' ? styles.frequentVisitorType : styles.commonVisitorType
+              ]}>
+                {visitor.visitor_type === 'frequente' ? '⭐ VISITANTE FREQUENTE' : '👤 Visitante Comum'}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.statusContainer}>
@@ -82,19 +113,41 @@ export function VisitorCard({ visitor, onApprove, onDeny, showActions = false }:
         </View>
       )}
 
-      {showActions && visitor.status === 'pending' && (
+      {showActions && (
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.denyButton]}
-            onPress={() => onDeny?.(visitor.id)}>
-            <Text style={styles.actionButtonText}>❌ Negar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.approveButton]}
-            onPress={() => onApprove?.(visitor.id)}>
-            <Text style={styles.actionButtonText}>✅ Aprovar</Text>
-          </TouchableOpacity>
+          {/* Botões para visitantes pendentes */}
+          {(visitor.status === 'pending' || visitor.status === 'pendente') && (
+            <>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.denyButton]}
+                onPress={() => onAction ? onAction(visitor.id, 'negado') : onDeny?.(visitor.id)}>
+                <Text style={styles.actionButtonText}>❌ Negar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.approveButton]}
+                onPress={() => onAction ? onAction(visitor.id, 'aprovado') : onApprove?.(visitor.id)}>
+                <Text style={styles.actionButtonText}>✅ Aprovar</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          
+          {/* Botões para visitantes aprovados */}
+          {(visitor.status === 'approved' || visitor.status === 'aprovado') && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.entryButton]}
+              onPress={() => onAction?.(visitor.id, 'entrada')}>
+              <Text style={styles.actionButtonText}>🏢 Registrar Entrada</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* Botões para visitantes no prédio */}
+          {visitor.status === 'entrada' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.exitButton]}
+              onPress={() => onAction?.(visitor.id, 'saida')}>
+              <Text style={styles.actionButtonText}>🚪 Registrar Saída</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -113,6 +166,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  frequentVisitorCard: {
+    backgroundColor: '#FFF8E1',
+    borderWidth: 2,
+    borderColor: '#FFB300',
+    elevation: 5,
   },
   header: {
     flexDirection: 'row',
@@ -156,6 +215,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '600',
+  },
+  visitorTypeContainer: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  frequentVisitorTypeContainer: {
+    backgroundColor: '#FFB300',
+    borderWidth: 1,
+    borderColor: '#FF8F00',
+  },
+  commonVisitorTypeContainer: {
+    backgroundColor: '#E3F2FD',
+    borderWidth: 1,
+    borderColor: '#1976D2',
+  },
+  visitorTypeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  frequentVisitorType: {
+    color: '#FFFFFF',
+    textShadowColor: '#E65100',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  commonVisitorType: {
+    color: '#1565C0',
   },
   statusContainer: {
     alignItems: 'flex-end',
@@ -202,6 +292,12 @@ const styles = StyleSheet.create({
   },
   denyButton: {
     backgroundColor: '#F44336',
+  },
+  entryButton: {
+    backgroundColor: '#2196F3',
+  },
+  exitButton: {
+    backgroundColor: '#9C27B0',
   },
   actionButtonText: {
     color: '#fff',

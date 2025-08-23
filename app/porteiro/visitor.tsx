@@ -15,6 +15,7 @@ import { Container } from '~/components/Container';
 import { VisitorCard } from '~/components/VisitorCard';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
+import { MediaTypeOptions } from 'expo-image-picker';
 
 interface Visitor {
   id: string;
@@ -23,6 +24,7 @@ interface Visitor {
   apartment_id: string;
   photo_url?: string;
   status: 'pendente' | 'aprovado' | 'negado' | 'entrada' | 'saida';
+  visitor_type?: 'comum' | 'frequente';
   authorized_by?: string;
   notes?: string;
   created_at: string;
@@ -42,7 +44,11 @@ export default function VisitorManagement() {
     apartment_number: '',
     notes: '',
     photo_uri: null as string | null,
+    visitor_type: 'comum' as 'comum' | 'frequente',
   });
+  const [existingVisitor, setExistingVisitor] = useState<Visitor | null>(null);
+  const [, setShowExistingVisitorOptions] = useState(false);
+
 
   useEffect(() => {
     fetchVisitors();
@@ -50,32 +56,60 @@ export default function VisitorManagement() {
 
   const fetchVisitors = useCallback(async () => {
     try {
+      console.log('🔍 fetchVisitors - Filtro atual:', filter);
+      
+      // Query corrigida: buscar visitantes diretamente sem apartment join
       let query = supabase
         .from('visitors')
-        .select(
-          `
-          *,
-          apartments!inner(number)
-        `
-        )
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
+        console.log('🔍 fetchVisitors - Aplicando filtro de status:', filter);
       }
 
-      const { data, error } = await query;
+      const { data: visitorsData, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ fetchVisitors - Erro na query:', error);
+        throw error;
+      }
 
-      const formattedVisitors =
-        data?.map((visitor) => ({
-          ...visitor,
-          apartment_number: visitor.apartments?.number || 'N/A',
-        })) || [];
+      console.log('📊 fetchVisitors - Dados retornados:', visitorsData?.length || 0, 'visitantes');
+      console.log('📋 fetchVisitors - Dados completos:', visitorsData);
+
+      // Para cada visitante, buscar o apartamento mais recente dos logs
+      const formattedVisitors = [];
+      
+      if (visitorsData) {
+        for (const visitor of visitorsData) {
+          // Buscar o log mais recente para obter apartment_id
+          const { data: logData } = await supabase
+            .from('visitor_logs')
+            .select(`
+              apartment_id,
+              apartments!inner(number)
+            `)
+            .eq('visitor_id', visitor.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          formattedVisitors.push({
+            ...visitor,
+            apartment_number: logData?.apartments?.number || 'N/A',
+            apartment_id: logData?.apartment_id || null
+          });
+        }
+      }
+
+      console.log('✅ fetchVisitors - Visitantes formatados:', formattedVisitors.length);
+      console.log('📝 fetchVisitors - Status dos visitantes:', formattedVisitors.map(v => ({ name: v.name, status: v.status, type: v.visitor_type, apt: v.apartment_number })));
 
       setVisitors(formattedVisitors);
-    } catch {
+    } catch (error) {
+      console.error('💥 fetchVisitors - Erro geral:', error);
       Alert.alert('Erro', 'Falha ao carregar visitantes');
     } finally {
       setLoading(false);
@@ -88,10 +122,29 @@ export default function VisitorManagement() {
     notes?: string
   ) => {
     try {
+      // Buscar dados completos do visitante
+      const visitor = visitors.find((v) => v.id === visitorId);
+      if (!visitor) {
+        Alert.alert('Erro', 'Visitante não encontrado');
+        return;
+      }
+
+      // Determinar o novo status baseado na ação e tipo de visitante
+      let newStatus = action;
+      if (action === 'entrada') {
+        // Para visitantes comuns, o status volta para 'pendente' após entrada
+        // Para visitantes frequentes, mantém o status 'aprovado' (permanente)
+        if (visitor.visitor_type === 'comum') {
+          newStatus = 'pendente';
+        } else if (visitor.visitor_type === 'frequente') {
+          newStatus = 'aprovado'; // Mantém acesso permanente
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('visitors')
         .update({
-          status: action,
+          status: newStatus,
           authorized_by: 'Porteiro', // TODO: pegar do contexto de auth
           notes: notes || null,
         })
@@ -100,7 +153,6 @@ export default function VisitorManagement() {
       if (updateError) throw updateError;
 
       // Registrar no log com nova estrutura
-      const visitor = visitors.find((v) => v.id === visitorId);
       if (visitor) {
         // Buscar building_id do apartamento
         const { data: apartment, error: aptError } = await supabase
@@ -119,8 +171,14 @@ export default function VisitorManagement() {
         
         // Determinar o tipo de log baseado na ação
         let tipoLog: 'IN' | 'OUT' | null = null;
+        let logStatus = 'authorized';
+        
         if (action === 'aprovado' || action === 'entrada') {
           tipoLog = 'IN';
+          // Para visitantes frequentes, usar status 'permanent'
+          if (visitor.visitor_type === 'frequente') {
+            logStatus = 'permanent';
+          }
         } else if (action === 'saida') {
           tipoLog = 'OUT';
         }
@@ -136,7 +194,7 @@ export default function VisitorManagement() {
             visit_session_id: visitSessionId,
             purpose: notes || 'Visita registrada pelo porteiro',
             authorized_by: 'Porteiro', // TODO: pegar ID do usuário logado
-            status: 'authorized'
+            status: logStatus
           });
 
           if (logError) console.error('Erro ao registrar log:', logError);
@@ -148,7 +206,9 @@ export default function VisitorManagement() {
       const actionMessages = {
         aprovado: 'Visitante aprovado com sucesso!',
         negado: 'Visitante negado',
-        entrada: 'Entrada registrada',
+        entrada: visitor.visitor_type === 'frequente' 
+          ? 'Entrada registrada - Acesso permanente mantido' 
+          : 'Entrada registrada - Status alterado para pendente',
         saida: 'Saída registrada',
       };
 
@@ -156,6 +216,61 @@ export default function VisitorManagement() {
     } catch {
       Alert.alert('Erro', 'Falha ao processar ação');
     }
+  };
+
+  const searchExistingVisitor = async () => {
+    if (!newVisitor.document.trim()) {
+      Alert.alert('Erro', 'Digite o documento para consultar');
+      return;
+    }
+
+    try {
+      const { data: visitor, error } = await supabase
+        .from('visitors')
+        .select(`
+          *,
+          apartments!inner(number)
+        `)
+        .eq('document', newVisitor.document.trim())
+        .eq('is_active', true)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (visitor) {
+        setExistingVisitor(visitor);
+        setShowExistingVisitorOptions(true);
+        Alert.alert(
+          'Visitante Encontrado',
+          `${visitor.name} já está cadastrado no sistema.\n\nTipo: ${visitor.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visitante Comum'}\n\nDeseja usar este cadastro ou criar um novo?`,
+          [
+            { text: 'Usar Existente', onPress: () => handleUseExistingVisitor(visitor) },
+            { text: 'Criar Novo', onPress: () => setShowExistingVisitorOptions(false) },
+            { text: 'Cancelar', style: 'cancel' }
+          ]
+        );
+      } else {
+        Alert.alert('Visitante Não Encontrado', 'Este documento não está cadastrado no sistema. Você pode prosseguir com o cadastro.');
+        setExistingVisitor(null);
+        setShowExistingVisitorOptions(false);
+      }
+    } catch {
+      Alert.alert('Erro', 'Falha ao consultar visitante');
+    }
+  };
+
+  const handleUseExistingVisitor = (visitor: Visitor) => {
+    setNewVisitor({
+      name: visitor.name,
+      document: visitor.document,
+      apartment_number: visitor.apartments?.number || '',
+      notes: '',
+      photo_uri: visitor.photo_url || null,
+      visitor_type: visitor.visitor_type || 'comum',
+    });
+    setShowExistingVisitorOptions(false);
   };
 
   const handleAddVisitor = async () => {
@@ -184,29 +299,52 @@ export default function VisitorManagement() {
         photoUrl = newVisitor.photo_uri;
       }
 
-      const { error: insertError } = await supabase.from('visitors').insert({
-        name: newVisitor.name,
-        document: newVisitor.document,
-        phone: null,
-        photo_url: photoUrl,
-        status: 'aprovado', // Porteiro pode aprovar diretamente
-        is_active: true,
-      });
+      // Se é um visitante existente, atualizar ao invés de inserir
+      if (existingVisitor) {
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({
+            name: newVisitor.name,
+            apartment_id: apartment.id, // Adicionar apartment_id
+            photo_url: photoUrl,
+            visitor_type: newVisitor.visitor_type,
+            status: 'aprovado', // Porteiro pode aprovar diretamente
+            is_active: true,
+          })
+          .eq('id', existingVisitor.id);
 
-      if (insertError) throw insertError;
+        if (updateError) throw updateError;
+        Alert.alert('Sucesso', 'Dados do visitante atualizados com sucesso!');
+      } else {
+        const { error: insertError } = await supabase.from('visitors').insert({
+          name: newVisitor.name,
+          document: newVisitor.document,
+          apartment_id: apartment.id, // Adicionar apartment_id
+          phone: null,
+          photo_url: photoUrl,
+          visitor_type: newVisitor.visitor_type,
+          status: 'aprovado', // Porteiro pode aprovar diretamente
+          is_active: true,
+        });
 
-      Alert.alert('Sucesso', 'Visitante registrado com sucesso!');
+        if (insertError) throw insertError;
+        Alert.alert('Sucesso', 'Visitante registrado com sucesso!');
+      }
+
       setNewVisitor({
         name: '',
         document: '',
         apartment_number: '',
         notes: '',
         photo_uri: null,
+        visitor_type: 'comum',
       });
+      setExistingVisitor(null);
+      setShowExistingVisitorOptions(false);
       setShowAddForm(false);
       fetchVisitors();
     } catch {
-      Alert.alert('Erro', 'Falha ao adicionar visitante');
+      Alert.alert('Erro', 'Falha ao processar visitante');
     }
   };
 
@@ -218,7 +356,7 @@ export default function VisitorManagement() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [3, 4],
       quality: 0.8,
@@ -292,18 +430,33 @@ export default function VisitorManagement() {
           <View style={styles.addForm}>
             <Text style={styles.formTitle}>Registrar Novo Visitante</Text>
 
+            <View style={styles.searchSection}>
+              <TextInput
+                style={styles.input}
+                placeholder="Digite o documento para consultar"
+                value={newVisitor.document}
+                onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, document: text }))}
+              />
+              <TouchableOpacity style={styles.searchButton} onPress={searchExistingVisitor}>
+                <Text style={styles.searchButtonText}>🔍 Consultar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {existingVisitor && (
+              <View style={styles.existingVisitorInfo}>
+                <Text style={styles.existingVisitorTitle}>✅ Visitante Encontrado:</Text>
+                <Text style={styles.existingVisitorName}>{existingVisitor.name}</Text>
+                <Text style={styles.existingVisitorType}>
+                  Tipo: {existingVisitor.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visitante Comum'}
+                </Text>
+              </View>
+            )}
+
             <TextInput
               style={styles.input}
               placeholder="Nome completo do visitante"
               value={newVisitor.name}
               onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, name: text }))}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Documento (RG/CPF)"
-              value={newVisitor.document}
-              onChangeText={(text) => setNewVisitor((prev) => ({ ...prev, document: text }))}
             />
 
             <TextInput
@@ -315,6 +468,46 @@ export default function VisitorManagement() {
               }
               keyboardType="numeric"
             />
+
+            <View style={styles.visitorTypeSection}>
+              <Text style={styles.sectionTitle}>Tipo de Visitante:</Text>
+              <View style={styles.visitorTypeButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.visitorTypeButton,
+                    newVisitor.visitor_type === 'comum' && styles.visitorTypeButtonActive,
+                  ]}
+                  onPress={() => setNewVisitor((prev) => ({ ...prev, visitor_type: 'comum' }))}>
+                  <Text
+                    style={[
+                      styles.visitorTypeButtonText,
+                      newVisitor.visitor_type === 'comum' && styles.visitorTypeButtonTextActive,
+                    ]}>
+                    👤 Comum
+                  </Text>
+                  <Text style={styles.visitorTypeDescription}>
+                    Status volta para &quot;pendente&quot; após cada entrada
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.visitorTypeButton,
+                    newVisitor.visitor_type === 'frequente' && styles.visitorTypeButtonActive,
+                  ]}
+                  onPress={() => setNewVisitor((prev) => ({ ...prev, visitor_type: 'frequente' }))}>
+                  <Text
+                    style={[
+                      styles.visitorTypeButtonText,
+                      newVisitor.visitor_type === 'frequente' && styles.visitorTypeButtonTextActive,
+                    ]}>
+                    ⭐ Frequente
+                  </Text>
+                  <Text style={styles.visitorTypeDescription}>
+                    Mantém acesso permanente após autorização
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             <TextInput
               style={[styles.input, styles.textArea]}
@@ -568,5 +761,89 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  searchSection: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 15,
+    alignItems: 'flex-end',
+  },
+  searchButton: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  existingVisitorInfo: {
+    backgroundColor: '#E8F5E8',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  existingVisitorTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    marginBottom: 5,
+  },
+  existingVisitorName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 3,
+  },
+  existingVisitorType: {
+    fontSize: 14,
+    color: '#666',
+  },
+  visitorTypeSection: {
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  visitorTypeButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  visitorTypeButton: {
+    flex: 1,
+    backgroundColor: '#f8f8f8',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    alignItems: 'center',
+  },
+  visitorTypeButtonActive: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#2196F3',
+  },
+  visitorTypeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 5,
+  },
+  visitorTypeButtonTextActive: {
+    color: '#2196F3',
+  },
+  visitorTypeDescription: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 });
