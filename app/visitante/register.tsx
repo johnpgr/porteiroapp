@@ -29,6 +29,12 @@ interface Apartment {
 }
 
 export default function RegisterScreen() {
+  // Estados para controle do fluxo de etapas
+  const [currentStep, setCurrentStep] = useState<'cpf_check' | 'full_form'>('cpf_check');
+  const [cpfInput, setCpfInput] = useState('');
+  const [existingVisitor, setExistingVisitor] = useState<any>(null);
+  const [checkingCpf, setCheckingCpf] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     document: '',
@@ -52,6 +58,108 @@ export default function RegisterScreen() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Função para validar formato do CPF
+  const validateCpfFormat = (cpf: string): boolean => {
+    // Remove caracteres não numéricos
+    const cleanCpf = cpf.replace(/\D/g, '');
+    
+    // Verifica se tem 11 dígitos
+    if (cleanCpf.length !== 11) return false;
+    
+    // Verifica se não são todos os dígitos iguais
+    if (/^(\d)\1{10}$/.test(cleanCpf)) return false;
+    
+    return true;
+  };
+
+  // Função para formatar CPF
+  const formatCpf = (cpf: string): string => {
+    const cleanCpf = cpf.replace(/\D/g, '');
+    return cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
+
+  // Função para verificar se CPF já existe no banco
+  const checkExistingCpf = async (cpf: string) => {
+    if (!validateCpfFormat(cpf)) {
+      Alert.alert('CPF Inválido', 'Por favor, digite um CPF válido com 11 dígitos.');
+      return;
+    }
+
+    setCheckingCpf(true);
+    try {
+      const cleanCpf = cpf.replace(/\D/g, '');
+      
+      const { data, error } = await supabase
+        .from('visitors')
+        .select('*')
+        .eq('document', cleanCpf)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao verificar CPF:', error);
+        Alert.alert('Erro', 'Não foi possível verificar o CPF. Tente novamente.');
+        return;
+      }
+
+      if (data) {
+        // CPF já existe
+        setExistingVisitor(data);
+        setFormData(prev => ({
+          ...prev,
+          name: data.name,
+          document: data.document,
+          phone: data.phone,
+          photo_url: data.photo_url || ''
+        }));
+        Alert.alert(
+          'Visitante Encontrado! 👋',
+          `Olá ${data.name}! Seus dados já estão cadastrados. Prossiga para selecionar o destino da visita.`,
+          [{ text: 'Continuar', onPress: () => setCurrentStep('full_form') }]
+        );
+      } else {
+        // CPF não existe, prosseguir com cadastro
+        setFormData(prev => ({ ...prev, document: cleanCpf }));
+        setCurrentStep('full_form');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar CPF:', error);
+      Alert.alert('Erro', 'Não foi possível verificar o CPF. Tente novamente.');
+    } finally {
+      setCheckingCpf(false);
+    }
+  };
+
+  // Função para voltar à etapa de verificação de CPF
+  const goBackToCpfCheck = () => {
+    setCurrentStep('cpf_check');
+    setCpfInput('');
+    setExistingVisitor(null);
+    // Limpar apenas os dados que não são do visitante existente
+    if (!existingVisitor) {
+      setFormData({
+        name: '',
+        document: '',
+        phone: '',
+        building_id: '',
+        apartment_id: '',
+        apartment_number: '',
+        notes: '',
+        photo_url: '',
+      });
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        building_id: '',
+        apartment_id: '',
+        apartment_number: '',
+        notes: ''
+      }));
+    }
+    setSelectedBuilding(null);
+    setSelectedApartment(null);
+    setBuildingSearchText('');
   };
 
   // Carregar prédios ao inicializar
@@ -255,11 +363,29 @@ export default function RegisterScreen() {
 
       if (visitorError) throw visitorError;
 
-      // Gerar ID único para a sessão de visita
-      const visitSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Gerar UUID válido para a sessão de visita usando crypto.randomUUID() ou fallback
+      let visitSessionId;
+      try {
+        visitSessionId = crypto.randomUUID();
+      } catch {
+        // Fallback para React Native ou ambientes sem crypto.randomUUID
+        visitSessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+
+      console.log('Dados para visitor_logs:', {
+        visitor_id: visitor.id,
+        building_id: formData.building_id,
+        apartment_id: formData.apartment_id,
+        visit_session_id: visitSessionId,
+        status: 'pendente'
+      });
 
       // Criar log da atividade com building_id e apartment_id
-      await supabase.from('visitor_logs').insert({
+      const { data: logData, error: logError } = await supabase.from('visitor_logs').insert({
         visitor_id: visitor.id,
         building_id: formData.building_id,
         apartment_id: formData.apartment_id,
@@ -268,8 +394,15 @@ export default function RegisterScreen() {
         visit_session_id: visitSessionId,
         purpose: `Visita ao apartamento ${formData.apartment_number} - ${selectedBuilding?.name}`,
         authorized_by: null,
-        status: 'pending',
-      });
+        status: 'pendente',
+      }).select();
+
+      if (logError) {
+        console.error('Erro ao inserir visitor_logs:', logError);
+        throw new Error(`Erro ao criar log de visita: ${logError.message}`);
+      }
+
+      console.log('Visitor log criado com sucesso:', logData);
 
       // Criar notificação para o morador
       await supabase.from('communications').insert({
@@ -335,7 +468,7 @@ export default function RegisterScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Visita</Text>
+        <Text style={styles.headerTitle}>Solicitar Visita</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -350,6 +483,80 @@ export default function RegisterScreen() {
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.form}>
+          {currentStep === 'cpf_check' ? (
+            // Primeira Etapa: Verificação de CPF
+            <View style={styles.cpfCheckContainer}>
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, styles.stepDotActive]} />
+                <View style={styles.stepLine} />
+                <View style={styles.stepDot} />
+              </View>
+              
+              <Text style={styles.stepTitle}>Etapa 1 de 2</Text>
+              <Text style={styles.stepSubtitle}>Verificação de CPF</Text>
+              
+              <View style={styles.cpfInstructionCard}>
+                <Ionicons name="document-text" size={24} color="#2196F3" />
+                <View style={styles.instructionContent}>
+                  <Text style={styles.instructionTitle}>Digite seu CPF</Text>
+                  <Text style={styles.instructionText}>
+                    Vamos verificar se você já possui cadastro no sistema
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cpfInputContainer}>
+                <Text style={styles.inputLabel}>CPF *</Text>
+                <TextInput
+                  style={styles.cpfInput}
+                  value={cpfInput}
+                  onChangeText={(text) => {
+                    // Formatar CPF enquanto digita
+                    const cleanText = text.replace(/\D/g, '');
+                    if (cleanText.length <= 11) {
+                      setCpfInput(cleanText);
+                    }
+                  }}
+                  placeholder="000.000.000-00"
+                  keyboardType="numeric"
+                  maxLength={14}
+                  autoFocus
+                />
+                {cpfInput.length > 0 && (
+                  <Text style={styles.cpfFormatted}>
+                    {formatCpf(cpfInput)}
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.continueButton,
+                  (!cpfInput || cpfInput.length < 11 || checkingCpf) && styles.continueButtonDisabled
+                ]}
+                onPress={() => checkExistingCpf(cpfInput)}
+                disabled={!cpfInput || cpfInput.length < 11 || checkingCpf}
+              >
+                {checkingCpf ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="arrow-forward" size={24} color="#fff" />
+                )}
+                <Text style={styles.continueButtonText}>
+                  {checkingCpf ? 'Verificando...' : 'Continuar'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.cpfHelpCard}>
+                <Ionicons name="help-circle" size={20} color="#FF9800" />
+                <Text style={styles.cpfHelpText}>
+                  💡 Se você já visitou este condomínio antes, seus dados serão preenchidos automaticamente
+                </Text>
+              </View>
+            </View>
+          ) : (
+            // Formulário completo - Segunda etapa
+            <View style={styles.formContainer}>
           {/* Destination Selection */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🏢 Selecione o Destino</Text>
@@ -535,6 +742,23 @@ export default function RegisterScreen() {
             </View>
           </View>
 
+          {/* Navigation Buttons */}
+          <View style={styles.navigationContainer}>
+            <TouchableOpacity
+              style={styles.backToStepButton}
+              onPress={goBackToCpfCheck}
+            >
+              <Ionicons name="arrow-back" size={20} color="#666" />
+              <Text style={styles.backToStepText}>Voltar ao CPF</Text>
+            </TouchableOpacity>
+
+            <View style={styles.stepIndicatorSmall}>
+              <View style={styles.stepDot} />
+              <View style={styles.stepLine} />
+              <View style={[styles.stepDot, styles.stepDotActive]} />
+            </View>
+          </View>
+
           {/* Submit Button */}
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -542,7 +766,7 @@ export default function RegisterScreen() {
             disabled={loading}>
             <Ionicons name="send" size={24} color="#fff" />
             <Text style={styles.submitButtonText}>
-              {loading ? 'Enviando...' : 'Registrar Visita'}
+              {loading ? 'Enviando...' : existingVisitor ? 'Solicitar Visita' : 'Cadastrar e Solicitar Visita'}
             </Text>
           </TouchableOpacity>
 
@@ -550,9 +774,13 @@ export default function RegisterScreen() {
           <View style={styles.helpCard}>
             <Ionicons name="information-circle" size={20} color="#2196F3" />
             <Text style={styles.helpText}>
-              📸 Toque no ícone da câmera para adicionar uma foto (obrigatório)
+              {existingVisitor 
+                ? '✅ Seus dados já estão cadastrados. Complete apenas as informações da visita.' 
+                : '📝 Preencha todos os campos obrigatórios para solicitar sua visita.'}
             </Text>
           </View>
+        </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -619,6 +847,9 @@ const styles = StyleSheet.create({
   form: {
     padding: 20,
     paddingTop: 0,
+  },
+  formContainer: {
+    flex: 1,
   },
   section: {
     marginBottom: 25,
@@ -847,5 +1078,151 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  // Estilos para a primeira etapa (verificação de CPF)
+  cpfCheckContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  stepIndicatorSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ddd',
+  },
+  stepDotActive: {
+    backgroundColor: '#FF9800',
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: '#ddd',
+    marginHorizontal: 10,
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  stepSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 30,
+  },
+  cpfInstructionCard: {
+    backgroundColor: '#E3F2FD',
+    padding: 20,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+    width: '100%',
+  },
+  instructionContent: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  instructionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1976D2',
+    marginBottom: 5,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#1976D2',
+    lineHeight: 20,
+  },
+  cpfInputContainer: {
+    width: '100%',
+    marginBottom: 30,
+  },
+  cpfInput: {
+    borderWidth: 2,
+    borderColor: '#FF9800',
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 18,
+    backgroundColor: '#fff',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  cpfFormatted: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  continueButton: {
+    backgroundColor: '#FF9800',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 20,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  continueButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  cpfHelpCard: {
+    backgroundColor: '#FFF3E0',
+    padding: 15,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  cpfHelpText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#F57C00',
+    marginLeft: 10,
+    lineHeight: 20,
+  },
+  // Estilos para navegação entre etapas
+  navigationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  backToStepButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  backToStepText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 5,
+    fontWeight: '500',
   },
 });

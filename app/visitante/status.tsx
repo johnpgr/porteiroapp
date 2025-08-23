@@ -18,7 +18,7 @@ interface Visitor {
   name: string;
   document: string;
   apartment_number: string;
-  status: 'pending' | 'approved' | 'denied' | 'in_building' | 'exited';
+  status: 'pendente' | 'approved' | 'denied' | 'in_building' | 'exited';
   notes?: string;
   created_at: string;
   updated_at?: string;
@@ -119,7 +119,6 @@ export default function StatusScreen() {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'pendente':
-      case 'pending':
         return {
           icon: 'time-outline',
           color: '#FF9800',

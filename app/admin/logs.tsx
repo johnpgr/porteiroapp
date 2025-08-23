@@ -127,7 +127,7 @@ export default function SystemLogs() {
           tipo_log: log.tipo_log,
           visit_session_id: log.visit_session_id,
           purpose: log.purpose,
-          status: log.status || 'pending',
+          status: log.status || 'pendente',
           authorized_by_name: log.authorized_by_profile?.full_name || null,
           created_at: log.created_at
         }))

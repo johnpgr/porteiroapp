@@ -1190,7 +1190,7 @@ export default function PorteiroDashboard() {
         case 'approved':
         case 'completed':
           return '#4CAF50';
-        case 'pending':
+        case 'pendente':
           return '#FF9800';
         case 'rejected':
           return '#F44336';
@@ -1266,7 +1266,7 @@ export default function PorteiroDashboard() {
                     ])}>
                     <Text style={styles.statusText}>
                       {log.status === 'approved' || log.status === 'completed' ? '✓' : 
-                       log.status === 'pending' ? '⏳' : '✗'}
+                       log.status === 'pendente' ? '⏳' : '✗'}
                     </Text>
                   </View>
                 </View>

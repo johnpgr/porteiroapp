@@ -26,7 +26,7 @@ interface Visitor {
   apartment_number: string;
   photo_url?: string;
   notes?: string;
-  status: 'pending' | 'approved' | 'denied' | 'in_building' | 'left';
+  status: 'pendente' | 'approved' | 'denied' | 'in_building' | 'left';
   created_at: string;
   authorized_by?: string;
 }
@@ -53,7 +53,7 @@ export default function AuthorizeScreen() {
         .from('visitors')
         .select('*')
         .eq('apartment_number', user.apartment_number)
-        .eq('status', 'pending')
+        .eq('status', 'pendente')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
