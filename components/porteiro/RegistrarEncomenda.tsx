@@ -193,18 +193,17 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} facing="back">
-              <View style={styles.cameraOverlay}>
-                <TouchableOpacity
-                  style={styles.captureButton}
-                  onPress={() => {
-                    setFotoTirada(true);
-                    setCurrentStep('confirmacao');
-                  }}>
-                  <Text style={styles.captureButtonText}>📸</Text>
-                </TouchableOpacity>
-              </View>
-            </CameraView>
+            <CameraView style={styles.camera} facing="back" />
+            <View style={styles.cameraOverlay}>
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={() => {
+                  setFotoTirada(true);
+                  setCurrentStep('confirmacao');
+                }}>
+                <Text style={styles.captureButtonText}>📸</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={styles.photoTakenContainer}>
@@ -492,7 +491,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cameraOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: 50,

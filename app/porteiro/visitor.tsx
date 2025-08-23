@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as Crypto from 'expo-crypto';
 import { Container } from '~/components/Container';
 import { VisitorCard } from '~/components/VisitorCard';
 import { supabase } from '~/utils/supabase';
@@ -114,7 +115,7 @@ export default function VisitorManagement() {
         }
 
         // Gerar visit_session_id único para agrupar entrada/saída
-        const visitSessionId = crypto.randomUUID();
+        const visitSessionId = Crypto.randomUUID();
         
         // Determinar o tipo de log baseado na ação
         let tipoLog: 'IN' | 'OUT' | null = null;
@@ -186,10 +187,9 @@ export default function VisitorManagement() {
       const { error: insertError } = await supabase.from('visitors').insert({
         name: newVisitor.name,
         document: newVisitor.document,
-        apartment_id: apartment.id,
+        phone: null,
         photo_url: photoUrl,
-        status: 'pendente',
-        notes: newVisitor.notes || null,
+        is_active: true,
       });
 
       if (insertError) throw insertError;

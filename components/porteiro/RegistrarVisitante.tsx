@@ -9,8 +9,10 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 type FlowStep =
   | 'apartamento'
@@ -47,6 +49,7 @@ interface RegistrarVisitanteProps {
 }
 
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
@@ -353,15 +356,29 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
       try {
-        // Buscar informações do apartamento e prédio
+        // Verificar se o porteiro está logado e tem building_id
+        if (!user || !user.building_id) {
+          Alert.alert('Erro', 'Porteiro não identificado. Faça login novamente.');
+          return;
+        }
+
+        // Buscar informações do apartamento no prédio do porteiro
         const { data: apartmentData, error: apartmentError } = await supabase
           .from('apartments')
           .select('id, building_id')
           .eq('number', apartamento)
+          .eq('building_id', user.building_id)
           .single();
 
         if (apartmentError || !apartmentData) {
-          Alert.alert('Erro', 'Apartamento não encontrado.');
+          console.error('Erro ao buscar apartamento:', apartmentError);
+          Alert.alert('Erro', `Apartamento ${apartamento} não encontrado neste prédio.`);
+          return;
+        }
+
+        // Validar campos obrigatórios
+        if (!nomeVisitante || !cpfVisitante) {
+          Alert.alert('Erro', 'Nome e CPF são obrigatórios.');
           return;
         }
 
@@ -382,23 +399,22 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             .insert({
               name: nomeVisitante,
               document: cpfVisitante,
-              apartment_number: apartamento,
-              photo_url: fotoTirada || null,
-              notes: observacoes || null,
-              status: 'approved'
+              phone: null, // Campo phone da estrutura correta
+              photo_url: fotoTirada || null
             })
             .select('id')
             .single();
 
           if (visitorError || !newVisitor) {
+            console.error('Erro ao inserir visitante:', visitorError);
             Alert.alert('Erro', 'Falha ao registrar visitante.');
             return;
           }
           visitorId = newVisitor.id;
         }
 
-        // Gerar visit_session_id único
-        const visitSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Gerar visit_session_id único como UUID válido
+        const visitSessionId = Crypto.randomUUID();
 
         // Determinar o propósito baseado no tipo de visita
         let purpose = tipoVisita;
@@ -418,11 +434,12 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             log_time: new Date().toISOString(),
             tipo_log: 'IN',
             visit_session_id: visitSessionId,
-            purpose: purpose,
-            status: 'approved'
+            purpose: observacoes || purpose,
+            authorized_by: user.id
           });
 
         if (logError) {
+          console.error('Erro ao inserir log de entrada:', logError);
           Alert.alert('Erro', 'Falha ao registrar entrada do visitante.');
           return;
         }
@@ -436,8 +453,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           onClose();
         }
       } catch (error) {
-        console.error('Erro ao registrar visitante:', error);
-        Alert.alert('Erro', 'Falha ao registrar visitante. Tente novamente.');
+        console.error('Erro geral ao registrar visitante:', error);
+        Alert.alert('Erro', 'Falha inesperada ao registrar visitante. Verifique sua conexão e tente novamente.');
       }
     };
 

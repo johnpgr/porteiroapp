@@ -40,9 +40,9 @@ INSERT INTO residents (id, apartment_id, user_id, is_owner, condominium_id, buil
 ('550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440005', '550e8400-e29b-41d4-a716-446655440014', true, '550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002', NOW());
 
 -- Insert test visitors
-INSERT INTO visitors (id, visitor_name, visitor_document, visitor_phone, visitor_photo_url, apartment_id, building_id, condominium_id, visit_type, status, created_at) VALUES 
-('550e8400-e29b-41d4-a716-446655440030', 'João Silva Visitante', '123.456.789-00', '(11) 9999-1111', 'https://example.com/photo1.jpg', '550e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440001', 'visitor', 'pending', NOW()),
-('550e8400-e29b-41d4-a716-446655440031', 'Maria Santos Visitante', '987.654.321-00', '(11) 9999-2222', 'https://example.com/photo2.jpg', '550e8400-e29b-41d4-a716-446655440004', '550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440001', 'visitor', 'authorized', NOW());
+INSERT INTO visitors (id, name, document, phone, photo_url, is_active, created_at) VALUES 
+('550e8400-e29b-41d4-a716-446655440030', 'João Silva Visitante', '12345678900', '11999991111', 'https://example.com/photo1.jpg', true, NOW()),
+('550e8400-e29b-41d4-a716-446655440031', 'Maria Santos Visitante', '98765432100', '11999992222', 'https://example.com/photo2.jpg', true, NOW());
 
 -- Insert test visitor logs
 INSERT INTO visitor_logs (id, visitor_id, action, performed_by, timestamp, condominium_id, building_id) VALUES 

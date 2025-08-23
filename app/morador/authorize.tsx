@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { VisitorCard } from '../../components/VisitorCard';
@@ -21,14 +22,13 @@ interface Visitor {
   id: string;
   name: string;
   document: string;
+  phone?: string;
   apartment_number: string;
   photo_url?: string;
   notes?: string;
   status: 'pending' | 'approved' | 'denied' | 'in_building' | 'left';
   created_at: string;
   authorized_by?: string;
-  entry_time?: string;
-  exit_time?: string;
 }
 
 export default function AuthorizeScreen() {
@@ -97,14 +97,25 @@ export default function AuthorizeScreen() {
       if (error) throw error;
 
       // Criar log da atividade
-      await supabase.from('visitor_logs').insert({
-        visitor_id: selectedVisitor.id,
-        action: newStatus,
-        performed_by: user.id,
-        notes:
-          notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
-        timestamp: new Date().toISOString(),
-      });
+      const { data: apartmentData } = await supabase
+        .from('apartments')
+        .select('id, building_id')
+        .eq('apartment_number', selectedVisitor.apartment_number)
+        .single();
+
+      if (apartmentData) {
+        await supabase.from('visitor_logs').insert({
+          visitor_id: selectedVisitor.id,
+          apartment_id: apartmentData.id,
+          building_id: apartmentData.building_id,
+          log_time: new Date().toISOString(),
+          tipo_log: actionType === 'approve' ? 'IN' : 'OUT',
+          visit_session_id: Crypto.randomUUID(),
+          purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
+          authorized_by: user.id,
+          status: newStatus
+        });
+      }
 
       // Criar notificação para o porteiro
       await supabase.from('communications').insert({

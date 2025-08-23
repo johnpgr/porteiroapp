@@ -2,16 +2,16 @@
 -- Incluindo prédios/apartamentos que ele gerencia e não gerencia
 
 -- Primeiro, vamos inserir alguns visitantes de teste se não existirem
-INSERT INTO visitors (id, name, document, phone, created_at) 
+INSERT INTO visitors (id, name, document, phone, is_active, created_at) 
 VALUES 
-    ('550e8400-e29b-41d4-a716-446655440001', 'João Silva Santos', '12345678901', '11987654321', NOW() - INTERVAL '30 days'),
-    ('550e8400-e29b-41d4-a716-446655440002', 'Maria Oliveira Costa', '98765432109', '11876543210', NOW() - INTERVAL '25 days'),
-    ('550e8400-e29b-41d4-a716-446655440003', 'Carlos Eduardo Lima', '45678912345', '11765432109', NOW() - INTERVAL '20 days'),
-    ('550e8400-e29b-41d4-a716-446655440004', 'Ana Paula Ferreira', '78912345678', '11654321098', NOW() - INTERVAL '15 days'),
-    ('550e8400-e29b-41d4-a716-446655440005', 'Roberto Almeida', '32165498712', '11543210987', NOW() - INTERVAL '10 days'),
-    ('550e8400-e29b-41d4-a716-446655440006', 'Fernanda Souza', '65498732165', '11432109876', NOW() - INTERVAL '5 days'),
-    ('550e8400-e29b-41d4-a716-446655440007', 'Pedro Henrique', '14725836947', '11321098765', NOW() - INTERVAL '3 days'),
-    ('550e8400-e29b-41d4-a716-446655440008', 'Juliana Martins', '85296374185', '11210987654', NOW() - INTERVAL '2 days')
+    ('550e8400-e29b-41d4-a716-446655440001', 'João Silva Santos', '12345678901', '11987654321', true, NOW() - INTERVAL '30 days'),
+    ('550e8400-e29b-41d4-a716-446655440002', 'Maria Oliveira Costa', '98765432109', '11876543210', true, NOW() - INTERVAL '25 days'),
+    ('550e8400-e29b-41d4-a716-446655440003', 'Carlos Eduardo Lima', '45678912345', '11765432109', true, NOW() - INTERVAL '20 days'),
+    ('550e8400-e29b-41d4-a716-446655440004', 'Ana Paula Ferreira', '78912345678', '11654321098', true, NOW() - INTERVAL '15 days'),
+    ('550e8400-e29b-41d4-a716-446655440005', 'Roberto Almeida', '32165498712', '11543210987', true, NOW() - INTERVAL '10 days'),
+    ('550e8400-e29b-41d4-a716-446655440006', 'Fernanda Souza', '65498732165', '11432109876', true, NOW() - INTERVAL '5 days'),
+    ('550e8400-e29b-41d4-a716-446655440007', 'Pedro Henrique', '14725836947', '11321098765', true, NOW() - INTERVAL '3 days'),
+    ('550e8400-e29b-41d4-a716-446655440008', 'Juliana Martins', '85296374185', '11210987654', true, NOW() - INTERVAL '2 days')
 ON CONFLICT (id) DO NOTHING;
 
 -- Inserir logs para prédios/apartamentos gerenciados pelo admin@dev.com

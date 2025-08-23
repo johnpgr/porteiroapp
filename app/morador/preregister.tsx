@@ -104,12 +104,8 @@ export default function PreregisterScreen() {
         name: formData.name.trim(),
         document: formData.document.trim(),
         phone: formData.phone.trim() || null,
-        apartment_number: user!.apartment_number,
         photo_url: formData.photo_url || null,
-        notes: formData.notes.trim() || null,
-        status: 'approved', // Pré-cadastrados são automaticamente aprovados
-        authorized_by: user!.id,
-        created_at: new Date().toISOString(),
+        is_active: true,
       });
 
       if (error) throw error;
