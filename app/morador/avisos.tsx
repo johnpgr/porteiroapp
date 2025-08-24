@@ -1,49 +1,159 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '~/hooks/useAuth';
+import { supabase } from '~/utils/supabase';
 
-const AvisosTab = () => (
-  <ScrollView style={styles.content}>
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
+interface Communication {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  priority: string;
+  created_at: string;
+  updated_at: string;
+}
 
-      <View style={styles.noticeCard}>
-        <Text style={styles.noticeTitle}>🛗 Manutenção do Elevador</Text>
-        <Text style={styles.noticeDescription}>
-          O elevador social estará em manutenção preventiva no dia 28/12/2024 das 8h às 17h.
-        </Text>
-        <Text style={styles.noticeTime}>Publicado em 20/12/2024 às 10:30</Text>
+const AvisosTab = () => {
+  const { user } = useAuth();
+  const [communications, setCommunications] = useState<Communication[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchCommunications();
+  }, [user?.building_id]);
+
+  const fetchCommunications = async () => {
+    if (!user?.building_id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('communications')
+        .select('*')
+        .eq('building_id', user.building_id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar comunicados:', error);
+      } else {
+        setCommunications(data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar comunicados:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'maintenance':
+        return '🛠️';
+      case 'event':
+        return '🎉';
+      case 'warning':
+        return '⚠️';
+      case 'info':
+        return 'ℹ️';
+      default:
+        return '📢';
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.content, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Carregando comunicados...</Text>
       </View>
+    );
+  }
 
-      <View style={styles.noticeCard}>
-        <Text style={styles.noticeTitle}>💧 Interrupção no Fornecimento de Água</Text>
-        <Text style={styles.noticeDescription}>
-          Haverá interrupção no fornecimento de água no dia 30/12/2024 das 9h às 15h para
-          manutenção da caixa d&apos;água.
-        </Text>
-        <Text style={styles.noticeTime}>Publicado em 18/12/2024 às 14:15</Text>
-      </View>
+  return (
+    <ScrollView style={styles.content}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
 
-      <View style={styles.noticeCard}>
-        <Text style={styles.noticeTitle}>🎄 Festa de Fim de Ano</Text>
-        <Text style={styles.noticeDescription}>
-          Convidamos todos os moradores para a festa de fim de ano que acontecerá no salão de
-          festas no dia 31/12/2024 às 20h.
-        </Text>
-        <Text style={styles.noticeTime}>Publicado em 15/12/2024 às 16:45</Text>
+        {communications.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>📭</Text>
+            <Text style={styles.emptyStateTitle}>Nenhum comunicado disponível</Text>
+            <Text style={styles.emptyStateDescription}>
+              Não há comunicados para o seu prédio no momento.
+            </Text>
+          </View>
+        ) : (
+          communications.map((communication) => (
+            <View key={communication.id} style={styles.noticeCard}>
+              <Text style={styles.noticeTitle}>
+                {getTypeIcon(communication.type)} {communication.title}
+              </Text>
+              <Text style={styles.noticeDescription}>
+                {communication.content}
+              </Text>
+              <Text style={styles.noticeTime}>
+                Publicado em {formatDate(communication.created_at)}
+              </Text>
+            </View>
+          ))
+        )}
       </View>
-    </View>
-  </ScrollView>
-);
+    </ScrollView>
+  );
+};
 
 const styles = StyleSheet.create({
   content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  emptyStateDescription: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   section: {
     padding: 20,
