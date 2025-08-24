@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', authUser.id)
+        .eq('user_id', authUser.id)
         .single();
 
       if (error && error.code === 'PGRST116') {
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase
         .from('profiles')
         .update({ last_login: new Date().toISOString() })
-        .eq('id', authUser.id);
+        .eq('user_id', authUser.id);
 
       setUser({
         id: profile.id,
@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   //     await supabase
   //       .from('profiles')
   //       .update({ push_token: token })
-  //       .eq('id', user.id);
+  //       .eq('user_id', user.id);
 
   //     setUser({ ...user, push_token: token });
   //   } catch (error) {
