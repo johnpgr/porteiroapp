@@ -13,16 +13,7 @@ import {
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 
-// Função para gerar UUID compatível com React Native
-const generateUUID = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
-
-type FlowStep = 'placa' | 'apartamento' | 'empresa' | 'marca' | 'modelo' | 'cor' | 'convidado' | 'confirmacao';
+type FlowStep = 'placa' | 'apartamento' | 'empresa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
 
 interface VehicleInfo {
   license_plate: string;
@@ -96,7 +87,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   >(null);
   const [placa, setPlaca] = useState('');
   const [marcaSelecionada, setMarcaSelecionada] = useState<(typeof marcasVeiculos)[0] | null>(null);
-  const [modelo, setModelo] = useState('');
   const [corSelecionada, setCorSelecionada] = useState<(typeof coresVeiculos)[0] | null>(null);
   const [nomeConvidado, setNomeConvidado] = useState('');
   const [vehicleInfo, setVehicleInfo] = useState<VehicleInfo | null>(null);
@@ -105,9 +95,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [duplicatePlateError, setDuplicatePlateError] = useState(false);
   const [duplicatePlateMessage, setDuplicatePlateMessage] = useState('');
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
-  const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: string }[]>([]);
-  const [selectedApartment, setSelectedApartment] = useState<{id: string, number: string, floor: number | null} | null>(null);
-  const [isLoadingApartments, setIsLoadingApartments] = useState(false);
 
   // Get doorman's building_id from their profile
   useEffect(() => {
@@ -131,35 +118,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     getDoormanBuildingId();
   }, [user]);
 
-  // Fetch available apartments for the doorman's building
-  useEffect(() => {
-    const fetchAvailableApartments = async () => {
-      if (doormanBuildingId) {
-        setIsLoadingApartments(true);
-        try {
-          const { data: apartments, error } = await supabase
-            .from('apartments')
-            .select('id, number, floor')
-            .eq('building_id', doormanBuildingId)
-            .order('number');
 
-          if (error) {
-            console.error('Erro ao buscar apartamentos:', error);
-            Alert.alert('Erro', 'Não foi possível carregar os apartamentos.');
-          } else {
-            setAvailableApartments(apartments || []);
-          }
-        } catch (error) {
-          console.error('Erro ao buscar apartamentos:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os apartamentos.');
-        } finally {
-          setIsLoadingApartments(false);
-        }
-      }
-    };
-
-    fetchAvailableApartments();
-  }, [doormanBuildingId]);
 
   const formatPlaca = (text: string) => {
     // Remove caracteres não alfanuméricos
@@ -247,7 +206,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           license_plate: vehicle.license_plate,
           model: vehicle.model || undefined,
           color: vehicle.color || undefined,
-          apartment_id: vehicle.apartment_id,
+          apartment_id: vehicle.apartment_id || undefined,
           existing: true,
           apartment_info: vehicle.apartments || undefined
         });
@@ -267,13 +226,45 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       }
     } catch (error) {
       console.error('Erro ao buscar veículo:', error);
-      console.log()
     } finally {
       setIsLoadingVehicle(false);
     }
   };
 
+  const renderNumericKeypad = (
+    value: string,
+    setValue: (val: string) => void,
+    onNext: () => void
+  ) => (
+    <View style={styles.keypadContainer}>
+      <View style={styles.displayContainer}>
+        <Text style={styles.displayLabel}>Número do Apartamento</Text>
+        <Text style={styles.displayValue}>{value || '___'}</Text>
+      </View>
 
+      <View style={styles.keypad}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
+          <TouchableOpacity
+            key={num}
+            style={styles.keypadButton}
+            onPress={() => setValue(value + num.toString())}>
+            <Text style={styles.keypadButtonText}>{num}</Text>
+          </TouchableOpacity>
+        ))}
+
+        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
+          <Text style={styles.keypadButtonText}>⌫</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.keypadButton, styles.confirmButton]}
+          onPress={onNext}
+          disabled={!value}>
+          <Text style={styles.confirmButtonText}>✓</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   // Carregar prédios quando necessário
 
@@ -281,49 +272,13 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-      <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+      <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
-      {isLoadingApartments ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2196F3" />
-          <Text style={styles.loadingText}>Carregando apartamentos...</Text>
-        </View>
-      ) : availableApartments.length === 0 ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-          <Text style={styles.errorMessage}>Não há apartamentos cadastrados para este prédio.</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.apartmentsGrid}>
-            {availableApartments.map((apartment) => (
-              <TouchableOpacity
-                key={apartment.id}
-                style={[
-                  styles.apartmentButton,
-                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
-                ]}
-                onPress={() => {
-                  console.log('Selecionando apartamento:', apartment);
-                  if (!apartment.id) {
-                    Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
-                    return;
-                  }
-                  setSelectedApartment(apartment);
-                  setApartamento(apartment.number);
-                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                  setCurrentStep('convidado');
-                }}>
-                <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                <Text style={styles.apartmentId}>ID: {apartment.id}</Text>
-                {apartment.floor && (
-                  <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      )}
+      {renderNumericKeypad(apartamento, setApartamento, () => {
+        if (apartamento) {
+          setCurrentStep('convidado');
+        }
+      })}
     </View>
   );
 
@@ -469,7 +424,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               ]}
               onPress={() => {
                 setMarcaSelecionada(marca);
-                setCurrentStep('modelo');
+                setCurrentStep('cor');
               }}>
               <Text style={styles.marcaIcon}>{marca.icon}</Text>
               <Text style={styles.marcaNome}>{marca.nome}</Text>
@@ -477,35 +432,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           ))}
         </View>
       </ScrollView>
-    </View>
-  );
-
-  const renderModeloStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🚙 Modelo do Veículo</Text>
-      <Text style={styles.stepSubtitle}>Digite o modelo do veículo</Text>
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.textInput}
-          value={modelo}
-          onChangeText={setModelo}
-          placeholder="Ex: Civic, Corolla, Gol..."
-          autoFocus
-          autoCapitalize="words"
-        />
-
-        <TouchableOpacity
-          style={[styles.nextButton, !modelo.trim() && styles.nextButtonDisabled]}
-          onPress={() => {
-            if (modelo.trim()) {
-              setCurrentStep('cor');
-            }
-          }}
-          disabled={!modelo.trim()}>
-          <Text style={styles.nextButtonText}>Continuar →</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 
@@ -571,14 +497,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
       try {
-        // Validar se apartamento foi selecionado
-        if (!selectedApartment || !selectedApartment.id) {
-          Alert.alert('Erro', 'Por favor, selecione um apartamento antes de continuar');
-          return;
-        }
-
-        console.log('Apartamento selecionado:', selectedApartment);
-
         // VALIDAÇÃO FINAL: Verificar novamente se a placa não é duplicata antes de confirmar
         const cleanPlate = placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         const { data: finalDuplicateCheck, error: duplicateCheckError } = await supabase
@@ -600,16 +518,13 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         const vehicleData = {
           license_plate: placa,
           brand: marcaSelecionada?.nome || null,
-          model: modelo || vehicleInfo?.model || null,
+          model: marcaSelecionada?.nome || vehicleInfo?.model || null,
           color: corSelecionada?.nome || vehicleInfo?.color || null,
           existing_vehicle: vehicleInfo?.existing || false,
           has_apartment: hasOwner,
-          apartment_id: selectedApartment?.id || null, // Usar apartment_id selecionado
+          apartment_id: vehicleInfo?.apartment_id || null,
           apartment_number: vehicleInfo?.apartment_info?.number || null
         };
-        
-        console.log('Dados do veículo preparados:', vehicleData);
-        console.log('selectedApartment atual:', selectedApartment);
 
         // Verificar se já existe um veículo com esta placa (segunda verificação)
         const { data: existingVehicleByPlate } = await supabase
@@ -620,37 +535,20 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
         // Se o veículo não existe, criar registro na tabela vehicles primeiro
         if (!vehicleInfo?.existing && !existingVehicleByPlate && marcaSelecionada && corSelecionada) {
-          // Validação adicional para garantir que selectedApartment existe
-          if (!selectedApartment || !selectedApartment.id) {
-            console.error('Erro: selectedApartment não está definido ou não tem ID');
-            Alert.alert('Erro', 'Nenhum apartamento foi selecionado. Por favor, selecione um apartamento.');
-            return;
-          }
-          
-          console.log('Inserindo veículo com apartment_id:', selectedApartment.id);
-          console.log('selectedApartment completo:', selectedApartment);
-          
-          const vehicleInsertData = {
-            license_plate: placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
-            brand: marcaSelecionada.nome,
-            model: modelo,
-            color: corSelecionada.nome,
-            apartment_id: selectedApartment?.id || null, // Usar apartment_id selecionado
-          };
-          
-          console.log('Dados que serão inseridos na tabela vehicles:', vehicleInsertData);
-          
           const { error: vehicleError } = await supabase
             .from('vehicles')
-            .insert(vehicleInsertData);
+            .insert({
+              license_plate: placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+              model: marcaSelecionada.nome,
+              color: corSelecionada.nome,
+              apartment_id: null, // Visitante não tem apartamento vinculado inicialmente
+            });
 
           if (vehicleError) {
             console.error('Erro ao salvar veículo:', vehicleError);
             Alert.alert('Erro', 'Não foi possível salvar o veículo. Tente novamente.');
             return;
           }
-          
-          console.log('Veículo inserido com sucesso com apartment_id:', vehicleInsertData.apartment_id);
         } else if (existingVehicleByPlate) {
           console.log('Veículo com placa', placa, 'já existe. Reutilizando dados existentes.');
           // Atualizar vehicleData com os dados do veículo existente
@@ -659,17 +557,24 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           vehicleData.color = existingVehicleByPlate.color;
         }
 
-        // Usar o apartamento selecionado diretamente
-        if (!selectedApartment) {
-          Alert.alert('Erro', 'Nenhum apartamento foi selecionado.');
+        // Primeiro, buscar o apartment_id baseado no prédio do porteiro e número do apartamento
+        if (!doormanBuildingId) {
+          Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
           return;
         }
 
-        const apartmentData = {
-          id: selectedApartment.id,
-          building_id: doormanBuildingId,
-          number: selectedApartment.number
-        };
+        const { data: apartmentData, error: apartmentError } = await supabase
+          .from('apartments')
+          .select('id, building_id, number')
+          .eq('building_id', doormanBuildingId)
+          .eq('number', apartamento)
+          .single();
+
+        if (apartmentError || !apartmentData) {
+          console.error('Erro ao buscar apartamento:', apartmentError);
+          Alert.alert('Erro', `Não foi possível encontrar o apartamento ${apartamento} no prédio selecionado. Verifique os dados e tente novamente.`);
+          return;
+        }
 
         // Criar ou buscar visitante
         let visitorId;
@@ -705,9 +610,9 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             building_id: apartmentData.building_id,
             log_time: new Date().toISOString(),
             tipo_log: 'IN',
-            visit_session_id: generateUUID(),
+            visit_session_id: `vehicle_${Date.now()}`,
             vehicle_info: vehicleData,
-            status: 'approved',
+            status: 'authorized',
             purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
           });
 
@@ -722,7 +627,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         if (hasOwner && vehicleInfo?.apartment_info) {
           message = `Veículo ${placa} de ${nomeConvidado} registrado. Veículo vinculado ao apartamento ${vehicleInfo.apartment_info.number || 'N/A'}.`;
         } else {
-          message = `Veículo ${placa} de ${nomeConvidado} registrado com sucesso para o apartamento ${selectedApartment.number}.`;
+          message = `Veículo ${placa} de ${nomeConvidado} registrado com sucesso para o apartamento ${apartamento}.`;
         }
 
         if (onConfirm) {
@@ -753,17 +658,10 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             <Text style={styles.summaryValue}>{placa}</Text>
           </View>
 
-          {(marcaSelecionada || vehicleInfo?.brand) && (
+          {(marcaSelecionada || vehicleInfo?.model) && (
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Marca:</Text>
-              <Text style={styles.summaryValue}>{marcaSelecionada?.nome || vehicleInfo?.brand}</Text>
-            </View>
-          )}
-
-          {(modelo || vehicleInfo?.model) && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Modelo:</Text>
-              <Text style={styles.summaryValue}>{modelo || vehicleInfo?.model}</Text>
+              <Text style={styles.summaryLabel}>Marca/Modelo:</Text>
+              <Text style={styles.summaryValue}>{marcaSelecionada?.nome || vehicleInfo?.model}</Text>
             </View>
           )}
 
@@ -807,8 +705,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         return renderEmpresaStep();
       case 'marca':
         return renderMarcaStep();
-      case 'modelo':
-        return renderModeloStep();
       case 'cor':
         return renderCorStep();
       case 'convidado':
@@ -1209,42 +1105,5 @@ const styles = StyleSheet.create({
   errorMessage: {
     fontSize: 14,
     color: '#d32f2f',
-  },
-  apartmentButton: {
-    width: '48%',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    marginBottom: 15,
-  },
-  apartmentButtonSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#e3f2fd',
-  },
-  apartmentNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  apartmentId: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  apartmentFloor: {
-    fontSize: 12,
-    color: '#888',
-    textAlign: 'center',
   },
 });
