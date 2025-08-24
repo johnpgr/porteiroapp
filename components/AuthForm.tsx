@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 
 interface AuthFormProps {
   onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -26,9 +26,29 @@ export default function AuthForm({
       isMountedRef.current = false;
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
+        console.log('🧹 Limpando timeout no cleanup do componente');
       }
     };
   }, []);
+  
+  // Fallback adicional para iOS - resetar loading se ficar travado
+  useEffect(() => {
+    if (Platform.OS === 'ios' && (loading || isSubmitting)) {
+      const fallbackTimeout = setTimeout(() => {
+        if (loading || isSubmitting) {
+          console.log('🚨 Fallback iOS ativado - resetando estados de loading');
+          setIsSubmitting(false);
+          Alert.alert(
+            'Timeout', 
+            'A operação está demorando mais que o esperado. Tente novamente.',
+            [{ text: 'OK' }]
+          );
+        }
+      }, 15000); // 15 segundos de fallback para iOS
+      
+      return () => clearTimeout(fallbackTimeout);
+    }
+  }, [loading, isSubmitting]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -60,17 +80,31 @@ export default function AuthForm({
     }
 
     setIsSubmitting(true);
-    console.log('📝 Iniciando submissão do formulário...');
+    console.log('🔐 Iniciando submit do formulário...', { platform: Platform.OS });
 
-    // Timeout de segurança para resetar submitting
+    // Timeout de segurança mais agressivo para iOS
+    const timeoutDuration = Platform.OS === 'ios' ? 12000 : 20000;
     submitTimeoutRef.current = setTimeout(() => {
       if (isMountedRef.current) {
-        console.warn('⏰ Timeout de segurança do formulário ativado');
+        console.log('⏰ Timeout de segurança ativado - resetando isSubmitting', { 
+          platform: Platform.OS, 
+          duration: timeoutDuration 
+        });
         setIsSubmitting(false);
+        
+        // Mostrar alerta específico para iOS
+        if (Platform.OS === 'ios') {
+          Alert.alert(
+            'Timeout', 
+            'A operação demorou mais que o esperado. Tente novamente.',
+            [{ text: 'OK' }]
+          );
+        }
       }
-    }, 20000);
+    }, timeoutDuration);
 
     try {
+      console.log('📤 Executando onSubmit...', { platform: Platform.OS });
       const result = await onSubmit(email.trim().toLowerCase(), password);
 
       // Limpar timeout se chegou até aqui
@@ -83,12 +117,28 @@ export default function AuthForm({
         console.error('❌ Erro no resultado do login:', result.error);
         Alert.alert('Erro de Login', result.error);
       } else if (result.success) {
-        console.log('✅ Login realizado com sucesso via formulário');
+        console.log('✅ Login realizado com sucesso via formulário', { platform: Platform.OS });
       }
     } catch (error) {
-      console.error('💥 Erro inesperado no formulário:', error);
-      Alert.alert('Erro', 'Erro inesperado durante o login');
+      console.error('❌ Erro no submit:', error, { platform: Platform.OS });
+      
+      // Tratamento específico para iOS
+      if (Platform.OS === 'ios') {
+        const errorMessage = error?.message?.toLowerCase() || '';
+        if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
+          Alert.alert(
+            'Erro de Conexão', 
+            'Problema de rede detectado. Verifique sua conexão e tente novamente.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Erro', 'Erro inesperado durante o login');
+        }
+      } else {
+        Alert.alert('Erro', 'Erro inesperado durante o login');
+      }
     } finally {
+      console.log('🔄 Resetando isSubmitting no finally', { platform: Platform.OS });
       // Garantir que o submitting seja sempre resetado
       if (submitTimeoutRef.current) {
         clearTimeout(submitTimeoutRef.current);
