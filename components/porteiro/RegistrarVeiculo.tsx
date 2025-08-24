@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,21 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
-type FlowStep = 'apartamento' | 'empresa' | 'placa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
+type FlowStep = 'placa' | 'apartamento' | 'empresa' | 'marca' | 'cor' | 'convidado' | 'confirmacao';
+
+interface VehicleInfo {
+  license_plate: string;
+  model?: string;
+  color?: string;
+  apartment_id?: string;
+  existing?: boolean;
+  apartment_info?: any;
+}
 
 interface RegistrarVeiculoProps {
   onClose: () => void;
@@ -67,7 +79,8 @@ const coresVeiculos = [
 ];
 
 export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeiculoProps) {
-  const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
+  const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState<FlowStep>('placa');
   const [apartamento, setApartamento] = useState('');
   const [empresaSelecionada, setEmpresaSelecionada] = useState<
     (typeof empresasPrestadoras)[0] | null
@@ -76,6 +89,36 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [marcaSelecionada, setMarcaSelecionada] = useState<(typeof marcasVeiculos)[0] | null>(null);
   const [corSelecionada, setCorSelecionada] = useState<(typeof coresVeiculos)[0] | null>(null);
   const [nomeConvidado, setNomeConvidado] = useState('');
+  const [vehicleInfo, setVehicleInfo] = useState<VehicleInfo | null>(null);
+  const [isLoadingVehicle, setIsLoadingVehicle] = useState(false);
+  const [hasOwner, setHasOwner] = useState(false);
+  const [duplicatePlateError, setDuplicatePlateError] = useState(false);
+  const [duplicatePlateMessage, setDuplicatePlateMessage] = useState('');
+  const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+
+  // Get doorman's building_id from their profile
+  useEffect(() => {
+    const getDoormanBuildingId = async () => {
+      if (user?.id) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('building_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profile && profile.building_id) {
+          setDoormanBuildingId(profile.building_id);
+        } else {
+          console.error('Erro ao buscar building_id do porteiro:', error);
+          Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
+        }
+      }
+    };
+
+    getDoormanBuildingId();
+  }, [user]);
+
+
 
   const formatPlaca = (text: string) => {
     // Remove caracteres não alfanuméricos
@@ -88,6 +131,103 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       return cleaned.slice(0, 3) + '-' + cleaned.slice(3);
     } else {
       return cleaned.slice(0, 3) + '-' + cleaned.slice(3, 7);
+    }
+  };
+
+  const checkForDuplicatePlate = async (licensePlate: string) => {
+    if (!licensePlate || licensePlate.length < 7) {
+      setDuplicatePlateError(false);
+      setDuplicatePlateMessage('');
+      return false;
+    }
+    
+    try {
+      const cleanPlate = licensePlate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      
+      // Verificar se já existe um veículo com esta placa
+      const { data: existingVehicle, error } = await supabase
+        .from('vehicles')
+        .select('license_plate')
+        .eq('license_plate', cleanPlate)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao verificar placa duplicada:', error);
+        return false;
+      }
+
+      if (existingVehicle) {
+        setDuplicatePlateError(true);
+        setDuplicatePlateMessage(`❌ PLACA JÁ CADASTRADA\n\nA placa ${licensePlate} já está registrada no sistema. Não é possível cadastrar novamente como visitante.\n\nPor favor, verifique a placa ou entre em contato com a administração.`);
+        // Limpar informações do veículo quando duplicata for detectada
+        setVehicleInfo(null);
+        setIsLoadingVehicle(false);
+        return true; // Retorna true indicando que é duplicata
+      } else {
+        setDuplicatePlateError(false);
+        setDuplicatePlateMessage('');
+        return false; // Retorna false indicando que não é duplicata
+      }
+    } catch (error) {
+      console.error('Erro ao verificar placa duplicada:', error);
+      return false;
+    }
+  };
+
+  const searchVehicleByPlate = async (licensePlate: string) => {
+    if (!licensePlate || licensePlate.length < 7) return;
+    
+    setIsLoadingVehicle(true);
+    try {
+      const cleanPlate = licensePlate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      
+      // Buscar veículo e informações do apartamento
+      const { data: vehicle, error } = await supabase
+        .from('vehicles')
+        .select(`
+          *,
+          apartments(
+            id,
+            number,
+            floor,
+            building_id
+          )
+        `)
+        .eq('license_plate', cleanPlate)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao buscar veículo:', error);
+        return;
+      }
+
+      if (vehicle) {
+        setVehicleInfo({
+          license_plate: vehicle.license_plate,
+          model: vehicle.model || undefined,
+          color: vehicle.color || undefined,
+          apartment_id: vehicle.apartment_id || undefined,
+          existing: true,
+          apartment_info: vehicle.apartments || undefined
+        });
+        setHasOwner(!!vehicle.apartment_id);
+        
+        // Se o veículo existe e tem apartamento vinculado, pré-preencher apartamento
+        if (vehicle.apartment_id && vehicle.apartments && vehicle.apartments.number) {
+          setApartamento(vehicle.apartments.number.toString());
+        }
+      } else {
+        // Veículo não existe, precisa cadastrar informações
+        setVehicleInfo({
+          license_plate: cleanPlate,
+          existing: false
+        });
+        setHasOwner(false);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar veículo:', error);
+    } finally {
+      setIsLoadingVehicle(false);
     }
   };
 
@@ -126,6 +266,9 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     </View>
   );
 
+  // Carregar prédios quando necessário
+
+
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
@@ -133,7 +276,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
       {renderNumericKeypad(apartamento, setApartamento, () => {
         if (apartamento) {
-          setCurrentStep('empresa');
+          setCurrentStep('convidado');
         }
       })}
     </View>
@@ -170,7 +313,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const renderPlacaStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🚗 Placa do Veículo</Text>
-      <Text style={styles.stepSubtitle}>Digite a placa do veículo</Text>
+      <Text style={styles.stepSubtitle}>Digite a placa do veículo para verificar se já existe</Text>
 
       <View style={styles.inputContainer}>
         <View style={styles.placaContainer}>
@@ -178,7 +321,28 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           <TextInput
             style={styles.placaInput}
             value={placa}
-            onChangeText={(text) => setPlaca(formatPlaca(text))}
+            onChangeText={async (text) => {
+              const formatted = formatPlaca(text);
+              setPlaca(formatted);
+              
+              // Limpar erros anteriores quando o usuário começar a digitar
+              if (duplicatePlateError) {
+                setDuplicatePlateError(false);
+                setDuplicatePlateMessage('');
+                setVehicleInfo(null);
+              }
+              
+              const cleaned = text.replace(/[^A-Za-z0-9]/g, '');
+              if (cleaned.length >= 7) {
+                // Primeiro verificar se é duplicata
+                const isDuplicate = await checkForDuplicatePlate(formatted);
+                
+                // Só buscar informações do veículo se NÃO for duplicata
+                if (!isDuplicate) {
+                  await searchVehicleByPlate(formatted);
+                }
+              }
+            }}
             placeholder="ABC-1234"
             autoFocus
             autoCapitalize="characters"
@@ -186,15 +350,59 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           />
         </View>
 
+        {isLoadingVehicle && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#2196F3" />
+            <Text style={styles.loadingText}>Verificando placa...</Text>
+          </View>
+        )}
+
+        {duplicatePlateError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>❌ Placa Duplicada</Text>
+            <Text style={styles.errorMessage}>{duplicatePlateMessage}</Text>
+          </View>
+        )}
+
+        {vehicleInfo && vehicleInfo.existing && !duplicatePlateError && (
+          <View style={styles.vehicleFoundContainer}>
+            <Text style={styles.vehicleFoundTitle}>✅ Veículo Encontrado!</Text>
+            <Text style={styles.vehicleFoundText}>
+              {hasOwner ? 'Veículo vinculado a um morador' : 'Veículo sem morador vinculado'}
+            </Text>
+            {vehicleInfo.model && <Text style={styles.vehicleFoundDetail}>Modelo: {vehicleInfo.model}</Text>}
+            {vehicleInfo.color && <Text style={styles.vehicleFoundDetail}>Cor: {vehicleInfo.color}</Text>}
+          </View>
+        )}
+
         <TouchableOpacity
-          style={[styles.nextButton, !placa && styles.nextButtonDisabled]}
+          style={[styles.nextButton, (!placa || isLoadingVehicle || duplicatePlateError || !vehicleInfo) && styles.nextButtonDisabled]}
           onPress={() => {
-            if (placa.trim()) {
-              setCurrentStep('marca');
+            // BLOQUEIO ABSOLUTO: Não permitir continuar se há erro de duplicata
+            if (duplicatePlateError) {
+              Alert.alert(
+                '❌ Placa Duplicada',
+                'Esta placa já está cadastrada no sistema. Não é possível prosseguir com o cadastro.',
+                [{ text: 'OK' }]
+              );
+              return;
+            }
+            
+            if (placa.trim() && !isLoadingVehicle && !duplicatePlateError && vehicleInfo) {
+              // Só permitir continuar se não há erro de duplicata e há informações do veículo
+              if (vehicleInfo.existing) {
+                // Veículo existe, ir direto para apartamento (prédio já definido automaticamente)
+                setCurrentStep('apartamento');
+              } else {
+                // Veículo não existe, ir para marca
+                setCurrentStep('marca');
+              }
             }
           }}
-          disabled={!placa.trim()}>
-          <Text style={styles.nextButtonText}>Continuar →</Text>
+          disabled={!placa.trim() || isLoadingVehicle || duplicatePlateError || !vehicleInfo}>
+          <Text style={styles.nextButtonText}>
+            {isLoadingVehicle ? 'Verificando...' : duplicatePlateError ? '❌ PLACA JÁ CADASTRADA' : 'Continuar →'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -203,7 +411,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const renderMarcaStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏭 Marca do Veículo</Text>
-      <Text style={styles.stepSubtitle}>Selecione a marca do veículo</Text>
+      <Text style={styles.stepSubtitle}>Selecione a marca do veículo (novo registro)</Text>
 
       <ScrollView style={styles.marcasContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.marcasGrid}>
@@ -244,7 +452,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               ]}
               onPress={() => {
                 setCorSelecionada(cor);
-                setCurrentStep('convidado');
+                setCurrentStep('apartamento');
               }}>
               <View
                 style={[styles.corCircle, { backgroundColor: cor.cor, borderColor: cor.borda }]}
@@ -287,15 +495,150 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   );
 
   const renderConfirmacaoStep = () => {
-    const handleConfirm = () => {
-      // Aqui você implementaria a lógica para salvar os dados
-      const message = `O apartamento ${apartamento} foi notificado sobre a chegada do veículo ${placa} de ${nomeConvidado}.`;
+    const handleConfirm = async () => {
+      try {
+        // VALIDAÇÃO FINAL: Verificar novamente se a placa não é duplicata antes de confirmar
+        const cleanPlate = placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        const { data: finalDuplicateCheck, error: duplicateCheckError } = await supabase
+          .from('vehicles')
+          .select('license_plate')
+          .eq('license_plate', cleanPlate)
+          .single();
 
-      if (onConfirm) {
-        onConfirm(message);
-      } else {
-        Alert.alert('✅ Veículo Registrado!', message, [{ text: 'OK' }]);
-        onClose();
+        if (finalDuplicateCheck && !duplicateCheckError) {
+          Alert.alert(
+            '❌ Erro de Validação',
+            `A placa ${placa} já está cadastrada no sistema. O cadastro não pode ser concluído.`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        // Preparar informações completas do veículo para salvar no visitor_logs
+        const vehicleData = {
+          license_plate: placa,
+          brand: marcaSelecionada?.nome || null,
+          model: marcaSelecionada?.nome || vehicleInfo?.model || null,
+          color: corSelecionada?.nome || vehicleInfo?.color || null,
+          existing_vehicle: vehicleInfo?.existing || false,
+          has_apartment: hasOwner,
+          apartment_id: vehicleInfo?.apartment_id || null,
+          apartment_number: vehicleInfo?.apartment_info?.number || null
+        };
+
+        // Verificar se já existe um veículo com esta placa (segunda verificação)
+        const { data: existingVehicleByPlate } = await supabase
+          .from('vehicles')
+          .select('id, license_plate, model, color')
+          .eq('license_plate', cleanPlate)
+          .single();
+
+        // Se o veículo não existe, criar registro na tabela vehicles primeiro
+        if (!vehicleInfo?.existing && !existingVehicleByPlate && marcaSelecionada && corSelecionada) {
+          const { error: vehicleError } = await supabase
+            .from('vehicles')
+            .insert({
+              license_plate: placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+              model: marcaSelecionada.nome,
+              color: corSelecionada.nome,
+              apartment_id: null, // Visitante não tem apartamento vinculado inicialmente
+            });
+
+          if (vehicleError) {
+            console.error('Erro ao salvar veículo:', vehicleError);
+            Alert.alert('Erro', 'Não foi possível salvar o veículo. Tente novamente.');
+            return;
+          }
+        } else if (existingVehicleByPlate) {
+          console.log('Veículo com placa', placa, 'já existe. Reutilizando dados existentes.');
+          // Atualizar vehicleData com os dados do veículo existente
+          vehicleData.existing_vehicle = true;
+          vehicleData.model = existingVehicleByPlate.model;
+          vehicleData.color = existingVehicleByPlate.color;
+        }
+
+        // Primeiro, buscar o apartment_id baseado no prédio do porteiro e número do apartamento
+        if (!doormanBuildingId) {
+          Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
+          return;
+        }
+
+        const { data: apartmentData, error: apartmentError } = await supabase
+          .from('apartments')
+          .select('id, building_id, number')
+          .eq('building_id', doormanBuildingId)
+          .eq('number', apartamento)
+          .single();
+
+        if (apartmentError || !apartmentData) {
+          console.error('Erro ao buscar apartamento:', apartmentError);
+          Alert.alert('Erro', `Não foi possível encontrar o apartamento ${apartamento} no prédio selecionado. Verifique os dados e tente novamente.`);
+          return;
+        }
+
+        // Criar ou buscar visitante
+        let visitorId;
+        const { data: existingVisitor } = await supabase
+          .from('visitors')
+          .select('id')
+          .eq('name', nomeConvidado)
+          .single();
+
+        if (existingVisitor) {
+          visitorId = existingVisitor.id;
+        } else {
+          const { data: newVisitor, error: visitorError } = await supabase
+            .from('visitors')
+            .insert({ name: nomeConvidado })
+            .select('id')
+            .single();
+
+          if (visitorError || !newVisitor) {
+            console.error('Erro ao criar visitante:', visitorError);
+            Alert.alert('Erro', 'Não foi possível criar o visitante. Tente novamente.');
+            return;
+          }
+          visitorId = newVisitor.id;
+        }
+
+        // Salvar no visitor_logs com vehicle_info completo
+        const { error } = await supabase
+          .from('visitor_logs')
+          .insert({
+            visitor_id: visitorId,
+            apartment_id: apartmentData.id,
+            building_id: apartmentData.building_id,
+            log_time: new Date().toISOString(),
+            tipo_log: 'IN',
+            visit_session_id: `vehicle_${Date.now()}`,
+            vehicle_info: vehicleData,
+            status: 'authorized',
+            purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
+          });
+
+        if (error) {
+          console.error('Erro ao salvar log de visitante:', error);
+          Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
+          return;
+        }
+
+        // Preparar mensagem baseada no tipo de veículo
+        let message = '';
+        if (hasOwner && vehicleInfo?.apartment_info) {
+          message = `Veículo ${placa} de ${nomeConvidado} registrado. Veículo vinculado ao apartamento ${vehicleInfo.apartment_info.number || 'N/A'}.`;
+        } else {
+          message = `Veículo ${placa} de ${nomeConvidado} registrado com sucesso para o apartamento ${apartamento}.`;
+        }
+
+        if (onConfirm) {
+          onConfirm(message);
+        } else {
+          Alert.alert('✅ Veículo Registrado!', message, [{ text: 'OK' }]);
+          onClose();
+        }
+      } catch (error) {
+        console.error('Erro ao confirmar registro:', error);
+        Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
       }
     };
 
@@ -315,23 +658,29 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             <Text style={styles.summaryValue}>{placa}</Text>
           </View>
 
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Marca:</Text>
-            <Text style={styles.summaryValue}>{marcaSelecionada?.nome}</Text>
-          </View>
-
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Cor:</Text>
-            <View style={styles.summaryCorContainer}>
-              <View
-                style={[
-                  styles.summaryCorCircle,
-                  { backgroundColor: corSelecionada?.cor, borderColor: corSelecionada?.borda },
-                ]}
-              />
-              <Text style={styles.summaryValue}>{corSelecionada?.nome}</Text>
+          {(marcaSelecionada || vehicleInfo?.model) && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Marca/Modelo:</Text>
+              <Text style={styles.summaryValue}>{marcaSelecionada?.nome || vehicleInfo?.model}</Text>
             </View>
-          </View>
+          )}
+
+          {(corSelecionada || vehicleInfo?.color) && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Cor:</Text>
+              <View style={styles.summaryCorContainer}>
+                {corSelecionada && (
+                  <View
+                    style={[
+                      styles.summaryCorCircle,
+                      { backgroundColor: corSelecionada?.cor, borderColor: corSelecionada?.borda },
+                    ]}
+                  />
+                )}
+                <Text style={styles.summaryValue}>{corSelecionada?.nome || vehicleInfo?.color}</Text>
+              </View>
+            </View>
+          )}
 
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Convidado:</Text>
@@ -348,12 +697,12 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderCurrentStep = () => {
     switch (currentStep) {
+      case 'placa':
+        return renderPlacaStep();
       case 'apartamento':
         return renderApartamentoStep();
       case 'empresa':
         return renderEmpresaStep();
-      case 'placa':
-        return renderPlacaStep();
       case 'marca':
         return renderMarcaStep();
       case 'cor':
@@ -363,7 +712,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       case 'confirmacao':
         return renderConfirmacaoStep();
       default:
-        return renderApartamentoStep();
+        return renderPlacaStep();
     }
   };
 
@@ -382,7 +731,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ apartamento, placa, marca: marcaSelecionada, cor: corSelecionada, convidado: nomeConvidado, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
+                width: `${(Object.keys({ placa, apartamento, marca: marcaSelecionada || vehicleInfo?.model, cor: corSelecionada || vehicleInfo?.color, convidado: nomeConvidado, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
               },
             ]}
           />
@@ -669,6 +1018,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    gap: 10,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  vehicleFoundContainer: {
+    backgroundColor: '#e8f5e8',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4caf50',
+  },
+  vehicleFoundTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+    marginBottom: 5,
+  },
+  vehicleFoundText: {
+    fontSize: 14,
+    color: '#388e3c',
+    marginBottom: 5,
+  },
+  vehicleFoundDetail: {
+    fontSize: 12,
+    color: '#4caf50',
+  },
   empresasContainer: {
     flex: 1,
     marginTop: 20,
@@ -705,5 +1087,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+    marginVertical: 10,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#c62828',
+    marginBottom: 5,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#d32f2f',
   },
 });

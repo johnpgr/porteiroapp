@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
 import { adminAuth } from '../../utils/supabase';
@@ -7,7 +7,8 @@ import { adminAuth } from '../../utils/supabase';
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const loginTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Use generic timeout return type for compatibility across environments (RN / web / Node)
+  const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
   const isCheckingRef = useRef(false); // Flag para evitar múltiplas verificações
 
@@ -93,18 +94,8 @@ export default function AdminLogin() {
 
       if (result.user && result.adminProfile) {
         console.log('✅ Login realizado com sucesso!');
-
         if (isMountedRef.current) {
-          Alert.alert('Login Realizado', `Bem-vindo, ${result.adminProfile.name}!`, [
-            {
-              text: 'OK',
-              onPress: () => {
-                if (isMountedRef.current) {
-                  router.replace('/admin');
-                }
-              },
-            },
-          ]);
+          router.replace('/admin');
         }
         return { success: true };
       } else {

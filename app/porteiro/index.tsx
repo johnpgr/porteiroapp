@@ -57,6 +57,8 @@ export default function PorteiroDashboard() {
   // Estados para a aba Autorizações
   const [autorizacoes, setAutorizacoes] = useState<any[]>([]);
   const [loadingAutorizacoes, setLoadingAutorizacoes] = useState(false);
+  const [authSearchQuery, setAuthSearchQuery] = useState('');
+  const [filteredAutorizacoes, setFilteredAutorizacoes] = useState<any[]>([]);
 
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -238,21 +240,42 @@ export default function PorteiroDashboard() {
         .eq('building_id', profile.building_id)
         .eq('status', 'approved')
         .order('log_time', { ascending: false })
-        .limit(20);
+        .limit(50);
+
+      // Buscar visitantes que já fizeram check-in (status pendente)
+      const { data: checkedInVisitors, error: checkedInError } = await supabase
+        .from('visitors')
+        .select('id')
+        .eq('status', 'pendente');
+
+      if (checkedInError) {
+        console.error('Erro ao buscar visitantes com check-in:', checkedInError);
+      }
+
+      // Criar set com IDs dos visitantes que já fizeram check-in
+      const checkedInVisitorIds = new Set(
+        (checkedInVisitors || []).map(visitor => visitor.id)
+      );
         
       if (logsError) {
         console.error('Erro ao carregar visitantes aprovados:', logsError);
         return;
       }
       
+      // Filtrar logs excluindo visitantes que já fizeram check-in
+      const filteredLogs = (logs || []).filter(log => 
+        !checkedInVisitorIds.has(log.visitor_id)
+      );
+
       // Transformar dados para o formato esperado pela interface
-      const autorizacoesFormatadas = (logs || []).map(log => ({
+      const autorizacoesFormatadas = filteredLogs.map(log => ({
         id: log.visitor_id,
         logId: log.id,
         tipo: 'Visitante',
         nomeConvidado: log.visitors?.name || 'N/A',
         moradorAprovador: 'Morador',
         apartamento: log.apartments?.number || 'N/A',
+        apartamento_id: log.apartment_id,
         dataAprovacao: new Date(log.log_time).toLocaleDateString('pt-BR'),
         horaAprovacao: new Date(log.log_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         statusLabel: 'Aprovado',
@@ -265,12 +288,37 @@ export default function PorteiroDashboard() {
       }));
       
       setAutorizacoes(autorizacoesFormatadas);
+      setFilteredAutorizacoes(autorizacoesFormatadas);
     } catch (error) {
       console.error('Erro ao carregar autorizações:', error);
     } finally {
       setLoadingAutorizacoes(false);
     }
   }, [user]);
+
+  // Função para filtrar autorizações por nome ou CPF
+  const filterAutorizacoes = useCallback((query: string) => {
+    if (!query.trim()) {
+      setFilteredAutorizacoes(autorizacoes);
+      return;
+    }
+
+    const filtered = autorizacoes.filter(autorizacao => {
+      const searchTerm = query.toLowerCase().trim();
+      const nome = autorizacao.nomeConvidado?.toLowerCase() || '';
+      const cpf = autorizacao.cpf?.replace(/\D/g, '') || '';
+      const searchCpf = searchTerm.replace(/\D/g, '');
+      
+      return nome.includes(searchTerm) || cpf.includes(searchCpf);
+    });
+
+    setFilteredAutorizacoes(filtered);
+  }, [autorizacoes]);
+
+  // Effect para aplicar filtro quando authSearchQuery ou autorizacoes mudarem
+  useEffect(() => {
+    filterAutorizacoes(authSearchQuery);
+  }, [authSearchQuery, filterAutorizacoes]);
 
   // Carregar dados do porteiro
   useEffect(() => {
@@ -546,7 +594,7 @@ export default function PorteiroDashboard() {
 
       // Determinar o novo status baseado no visitor_type
       const visitorType = autorizacao.visitor_type || 'comum';
-      const newStatus = visitorType === 'frequente' ? 'approved' : 'pending';
+      const newStatus = visitorType === 'frequente' ? 'aprovado' : 'pendente';
 
       // Atualizar status do visitante baseado no tipo
       const { error: updateError } = await supabase
@@ -562,21 +610,32 @@ export default function PorteiroDashboard() {
         return;
       }
 
+      // Função para gerar UUID compatível com React Native
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
       // Registrar novo log de entrada (IN)
       const { error: logError } = await supabase
         .from('visitor_logs')
         .insert({
           visitor_id: autorizacao.id,
-          apartment_id: autorizacao.apartamento ? parseInt(autorizacao.apartamento) : null,
+          apartment_id: autorizacao.apartamento_id,
           building_id: profile.building_id,
           log_time: new Date().toISOString(),
           tipo_log: 'IN',
           status: 'entered',
+          visit_session_id: generateUUID(),
           purpose: `Check-in realizado pelo porteiro ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Novo status: ${newStatus}`
         });
 
       if (logError) {
-        console.error('Erro ao registrar log:', logError);
+        Alert.alert('Erro', 'Não foi possível registrar o log de entrada.');
+        return;
       }
 
       // Mostrar modal de confirmação
@@ -617,20 +676,44 @@ export default function PorteiroDashboard() {
             <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
           </View>
 
+          {/* Campo de pesquisa */}
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Pesquisar por nome ou CPF..."
+              value={authSearchQuery}
+              onChangeText={setAuthSearchQuery}
+              placeholderTextColor="#999"
+            />
+            {authSearchQuery.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                onPress={() => setAuthSearchQuery('')}>
+                <Text style={styles.clearSearchText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {loadingAutorizacoes ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Carregando autorizações...</Text>
             </View>
           ) : (
             <View style={styles.buttonsContainer}>
-              {autorizacoes.length === 0 ? (
+              {filteredAutorizacoes.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyIcon}>📋</Text>
-                  <Text style={styles.emptyTitle}>Nenhuma autorização pendente</Text>
-                  <Text style={styles.emptySubtitle}>Não há visitantes aprovados aguardando check-in</Text>
+                  <Text style={styles.emptyTitle}>
+                    {authSearchQuery ? 'Nenhum resultado encontrado' : 'Nenhuma autorização pendente'}
+                  </Text>
+                  <Text style={styles.emptySubtitle}>
+                    {authSearchQuery 
+                      ? 'Tente pesquisar com outros termos' 
+                      : 'Não há visitantes aprovados aguardando check-in'}
+                  </Text>
                 </View>
               ) : (
-                autorizacoes.map((autorizacao) => (
+                filteredAutorizacoes.map((autorizacao) => (
               <View key={autorizacao.id} style={styles.authorizationCard}>
                 <View style={styles.authCardHeader}>
                   <Text style={styles.authCardIcon}>
@@ -829,12 +912,11 @@ export default function PorteiroDashboard() {
           return null;
         }
 
-        // Buscar informações do apartamento através da tabela apartment_residents
+        // Buscar informações do apartamento através da tabela profiles
         const { data: residentData, error: residentError } = await supabase
-          .from('apartment_residents')
+          .from('profiles')
           .select(`
             apartment_id,
-            is_owner,
             apartments!inner(
               id,
               number,
@@ -845,7 +927,7 @@ export default function PorteiroDashboard() {
               )
             )
           `)
-          .eq('profile_id', profileData.id)
+          .eq('id', profileData.id)
           .single();
 
         if (residentError && residentError.code !== 'PGRST116') {
@@ -862,8 +944,7 @@ export default function PorteiroDashboard() {
           building: residentData?.apartments?.buildings ? {
             name: residentData.apartments.buildings.name,
             id: residentData.apartments.buildings.id
-          } : null,
-          is_owner: residentData?.is_owner || false
+          } : null
         };
 
         console.log('Resultado da busca CPF:', result);
@@ -878,9 +959,11 @@ export default function PorteiroDashboard() {
     const searchByPlate = async (plate: string) => {
       try {
         const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-        console.log('Buscando placa:', cleanPlate);
+        const formattedPlate = formatPlate(plate);
+        console.log('Buscando placa:', cleanPlate, 'e formato:', formattedPlate);
         
         // Buscar o veículo com informações do apartamento
+        // Busca tanto o formato sem hífen quanto com hífen
         const { data: vehicleData, error: vehicleError } = await supabase
           .from('vehicles')
           .select(`
@@ -901,7 +984,7 @@ export default function PorteiroDashboard() {
               )
             )
           `)
-          .eq('license_plate', cleanPlate)
+          .or(`license_plate.ilike.%${cleanPlate}%,license_plate.ilike.%${formattedPlate}%`)
           .single();
 
         if (vehicleError) {
@@ -916,30 +999,12 @@ export default function PorteiroDashboard() {
           return null;
         }
 
-        // Buscar o proprietário do veículo através da tabela apartment_residents
-        const { data: ownerData, error: ownerError } = await supabase
-          .from('apartment_residents')
-          .select(`
-            profile_id,
-            is_owner,
-            profiles!inner(
-              id,
-              full_name,
-              phone
-            )
-          `)
-          .eq('apartment_id', vehicleData.apartment_id)
-          .eq('is_owner', true)
-          .single();
-
-        if (ownerError && ownerError.code !== 'PGRST116') {
-          console.error('Erro ao buscar proprietário:', ownerError);
-        }
+        // Não há mais relação direta com proprietário através de owner_id
+        // A relação é feita através do apartment_id
 
         // Combinar os dados
         const result = {
           ...vehicleData,
-          owner: ownerData?.profiles || null,
           apartment: vehicleData.apartments ? {
             number: vehicleData.apartments.number,
             id: vehicleData.apartments.id
@@ -1783,21 +1848,40 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   searchContainer: {
-    marginBottom: 20,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    position: 'relative',
+    gap: 8,
   },
   searchInput: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
+    paddingRight: 50,
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  clearSearchButton: {
+    position: 'absolute',
+    right: 15,
+    top: 15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearSearchText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: 'bold',
   },
   searchButton: {
     backgroundColor: '#2196F3',

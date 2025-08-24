@@ -223,6 +223,7 @@ export interface Database {
           purpose?: string | null;
           authorized_by?: string | null;
           status?: string | null;
+          vehicle_info?: Json | null;
           created_at: string;
         };
         Insert: {
@@ -236,6 +237,7 @@ export interface Database {
           purpose?: string | null;
           authorized_by?: string | null;
           status?: string | null;
+          vehicle_info?: Json | null;
           created_at?: string;
         };
         Update: {
@@ -249,6 +251,7 @@ export interface Database {
           purpose?: string | null;
           authorized_by?: string | null;
           status?: string | null;
+          vehicle_info?: Json | null;
           created_at?: string;
         };
         Relationships: [
