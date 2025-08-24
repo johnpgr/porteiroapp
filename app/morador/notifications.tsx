@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationCard } from '../../components/NotificationCard';
+import BottomNav from '../../components/BottomNav';
 
 export default function NotificationsScreen() {
   const {} = useAuth();
@@ -38,7 +40,7 @@ export default function NotificationsScreen() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -96,7 +98,8 @@ export default function NotificationsScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+      <BottomNav activeTab="notifications" />
+    </SafeAreaView>
   );
 }
 

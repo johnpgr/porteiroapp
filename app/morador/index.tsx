@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, router } from 'expo-router';
 import {
   View,
@@ -20,6 +20,14 @@ export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('inicio');
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+
+  // Handle navigation for cadastro tab
+  useEffect(() => {
+    if (activeTab === 'cadastro') {
+      router.push('/morador/cadastro');
+      setActiveTab('inicio'); // Reset to avoid infinite loop
+    }
+  }, [activeTab]);
 
   const handleLogout = async () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair?', [
@@ -92,9 +100,6 @@ export default function MoradorDashboard() {
         return renderInicioTab();
       case 'visitantes':
         return renderVisitantesTab();
-      case 'cadastro':
-        router.push('/morador/cadastro');
-        return renderInicioTab(); // Fallback while navigating
       case 'avisos':
         return <AvisosTab />;
       default:

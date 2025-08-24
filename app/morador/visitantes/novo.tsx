@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } fr
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 import { flattenStyles } from '~/utils/styles';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
@@ -129,6 +130,7 @@ export default function NovoVisitante() {
             <Ionicons name="arrow-forward" size={20} color={selectedType ? '#fff' : '#ccc'} />
           </TouchableOpacity>
         </View>
+        <BottomNav activeTab="visitantes" />
       </SafeAreaView>
     </ProtectedRoute>
   );

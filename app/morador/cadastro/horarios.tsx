@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } fr
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 
 type TimeSlot = {
   id: string;
@@ -370,6 +371,7 @@ export default function HorariosCadastro() {
             )}
           </TouchableOpacity>
         </View>
+        <BottomNav activeTab="cadastro" />
       </SafeAreaView>
     </ProtectedRoute>
   );

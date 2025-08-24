@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
 
@@ -200,6 +201,7 @@ export default function FotoVisitante() {
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
+        <BottomNav activeTab="visitantes" />
       </SafeAreaView>
     </ProtectedRoute>
   );

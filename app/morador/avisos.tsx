@@ -5,9 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import BottomNav from '~/components/BottomNav';
 
 interface Communication {
   id: string;
@@ -89,39 +91,46 @@ const AvisosTab = () => {
   }
 
   return (
-    <ScrollView style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
 
-        {communications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>📭</Text>
-            <Text style={styles.emptyStateTitle}>Nenhum comunicado disponível</Text>
-            <Text style={styles.emptyStateDescription}>
-              Não há comunicados para o seu prédio no momento.
-            </Text>
-          </View>
-        ) : (
-          communications.map((communication) => (
-            <View key={communication.id} style={styles.noticeCard}>
-              <Text style={styles.noticeTitle}>
-                {getTypeIcon(communication.type)} {communication.title}
-              </Text>
-              <Text style={styles.noticeDescription}>
-                {communication.content}
-              </Text>
-              <Text style={styles.noticeTime}>
-                Publicado em {formatDate(communication.created_at)}
+          {communications.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>📭</Text>
+              <Text style={styles.emptyStateTitle}>Nenhum comunicado disponível</Text>
+              <Text style={styles.emptyStateDescription}>
+                Não há comunicados para o seu prédio no momento.
               </Text>
             </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+          ) : (
+            communications.map((communication) => (
+              <View key={communication.id} style={styles.noticeCard}>
+                <Text style={styles.noticeTitle}>
+                  {getTypeIcon(communication.type)} {communication.title}
+                </Text>
+                <Text style={styles.noticeDescription}>
+                  {communication.content}
+                </Text>
+                <Text style={styles.noticeTime}>
+                  Publicado em {formatDate(communication.created_at)}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+      <BottomNav activeTab="avisos" />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   content: {
     flex: 1,
     backgroundColor: '#f5f5f5',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,50 +6,620 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import { useAuth } from '~/hooks/useAuth';
+import { supabase } from '~/utils/supabase';
+
+// Tipos e interfaces
+interface PersonForm {
+  full_name: string;
+  email: string;
+  phone: string;
+  person_type: 'familiar' | 'funcionario' | 'autorizado';
+  relation: string;
+  is_app_user: boolean;
+  is_owner: boolean;
+  cpf?: string;
+  birth_date?: string;
+}
+
+interface Person {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  user_type: string;
+  building_id: string;
+  cpf?: string;
+  birth_date?: string;
+  created_at: string;
+  is_resident?: boolean;
+  is_owner?: boolean;
+  relation?: string;
+  apartment_number?: string;
+  apartment_floor?: number;
+  apartment_id?: string;
+  resident_id?: string;
+}
+
+const relationOptions = {
+  familiar: ['Cônjuge', 'Filho(a)', 'Pai/Mãe', 'Irmão/Irmã', 'Outro familiar'],
+  funcionario: ['Empregada doméstica', 'Babá', 'Cuidador(a)', 'Outro funcionário'],
+  autorizado: ['Amigo', 'Prestador de serviço', 'Outro autorizado']
+};
 
 export default function CadastroTab() {
+  const { user } = useAuth();
+  
+  // Estados do formulário
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(true);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  
+  // Estados do formulário
+  const [formData, setFormData] = useState<PersonForm>({
+    full_name: '',
+    email: '',
+    phone: '',
+    person_type: 'familiar',
+    relation: '',
+    is_app_user: false,
+    is_owner: false,
+  });
+  
+  // Carregar pessoas cadastradas
+  useEffect(() => {
+    if (user?.building_id) {
+      fetchPeople();
+    }
+  }, [user?.building_id]);
+
+  // Função para buscar pessoas cadastradas
+  const fetchPeople = async () => {
+    if (!user?.building_id) return;
+    
+    try {
+      setLoadingPeople(true);
+      
+      // Buscar moradores da tabela apartment_residents com JOIN nas tabelas profiles e apartments
+      // Filtrar pelo building_id do usuário logado
+      const { data: residentsData, error } = await supabase
+        .from('apartment_residents')
+        .select(`
+          id,
+          profile_id,
+          apartment_id,
+          is_owner,
+          created_at,
+          profiles!inner (
+            id,
+            full_name,
+            email,
+            phone,
+            user_type,
+            building_id,
+            cpf,
+            birth_date,
+            relation
+          ),
+          apartments!inner (
+            id,
+            number,
+            building_id,
+            floor
+          )
+        `)
+        .eq('profiles.building_id', user.building_id)
+        .eq('apartments.building_id', user.building_id)
+        .neq('profiles.id', user.id); // Excluir o próprio usuário
+      
+      if (error) throw error;
+      
+      // Transformar os dados para o formato esperado
+      const transformedPeople = (residentsData || []).map((resident: any) => ({
+        id: resident.profiles.id,
+        full_name: resident.profiles.full_name,
+        email: resident.profiles.email,
+        phone: resident.profiles.phone,
+        user_type: resident.profiles.user_type,
+        building_id: resident.profiles.building_id,
+        cpf: resident.profiles.cpf,
+        birth_date: resident.profiles.birth_date,
+        created_at: resident.created_at,
+        relation: resident.profiles.relation,
+        is_resident: true,
+        is_owner: resident.is_owner,
+        apartment_number: resident.apartments.number,
+        apartment_floor: resident.apartments.floor,
+        apartment_id: resident.apartment_id,
+        resident_id: resident.id
+      }));
+      
+      setPeople(transformedPeople);
+    } catch (error) {
+      console.error('Erro ao buscar pessoas:', error);
+      Alert.alert('Erro', 'Não foi possível carregar as pessoas cadastradas');
+    } finally {
+      setLoadingPeople(false);
+    }
+  };
+
+  // Função para validar email único
+  const validateUniqueEmail = async (email: string, excludeId?: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .neq('id', excludeId || '')
+      .single();
+    
+    return !data; // Retorna true se não encontrou (email único)
+  };
+
+  // Função para cadastrar nova pessoa
+  const handleSubmit = async () => {
+    if (!user?.building_id) {
+      Alert.alert('Erro', 'Usuário não possui prédio associado');
+      return;
+    }
+
+    // Validações
+    if (!formData.full_name.trim()) {
+      Alert.alert('Erro', 'Nome completo é obrigatório');
+      return;
+    }
+    
+    if (!formData.email.trim()) {
+      Alert.alert('Erro', 'Email é obrigatório');
+      return;
+    }
+    
+    if (!formData.relation.trim()) {
+      Alert.alert('Erro', 'Relação é obrigatória');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Verificar se email é único
+      const isEmailUnique = await validateUniqueEmail(formData.email, editingPerson?.id);
+      if (!isEmailUnique) {
+        Alert.alert('Erro', 'Este email já está cadastrado');
+        return;
+      }
+
+      if (formData.is_app_user) {
+        // Criar usuário no Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: 'temp123456', // Senha temporária
+          options: {
+            data: {
+              full_name: formData.full_name,
+            }
+          }
+        });
+        
+        if (authError) {
+          console.error('Erro ao criar usuário:', authError);
+          Alert.alert('Erro', 'Não foi possível criar usuário do app');
+          return;
+        }
+      }
+
+      // Determinar user_type baseado no person_type
+      let user_type = 'morador';
+      if (formData.person_type === 'funcionario') {
+        user_type = 'funcionario';
+      }
+
+      // Criar profile
+      const profileData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone || null,
+        user_type,
+        building_id: user.building_id,
+        cpf: formData.cpf || null,
+        birth_date: formData.birth_date || null,
+      };
+
+      let profileId: string;
+      
+      if (editingPerson) {
+        // Atualizar pessoa existente
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update(profileData)
+          .eq('id', editingPerson.id);
+        
+        if (updateError) throw updateError;
+        profileId = editingPerson.id;
+      } else {
+        // Criar nova pessoa
+        const { data: newProfile, error: profileError } = await supabase
+          .from('profiles')
+          .insert(profileData)
+          .select('id')
+          .single();
+        
+        if (profileError) throw profileError;
+        profileId = newProfile.id;
+      }
+
+      // Se for familiar, adicionar como residente
+      if (formData.person_type === 'familiar' && !editingPerson) {
+        // Buscar apartment_id do usuário atual
+        const { data: userResident } = await supabase
+          .from('apartment_residents')
+          .select('apartment_id')
+          .eq('profile_id', user.id)
+          .single();
+        
+        if (userResident) {
+          await supabase
+            .from('apartment_residents')
+            .insert({
+              apartment_id: userResident.apartment_id,
+              profile_id: profileId,
+              is_owner: formData.is_owner
+            });
+        }
+      }
+
+      Alert.alert(
+        'Sucesso', 
+        editingPerson ? 'Pessoa atualizada com sucesso!' : 'Pessoa cadastrada com sucesso!'
+      );
+      
+      resetForm();
+      setShowModal(false);
+      fetchPeople();
+      
+    } catch (error) {
+      console.error('Erro ao salvar pessoa:', error);
+      Alert.alert('Erro', 'Não foi possível salvar a pessoa');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para resetar formulário
+  const resetForm = () => {
+    setFormData({
+      full_name: '',
+      email: '',
+      phone: '',
+      person_type: 'familiar',
+      relation: '',
+      is_app_user: false,
+      is_owner: false,
+    });
+    setEditingPerson(null);
+  };
+
+  // Função para editar pessoa
+  const handleEdit = (person: Person) => {
+    setFormData({
+      full_name: person.full_name,
+      email: person.email,
+      phone: person.phone || '',
+      person_type: person.user_type === 'funcionario' ? 'funcionario' : 'familiar',
+      relation: person.relation || '',
+      is_app_user: false, // Não podemos determinar isso facilmente
+      is_owner: person.is_owner || false,
+      cpf: person.cpf,
+      birth_date: person.birth_date,
+    });
+    setEditingPerson(person);
+    setShowModal(true);
+  };
+
+  // Função para remover pessoa
+  const handleDelete = (person: Person) => {
+    Alert.alert(
+      'Confirmar exclusão',
+      `Deseja realmente excluir ${person.full_name}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { 
+          text: 'Excluir', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remover de apartment_residents se for residente
+              if (person.is_resident && person.resident_id) {
+                await supabase
+                  .from('apartment_residents')
+                  .delete()
+                  .eq('id', person.resident_id);
+              }
+              
+              // Remover profile
+              const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', person.id);
+              
+              if (error) throw error;
+              
+              Alert.alert('Sucesso', 'Pessoa removida com sucesso!');
+              fetchPeople();
+            } catch (error) {
+              console.error('Erro ao remover pessoa:', error);
+              Alert.alert('Erro', 'Não foi possível remover a pessoa');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderCadastroTab = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
-        <Text style={styles.sectionDescription}>
-          Cadastre familiares, funcionários e pessoas autorizadas
-        </Text>
+    <View style={styles.container}>
+      <ScrollView style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
+          <Text style={styles.sectionDescription}>
+            Cadastre familiares, funcionários e pessoas autorizadas
+          </Text>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push('/morador/cadastro/novo')}>
-          <Ionicons name="person-add" size={24} color="#fff" />
-          <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
-
-        <View style={styles.personCard}>
-          <Text style={styles.personName}>Ana Silva</Text>
-          <Text style={styles.personRelation}>💑 Cônjuge</Text>
-          <Text style={styles.personAccess}>👤 Usuário do app</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>✏️ Editar</Text>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => {
+              resetForm();
+              setShowModal(true);
+            }}>
+            <Ionicons name="person-add" size={24} color="#fff" />
+            <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.personCard}>
-          <Text style={styles.personName}>Pedro Silva</Text>
-          <Text style={styles.personRelation}>👶 Filho</Text>
-          <Text style={styles.personAccess}>🚫 Sem acesso ao app</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>✏️ Editar</Text>
-          </TouchableOpacity>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
+          
+          {loadingPeople ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>Carregando pessoas...</Text>
+            </View>
+          ) : (
+            <>
+              {/* Sempre exibir o proprietário (usuário logado) */}
+              {user && (
+                <View style={styles.personCard}>
+                  <Text style={styles.personName}>{user.email}</Text>
+                  <Text style={styles.personRelation}>
+                    🏠 Proprietário • Responsável pelo cadastro
+                  </Text>
+                  <Text style={styles.personAccess}>
+                    📧 {user.email}
+                  </Text>
+                  <Text style={styles.dateInfo}>
+                    ℹ️ Você tem acesso à aba de cadastro de pessoas
+                  </Text>
+                </View>
+              )}
+              
+              {/* Exibir outras pessoas cadastradas */}
+              {people.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Nenhuma pessoa adicional cadastrada</Text>
+                </View>
+              ) : (
+                people.map((person) => (
+                  <View key={person.id} style={styles.personCard}>
+                    <Text style={styles.personName}>{person.full_name}</Text>
+                    <Text style={styles.personRelation}>
+                      {person.user_type === 'funcionario' ? '👷 Funcionário' : 
+                       person.is_resident ? (person.is_owner ? '🏠 Proprietário' : '👨‍👩‍👧‍👦 Morador') : '👥 Familiar'}
+                      {person.relation && ` • ${person.relation}`}
+                    </Text>
+                    {person.apartment_number && (
+                      <Text style={styles.apartmentInfo}>
+                        🏢 Apartamento {person.apartment_number}
+                        {person.apartment_floor && ` • ${person.apartment_floor}º andar`}
+                      </Text>
+                    )}
+                    <Text style={styles.personAccess}>
+                      📧 {person.email}
+                      {person.phone && ` • 📱 ${person.phone}`}
+                    </Text>
+
+                    <View style={styles.actionButtons}>
+                      <TouchableOpacity 
+                        style={styles.editButton}
+                        onPress={() => handleEdit(person)}
+                      >
+                        <Text style={styles.editButtonText}>✏️ Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.deleteButton}
+                        onPress={() => handleDelete(person)}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </>
+          )}
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Modal de Cadastro */}
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          resetForm();
+          setShowModal(false);
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => {
+                resetForm();
+                setShowModal(false);
+              }}
+            >
+              <Text style={styles.cancelButton}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
+            </Text>
+            <TouchableOpacity 
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={[styles.saveButton, loading && styles.disabledButton]}>
+                {loading ? 'Salvando...' : 'Salvar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {/* Nome Completo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Nome Completo *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.full_name}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, full_name: text }))}
+                placeholder="Digite o nome completo"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email *</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.email}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+                placeholder="Digite o email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Telefone */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Telefone</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.phone}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+                placeholder="Digite o telefone"
+                keyboardType="phone-pad"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Tipo de Pessoa */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tipo de Pessoa *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={formData.person_type}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, person_type: value, relation: '' }))}
+                  enabled={!loading}
+                >
+                  <Picker.Item label="Familiar" value="familiar" />
+                  <Picker.Item label="Funcionário" value="funcionario" />
+                  <Picker.Item label="Autorizado" value="autorizado" />
+                </Picker>
+              </View>
+            </View>
+
+            {/* Relação */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Relação *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={formData.relation}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, relation: value }))}
+                  enabled={!loading}
+                >
+                  <Picker.Item label="Selecione a relação" value="" />
+                  {relationOptions[formData.person_type].map((option) => (
+                    <Picker.Item key={option} label={option} value={option} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            {/* CPF */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>CPF</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.cpf}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, cpf: text }))}
+                placeholder="Digite o CPF"
+                keyboardType="numeric"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Data de Nascimento */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Data de Nascimento</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.birth_date}
+                onChangeText={(text) => setFormData(prev => ({ ...prev, birth_date: text }))}
+                placeholder="DD/MM/AAAA"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Checkboxes */}
+            <View style={styles.checkboxGroup}>
+              <TouchableOpacity 
+                style={styles.checkboxRow}
+                onPress={() => setFormData(prev => ({ ...prev, is_app_user: !prev.is_app_user }))}
+                disabled={loading}
+              >
+                <View style={[styles.checkbox, formData.is_app_user && styles.checkboxChecked]}>
+                  {formData.is_app_user && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>É usuário do aplicativo</Text>
+              </TouchableOpacity>
+
+              {formData.person_type === 'familiar' && (
+                <TouchableOpacity 
+                  style={styles.checkboxRow}
+                  onPress={() => setFormData(prev => ({ ...prev, is_owner: !prev.is_owner }))}
+                  disabled={loading}
+                >
+                  <View style={[styles.checkbox, formData.is_owner && styles.checkboxChecked]}>
+                    {formData.is_owner && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.checkboxLabel}>É proprietário</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 
   return (
@@ -57,7 +627,7 @@ export default function CadastroTab() {
       <SafeAreaView style={styles.container}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.push('/morador')}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.title}>👨‍👩‍👧‍👦 Cadastro</Text>
@@ -129,6 +699,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 16,
+  },
   personCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -151,20 +737,136 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
+  apartmentInfo: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
   personAccess: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 4,
+  },
+  dateInfo: {
+    fontSize: 12,
+    color: '#999',
     marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
   },
   editButton: {
     backgroundColor: '#2196F3',
     borderRadius: 8,
     padding: 8,
-    alignSelf: 'flex-start',
+    flex: 1,
   },
   editButtonText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#f44336',
+    borderRadius: 8,
+    padding: 8,
+    flex: 1,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  cancelButton: {
+    color: '#666',
+    fontSize: 16,
+  },
+  saveButton: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    color: '#ccc',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  checkboxGroup: {
+    marginTop: 16,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    fontSize: 16,
+    color: '#333',
   },
 });

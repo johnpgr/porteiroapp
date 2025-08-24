@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import BottomNav from '../../components/BottomNav';
 
 interface LogEntry {
   id: string;
@@ -187,7 +188,7 @@ export default function LogsScreen() {
   const filteredLogs = logs.filter((log) => filter === 'all' || log.type === filter);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -277,7 +278,8 @@ export default function LogsScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+      <BottomNav activeTab="logs" />
+    </SafeAreaView>
   );
 }
 

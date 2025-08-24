@@ -11,6 +11,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 
 export default function NovoCadastro() {
   const [nome, setNome] = useState('');
@@ -120,6 +121,7 @@ export default function NovoCadastro() {
             </TouchableOpacity>
           </View>
         </View>
+        <BottomNav activeTab="cadastro" />
       </SafeAreaView>
     </ProtectedRoute>
   );

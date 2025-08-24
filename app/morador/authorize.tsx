@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { VisitorCard } from '../../components/VisitorCard';
 import { flattenStyles } from '../../utils/styles';
+import BottomNav from '../../components/BottomNav';
 
 interface Visitor {
   id: string;
@@ -141,7 +143,7 @@ export default function AuthorizeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -247,7 +249,8 @@ export default function AuthorizeScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      <BottomNav />
+    </SafeAreaView>
   );
 }
 

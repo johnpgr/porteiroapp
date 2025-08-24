@@ -8,12 +8,14 @@ import {
   Alert,
   TextInput,
   Image,
+  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import BottomNav from '../../components/BottomNav';
 
 export default function PreregisterScreen() {
   const { user } = useAuth();
@@ -152,7 +154,7 @@ export default function PreregisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -258,7 +260,8 @@ export default function PreregisterScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+      <BottomNav activeTab="preregister" />
+    </SafeAreaView>
   );
 }
 

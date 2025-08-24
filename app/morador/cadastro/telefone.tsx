@@ -11,6 +11,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 
 export default function TelefoneCadastro() {
   const { nome, relacionamento } = useLocalSearchParams<{
@@ -205,6 +206,7 @@ export default function TelefoneCadastro() {
             </TouchableOpacity>
           </View>
         </View>
+        <BottomNav activeTab="cadastro" />
       </SafeAreaView>
     </ProtectedRoute>
   );

@@ -17,6 +17,7 @@ import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
+import BottomNav from '~/components/BottomNav';
 
 interface MoradorProfileData {
   id: string;
@@ -346,6 +347,7 @@ export default function MoradorProfile() {
             </View>
           </ScrollView>
         </View>
+        <BottomNav activeTab="profile" />
       </SafeAreaView>
     </ProtectedRoute>
   );

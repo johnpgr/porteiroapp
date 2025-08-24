@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import BottomNav from '~/components/BottomNav';
 
 export default function FotoCadastro() {
   const { nome, relacionamento, telefone, placa, acesso } = useLocalSearchParams<{
@@ -258,6 +259,7 @@ export default function FotoCadastro() {
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
+        <BottomNav activeTab="cadastro" />
       </SafeAreaView>
     </ProtectedRoute>
   );
