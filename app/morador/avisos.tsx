@@ -121,7 +121,6 @@ const AvisosTab = () => {
           )}
         </View>
       </ScrollView>
-      <BottomNav activeTab="avisos" />
     </SafeAreaView>
   );
 };

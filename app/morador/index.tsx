@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import {
   View,
   Text,
@@ -18,8 +18,16 @@ import AvisosTab from './avisos';
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
+  const { tab } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('inicio');
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+
+  // Handle tab parameter from navigation
+  useEffect(() => {
+    if (tab && typeof tab === 'string') {
+      setActiveTab(tab);
+    }
+  }, [tab]);
 
   // Handle navigation for cadastro tab
   useEffect(() => {

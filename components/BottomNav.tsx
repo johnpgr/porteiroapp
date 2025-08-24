@@ -31,13 +31,15 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
         router.push('/morador');
         break;
       case 'visitantes':
-        router.push('/morador/visitantes');
+        // Navega para a página principal do morador com parâmetro para mostrar aba visitantes
+        router.push('/morador?tab=visitantes');
         break;
       case 'cadastro':
         router.push('/morador/cadastro');
         break;
       case 'avisos':
-        router.push('/morador/avisos');
+        // Navega para a página principal do morador com parâmetro para mostrar aba avisos
+        router.push('/morador?tab=avisos');
         break;
     }
   };

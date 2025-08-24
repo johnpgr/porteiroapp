@@ -17,6 +17,7 @@ import { Picker } from '@react-native-picker/picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import BottomNav from '~/components/BottomNav';
 
 // Tipos e interfaces
 interface PersonForm {
@@ -702,6 +703,7 @@ export default function CadastroTab() {
           </View>
           {renderCadastroTab()}
         </View>
+        <BottomNav activeTab="cadastro" />
       </SafeAreaView>
     </ProtectedRoute>
   );
