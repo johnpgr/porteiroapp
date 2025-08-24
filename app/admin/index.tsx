@@ -213,6 +213,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
+    paddingTop: 15,
     paddingHorizontal: 20,
     zIndex: 50,
   },
@@ -532,7 +533,7 @@ const styles = StyleSheet.create({
   avatarMenu: {
     position: 'absolute',
     top: 50,
-    left: -50,
+    left: -10,
     backgroundColor: '#fff',
     borderRadius: 12,
     elevation: 20,

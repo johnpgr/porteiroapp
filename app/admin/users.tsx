@@ -161,6 +161,7 @@ export default function UsersManagement() {
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('users');
   const [newUser, setNewUser] = useState({
     name: '',
     type: 'morador' as 'morador' | 'porteiro',
@@ -1906,6 +1907,35 @@ export default function UsersManagement() {
           ))}
         </ScrollView>
       )}
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]} 
+          onPress={() => router.push('/admin')}>
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navLabel}>Dashboard</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.navItem, activeTab === 'users' && styles.navItemActive]} 
+          onPress={() => setActiveTab('users')}>
+          <Text style={styles.navIcon}>👥</Text>
+          <Text style={styles.navLabel}>Usuários</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/logs')}>
+          <Text style={styles.navIcon}>📋</Text>
+          <Text style={styles.navLabel}>Logs</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => router.push('/admin/communications')}>
+          <Text style={styles.navIcon}>📢</Text>
+          <Text style={styles.navLabel}>Avisos</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1916,7 +1946,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    padding: 20,
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -1947,12 +1979,13 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    minHeight: 50,
   },
   searchButton: {
     backgroundColor: '#2196F3',
@@ -2000,12 +2033,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+    borderRadius: 10,
+    padding: 15,
     marginBottom: 15,
     fontSize: 16,
+    backgroundColor: '#fff',
+    minHeight: 50,
   },
   roleSelector: {
     marginBottom: 25,
@@ -2590,6 +2625,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     marginHorizontal: 15,
+    fontWeight: '500',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingBottom: 30,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  navItemActive: {
+    backgroundColor: '#f8f9fa',
+  },
+  navIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#666',
     fontWeight: '500',
   },
 });

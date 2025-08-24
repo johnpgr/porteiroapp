@@ -7,12 +7,12 @@ import {
   ScrollView,
   TextInput,
   SafeAreaView,
+  Alert,
 } from 'react-native';
-import { router } from 'expo-router';
-import { Container } from '~/components/Container';
-import { supabase, adminAuth } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { supabase, adminAuth } from '../../utils/supabase';
+import { router } from 'expo-router';
 
 interface Building {
   id: string;
@@ -35,6 +35,7 @@ interface Log {
 }
 
 export default function SystemLogs() {
+  const [activeTab, setActiveTab] = useState('logs');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
@@ -214,8 +215,7 @@ export default function SystemLogs() {
   };
 
   return (
-    <Container>
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
@@ -476,8 +476,33 @@ export default function SystemLogs() {
             ))}
           </View>
         </ScrollView>
+        
+        <View style={styles.bottomNav}>
+          <TouchableOpacity 
+            style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]} 
+            onPress={() => setActiveTab('dashboard')}>
+            <Text style={styles.navIcon}>📊</Text>
+            <Text style={styles.navLabel}>Dashboard</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
+            <Text style={styles.navIcon}>👥</Text>
+            <Text style={styles.navLabel}>Usuários</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.navItem, styles.navItemActive]} onPress={() => router.push('/admin/logs')}>
+            <Text style={styles.navIcon}>📋</Text>
+            <Text style={styles.navLabel}>Logs</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.navItem} 
+            onPress={() => router.push('/admin/communications')}>
+            <Text style={styles.navIcon}>📢</Text>
+            <Text style={styles.navLabel}>Avisos</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
-    </Container>
   );
 }
 
@@ -487,6 +512,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
+    paddingTop: 60,
     padding: 20,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
@@ -514,12 +540,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   filterInput: {
+    height: 50,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     backgroundColor: '#fff',
-    marginBottom: 10,
+    marginBottom: 15,
+    fontSize: 16,
+    color: '#333',
   },
   dateFilterContainer: {
     flexDirection: 'row',
@@ -530,28 +560,34 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   datePickerButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 12,
+    height: 50,
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
     borderRadius: 8,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#ddd',
+    justifyContent: 'center',
   },
   datePickerButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
     textAlign: 'center',
   },
   timePickerButton: {
-    backgroundColor: '#e8f4f8',
-    padding: 10,
-    borderRadius: 6,
+    height: 45,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#b3d9e6',
+    borderColor: '#ddd',
+    justifyContent: 'center',
   },
   timePickerButtonText: {
-    fontSize: 12,
-    color: '#2c5aa0',
+    fontSize: 14,
+    color: '#333',
     textAlign: 'center',
   },
   searchTypeContainer: {
@@ -564,12 +600,14 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   pickerContainer: {
+    height: 50,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
     marginBottom: 15,
     backgroundColor: '#fff',
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
   },
   picker: {
     height: 50,
@@ -757,5 +795,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     marginTop: 5,
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  navItemActive: {
+    backgroundColor: '#9C27B0',
+  },
+  navIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  navLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

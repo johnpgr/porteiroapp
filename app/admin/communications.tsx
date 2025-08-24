@@ -440,6 +440,32 @@ export default function Communications() {
     <SafeAreaView style={styles.container}>
       {renderHeader()}
       {activeTab === 'communications' ? renderCommunications() : renderPolls()}
+      
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push('/admin')}>
+          <Text style={styles.navIcon}>📊</Text>
+          <Text style={styles.navLabel}>Dashboard</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
+          <Text style={styles.navIcon}>👥</Text>
+          <Text style={styles.navLabel}>Usuários</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/logs')}>
+          <Text style={styles.navIcon}>📋</Text>
+          <Text style={styles.navLabel}>Logs</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.navItem, styles.navItemActive]}
+          onPress={() => router.push('/admin/communications')}>
+          <Text style={styles.navIcon}>📢</Text>
+          <Text style={styles.navLabel}>Avisos</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -453,7 +479,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
     paddingBottom: 15,
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 50,
   },
   backButton: {
     alignSelf: 'flex-start',
@@ -527,9 +553,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    padding: 12,
+    padding: 15,
     marginBottom: 15,
     backgroundColor: '#fff',
+    fontSize: 16,
+    minHeight: 50,
   },
   textArea: {
     height: 100,
@@ -541,7 +569,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 15,
     backgroundColor: '#fff',
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
+    minHeight: 50,
+    justifyContent: 'center',
   },
   sendButton: {
     backgroundColor: '#4CAF50',
@@ -605,12 +635,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dateButton: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 15,
     alignItems: 'center',
+    minHeight: 50,
   },
   dateButtonText: {
     fontSize: 16,
@@ -620,6 +651,33 @@ const styles = StyleSheet.create({
     color: '#dc3545',
     fontSize: 14,
     marginTop: 5,
+    fontWeight: '500',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  navItemActive: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
+  navIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#666',
     fontWeight: '500',
   },
 });
