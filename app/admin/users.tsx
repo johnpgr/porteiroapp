@@ -375,11 +375,10 @@ export default function UsersManagement() {
   const [showVehicleForm, setShowVehicleForm] = useState(false);
   const [newVehicle, setNewVehicle] = useState({
     license_plate: '',
+    brand: '',
     model: '',
     color: '',
-    selectedBuildingId: '',
-    selectedOwnerId: '',
-    selectedApartmentId: '',
+    type: 'car',
   });
   const [vehicleOwners, setVehicleOwners] = useState<User[]>([]);
   const [vehicleApartments, setVehicleApartments] = useState<Apartment[]>([]);
@@ -1151,28 +1150,10 @@ export default function UsersManagement() {
   const handleAddVehicle = async () => {
     // Normalizar placa (remover espaços e deixar maiúsculas)
     const normalizedPlate = newVehicle.license_plate.trim().toUpperCase();
-    setNewVehicle(prev => ({ ...prev, license_plate: normalizedPlate }));
-
-    if (!normalizedPlate || !newVehicle.model || !newVehicle.color) {
-      Alert.alert(
-        'Erro',
-        'Por favor, preencha todos os campos obrigatórios (placa, modelo e cor).'
-      );
-      return;
-    }
-
-    if (!newVehicle.selectedBuildingId) {
-      Alert.alert('Erro', 'Selecione um prédio.');
-      return;
-    }
-
-    if (!newVehicle.selectedApartmentId) {
-      Alert.alert('Erro', 'Selecione um apartamento.');
-      return;
-    }
-
-    if (!newVehicle.selectedOwnerId) {
-      Alert.alert('Erro', 'Selecione o proprietário do veículo.');
+    
+    // Validar apenas campo obrigatório (placa)
+    if (!normalizedPlate) {
+      Alert.alert('Erro', 'Por favor, preencha a placa do veículo.');
       return;
     }
 
@@ -1182,21 +1163,30 @@ export default function UsersManagement() {
       const { data: existing, error: checkError } = await supabase
         .from('vehicles')
         .select('id')
-        .ilike('license_plate', normalizedPlate);
+        .eq('license_plate', normalizedPlate)
+        .single();
 
-      if (checkError) {
+      if (checkError && checkError.code !== 'PGRST116') {
         console.error('Erro ao verificar placa existente:', checkError);
-      } else if (existing && existing.length > 0) {
-        Alert.alert('Placa já cadastrada', 'Já existe um veículo com esta placa.');
+        Alert.alert('Erro', 'Erro ao verificar se o veículo já existe.');
         setLoading(false);
         return;
       }
 
+      if (existing) {
+        Alert.alert('Erro', 'Já existe um veículo cadastrado com esta placa.');
+        setLoading(false);
+        return;
+      }
+
+      // Inserir o novo veículo com apartment_id NULL (cadastrado pelo admin)
       const { error } = await supabase.from('vehicles').insert({
+        apartment_id: null, // NULL para indicar cadastro pelo admin
         license_plate: normalizedPlate,
-        model: newVehicle.model.trim(),
-        color: newVehicle.color.trim(),
-        owner_id: newVehicle.selectedOwnerId,
+        brand: newVehicle.brand?.trim() || null,
+        model: newVehicle.model?.trim() || null,
+        color: newVehicle.color?.trim() || null,
+        type: newVehicle.type || 'car',
       });
 
       if (error) throw error;
@@ -1205,14 +1195,11 @@ export default function UsersManagement() {
       setShowVehicleForm(false);
       setNewVehicle({
         license_plate: '',
+        brand: '',
         model: '',
         color: '',
-        selectedBuildingId: '',
-        selectedOwnerId: '',
-        selectedApartmentId: '',
+        type: 'car',
       });
-      setVehicleOwners([]);
-      setVehicleApartments([]);
     } catch (error) {
       console.error('Erro ao cadastrar veículo:', error);
       Alert.alert('Erro', 'Erro ao cadastrar veículo.');
@@ -1802,10 +1789,21 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Modelo do Veículo *</Text>
+            <Text style={styles.label}>Marca do Veículo</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex: Honda Civic, Toyota Corolla"
+              placeholder="Ex: Honda, Toyota, Volkswagen"
+              value={newVehicle.brand}
+              onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, brand: text }))}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Modelo do Veículo</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Civic, Corolla, Gol"
               value={newVehicle.model}
               onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, model: text }))}
               autoCapitalize="words"
@@ -1813,7 +1811,7 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Cor do Veículo *</Text>
+            <Text style={styles.label}>Cor do Veículo</Text>
             <TextInput
               style={styles.input}
               placeholder="Ex: Branco, Preto, Prata"
@@ -1824,96 +1822,26 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Prédio *</Text>
+            <Text style={styles.label}>Tipo do Veículo</Text>
             <View style={styles.pickerContainer}>
               <Picker
-                selectedValue={newVehicle.selectedBuildingId}
+                selectedValue={newVehicle.type}
                 style={styles.picker}
                 itemStyle={styles.pickerItem}
-                onValueChange={(itemValue) => {
-                  setNewVehicle((prev) => ({
-                    ...prev,
-                    selectedBuildingId: itemValue,
-                    selectedOwnerId: '',
-                    selectedApartmentId: '',
-                  }));
-                  if (itemValue) {
-                    // Filtrar apartamentos do prédio
-                    const apts = apartments.filter(a => a.building_id === itemValue);
-                    setVehicleApartments(apts);
-                    // Limpa proprietários até selecionar apartamento
-                    setVehicleOwners([]);
-                  } else {
-                    setVehicleApartments([]);
-                    setVehicleOwners([]);
-                  }
-                }}>
-                <Picker.Item label="Selecione um prédio" value="" />
-                {buildings.map((building) => (
-                  <Picker.Item key={building.id} label={building.name} value={building.id} />
-                ))}
+                onValueChange={(itemValue) =>
+                  setNewVehicle((prev) => ({ ...prev, type: itemValue }))
+                }>
+                <Picker.Item label="Carro" value="car" />
+                <Picker.Item label="Moto" value="motorcycle" />
+                <Picker.Item label="Caminhão" value="truck" />
+                <Picker.Item label="Van" value="van" />
+                <Picker.Item label="Ônibus" value="bus" />
+                <Picker.Item label="Outro" value="other" />
               </Picker>
             </View>
           </View>
 
-          {newVehicle.selectedBuildingId && (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Apartamento *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={newVehicle.selectedApartmentId}
-                    style={styles.picker}
-                    itemStyle={styles.pickerItem}
-                    onValueChange={(itemValue) => {
-                      setNewVehicle(prev => ({ ...prev, selectedApartmentId: itemValue, selectedOwnerId: '' }));
-                      if (itemValue) {
-                        // Filtra moradores que possuem este apartamento
-                        const owners = users.filter(u => 
-                          u.role === 'morador' && u.apartments?.some(ap => ap.id === itemValue)
-                        );
-                        setVehicleOwners(owners);
-                      } else {
-                        setVehicleOwners([]);
-                      }
-                    }}>
-                    <Picker.Item label="Selecione um apartamento" value="" />
-                    {vehicleApartments.map(ap => (
-                      <Picker.Item key={ap.id} label={`Apt ${ap.number}`} value={ap.id} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
 
-              {newVehicle.selectedApartmentId && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Proprietário (Morador) *</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={newVehicle.selectedOwnerId}
-                      style={styles.picker}
-                      itemStyle={styles.pickerItem}
-                      onValueChange={(itemValue) =>
-                        setNewVehicle((prev) => ({ ...prev, selectedOwnerId: itemValue }))
-                      }>
-                      <Picker.Item label="Selecione o proprietário" value="" />
-                      {vehicleOwners.map((owner) => {
-                        const apartmentNumbers =
-                          owner.apartments?.map((apt) => apt.number).join(', ') || '';
-                        return (
-                          <Picker.Item
-                            key={owner.id}
-                            label={`${owner.name} - Apt: ${apartmentNumbers}`}
-                            value={owner.id}
-                          />
-                        );
-                      })}
-                    </Picker>
-                  </View>
-                </View>
-              )}
-            </>
-          )}
 
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.disabledButton]}
