@@ -76,39 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', authUser.id)
         .single();
 
-      if (error && error.code === 'PGRST116') {
-        // Se não encontrou na tabela profiles, verifica se é um admin
-        console.log('Perfil não encontrado em profiles, verificando admin_profiles...');
-
-        const { data: adminProfile, error: adminError } = await supabase
-          .from('admin_profiles')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .single();
-
-        if (adminError) {
-          console.error('Erro ao carregar perfil de admin:', adminError);
-          return;
-        }
-
-        if (adminProfile) {
-          console.log('Perfil de admin encontrado, definindo user_type como admin');
-          setUser({
-            id: authUser.id,
-            email: adminProfile.email,
-            user_type: 'admin',
-            condominium_id: undefined,
-            building_id: undefined,
-            is_active: true,
-            last_login: new Date().toISOString(),
-            push_token: undefined,
-          });
-          return;
-        }
-      }
-
       if (error) {
-        console.error('Erro ao carregar perfil:', error);
+        if (error.code === 'PGRST116') {
+          // Usuário não encontrado em profiles
+          console.log('Perfil não encontrado em profiles. Usuário pode não ter perfil criado.');
+        } else {
+          console.error('Erro ao carregar perfil:', error);
+        }
         return;
       }
 
