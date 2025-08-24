@@ -13,8 +13,6 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
@@ -413,7 +411,6 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
         setIsLoading(true);
 
-        const visitSessionId = Crypto.randomUUID();
         const currentTime = new Date().toISOString();
 
         console.log('Dados da entrega preparados:', {
@@ -448,16 +445,17 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
         console.log('Entrega inserida com sucesso');
 
-        // Inserir dados na tabela visitor_logs
+        // Inserir dados na tabela visitor_logs (sem criar visitante)
         const { error: logError } = await supabase
           .from('visitor_logs')
           .insert({
+            visitor_id: null,
             apartment_id: selectedApartment.id,
             building_id: doormanBuildingId,
             authorized_by: user.id,
             log_time: currentTime,
             tipo_log: 'IN',
-            visit_session_id: visitSessionId,
+            visit_session_id: null,
             purpose: `Entrega: ${descricaoEncomenda}`,
             status: 'approved'
           });
