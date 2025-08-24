@@ -93,7 +93,8 @@ export default function MoradorDashboard() {
       case 'visitantes':
         return renderVisitantesTab();
       case 'cadastro':
-        return renderCadastroTab();
+        router.push('/morador/cadastro');
+        return renderInicioTab(); // Fallback while navigating
       case 'avisos':
         return <AvisosTab />;
       default:
@@ -186,45 +187,7 @@ export default function MoradorDashboard() {
     </ScrollView>
   );
 
-  const renderCadastroTab = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
-        <Text style={styles.sectionDescription}>
-          Cadastre familiares, funcionários e pessoas autorizadas
-        </Text>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push('/morador/cadastro/novo')}>
-          <Ionicons name="person-add" size={24} color="#fff" />
-          <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
-
-        <View style={styles.personCard}>
-          <Text style={styles.personName}>Ana Silva</Text>
-          <Text style={styles.personRelation}>💑 Cônjuge</Text>
-          <Text style={styles.personAccess}>👤 Usuário do app</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>✏️ Editar</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.personCard}>
-          <Text style={styles.personName}>Pedro Silva</Text>
-          <Text style={styles.personRelation}>👶 Filho</Text>
-          <Text style={styles.personAccess}>🚫 Sem acesso ao app</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>✏️ Editar</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
-  );
 
 
 
@@ -487,33 +450,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  personCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  personName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  personRelation: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  personAccess: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
+
 
   bottomNav: {
     flexDirection: 'row',
