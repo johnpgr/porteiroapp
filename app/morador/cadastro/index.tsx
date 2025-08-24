@@ -26,7 +26,6 @@ interface PersonForm {
   person_type: 'familiar' | 'funcionario' | 'autorizado';
   relation: string;
   is_app_user: boolean;
-  is_owner: boolean;
   cpf?: string;
   birth_date?: string;
 }
@@ -65,6 +64,7 @@ export default function CadastroTab() {
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [people, setPeople] = useState<Person[]>([]);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [userIsOwner, setUserIsOwner] = useState(false);
   
   // Estados do formulário
   const [formData, setFormData] = useState<PersonForm>({
@@ -74,7 +74,6 @@ export default function CadastroTab() {
     person_type: 'familiar',
     relation: '',
     is_app_user: false,
-    is_owner: false,
   });
   
   // Carregar pessoas cadastradas
@@ -92,7 +91,7 @@ export default function CadastroTab() {
       setLoadingPeople(true);
       
       // Buscar moradores da tabela apartment_residents com JOIN nas tabelas profiles e apartments
-      // Filtrar pelo building_id do usuário logado
+      // Incluir todos os residentes do mesmo prédio
       const { data: residentsData, error } = await supabase
         .from('apartment_residents')
         .select(`
@@ -120,8 +119,7 @@ export default function CadastroTab() {
           )
         `)
         .eq('profiles.building_id', user.building_id)
-        .eq('apartments.building_id', user.building_id)
-        .neq('profiles.id', user.id); // Excluir o próprio usuário
+        .eq('apartments.building_id', user.building_id);
       
       if (error) throw error;
       
@@ -145,7 +143,26 @@ export default function CadastroTab() {
         resident_id: resident.id
       }));
       
-      setPeople(transformedPeople);
+      // Buscar apartment_id e is_owner do usuário logado
+      const { data: userResident } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id, is_owner')
+        .eq('profile_id', user.id)
+        .single();
+      
+      if (userResident) {
+        // Definir se o usuário logado é proprietário
+        setUserIsOwner(userResident.is_owner || false);
+        
+        // Mostrar todas as pessoas do mesmo apartamento (incluindo o usuário logado)
+        const sameApartmentPeople = transformedPeople.filter(person => 
+          person.apartment_id === userResident.apartment_id
+        );
+        setPeople(sameApartmentPeople);
+      } else {
+        setUserIsOwner(false);
+        setPeople([]);
+      }
     } catch (error) {
       console.error('Erro ao buscar pessoas:', error);
       Alert.alert('Erro', 'Não foi possível carregar as pessoas cadastradas');
@@ -199,11 +216,13 @@ export default function CadastroTab() {
         return;
       }
 
+      let createdUserId = null;
+      
       if (formData.is_app_user) {
         // Criar usuário no Supabase Auth
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
-          password: 'temp123456', // Senha temporária
+          password: '123456', // Senha padrão
           options: {
             data: {
               full_name: formData.full_name,
@@ -216,6 +235,10 @@ export default function CadastroTab() {
           Alert.alert('Erro', 'Não foi possível criar usuário do app');
           return;
         }
+        
+        if (authData.user) {
+          createdUserId = authData.user.id;
+        }
       }
 
       // Determinar user_type baseado no person_type
@@ -224,7 +247,7 @@ export default function CadastroTab() {
         user_type = 'funcionario';
       }
 
-      // Criar profile
+      // Criar profile - só incluir user_id se foi criado um usuário do app
       const profileData = {
         full_name: formData.full_name,
         email: formData.email,
@@ -233,6 +256,8 @@ export default function CadastroTab() {
         building_id: user.building_id,
         cpf: formData.cpf || null,
         birth_date: formData.birth_date || null,
+        relation: formData.relation || null,
+        ...(createdUserId && { user_id: createdUserId }),
       };
 
       let profileId: string;
@@ -258,23 +283,58 @@ export default function CadastroTab() {
         profileId = newProfile.id;
       }
 
-      // Se for familiar, adicionar como residente
-      if (formData.person_type === 'familiar' && !editingPerson) {
+      // Sempre adicionar em apartment_residents para qualquer tipo de pessoa cadastrada
+      if (!editingPerson) {
+        console.log('🔍 DEBUG: Iniciando busca do apartment_id do usuário atual:', user.id);
+        
         // Buscar apartment_id do usuário atual
-        const { data: userResident } = await supabase
+        const { data: userResident, error: residentError } = await supabase
           .from('apartment_residents')
           .select('apartment_id')
           .eq('profile_id', user.id)
           .single();
         
+        console.log('🔍 DEBUG: Resultado da busca apartment_id:', { userResident, residentError });
+        
         if (userResident) {
+          console.log('🔍 DEBUG: Inserindo nova pessoa em apartment_residents:', {
+            apartment_id: userResident.apartment_id,
+            profile_id: profileId,
+            is_owner: formData.is_owner || false
+          });
+          
+          try {
+            const { data: insertResult, error: insertError } = await supabase
+              .from('apartment_residents')
+              .insert({
+                apartment_id: userResident.apartment_id,
+                profile_id: profileId,
+                is_owner: false
+              })
+              .select();
+            
+            console.log('✅ DEBUG: Resultado da inserção em apartment_residents:', { insertResult, insertError });
+            
+            if (insertError) {
+              console.error('❌ DEBUG: Erro ao inserir em apartment_residents:', insertError);
+              throw insertError;
+            }
+          } catch (insertErr) {
+            console.error('❌ DEBUG: Erro no try/catch da inserção:', insertErr);
+            throw insertErr;
+          }
+        } else {
+          console.log('⚠️ DEBUG: Usuário atual não encontrado em apartment_residents!');
+        }
+      } else {
+        // Se estiver editando, atualizar o registro em apartment_residents se existir
+        if (editingPerson.resident_id) {
           await supabase
             .from('apartment_residents')
-            .insert({
-              apartment_id: userResident.apartment_id,
-              profile_id: profileId,
-              is_owner: formData.is_owner
-            });
+            .update({
+              is_owner: false
+            })
+            .eq('id', editingPerson.resident_id);
         }
       }
 
@@ -295,6 +355,21 @@ export default function CadastroTab() {
     }
   };
 
+  // Função para formatar data de nascimento
+  const formatBirthDate = (text: string) => {
+    // Remove tudo que não é número
+    const numbers = text.replace(/\D/g, '');
+    
+    // Aplica a máscara DD/MM/YYYY
+    if (numbers.length <= 2) {
+      return numbers;
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+    }
+  };
+
   // Função para resetar formulário
   const resetForm = () => {
     setFormData({
@@ -304,7 +379,8 @@ export default function CadastroTab() {
       person_type: 'familiar',
       relation: '',
       is_app_user: false,
-      is_owner: false,
+      cpf: '',
+      birth_date: ''
     });
     setEditingPerson(null);
   };
@@ -318,7 +394,6 @@ export default function CadastroTab() {
       person_type: person.user_type === 'funcionario' ? 'funcionario' : 'familiar',
       relation: person.relation || '',
       is_app_user: false, // Não podemos determinar isso facilmente
-      is_owner: person.is_owner || false,
       cpf: person.cpf,
       birth_date: person.birth_date,
     });
@@ -366,109 +441,108 @@ export default function CadastroTab() {
     );
   };
 
-  const renderCadastroTab = () => (
-    <View style={styles.container}>
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
-          <Text style={styles.sectionDescription}>
-            Cadastre familiares, funcionários e pessoas autorizadas
-          </Text>
+  const renderCadastroTab = () => {
+    return (
+      <View style={styles.container}>
+        <ScrollView style={styles.content}>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
+            <Text style={styles.sectionDescription}>
+              Cadastre familiares, funcionários e pessoas autorizadas
+            </Text>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => {
-              resetForm();
-              setShowModal(true);
-            }}>
-            <Ionicons name="person-add" size={24} color="#fff" />
-            <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                resetForm();
+                setShowModal(true);
+              }}>
+              <Ionicons name="person-add" size={24} color="#fff" />
+              <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
-          
-          {loadingPeople ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#4CAF50" />
-              <Text style={styles.loadingText}>Carregando pessoas...</Text>
-            </View>
-          ) : (
-            <>
-              {/* Sempre exibir o proprietário (usuário logado) */}
-              {user && (
-                <View style={styles.personCard}>
-                  <Text style={styles.personName}>{user.email}</Text>
-                  <Text style={styles.personRelation}>
-                    🏠 Proprietário • Responsável pelo cadastro
-                  </Text>
-                  <Text style={styles.personAccess}>
-                    📧 {user.email}
-                  </Text>
-                  <Text style={styles.dateInfo}>
-                    ℹ️ Você tem acesso à aba de cadastro de pessoas
-                  </Text>
-                </View>
-              )}
-              
-              {/* Exibir outras pessoas cadastradas */}
-              {people.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>Nenhuma pessoa adicional cadastrada</Text>
-                </View>
-              ) : (
-                people.map((person) => (
-                  <View key={person.id} style={styles.personCard}>
-                    <Text style={styles.personName}>{person.full_name}</Text>
-                    <Text style={styles.personRelation}>
-                      {person.user_type === 'funcionario' ? '👷 Funcionário' : 
-                       person.is_resident ? (person.is_owner ? '🏠 Proprietário' : '👨‍👩‍👧‍👦 Morador') : '👥 Familiar'}
-                      {person.relation && ` • ${person.relation}`}
-                    </Text>
-                    {person.apartment_number && (
-                      <Text style={styles.apartmentInfo}>
-                        🏢 Apartamento {person.apartment_number}
-                        {person.apartment_floor && ` • ${person.apartment_floor}º andar`}
-                      </Text>
-                    )}
-                    <Text style={styles.personAccess}>
-                      📧 {person.email}
-                      {person.phone && ` • 📱 ${person.phone}`}
-                    </Text>
-
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity 
-                        style={styles.editButton}
-                        onPress={() => handleEdit(person)}
-                      >
-                        <Text style={styles.editButtonText}>✏️ Editar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={styles.deleteButton}
-                        onPress={() => handleDelete(person)}
-                      >
-                        <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
-                      </TouchableOpacity>
-                    </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
+            
+            {loadingPeople ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Carregando pessoas...</Text>
+              </View>
+            ) : (
+              <>
+                {/* Exibir todas as pessoas cadastradas */}
+                {people.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Nenhuma pessoa cadastrada neste apartamento</Text>
                   </View>
-                ))
-              )}
-            </>
-          )}
-        </View>
-      </ScrollView>
+                ) : (
+                  people.map((person) => {
+                    const isCurrentUser = person.id === user?.id;
+                    return (
+                      <View key={person.id} style={[styles.personCard, isCurrentUser && styles.currentUserCard]}>
+                        <Text style={styles.personName}>
+                          {person.full_name}
+                          {isCurrentUser && ' (Você)'}
+                        </Text>
+                        <Text style={styles.personRelation}>
+                          {person.user_type === 'funcionario' ? '👷 Funcionário' : 
+                           person.is_resident ? (person.is_owner ? '🏠 Proprietário' : '👨‍👩‍👧‍👦 Morador') : '👥 Familiar'}
+                          {person.relation && ` • ${person.relation}`}
+                          {isCurrentUser && ' • Responsável pelo cadastro'}
+                        </Text>
+                        {person.apartment_number && (
+                          <Text style={styles.apartmentInfo}>
+                            🏢 Apartamento {person.apartment_number}
+                            {person.apartment_floor && ` • ${person.apartment_floor}º andar`}
+                          </Text>
+                        )}
+                        <Text style={styles.personAccess}>
+                          📧 {person.email}
+                          {person.phone && ` • 📱 ${person.phone}`}
+                        </Text>
+                        {isCurrentUser && (
+                          <Text style={styles.dateInfo}>
+                            ℹ️ Você tem acesso à aba de cadastro de pessoas
+                          </Text>
+                        )}
 
-      {/* Modal de Cadastro */}
-      <Modal
-        visible={showModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => {
-          resetForm();
-          setShowModal(false);
-        }}
-      >
+                        {!isCurrentUser && (
+                          <View style={styles.actionButtons}>
+                            <TouchableOpacity 
+                              style={styles.editButton}
+                              onPress={() => handleEdit(person)}
+                            >
+                              <Text style={styles.editButtonText}>✏️ Editar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              style={styles.deleteButton}
+                              onPress={() => handleDelete(person)}
+                            >
+                              <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </View>
+        </ScrollView>
+        
+        {/* Modal de Cadastro */}
+        <Modal
+          visible={showModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => {
+            resetForm();
+            setShowModal(false);
+          }}
+        >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity 
@@ -584,8 +658,13 @@ export default function CadastroTab() {
               <TextInput
                 style={styles.input}
                 value={formData.birth_date}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, birth_date: text }))}
+                onChangeText={(text) => {
+                  const formattedDate = formatBirthDate(text);
+                  setFormData(prev => ({ ...prev, birth_date: formattedDate }));
+                }}
                 placeholder="DD/MM/AAAA"
+                keyboardType="numeric"
+                maxLength={10}
                 editable={!loading}
               />
             </View>
@@ -602,25 +681,13 @@ export default function CadastroTab() {
                 </View>
                 <Text style={styles.checkboxLabel}>É usuário do aplicativo</Text>
               </TouchableOpacity>
-
-              {formData.person_type === 'familiar' && (
-                <TouchableOpacity 
-                  style={styles.checkboxRow}
-                  onPress={() => setFormData(prev => ({ ...prev, is_owner: !prev.is_owner }))}
-                  disabled={loading}
-                >
-                  <View style={[styles.checkbox, formData.is_owner && styles.checkboxChecked]}>
-                    {formData.is_owner && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={styles.checkboxLabel}>É proprietário</Text>
-                </TouchableOpacity>
-              )}
             </View>
           </ScrollView>
         </View>
       </Modal>
     </View>
   );
+  };
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
@@ -667,6 +734,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    paddingVertical: 24,
   },
   section: {
     backgroundColor: '#fff',
@@ -725,6 +793,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  currentUserCard: {
+    backgroundColor: '#e3f2fd',
+    borderColor: '#2196f3',
+    borderWidth: 2,
   },
   personName: {
     fontSize: 16,
@@ -812,8 +885,10 @@ const styles = StyleSheet.create({
     color: '#ccc',
   },
   modalContent: {
-    flex: 1,
-    padding: 16,
+    paddingLeft: 24,
+    paddingRight: 24,
+    marginTop: 24,
+    marginBottom: 24,
   },
   inputGroup: {
     marginBottom: 16,

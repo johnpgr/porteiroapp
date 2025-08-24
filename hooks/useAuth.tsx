@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('admin_profiles')
           .select('*')
           .eq('user_id', authUser.id)
-          .single();
+          .maybeSingle();
 
         if (adminError) {
           console.error('Erro ao carregar perfil de admin:', adminError);
@@ -103,6 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             last_login: new Date().toISOString(),
             push_token: undefined,
           });
+          return;
+        } else {
+          console.log('Nenhum perfil de admin encontrado para este usuário');
           return;
         }
       }
