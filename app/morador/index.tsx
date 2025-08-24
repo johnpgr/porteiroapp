@@ -15,6 +15,7 @@ import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import AvisosTab from './avisos';
+import VisitantesTab from './visitantes/VisitantesTab';
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
@@ -107,7 +108,7 @@ export default function MoradorDashboard() {
       case 'inicio':
         return renderInicioTab();
       case 'visitantes':
-        return renderVisitantesTab();
+        return <VisitantesTab />;
       case 'avisos':
         return <AvisosTab />;
       default:
@@ -169,36 +170,7 @@ export default function MoradorDashboard() {
     </ScrollView>
   );
 
-  const renderVisitantesTab = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
-        <Text style={styles.sectionDescription}>
-          Cadastre visitantes esperados para facilitar a entrada
-        </Text>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push('/morador/visitantes/novo')}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📝 Visitantes Pré-cadastrados</Text>
-
-        <View style={styles.visitorCard}>
-          <Text style={styles.visitorName}>Carlos Silva</Text>
-          <Text style={styles.visitorType}>🔧 Prestador de serviço</Text>
-          <Text style={styles.visitorDate}>Válido até: 25/12/2024</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editButtonText}>✏️ Editar</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ScrollView>
-  );
 
 
 
@@ -424,45 +396,7 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontWeight: 'bold',
   },
-  visitorCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  visitorName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  visitorType: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  visitorDate: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  editButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    padding: 8,
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
+
 
 
   bottomNav: {
