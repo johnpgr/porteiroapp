@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import {
   View,
@@ -9,7 +9,9 @@ import {
   Modal,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import { supabase } from '../../utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -18,11 +20,27 @@ import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
 import EnquetesTab from './EnquetesTab';
 
+// Interface para tipagem do histórico de visitantes
+interface VisitorHistory {
+  id: string;
+  visitor_name: string;
+  purpose: string;
+  log_time: string;
+  status: 'approved' | 'pending' | 'denied';
+  visitor_document?: string;
+  visitor_phone?: string;
+}
+
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
   const { tab } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('inicio');
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  
+  // Estados para o histórico de visitantes
+  const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Handle tab parameter from navigation
   useEffect(() => {
@@ -38,6 +56,189 @@ export default function MoradorDashboard() {
       setActiveTab('inicio'); // Reset to avoid infinite loop
     }
   }, [activeTab]);
+
+  // Carregar histórico de visitantes ao montar o componente
+  useEffect(() => {
+    fetchVisitorsHistory();
+  }, [fetchVisitorsHistory]);
+
+  // Função para buscar o histórico de visitantes
+  const fetchVisitorsHistory = useCallback(async () => {
+    if (!user?.id) {
+      console.log('❌ Usuário não encontrado, cancelando busca do histórico');
+      return;
+    }
+    
+    try {
+      setLoadingHistory(true);
+      setHistoryError(null);
+      
+      console.log('🔍 DEBUG: Iniciando fetchVisitorsHistory');
+      console.log('🔍 DEBUG: User ID:', user.id);
+      console.log('🔍 DEBUG: User object completo:', JSON.stringify(user, null, 2));
+      
+      console.log('🔍 DEBUG: Buscando apartment_id para o usuário:', user.id);
+      
+      // Primeiro, buscar o apartment_id do usuário
+      console.log('🔍 DEBUG: Query apartment_residents - profile_id:', user.id);
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .single();
+      
+      console.log('🔍 DEBUG: Resultado da query apartment_residents:', {
+        data: apartmentData,
+        error: apartmentError,
+        query: 'apartment_residents.select(apartment_id).eq(profile_id, ' + user.id + ')'
+      });
+      
+      if (apartmentError) {
+        console.error('❌ DEBUG: Erro detalhado ao buscar apartamento:', {
+          code: apartmentError.code,
+          message: apartmentError.message,
+          details: apartmentError.details,
+          hint: apartmentError.hint
+        });
+        throw new Error('Erro ao buscar apartamento do usuário: ' + apartmentError.message);
+      }
+      
+      if (!apartmentData?.apartment_id) {
+        console.error('❌ DEBUG: apartment_id não encontrado nos dados:', apartmentData);
+        throw new Error('Apartamento não encontrado para o usuário');
+      }
+      
+      console.log('✅ DEBUG: Apartment ID encontrado:', apartmentData.apartment_id);
+      
+      // Buscar histórico de visitantes
+      console.log('🔍 DEBUG: Iniciando busca de visitor_logs para apartment_id:', apartmentData.apartment_id);
+      const { data: visitorsData, error: visitorsError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          log_time,
+          tipo_log,
+          purpose,
+          status,
+          visitors (
+            id,
+            name,
+            document,
+            phone
+          )
+        `)
+        .eq('apartment_id', apartmentData.apartment_id)
+        .order('log_time', { ascending: false })
+        .limit(20);
+      
+      console.log('🔍 DEBUG: Resultado da query visitor_logs:', {
+        data: visitorsData,
+        error: visitorsError,
+        dataLength: visitorsData?.length || 0,
+        query: 'visitor_logs.select(...).eq(apartment_id, ' + apartmentData.apartment_id + ')'
+      });
+      
+      if (visitorsError) {
+        console.error('❌ DEBUG: Erro detalhado ao buscar visitantes:', {
+          code: visitorsError.code,
+          message: visitorsError.message,
+          details: visitorsError.details,
+          hint: visitorsError.hint
+        });
+        throw new Error('Erro ao buscar histórico de visitantes: ' + visitorsError.message);
+      }
+      
+      console.log('✅ DEBUG: Visitantes encontrados:', visitorsData?.length || 0);
+      console.log('🔍 DEBUG: Dados brutos dos visitantes:', JSON.stringify(visitorsData, null, 2));
+      
+      // Mapear dados para o formato esperado
+      console.log('🔍 DEBUG: Iniciando mapeamento dos dados...');
+      const mappedVisitors = visitorsData?.map((log, index) => {
+        console.log(`🔍 DEBUG: Mapeando visitante ${index + 1}:`, {
+          logId: log.id,
+          visitorName: log.visitors?.name,
+          purpose: log.purpose,
+          logTime: log.log_time,
+          status: log.status
+        });
+        
+        return {
+          id: log.id,
+          visitor_name: log.visitors?.name || 'Visitante não identificado',
+          purpose: log.purpose || 'Não informado',
+          log_time: log.log_time,
+          status: log.status || 'pending'
+        };
+      }) || [];
+      
+      console.log('✅ DEBUG: Dados mapeados com sucesso:', mappedVisitors.length, 'visitantes');
+      console.log('🔍 DEBUG: Dados finais mapeados:', JSON.stringify(mappedVisitors, null, 2));
+      
+      setVisitorsHistory(mappedVisitors);
+      console.log('✅ DEBUG: Estado visitorsHistory atualizado com sucesso');
+      
+    } catch (error) {
+      console.error('❌ DEBUG: Erro geral no fetchVisitorsHistory:', {
+        error: error,
+        message: error.message,
+        stack: error.stack
+      });
+      setHistoryError('Erro ao carregar histórico de visitantes: ' + error.message);
+    } finally {
+      setLoadingHistory(false);
+      console.log('🔍 DEBUG: fetchVisitorsHistory finalizado');
+    }
+  }, [user?.id]);
+
+  // Função para formatar data em português
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      return `Hoje às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (diffDays === 2) {
+      return `Ontem às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  };
+
+  // Função para obter ícone do status
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return '✅';
+      case 'pending':
+        return '⏳';
+      case 'denied':
+        return '❌';
+      default:
+        return '❓';
+    }
+  };
+
+  // Função para obter texto do status
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'Autorizada';
+      case 'pending':
+        return 'Pendente';
+      case 'denied':
+        return 'Negada';
+      default:
+        return 'Desconhecido';
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair?', [
@@ -156,19 +357,57 @@ export default function MoradorDashboard() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📋 Histórico de Visitantes</Text>
-
-        <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>Maria Santos</Text>
-          <Text style={styles.historyDetails}>Prestadora de serviço • Hoje às 14:30</Text>
-          <Text style={styles.historyStatus}>✅ Autorizada</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>📋 Histórico de Visitantes</Text>
+          <TouchableOpacity 
+            style={styles.refreshButton} 
+            onPress={fetchVisitorsHistory}
+            disabled={loadingHistory}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color={loadingHistory ? '#ccc' : '#4CAF50'} 
+            />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>João Oliveira</Text>
-          <Text style={styles.historyDetails}>Visita social • Ontem às 19:15</Text>
-          <Text style={styles.historyStatus}>✅ Autorizada</Text>
-        </View>
+        {loadingHistory && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#4CAF50" />
+            <Text style={styles.loadingText}>Carregando histórico...</Text>
+          </View>
+        )}
+
+        {historyError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>❌ {historyError}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={fetchVisitorsHistory}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!loadingHistory && !historyError && visitorsHistory.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>📭 Nenhum visitante registrado ainda</Text>
+          </View>
+        )}
+
+        {!loadingHistory && !historyError && visitorsHistory.map((visitor) => (
+          <View key={visitor.id} style={styles.historyCard}>
+            <Text style={styles.historyTitle}>{visitor.visitor_name}</Text>
+            <Text style={styles.historyDetails}>
+              {visitor.purpose} • {formatDate(visitor.log_time)}
+            </Text>
+            <Text style={styles.historyStatus}>
+              {getStatusIcon(visitor.status)} {getStatusText(visitor.status)}
+            </Text>
+          </View>
+        ))}
       </View>
     </ScrollView>
   );
@@ -310,7 +549,68 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 15,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#666',
+  },
+  errorContainer: {
+    padding: 15,
+    backgroundColor: '#ffebee',
+    borderRadius: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#d32f2f',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    padding: 20,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   sectionDescription: {
     fontSize: 14,

@@ -86,13 +86,46 @@ export default function CadastroTab() {
 
   // Função para buscar pessoas cadastradas
   const fetchPeople = async () => {
-    if (!user?.building_id) return;
+    if (!user?.id) {
+      console.log('❌ DEBUG: Usuário não encontrado, cancelando busca de pessoas');
+      return;
+    }
     
     try {
       setLoadingPeople(true);
       
+      console.log('🔍 DEBUG: Iniciando busca de pessoas cadastradas');
+      console.log('🔍 DEBUG: User ID:', user.id);
+      
+      // Primeiro, buscar o building_id do usuário logado
+      console.log('🔍 DEBUG: Buscando building_id do usuário através de apartment_residents...');
+      const { data: userApartmentData, error: userApartmentError } = await supabase
+        .from('apartment_residents')
+        .select(`
+          apartment_id,
+          apartments!inner (
+            building_id
+          )
+        `)
+        .eq('profile_id', user.id)
+        .single();
+      
+      console.log('🔍 DEBUG: Resultado da busca do building_id do usuário:', {
+        data: userApartmentData,
+        error: userApartmentError
+      });
+      
+      if (userApartmentError || !userApartmentData?.apartments?.building_id) {
+        console.error('❌ DEBUG: Erro ao buscar building_id do usuário:', userApartmentError);
+        throw new Error('Não foi possível encontrar o prédio do usuário');
+      }
+      
+      const userBuildingId = userApartmentData.apartments.building_id;
+      console.log('✅ DEBUG: Building ID do usuário encontrado:', userBuildingId);
+      
       // Buscar moradores da tabela apartment_residents com JOIN nas tabelas profiles e apartments
       // Incluir todos os residentes do mesmo prédio
+      console.log('🔍 DEBUG: Buscando residentes do mesmo prédio...');
       const { data: residentsData, error } = await supabase
         .from('apartment_residents')
         .select(`
@@ -119,8 +152,7 @@ export default function CadastroTab() {
             floor
           )
         `)
-        .eq('profiles.building_id', user.building_id)
-        .eq('apartments.building_id', user.building_id);
+        .eq('apartments.building_id', userBuildingId);
       
       if (error) throw error;
       
@@ -186,8 +218,8 @@ export default function CadastroTab() {
 
   // Função para cadastrar nova pessoa
   const handleSubmit = async () => {
-    if (!user?.building_id) {
-      Alert.alert('Erro', 'Usuário não possui prédio associado');
+    if (!user?.id) {
+      Alert.alert('Erro', 'Informações do usuário não encontradas');
       return;
     }
 
@@ -209,6 +241,36 @@ export default function CadastroTab() {
 
     try {
       setLoading(true);
+      
+      console.log('🔍 DEBUG: Iniciando cadastro/atualização de perfil');
+      console.log('🔍 DEBUG: User ID:', user.id);
+      
+      // Buscar o building_id do usuário logado
+      console.log('🔍 DEBUG: Buscando building_id do usuário para cadastro...');
+      const { data: userApartmentData, error: userApartmentError } = await supabase
+        .from('apartment_residents')
+        .select(`
+          apartment_id,
+          apartments!inner (
+            building_id
+          )
+        `)
+        .eq('profile_id', user.id)
+        .single();
+      
+      console.log('🔍 DEBUG: Resultado da busca do building_id para cadastro:', {
+        data: userApartmentData,
+        error: userApartmentError
+      });
+      
+      if (userApartmentError || !userApartmentData?.apartments?.building_id) {
+        console.error('❌ DEBUG: Erro ao buscar building_id para cadastro:', userApartmentError);
+        Alert.alert('Erro', 'Não foi possível encontrar o prédio do usuário');
+        return;
+      }
+      
+      const userBuildingId = userApartmentData.apartments.building_id;
+      console.log('✅ DEBUG: Building ID para cadastro encontrado:', userBuildingId);
       
       // Verificar se email é único
       const isEmailUnique = await validateUniqueEmail(formData.email, editingPerson?.id);
@@ -254,12 +316,14 @@ export default function CadastroTab() {
         email: formData.email,
         phone: formData.phone || null,
         user_type,
-        building_id: user.building_id,
+        building_id: userBuildingId,
         cpf: formData.cpf || null,
         birth_date: formData.birth_date || null,
         relation: formData.relation || null,
         ...(createdUserId && { user_id: createdUserId }),
       };
+      
+      console.log('🔍 DEBUG: Dados do perfil a serem salvos:', profileData);
 
       let profileId: string;
       

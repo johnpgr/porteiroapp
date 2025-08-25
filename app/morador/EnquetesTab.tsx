@@ -44,7 +44,7 @@ export default function EnquetesTab() {
     try {
       const { data, error } = await supabase
         .from('apartment_residents')
-        .select('building_id')
+        .select('apartment_id, apartments!inner(building_id)')
         .eq('profile_id', user.id)
         .single();
 
@@ -54,7 +54,11 @@ export default function EnquetesTab() {
         return;
       }
 
-      setUserApartment(data);
+      // Acessar building_id através do objeto apartments
+      const apartmentData = {
+        building_id: data.apartments.building_id
+      };
+      setUserApartment(apartmentData);
     } catch (err) {
       console.error('Erro ao buscar apartamento:', err);
       setError('Erro ao carregar dados do apartamento');
