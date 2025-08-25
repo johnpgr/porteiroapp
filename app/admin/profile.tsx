@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,129 +9,392 @@ import {
   Alert,
   Image,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AdminProfilePage() {
   const { signOut } = useAuth();
   const [profile, setProfile] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     phone: '',
     cpf: '',
     birth_date: '',
     address: '',
-    photo_url: '',
+    avatar_url: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
   });
   const [loading, setLoading] = useState(true);
 
+  const fetchProfile = useCallback(async () => {
+    console.log('🔄 [AdminProfile] Iniciando busca do perfil...');
+    setLoading(true);
+    
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('❌ [AdminProfile] Erro de autenticação:', authError);
+        throw new Error('Erro de autenticação');
+      }
+      
+      if (!user) {
+        console.warn('⚠️ [AdminProfile] Usuário não encontrado');
+        Alert.alert('Erro', 'Usuário não autenticado');
+        router.replace('/admin/login');
+        return;
+      }
+      
+      console.log('✅ [AdminProfile] Usuário autenticado:', user.id);
+      
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .single();
+      
+      if (error) {
+        console.error('❌ [AdminProfile] Erro ao buscar perfil:', error);
+        if (error.code === 'PGRST116' || error.message?.includes('JSON object')) {
+          Alert.alert('Erro', 'Perfil de administrador não encontrado. Verifique se seu perfil foi criado corretamente.');
+        } else {
+          throw error;
+        }
+        return;
+      }
+      
+      console.log('✅ [AdminProfile] Perfil encontrado:', data);
+      setProfile(data);
+      
+      setFormData({
+        full_name: data.full_name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        cpf: data.cpf || '',
+        birth_date: data.birth_date ? formatDateForInput(data.birth_date) : '',
+        address: data.address || '',
+        avatar_url: data.avatar_url || '',
+        emergency_contact_name: data.emergency_contact_name || '',
+        emergency_contact_phone: data.emergency_contact_phone || '',
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [AdminProfile] Erro geral:', error);
+      Alert.alert('Erro', error.message || 'Falha ao carregar dados do perfil');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
 
-  const fetchProfile = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .eq('user_type', 'admin')
-        .single();
-
-      if (error) throw error;
-
-      setProfile(data);
-      setFormData({
-        name: data.name || '',
-        email: data.email || '',
-        phone: data.phone || '',
-        cpf: data.cpf || '',
-        birth_date: data.birth_date || '',
-        address: data.address || '',
-        photo_url: data.photo_url || '',
-      });
-    } catch {
-      Alert.alert('Erro', 'Falha ao carregar dados do perfil');
-    } finally {
-      setLoading(false);
-    }
+  // Função para formatar data para exibição no input (DD/MM/AAAA)
+  const formatDateForInput = (dateString: string): string => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+  
+  // Função para formatar data de nascimento automaticamente
+  const formatBirthDate = (text: string): string => {
+    const numbers = text.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+  };
+  
+  // Função para formatar telefone
+  const formatPhone = (text: string): string => {
+    const numbers = text.replace(/\D/g, '');
+    if (numbers.length <= 2) return `(${numbers}`;
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
+  
+  // Função para formatar CPF
+  const formatCPF = (text: string): string => {
+    const numbers = text.replace(/\D/g, '');
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+  };
+  
+  // Validações
+  const validateFullName = (name: string): boolean => {
+    return name.trim().length >= 2 && /^[a-zA-ZÀ-ÿ\s]+$/.test(name.trim());
+  };
+  
+  const validatePhone = (phone: string): boolean => {
+    const numbers = phone.replace(/\D/g, '');
+    return numbers.length === 10 || numbers.length === 11;
+  };
+  
+  const validateBirthDate = (date: string): boolean => {
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date)) return false;
+    const [day, month, year] = date.split('/').map(Number);
+    const birthDate = new Date(year, month - 1, day);
+    const today = new Date();
+    return birthDate < today && year > 1900;
+  };
+  
+  const validateCPF = (cpf: string): boolean => {
+    const numbers = cpf.replace(/\D/g, '');
+    return numbers.length === 11;
   };
 
   const handleSave = async () => {
-    if (!profile) return;
-
+    console.log('💾 [AdminProfile] Iniciando salvamento do perfil...');
+    
+    if (!profile) {
+      console.error('❌ [AdminProfile] Perfil não encontrado');
+      Alert.alert('Erro', 'Perfil não encontrado');
+      return;
+    }
+    
+    // Validações
+    if (!validateFullName(formData.full_name)) {
+      Alert.alert('Erro de Validação', 'Nome deve ter pelo menos 2 caracteres e conter apenas letras');
+      return;
+    }
+    
+    if (formData.phone && !validatePhone(formData.phone)) {
+      Alert.alert('Erro de Validação', 'Telefone deve ter 10 ou 11 dígitos');
+      return;
+    }
+    
+    if (formData.birth_date && !validateBirthDate(formData.birth_date)) {
+      Alert.alert('Erro de Validação', 'Data de nascimento inválida. Use o formato DD/MM/AAAA');
+      return;
+    }
+    
+    if (formData.cpf && !validateCPF(formData.cpf)) {
+      Alert.alert('Erro de Validação', 'CPF deve ter 11 dígitos');
+      return;
+    }
+    
+    if (formData.emergency_contact_phone && !validatePhone(formData.emergency_contact_phone)) {
+      Alert.alert('Erro de Validação', 'Telefone de emergência deve ter 10 ou 11 dígitos');
+      return;
+    }
+    
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          cpf: formData.cpf,
-          birth_date: formData.birth_date,
-          address: formData.address,
-          photo_url: formData.photo_url,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', profile.id);
-
-      if (error) throw error;
-
+      console.log('📝 [AdminProfile] Dados para atualização:', formData);
+      
+      // Converter data de nascimento para formato ISO
+      let birthDateISO = null;
+      if (formData.birth_date) {
+        const [day, month, year] = formData.birth_date.split('/');
+        birthDateISO = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toISOString().split('T')[0];
+      }
+      
+      const updateData = {
+        full_name: formData.full_name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.replace(/\D/g, ''),
+        cpf: formData.cpf.replace(/\D/g, ''),
+        birth_date: birthDateISO,
+        address: formData.address.trim(),
+        avatar_url: formData.avatar_url,
+        emergency_contact_name: formData.emergency_contact_name.trim(),
+        emergency_contact_phone: formData.emergency_contact_phone.replace(/\D/g, ''),
+        updated_at: new Date().toISOString(),
+      };
+      
+      console.log('🔄 [AdminProfile] Executando update no Supabase...');
+      
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .update(updateData)
+        .eq('user_id', profile.user_id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ [AdminProfile] Erro no update:', error);
+        
+        if (error.code === '23505') {
+          Alert.alert('Erro', 'Dados duplicados. Verifique CPF e e-mail.');
+        } else if (error.code === 'PGRST116') {
+          Alert.alert('Erro', 'Perfil não encontrado');
+        } else {
+          throw error;
+        }
+        return;
+      }
+      
+      console.log('✅ [AdminProfile] Perfil atualizado com sucesso:', data);
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso');
       setIsEditing(false);
-      fetchProfile();
-    } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      Alert.alert('Erro', 'Falha ao salvar alterações');
+      await fetchProfile();
+      
+    } catch (error: any) {
+      console.error('❌ [AdminProfile] Erro geral no salvamento:', error);
+      Alert.alert('Erro', error.message || 'Falha ao salvar alterações');
     }
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setFormData((prev) => ({ ...prev, photo_url: result.assets[0].uri }));
+  const handleImagePicker = async () => {
+    console.log('📷 [AdminProfile] Iniciando seleção de imagem...');
+    
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permissão Negada', 'É necessário permitir acesso à galeria para alterar a foto do perfil.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: false,
+      });
+      
+      if (!result.canceled && result.assets && result.assets[0]) {
+        console.log('✅ [AdminProfile] Imagem selecionada:', result.assets[0].uri);
+        setFormData({ ...formData, avatar_url: result.assets[0].uri });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ [AdminProfile] Erro ao selecionar imagem:', error);
+      Alert.alert('Erro', 'Falha ao selecionar imagem');
+    }
+  };
+  
+  const handleDeleteProfile = async () => {
+    console.log('🗑️ [AdminProfile] Solicitação de exclusão de perfil...');
+    
+    Alert.alert(
+      'Confirmar Exclusão',
+      'Tem certeza que deseja excluir permanentemente seu perfil? Esta ação não pode ser desfeita.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Última Confirmação',
+              'Esta é sua última chance. Deseja realmente excluir seu perfil permanentemente?',
+              [
+                {
+                  text: 'Cancelar',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Sim, Excluir',
+                  style: 'destructive',
+                  onPress: confirmDeleteProfile,
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  };
+  
+  const confirmDeleteProfile = async () => {
+    if (!profile) {
+      Alert.alert('Erro', 'Perfil não encontrado');
+      return;
+    }
+    
+    try {
+      console.log('🔄 [AdminProfile] Executando exclusão do perfil...');
+      
+      const { error } = await supabase
+        .from('admin_profiles')
+        .delete()
+        .eq('user_id', profile.user_id);
+      
+      if (error) {
+        console.error('❌ [AdminProfile] Erro ao excluir perfil:', error);
+        throw error;
+      }
+      
+      console.log('✅ [AdminProfile] Perfil excluído com sucesso');
+      
+      // Fazer logout após exclusão
+      await supabase.auth.signOut();
+      
+      Alert.alert(
+        'Perfil Excluído',
+        'Seu perfil foi excluído permanentemente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/admin/login'),
+          },
+        ]
+      );
+      
+    } catch (error: any) {
+      console.error('❌ [AdminProfile] Erro geral na exclusão:', error);
+      Alert.alert('Erro', error.message || 'Falha ao excluir perfil');
     }
   };
 
   const handleLogout = async () => {
-    Alert.alert('Confirmar Logout', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut();
-            router.replace('/admin/login');
-          } catch (error) {
-            Alert.alert('Erro', 'Falha ao fazer logout');
-          }
+    console.log('🚪 [AdminProfile] Iniciando logout...');
+    
+    Alert.alert(
+      'Confirmar Saída',
+      'Deseja realmente sair da sua conta?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
         },
-      },
-    ]);
+        {
+          text: 'Sair',
+          style: 'default',
+          onPress: async () => {
+            try {
+              console.log('🔄 [AdminProfile] Executando logout...');
+              await supabase.auth.signOut();
+              console.log('✅ [AdminProfile] Logout realizado com sucesso');
+              router.replace('/admin/login');
+            } catch (error: any) {
+              console.error('❌ [AdminProfile] Erro no logout:', error);
+              Alert.alert('Erro', error.message || 'Falha ao sair da conta');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text>Carregando...</Text>
+        <ActivityIndicator size="large" color="#FF9800" />
+        <Text style={styles.loadingText}>Carregando perfil...</Text>
       </SafeAreaView>
     );
   }
@@ -152,9 +415,9 @@ export default function AdminProfilePage() {
         <ScrollView style={styles.content}>
           <View style={styles.profileCard}>
             <View style={styles.photoContainer}>
-              {(isEditing ? formData.photo_url : profile?.photo_url) ? (
+              {(isEditing ? formData.avatar_url : profile?.avatar_url) ? (
                 <Image
-                  source={{ uri: isEditing ? formData.photo_url : profile?.photo_url }}
+                  source={{ uri: isEditing ? formData.avatar_url : profile?.avatar_url }}
                   style={styles.profilePhoto}
                 />
               ) : (
@@ -163,7 +426,7 @@ export default function AdminProfilePage() {
                 </View>
               )}
               {isEditing && (
-                <TouchableOpacity style={styles.changePhotoButton} onPress={pickImage}>
+                <TouchableOpacity style={styles.changePhotoButton} onPress={handleImagePicker}>
                   <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
                 </TouchableOpacity>
               )}
@@ -175,12 +438,12 @@ export default function AdminProfilePage() {
                 {isEditing ? (
                   <TextInput
                     style={styles.input}
-                    value={formData.name}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, name: text }))}
+                    value={formData.full_name}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, full_name: text }))}
                     placeholder="Digite seu nome completo"
                   />
                 ) : (
-                  <Text style={styles.value}>{profile?.name || 'Não informado'}</Text>
+                  <Text style={styles.value}>{profile?.full_name || 'Não informado'}</Text>
                 )}
               </View>
 
@@ -205,7 +468,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.phone}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: formatPhone(text) }))}
                     placeholder="Digite seu telefone"
                     keyboardType="phone-pad"
                   />
@@ -220,7 +483,7 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.cpf}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, cpf: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, cpf: formatCPF(text) }))}
                     placeholder="Digite seu CPF"
                     keyboardType="numeric"
                   />
@@ -235,8 +498,9 @@ export default function AdminProfilePage() {
                   <TextInput
                     style={styles.input}
                     value={formData.birth_date}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, birth_date: text }))}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, birth_date: formatBirthDate(text) }))}
                     placeholder="DD/MM/AAAA"
+                    keyboardType="numeric"
                   />
                 ) : (
                   <Text style={styles.value}>
@@ -264,19 +528,54 @@ export default function AdminProfilePage() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Cargo</Text>
+                <Text style={styles.label}>Nome do Contato de Emergência</Text>
+                {isEditing ? (
+                  <TextInput
+                    style={styles.input}
+                    value={formData.emergency_contact_name}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, emergency_contact_name: text }))}
+                    placeholder="Nome do contato de emergência"
+                  />
+                ) : (
+                  <Text style={styles.value}>{profile?.emergency_contact_name || 'Não informado'}</Text>
+                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Telefone de Emergência</Text>
+                {isEditing ? (
+                  <TextInput
+                    style={styles.input}
+                    value={formData.emergency_contact_phone}
+                    onChangeText={(text) => setFormData((prev) => ({ ...prev, emergency_contact_phone: formatPhone(text) }))}
+                    placeholder="Telefone do contato de emergência"
+                    keyboardType="phone-pad"
+                  />
+                ) : (
+                  <Text style={styles.value}>{profile?.emergency_contact_phone || 'Não informado'}</Text>
+                )}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  <Ionicons name="shield-checkmark" size={16} color="#666" /> Cargo
+                </Text>
                 <Text style={styles.value}>Administrador</Text>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Status</Text>
+                <Text style={styles.label}>
+                  <Ionicons name="checkmark-circle" size={16} color={profile?.is_active ? '#4CAF50' : '#f44336'} /> Status
+                </Text>
                 <Text style={[styles.value, { color: profile?.is_active ? '#4CAF50' : '#f44336' }]}>
                   {profile?.is_active ? '✅ Ativo' : '❌ Inativo'}
                 </Text>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Último Acesso</Text>
+                <Text style={styles.label}>
+                  <Ionicons name="time" size={16} color="#666" /> Último Acesso
+                </Text>
                 <Text style={styles.value}>
                   {profile?.last_login
                     ? new Date(profile.last_login).toLocaleString('pt-BR')
@@ -285,7 +584,9 @@ export default function AdminProfilePage() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Membro desde</Text>
+                <Text style={styles.label}>
+                  <Ionicons name="calendar" size={16} color="#666" /> Membro desde
+                </Text>
                 <Text style={styles.value}>
                   {profile?.created_at
                     ? new Date(profile.created_at).toLocaleDateString('pt-BR')
@@ -296,6 +597,7 @@ export default function AdminProfilePage() {
 
             {isEditing && (
               <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+                <Ionicons name="checkmark" size={20} color="white" />
                 <Text style={styles.saveButtonText}>Salvar Alterações</Text>
               </TouchableOpacity>
             )}
@@ -307,28 +609,40 @@ export default function AdminProfilePage() {
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Text style={styles.actionButtonText}>🔐 Alterar Senha</Text>
+              <Ionicons name="lock-closed" size={20} color="#666" />
+              <Text style={styles.actionButtonText}>Alterar Senha</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Text style={styles.actionButtonText}>🔔 Configurações de Notificação</Text>
+              <Ionicons name="notifications" size={20} color="#666" />
+              <Text style={styles.actionButtonText}>Configurações de Notificação</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Text style={styles.actionButtonText}>🛡️ Privacidade e Segurança</Text>
+              <Ionicons name="shield" size={20} color="#666" />
+              <Text style={styles.actionButtonText}>Privacidade e Segurança</Text>
+              <Text style={styles.actionButtonArrow}>›</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#ffebee' }]}
+              onPress={handleDeleteProfile}>
+              <Ionicons name="trash" size={20} color="#f44336" />
+              <Text style={[styles.actionButtonText, { color: '#f44336' }]}>Excluir Perfil Permanentemente</Text>
               <Text style={styles.actionButtonArrow}>›</Text>
             </TouchableOpacity>
 
             <View style={styles.divider} />
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutButtonText}>🚪 Sair da Conta</Text>
+              <Ionicons name="log-out" size={20} color="white" />
+              <Text style={styles.logoutButtonText}>Sair da Conta</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -342,10 +656,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
+    paddingTop: 15,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -366,6 +687,9 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   editButtonText: {
     color: '#fff',
@@ -455,6 +779,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
     marginTop: 30,
   },
   saveButtonText: {
@@ -489,6 +816,42 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f8f8f8',
     marginBottom: 10,
+    gap: 10,
+  },
+  dangerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 15,
+    backgroundColor: '#ffebee',
+    marginBottom: 10,
+    gap: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  dangerText: {
+    fontSize: 16,
+    color: '#f44336',
+    fontWeight: '500',
+    flex: 1,
+  },
+  emergencySection: {
+    backgroundColor: '#fff8e1',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  systemSection: {
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
   },
   actionButtonText: {
     fontSize: 16,
@@ -510,6 +873,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
   logoutButtonText: {
     color: '#fff',
