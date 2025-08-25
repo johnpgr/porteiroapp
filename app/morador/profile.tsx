@@ -21,14 +21,15 @@ import BottomNav from '~/components/BottomNav';
 
 interface MoradorProfileData {
   id: string;
-  name: string;
+  user_id: string;
+  full_name: string;
   email: string;
   phone: string;
   cpf: string;
   birth_date: string;
   apartment_number: string;
   building_id: string;
-  photo_url: string;
+  avatar_url: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   created_at: string;
@@ -40,13 +41,13 @@ export default function MoradorProfile() {
   const [, setProfile] = useState<MoradorProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     phone: '',
     cpf: '',
     birth_date: '',
     apartment_number: '',
-    photo_url: '',
+    avatar_url: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
   });
@@ -58,90 +59,174 @@ export default function MoradorProfile() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      if (!user?.id) return;
+      console.log('🔍 DEBUG - User obtido:', user?.id);
+      
+      if (!user?.id) {
+        console.log('❌ DEBUG - Usuário não autenticado');
+        return;
+      }
 
-      const { data, error } = await supabase
+      // Log para debug - verificar todos os perfis existentes
+      console.log('🔍 DEBUG - Buscando todos os perfis para debug...');
+      const { data: allProfiles, error: allProfilesError } = await supabase
         .from('profiles')
-        .select(
-          `
-          *,
+        .select('user_id, full_name, email');
+      
+      console.log('📊 DEBUG - Todos os perfis na tabela:', allProfiles);
+      console.log('📊 DEBUG - Erro ao buscar todos os perfis:', allProfilesError);
+
+      // First get profile by user_id
+      console.log('🔍 DEBUG - Executando query para buscar perfil do usuário:', user.id);
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
+      console.log('❌ DEBUG - Erro do perfil:', profileError);
+
+      if (profileError) {
+        console.error('❌ Erro detalhado ao buscar perfil:', {
+          code: profileError.code,
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          user_id_buscado: user.id
+        });
+        Alert.alert('Erro', `Perfil não encontrado. Verifique se seu cadastro está completo. ${profileError.message}`);
+        return;
+      }
+
+      // Then get apartment info using apartment_residents table
+      console.log('🏠 DEBUG - Buscando informações do apartamento para profile_id:', profileData.id);
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartment_residents')
+        .select(`
           apartments!inner(
             number,
             building_id
           )
-        `
-        )
-        .eq('id', user.id)
+        `)
+        .eq('profile_id', profileData.id)
         .single();
 
-      if (error) {
-        console.error('Erro ao buscar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível carregar o perfil');
-        return;
-      }
+      console.log('🏠 DEBUG - Dados do apartamento retornados:', apartmentData);
+      console.log('❌ DEBUG - Erro do apartamento:', apartmentError);
 
-      const profileData: MoradorProfileData = {
+      const data = {
+         ...profileData,
+         apartments: apartmentData?.apartments || null
+       };
+
+       if (apartmentError) {
+         console.warn('❌ Aviso ao buscar apartamento:', apartmentError);
+         // Continue mesmo se não encontrar apartamento
+       }
+
+      const profileDataMapped: MoradorProfileData = {
         id: data.id,
-        name: data.name || '',
+        user_id: data.user_id,
+        full_name: data.full_name || '',
         email: data.email || '',
         phone: data.phone || '',
         cpf: data.cpf || '',
         birth_date: data.birth_date || '',
         apartment_number: data.apartments?.number || '',
         building_id: data.apartments?.building_id || '',
-        photo_url: data.photo_url || '',
+        avatar_url: data.avatar_url || '',
         emergency_contact_name: data.emergency_contact_name || '',
         emergency_contact_phone: data.emergency_contact_phone || '',
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
 
-      setProfile(profileData);
+      console.log('✅ DEBUG - Perfil mapeado com sucesso:', profileDataMapped);
+      setProfile(profileDataMapped);
       setFormData({
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        cpf: profileData.cpf,
-        birth_date: profileData.birth_date,
-        apartment_number: profileData.apartment_number,
-        photo_url: profileData.photo_url,
-        emergency_contact_name: profileData.emergency_contact_name || '',
-        emergency_contact_phone: profileData.emergency_contact_phone || '',
+        full_name: profileDataMapped.full_name,
+        email: profileDataMapped.email,
+        phone: profileDataMapped.phone,
+        cpf: profileDataMapped.cpf,
+        birth_date: profileDataMapped.birth_date,
+        apartment_number: profileDataMapped.apartment_number,
+        avatar_url: profileDataMapped.avatar_url,
+        emergency_contact_name: profileDataMapped.emergency_contact_name || '',
+        emergency_contact_phone: profileDataMapped.emergency_contact_phone || '',
       });
-    } catch {
-      Alert.alert('Erro', 'Erro interno do servidor');
+    } catch (error) {
+      console.error('❌ Erro geral ao buscar perfil:', {
+        error,
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert('Erro', `Erro interno do servidor: ${error.message}`);
     } finally {
       setLoading(false);
     }
   }, [user?.id]);
 
+  const validateForm = () => {
+    if (!formData.full_name.trim()) {
+      Alert.alert('Erro de Validação', 'Nome completo é obrigatório');
+      return false;
+    }
+    if (formData.phone && !/^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/.test(formData.phone.replace(/\D/g, ''))) {
+      Alert.alert('Erro de Validação', 'Formato de telefone inválido');
+      return false;
+    }
+    if (formData.birth_date && !/^\d{2}\/\d{2}\/\d{4}$/.test(formData.birth_date)) {
+      Alert.alert('Erro de Validação', 'Data de nascimento deve estar no formato DD/MM/AAAA');
+      return false;
+    }
+    if (formData.emergency_contact_phone && !/^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/.test(formData.emergency_contact_phone.replace(/\D/g, ''))) {
+      Alert.alert('Erro de Validação', 'Formato de telefone do contato de emergência inválido');
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
     try {
-      if (!user?.id) return;
+      if (!user?.id) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
+
+      if (!validateForm()) {
+        return;
+      }
 
       const { error } = await supabase
         .from('profiles')
         .update({
-          name: formData.name,
-          phone: formData.phone,
-          birth_date: formData.birth_date,
-          photo_url: formData.photo_url,
-          emergency_contact_name: formData.emergency_contact_name,
-          emergency_contact_phone: formData.emergency_contact_phone,
+          full_name: formData.full_name.trim(),
+          phone: formData.phone.trim(),
+          birth_date: formData.birth_date.trim(),
+          avatar_url: formData.avatar_url,
+          emergency_contact_name: formData.emergency_contact_name.trim(),
+          emergency_contact_phone: formData.emergency_contact_phone.trim(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Erro ao atualizar perfil:', error);
-        Alert.alert('Erro', 'Não foi possível salvar as alterações');
+        if (error.code === 'PGRST116') {
+          Alert.alert('Erro', 'Perfil não encontrado');
+        } else if (error.code === '23505') {
+          Alert.alert('Erro', 'Dados duplicados encontrados');
+        } else {
+          Alert.alert('Erro', `Não foi possível salvar as alterações: ${error.message}`);
+        }
         return;
       }
 
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
       setIsEditing(false);
       fetchProfile();
-    } catch {
+    } catch (err) {
+      console.error('Erro interno:', err);
       Alert.alert('Erro', 'Erro interno do servidor');
     }
   };
@@ -162,11 +247,57 @@ export default function MoradorProfile() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setFormData({ ...formData, photo_url: result.assets[0].uri });
+        setFormData({ ...formData, avatar_url: result.assets[0].uri });
       }
     } catch {
       Alert.alert('Erro', 'Não foi possível selecionar a imagem');
     }
+  };
+
+  const handleDeleteProfile = async () => {
+    Alert.alert(
+      'Excluir Perfil',
+      'ATENÇÃO: Esta ação irá excluir permanentemente seu perfil e todos os dados associados. Esta ação não pode ser desfeita. Tem certeza que deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!user?.id) {
+                Alert.alert('Erro', 'Usuário não autenticado');
+                return;
+              }
+
+              const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('user_id', user.id);
+
+              if (error) {
+                console.error('Erro ao excluir perfil:', error);
+                Alert.alert('Erro', `Não foi possível excluir o perfil: ${error.message}`);
+                return;
+              }
+
+              Alert.alert('Sucesso', 'Perfil excluído com sucesso!', [
+                {
+                  text: 'OK',
+                  onPress: async () => {
+                    await signOut();
+                    router.replace('/');
+                  },
+                },
+              ]);
+            } catch (err) {
+              console.error('Erro interno:', err);
+              Alert.alert('Erro', 'Erro interno do servidor');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = async () => {
@@ -220,8 +351,8 @@ export default function MoradorProfile() {
               <TouchableOpacity
                 style={styles.photoContainer}
                 onPress={isEditing ? handleImagePicker : undefined}>
-                {formData.photo_url ? (
-                  <Image source={{ uri: formData.photo_url }} style={styles.photo} />
+                {formData.avatar_url ? (
+                  <Image source={{ uri: formData.avatar_url }} style={styles.photo} />
                 ) : (
                   <View style={styles.photoPlaceholder}>
                     <Ionicons name="person" size={60} color="#ccc" />
@@ -243,8 +374,8 @@ export default function MoradorProfile() {
                 <Text style={styles.fieldLabel}>Nome Completo</Text>
                 <TextInput
                   style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
-                  value={formData.name}
-                  onChangeText={(text) => setFormData({ ...formData, name: text })}
+                  value={formData.full_name}
+                  onChangeText={(text) => setFormData({ ...formData, full_name: text })}
                   editable={isEditing}
                   placeholder="Digite seu nome completo"
                 />
@@ -340,6 +471,11 @@ export default function MoradorProfile() {
             </View>
 
             <View style={styles.section}>
+              <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProfile}>
+                <Ionicons name="trash" size={20} color="#fff" />
+                <Text style={styles.deleteButtonText}>Excluir Perfil</Text>
+              </TouchableOpacity>
+              
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                 <Ionicons name="log-out" size={20} color="#fff" />
                 <Text style={styles.logoutButtonText}>Sair da Conta</Text>
@@ -458,6 +594,21 @@ const styles = StyleSheet.create({
   inputDisabled: {
     backgroundColor: '#f5f5f5',
     color: '#666',
+  },
+  deleteButton: {
+    backgroundColor: '#d32f2f',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   logoutButton: {
     backgroundColor: '#f44336',
