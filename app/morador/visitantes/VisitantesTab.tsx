@@ -103,7 +103,7 @@ export default function VisitantesTab() {
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'pendente',
+        status: visitor.status || 'pending',
         visitor_type: visitor.visitor_type || 'comum',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
@@ -162,11 +162,11 @@ export default function VisitantesTab() {
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'aprovado':
+      case 'approved':
         return '✅';
-      case 'negado':
+      case 'rejected':
         return '❌';
-      case 'pendente':
+      case 'pending':
       default:
         return '⏳';
     }
@@ -174,11 +174,11 @@ export default function VisitantesTab() {
 
   const getStatusText = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'aprovado':
+      case 'approved':
         return 'Aprovado';
-      case 'negado':
+      case 'rejected':
         return 'Negado';
-      case 'pendente':
+      case 'pending':
       default:
         return 'Pendente';
     }

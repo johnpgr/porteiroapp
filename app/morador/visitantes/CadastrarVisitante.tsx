@@ -556,7 +556,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           visit_session_id: visitSessionId,
           purpose: observacoes || purpose,
           authorized_by: user.id,
-          status: 'approved' // Automatically approved for residents
+          notification_status: 'approved' // Automatically approved for residents
         };
         
         console.log('🔍 DEBUG: Dados do log a serem inseridos:', logData);
@@ -567,7 +567,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
         console.log('🔍 DEBUG: - authorized_by tipo:', typeof user.id, 'valor:', user.id);
         console.log('🔍 DEBUG: - visit_session_id tipo:', typeof visitSessionId, 'valor:', visitSessionId);
 
-        // Inserir log de entrada na tabela visitor_logs com status aprovado automaticamente
+        // Inserir log de entrada na tabela visitor_logs com notification_status aprovado automaticamente
         console.log('🔍 DEBUG: Inserindo log de entrada...');
         const { data: logResult, error: logError } = await supabase
           .from('visitor_logs')

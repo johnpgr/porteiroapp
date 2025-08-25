@@ -29,7 +29,7 @@ interface Log {
   tipo_log: 'IN' | 'OUT';
   visit_session_id: string;
   purpose?: string;
-  status: string;
+  notification_status: string;
   authorized_by_name?: string;
   created_at: string;
 }
@@ -96,7 +96,7 @@ export default function SystemLogs() {
           tipo_log,
           visit_session_id,
           purpose,
-          status,
+          notification_status,
           created_at,
           visitors!inner(
             name,
@@ -128,7 +128,7 @@ export default function SystemLogs() {
           tipo_log: log.tipo_log,
           visit_session_id: log.visit_session_id,
           purpose: log.purpose,
-          status: log.status || 'pendente',
+          notification_status: log.notification_status || 'pending',
           authorized_by_name: log.authorized_by_profile?.full_name || null,
           created_at: log.created_at
         }))
@@ -160,7 +160,7 @@ export default function SystemLogs() {
           case 'acao':
             return (
               log.purpose?.toLowerCase().includes(query) ||
-              log.status?.toLowerCase().includes(query)
+              log.notification_status?.toLowerCase().includes(query)
             );
           default:
             return true;
@@ -176,7 +176,7 @@ export default function SystemLogs() {
           log.apartment_number?.toLowerCase().includes(query) ||
           log.building_name?.toLowerCase().includes(query) ||
           log.purpose?.toLowerCase().includes(query) ||
-          log.status?.toLowerCase().includes(query) ||
+          log.notification_status?.toLowerCase().includes(query) ||
           log.authorized_by_name?.toLowerCase().includes(query)
       );
     }
@@ -432,13 +432,13 @@ export default function SystemLogs() {
                     </Text>
                   </View>
                   <View style={[styles.statusBadge, 
-                    log.status === 'approved' ? styles.statusApproved :
-                    log.status === 'rejected' ? styles.statusRejected :
+                    log.notification_status === 'approved' ? styles.statusApproved :
+                    log.notification_status === 'rejected' ? styles.statusRejected :
                     styles.statusPending
                   ]}>
                     <Text style={styles.statusText}>
-                      {log.status === 'approved' ? 'Aprovado' :
-                       log.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+                      {log.notification_status === 'approved' ? 'Aprovado' :
+                       log.notification_status === 'rejected' ? 'Rejeitado' : 'Pendente'}
                     </Text>
                   </View>
                 </View>

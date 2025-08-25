@@ -1,222 +1,254 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabase';
-import { NotificationService } from '../utils/notificationService';
-import { useAuth } from './useAuth';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { notificationService, NotificationData, NotificationCallback } from '../services/notificationService';
 
-interface Notification {
-  id: string;
-  user_id: string;
-  title: string;
-  message: string;
-  data?: any;
-  status: 'pending' | 'delivered' | 'read' | 'failed';
-  created_at: string;
-  updated_at: string;
+export interface UseNotificationsOptions {
+  /** Se deve iniciar automaticamente o serviço ao montar o componente */
+  autoStart?: boolean;
+  /** Número máximo de notificações a manter no histórico local */
+  maxNotifications?: number;
+  /** Se deve buscar notificações recentes ao iniciar */
+  loadRecentOnStart?: boolean;
 }
 
-interface NotificationStats {
-  total: number;
-  unread: number;
-  pending: number;
-  delivered: number;
+export interface UseNotificationsReturn {
+  /** Lista de notificações recebidas */
+  notifications: NotificationData[];
+  /** Se o serviço está conectado */
+  isConnected: boolean;
+  /** Se está carregando */
+  isLoading: boolean;
+  /** Último erro ocorrido */
+  error: string | null;
+  /** Inicia o serviço de notificações */
+  startListening: () => Promise<void>;
+  /** Para o serviço de notificações */
+  stopListening: () => Promise<void>;
+  /** Limpa todas as notificações do estado local */
+  clearNotifications: () => void;
+  /** Marca uma notificação como lida */
+  markAsRead: (notificationId: string) => void;
+  /** Confirma uma notificação (para porteiros) */
+  confirmNotification: (visitorLogId: string, porteirId: string) => Promise<boolean>;
+  /** Busca notificações recentes */
+  loadRecentNotifications: () => Promise<void>;
+  /** Número de notificações não lidas */
+  unreadCount: number;
 }
 
-export const useNotifications = () => {
-  const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [stats, setStats] = useState<NotificationStats>({
-    total: 0,
-    unread: 0,
-    pending: 0,
-    delivered: 0
-  });
+/**
+ * Hook para gerenciar notificações em tempo real
+ * Utiliza o NotificationService para escutar mudanças no notification_status
+ */
+export function useNotifications(options: UseNotificationsOptions = {}): UseNotificationsReturn {
+  const {
+    autoStart = false,
+    maxNotifications = 50,
+    loadRecentOnStart = true
+  } = options;
+
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPermissionGranted, setIsPermissionGranted] = useState(false);
+  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
   
-  const notificationService = new NotificationService();
+  const callbackRef = useRef<NotificationCallback | null>(null);
 
-  const initializeNotifications = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const hasPermission = await notificationService.requestPermissions();
-      setIsPermissionGranted(hasPermission);
-
-      if (hasPermission) {
-        await notificationService.registerToken(user.id);
-        const listeners = notificationService.setupNotificationListeners();
-
-        return () => {
-          listeners.foregroundSubscription.remove();
-          listeners.responseSubscription.remove();
-        };
+  // Callback para processar novas notificações
+  const handleNewNotification = useCallback((notification: NotificationData) => {
+    console.log('🔔 Nova notificação recebida:', notification);
+    
+    setNotifications(prev => {
+      // Evitar duplicatas
+      const exists = prev.some(n => n.visitor_log_id === notification.visitor_log_id);
+      if (exists) {
+        return prev;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao inicializar notificações');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id]);
-
-  const fetchNotifications = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      setNotifications(data || []);
       
-      const total = data?.length || 0;
-      const unread = data?.filter(n => n.status !== 'read').length || 0;
-      const pending = data?.filter(n => n.status === 'pending').length || 0;
-      const delivered = data?.filter(n => n.status === 'delivered').length || 0;
+      // Adicionar nova notificação no início da lista
+      const updated = [notification, ...prev];
+      
+      // Limitar o número máximo de notificações
+      return updated.slice(0, maxNotifications);
+    });
+  }, [maxNotifications]);
 
-      setStats({ total, unread, pending, delivered });
+  // Iniciar serviço de notificações
+  const startListening = useCallback(async () => {
+    if (isConnected) {
+      console.log('🔔 Serviço já está conectado');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Registrar callback
+      callbackRef.current = handleNewNotification;
+      notificationService.addCallback(handleNewNotification);
+      
+      // Iniciar serviço
+      await notificationService.startListening();
+      setIsConnected(true);
+      
+      // Carregar notificações recentes se solicitado
+      if (loadRecentOnStart) {
+        await loadRecentNotifications();
+      }
+      
+      console.log('✅ Serviço de notificações iniciado com sucesso');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao buscar notificações');
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(errorMessage);
+      console.error('❌ Erro ao iniciar serviço de notificações:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id]);
+  }, [isConnected, handleNewNotification, loadRecentOnStart]);
 
-  const markAsRead = useCallback(async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ status: 'read' })
-        .eq('id', notificationId);
-
-      if (error) throw error;
-
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, status: 'read' } : n
-        )
-      );
-
-      setStats(prev => ({
-        ...prev,
-        unread: Math.max(0, prev.unread - 1)
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao marcar como lida');
+  // Parar serviço de notificações
+  const stopListening = useCallback(async () => {
+    if (!isConnected) {
+      return;
     }
+
+    try {
+      // Remover callback
+      if (callbackRef.current) {
+        notificationService.removeCallback(callbackRef.current);
+        callbackRef.current = null;
+      }
+      
+      await notificationService.stopListening();
+      setIsConnected(false);
+      console.log('🔔 Serviço de notificações parado');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      setError(errorMessage);
+      console.error('❌ Erro ao parar serviço de notificações:', err);
+    }
+  }, [isConnected]);
+
+  // Carregar notificações recentes
+  const loadRecentNotifications = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const recentNotifications = await notificationService.getRecentNotifications(maxNotifications);
+      setNotifications(recentNotifications);
+      console.log(`✅ ${recentNotifications.length} notificações recentes carregadas`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar notificações';
+      setError(errorMessage);
+      console.error('❌ Erro ao carregar notificações recentes:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [maxNotifications]);
+
+  // Limpar notificações
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+    setReadNotifications(new Set());
   }, []);
 
-  const markAllAsRead = useCallback(async () => {
-    if (!user?.id) return;
+  // Marcar como lida
+  const markAsRead = useCallback((notificationId: string) => {
+    setReadNotifications(prev => new Set([...prev, notificationId]));
+  }, []);
 
+  // Confirmar notificação
+  const confirmNotification = useCallback(async (visitorLogId: string, porteirId: string): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ status: 'read' })
-        .eq('user_id', user.id)
-        .neq('status', 'read');
-
-      if (error) throw error;
-
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, status: 'read' }))
-      );
-
-      setStats(prev => ({ ...prev, unread: 0 }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao marcar todas como lidas');
-    }
-  }, [user?.id]);
-
-  const deleteNotification = useCallback(async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId);
-
-      if (error) throw error;
-
-      const notification = notifications.find(n => n.id === notificationId);
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      
-      setStats(prev => ({
-        total: prev.total - 1,
-        unread: notification?.status !== 'read' ? prev.unread - 1 : prev.unread,
-        pending: notification?.status === 'pending' ? prev.pending - 1 : prev.pending,
-        delivered: notification?.status === 'delivered' ? prev.delivered - 1 : prev.delivered
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao deletar notificação');
-    }
-  }, [notifications]);
-
-  const toggleNotifications = useCallback(async (enabled: boolean) => {
-    if (!user?.id) return;
-
-    try {
-      await notificationService.updateTokenStatus(user.id, enabled);
-      
-      if (enabled) {
-        await initializeNotifications();
+      const success = await notificationService.confirmNotification(visitorLogId, porteirId);
+      if (success) {
+        // Marcar como lida automaticamente após confirmação
+        markAsRead(visitorLogId);
       }
+      return success;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao alterar configuração');
+      console.error('❌ Erro ao confirmar notificação:', err);
+      return false;
     }
-  }, [user?.id, initializeNotifications]);
+  }, [markAsRead]);
 
+  // Calcular notificações não lidas
+  const unreadCount = notifications.filter(n => !readNotifications.has(n.visitor_log_id)).length;
+
+  // Efeito para auto-start
   useEffect(() => {
-    if (!user?.id) return;
+    if (autoStart) {
+      startListening();
+    }
 
-    const subscription = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Real-time notification update:', payload);
-          fetchNotifications();
-        }
-      )
-      .subscribe();
-
+    // Cleanup ao desmontar
     return () => {
-      subscription.unsubscribe();
+      if (callbackRef.current) {
+        notificationService.removeCallback(callbackRef.current);
+      }
     };
-  }, [user?.id, fetchNotifications]);
+  }, [autoStart, startListening]);
 
+  // Monitorar status de conexão do serviço
   useEffect(() => {
-    if (user?.id) {
-      initializeNotifications();
-      fetchNotifications();
-    }
-  }, [user?.id, initializeNotifications, fetchNotifications]);
+    const checkConnection = () => {
+      const serviceConnected = notificationService.isServiceConnected();
+      if (serviceConnected !== isConnected) {
+        setIsConnected(serviceConnected);
+      }
+    };
+
+    const interval = setInterval(checkConnection, 5000); // Verificar a cada 5 segundos
+    return () => clearInterval(interval);
+  }, [isConnected]);
 
   return {
     notifications,
-    stats,
+    isConnected,
     isLoading,
     error,
-    isPermissionGranted,
-    fetchNotifications,
+    startListening,
+    stopListening,
+    clearNotifications,
     markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    toggleNotifications,
-    initializeNotifications
+    confirmNotification,
+    loadRecentNotifications,
+    unreadCount
   };
-};
+}
+
+/**
+ * Hook simplificado para apenas escutar notificações
+ * Útil quando você só precisa reagir a novas notificações sem gerenciar estado
+ */
+export function useNotificationListener(callback: NotificationCallback, autoStart: boolean = true) {
+  const [isConnected, setIsConnected] = useState(false);
+  const callbackRef = useRef<NotificationCallback | null>(null);
+
+  useEffect(() => {
+    if (!autoStart) return;
+
+    const startService = async () => {
+      try {
+        callbackRef.current = callback;
+        notificationService.addCallback(callback);
+        await notificationService.startListening();
+        setIsConnected(true);
+      } catch (error) {
+        console.error('❌ Erro ao iniciar listener de notificações:', error);
+      }
+    };
+
+    startService();
+
+    return () => {
+      if (callbackRef.current) {
+        notificationService.removeCallback(callbackRef.current);
+      }
+    };
+  }, [callback, autoStart]);
+
+  return { isConnected };
+}

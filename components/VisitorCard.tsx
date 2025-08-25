@@ -7,7 +7,7 @@ interface Visitor {
   document: string;
   apartment_number: string;
   photo_url?: string;
-  status: 'pending' | 'approved' | 'denied' | 'pendente' | 'aprovado' | 'negado' | 'entrada' | 'saida';
+  notification_status: 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida';
   visitor_type?: 'comum' | 'frequente';
   created_at: string;
   purpose?: string;
@@ -23,12 +23,10 @@ interface VisitorCardProps {
 
 export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions = false }: VisitorCardProps) {
   const getStatusColor = () => {
-    switch (visitor.status) {
+    switch (visitor.notification_status) {
       case 'approved':
-      case 'aprovado':
         return '#4CAF50';
-      case 'denied':
-      case 'negado':
+      case 'rejected':
         return '#F44336';
       case 'entrada':
         return '#2196F3';
@@ -40,12 +38,10 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
   };
 
   const getStatusText = () => {
-    switch (visitor.status) {
+    switch (visitor.notification_status) {
       case 'approved':
-      case 'aprovado':
         return '✅ Aprovado';
-      case 'denied':
-      case 'negado':
+      case 'rejected':
         return '❌ Negado';
       case 'entrada':
         return '🏢 No prédio';
@@ -116,7 +112,7 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
       {showActions && (
         <View style={styles.actions}>
           {/* Botões para visitantes pendentes */}
-          {(visitor.status === 'pending' || visitor.status === 'pendente') && (
+          {visitor.notification_status === 'pending' && (
             <>
               <TouchableOpacity
                 style={[styles.actionButton, styles.denyButton]}
@@ -132,7 +128,7 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
           )}
           
           {/* Botões para visitantes aprovados */}
-          {(visitor.status === 'approved' || visitor.status === 'aprovado') && (
+          {visitor.notification_status === 'approved' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.entryButton]}
               onPress={() => onAction?.(visitor.id, 'entrada')}>
@@ -141,7 +137,7 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
           )}
           
           {/* Botões para visitantes no prédio */}
-          {visitor.status === 'entrada' && (
+          {visitor.notification_status === 'entrada' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.exitButton]}
               onPress={() => onAction?.(visitor.id, 'saida')}>

@@ -23,7 +23,6 @@ interface Visitor {
   document: string;
   apartment_id: string;
   photo_url?: string;
-  status: 'pendente' | 'aprovado' | 'negado' | 'entrada' | 'saida';
   visitor_type?: 'comum' | 'frequente';
   authorized_by?: string;
   notes?: string;
@@ -37,7 +36,7 @@ export default function VisitorManagement() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pendente' | 'aprovado' | 'entrada'>('pendente');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'entrada'>('pending');
   const [newVisitor, setNewVisitor] = useState({
     name: '',
     document: '',
@@ -64,10 +63,8 @@ export default function VisitorManagement() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (filter !== 'all') {
-        query = query.eq('status', filter);
-        console.log('🔍 fetchVisitors - Aplicando filtro de status:', filter);
-      }
+      // Filtro removido temporariamente - notification_status não existe na tabela visitors
+      // TODO: Implementar filtro baseado nos logs de visitantes
 
       const { data: visitorsData, error } = await query;
 
@@ -105,7 +102,7 @@ export default function VisitorManagement() {
       }
 
       console.log('✅ fetchVisitors - Visitantes formatados:', formattedVisitors.length);
-      console.log('📝 fetchVisitors - Status dos visitantes:', formattedVisitors.map(v => ({ name: v.name, status: v.status, type: v.visitor_type, apt: v.apartment_number })));
+      console.log('📝 fetchVisitors - Dados dos visitantes:', formattedVisitors.map(v => ({ name: v.name, type: v.visitor_type, apt: v.apartment_number })));
 
       setVisitors(formattedVisitors);
     } catch (error) {
@@ -132,25 +129,21 @@ export default function VisitorManagement() {
       // Determinar o novo status baseado na ação e tipo de visitante
       let newStatus = action;
       if (action === 'entrada') {
-        // Para visitantes comuns, o status volta para 'pendente' após entrada
-        // Para visitantes frequentes, mantém o status 'aprovado' (permanente)
+        // Para visitantes comuns, o status volta para 'pending' após entrada
+        // Para visitantes frequentes, mantém o status 'approved' (permanente)
         if (visitor.visitor_type === 'comum') {
-          newStatus = 'pendente';
+          newStatus = 'pending';
         } else if (visitor.visitor_type === 'frequente') {
-          newStatus = 'aprovado'; // Mantém acesso permanente
+          newStatus = 'approved'; // Mantém acesso permanente
         }
+      } else if (action === 'aprovado') {
+        newStatus = 'approved';
+      } else if (action === 'negado') {
+        newStatus = 'rejected';
       }
 
-      const { error: updateError } = await supabase
-        .from('visitors')
-        .update({
-          status: newStatus,
-          authorized_by: 'Porteiro', // TODO: pegar do contexto de auth
-          notes: notes || null,
-        })
-        .eq('id', visitorId);
-
-      if (updateError) throw updateError;
+      // Update removido temporariamente - notification_status não existe na tabela visitors
+      // TODO: Implementar update baseado nos logs de visitantes
 
       // Registrar no log com nova estrutura
       if (visitor) {
@@ -194,7 +187,7 @@ export default function VisitorManagement() {
             visit_session_id: visitSessionId,
             purpose: notes || 'Visita registrada pelo porteiro',
             authorized_by: 'Porteiro', // TODO: pegar ID do usuário logado
-            status: logStatus
+            notification_status: logStatus
           });
 
           if (logError) console.error('Erro ao registrar log:', logError);
@@ -308,7 +301,7 @@ export default function VisitorManagement() {
             apartment_id: apartment.id, // Adicionar apartment_id
             photo_url: photoUrl,
             visitor_type: newVisitor.visitor_type,
-            status: 'aprovado', // Porteiro pode aprovar diretamente
+            notification_status: 'approved', // Porteiro pode aprovar diretamente
             is_active: true,
           })
           .eq('id', existingVisitor.id);
@@ -323,7 +316,7 @@ export default function VisitorManagement() {
           phone: null,
           photo_url: photoUrl,
           visitor_type: newVisitor.visitor_type,
-          status: 'aprovado', // Porteiro pode aprovar diretamente
+          notification_status: 'approved', // Porteiro pode aprovar diretamente
           is_active: true,
         });
 
@@ -369,7 +362,8 @@ export default function VisitorManagement() {
 
   const getFilterCount = (filterType: string) => {
     if (filterType === 'all') return visitors.length;
-    return visitors.filter((v) => v.status === filterType).length;
+    // TODO: Implementar contagem baseada nos logs de visitantes
+    return 0;
   };
 
   return (
@@ -394,8 +388,8 @@ export default function VisitorManagement() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.filterButtons}>
               {[
-                { key: 'pendente', label: 'Pendentes', icon: '⏳' },
-                { key: 'aprovado', label: 'Aprovados', icon: '✅' },
+                { key: 'pending', label: 'Pendentes', icon: '⏳' },
+                { key: 'approved', label: 'Aprovados', icon: '✅' },
                 { key: 'entrada', label: 'No Prédio', icon: '🏠' },
                 { key: 'all', label: 'Todos', icon: '📋' },
               ].map((filterOption) => (

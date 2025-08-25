@@ -14,15 +14,18 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
+import { NotificationsList } from '~/src/components/NotificationsList';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
+import { useNotifications } from '~/src/hooks/useNotifications';
 
-type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'historico';
+type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'historico' | 'notificacoes';
 
 export default function PorteiroDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const { notifications, unreadCount, acknowledgeNotification, clearAllNotifications, isConnected } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -177,7 +180,7 @@ export default function PorteiroDashboard() {
       // Buscar logs de visitantes do prédio - consulta simples sem joins
       const { data: logs, error: logsError } = await supabase
         .from('visitor_logs')
-        .select('id, visitor_id, apartment_id, log_time, tipo_log, purpose, status')
+        .select('id, visitor_id, apartment_id, log_time, tipo_log, purpose, notification_status')
         .eq('building_id', profile.building_id)
         .order('log_time', { ascending: false })
         .limit(50);
@@ -215,7 +218,7 @@ export default function PorteiroDashboard() {
         return;
       }
       
-      // Buscar visitor_logs com status 'approved' do prédio
+      // Buscar visitor_logs com notification_status 'approved' do prédio
       const { data: logs, error: logsError } = await supabase
         .from('visitor_logs')
         .select(`
@@ -223,14 +226,13 @@ export default function PorteiroDashboard() {
           visitor_id,
           apartment_id,
           log_time,
-          status,
+          notification_status,
           visitors!inner(
             id,
             name,
             document,
             phone,
-            visitor_type,
-            status
+            visitor_type
           ),
           apartments!inner(
             number,
@@ -238,24 +240,12 @@ export default function PorteiroDashboard() {
           )
         `)
         .eq('building_id', profile.building_id)
-        .eq('status', 'approved')
+        .eq('notification_status', 'approved')
         .order('log_time', { ascending: false })
         .limit(50);
 
-      // Buscar visitantes que já fizeram check-in (status pendente)
-      const { data: checkedInVisitors, error: checkedInError } = await supabase
-        .from('visitors')
-        .select('id')
-        .eq('status', 'pendente');
-
-      if (checkedInError) {
-        console.error('Erro ao buscar visitantes com check-in:', checkedInError);
-      }
-
-      // Criar set com IDs dos visitantes que já fizeram check-in
-      const checkedInVisitorIds = new Set(
-        (checkedInVisitors || []).map(visitor => visitor.id)
-      );
+      // Criar set vazio para visitantes com check-in (funcionalidade removida temporariamente)
+      const checkedInVisitorIds = new Set();
         
       if (logsError) {
         console.error('Erro ao carregar visitantes aprovados:', logsError);
@@ -600,7 +590,7 @@ export default function PorteiroDashboard() {
       const { error: updateError } = await supabase
         .from('visitors')
         .update({ 
-          status: newStatus
+          notification_status: newStatus === 'aprovado' ? 'approved' : 'pending'
         })
         .eq('id', autorizacao.id);
 
@@ -628,9 +618,9 @@ export default function PorteiroDashboard() {
           building_id: profile.building_id,
           log_time: new Date().toISOString(),
           tipo_log: 'IN',
-          status: 'entered',
+          notification_status: 'entered',
           visit_session_id: generateUUID(),
-          purpose: `Check-in realizado pelo porteiro ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Novo status: ${newStatus}`
+          purpose: `Check-in realizado pelo porteiro ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Novo status: ${newStatus === 'aprovado' ? 'approved' : 'pending'}`
         });
 
       if (logError) {
@@ -1373,12 +1363,12 @@ export default function PorteiroDashboard() {
       }
     };
 
-    const getCorStatus = (status: string) => {
-      switch (status) {
+    const getCorStatus = (notification_status: string) => {
+      switch (notification_status) {
         case 'approved':
         case 'completed':
           return '#4CAF50';
-        case 'pendente':
+        case 'pending':
           return '#FF9800';
         case 'rejected':
           return '#F44336';
@@ -1431,7 +1421,7 @@ export default function PorteiroDashboard() {
                 key={log.id}
                 style={flattenStyles([
                   styles.historicoCard,
-                  { borderLeftColor: getCorStatus(log.status) },
+                  { borderLeftColor: getCorStatus(log.notification_status) },
                 ])}>
                 <View style={styles.historicoHeader}>
                   <Text style={styles.historicoIcon}>{getIconeTipoLog(log.tipo_log)}</Text>
@@ -1450,11 +1440,11 @@ export default function PorteiroDashboard() {
                   <View
                     style={flattenStyles([
                       styles.historicoStatusBadge,
-                      { backgroundColor: getCorStatus(log.status) },
+                      { backgroundColor: getCorStatus(log.notification_status) },
                     ])}>
                     <Text style={styles.statusText}>
-                      {log.status === 'approved' || log.status === 'completed' ? '✓' : 
-                       log.status === 'pendente' ? '⏳' : '✗'}
+                      {log.notification_status === 'approved' || log.notification_status === 'completed' ? '✓' : 
+                       log.notification_status === 'pending' ? '⏳' : '✗'}
                     </Text>
                   </View>
                 </View>
@@ -1463,6 +1453,31 @@ export default function PorteiroDashboard() {
           )}
         </View>
       </ScrollView>
+    );
+  };
+
+  // Função para renderizar a aba de notificações
+  const renderNotificacoesTab = () => {
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>🔔 Notificações de Visitantes</Text>
+          <Text style={styles.headerSubtitle}>
+            {unreadCount > 0 ? `${unreadCount} notificação${unreadCount > 1 ? 'ões' : ''} não lida${unreadCount > 1 ? 's' : ''}` : 'Todas as notificações foram lidas'}
+          </Text>
+          {!isConnected && (
+            <Text style={styles.connectionWarning}>
+              ⚠️ Desconectado - Notificações em tempo real indisponíveis
+            </Text>
+          )}
+        </View>
+        
+        <NotificationsList
+          notifications={notifications}
+          onAcknowledge={acknowledgeNotification}
+          onClearAll={clearAllNotifications}
+        />
+      </View>
     );
   };
 
@@ -1478,6 +1493,8 @@ export default function PorteiroDashboard() {
         return renderAvisosTab();
       case 'historico':
         return renderHistoricoTab();
+      case 'notificacoes':
+        return renderNotificacoesTab();
       default:
         return renderChegadaTab();
     }
@@ -1592,22 +1609,31 @@ export default function PorteiroDashboard() {
             <TouchableOpacity
               style={flattenStyles([
                 styles.navItem,
-                activeTab === 'avisos' && styles.navItemActive,
+                activeTab === 'notificacoes' && styles.navItemActive,
               ])}
-              onPress={() => setActiveTab('avisos')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'avisos' && styles.navIconActive,
-                ])}>
-                📢
-              </Text>
+              onPress={() => setActiveTab('notificacoes')}>
+              <View style={styles.notificationIconContainer}>
+                <Text
+                  style={flattenStyles([
+                    styles.navIcon,
+                    activeTab === 'notificacoes' && styles.navIconActive,
+                  ])}>
+                  🔔
+                </Text>
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text
                 style={flattenStyles([
                   styles.navLabel,
-                  activeTab === 'avisos' && styles.navLabelActive,
+                  activeTab === 'notificacoes' && styles.navLabelActive,
                 ])}>
-                Avisos
+                Notificações
               </Text>
             </TouchableOpacity>
 
@@ -2576,5 +2602,37 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  // Estilos para notificações
+  notificationIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF5722',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  connectionWarning: {
+    fontSize: 14,
+    color: '#FF9800',
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
   },
 });

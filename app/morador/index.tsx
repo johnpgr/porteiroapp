@@ -28,7 +28,7 @@ interface VisitorHistory {
   visitor_name: string;
   purpose: string;
   log_time: string;
-  status: 'approved' | 'pending' | 'denied';
+  notification_status: 'approved' | 'pending' | 'denied';
   visitor_document?: string;
   visitor_phone?: string;
 }
@@ -129,7 +129,7 @@ export default function MoradorDashboard() {
           log_time,
           tipo_log,
           purpose,
-          status,
+          notification_status,
           visitors (
             id,
             name,
@@ -169,7 +169,7 @@ export default function MoradorDashboard() {
           visitorName: log.visitors?.name,
           purpose: log.purpose,
           logTime: log.log_time,
-          status: log.status
+          notification_status: log.notification_status
         });
         
         return {
@@ -177,7 +177,7 @@ export default function MoradorDashboard() {
           visitor_name: log.visitors?.name || 'Visitante não identificado',
           purpose: log.purpose || 'Não informado',
           log_time: log.log_time,
-          status: log.status || 'pending'
+          notification_status: log.notification_status || 'pending'
         };
       }) || [];
       
@@ -411,7 +411,7 @@ export default function MoradorDashboard() {
               {visitor.purpose} • {formatDate(visitor.log_time)}
             </Text>
             <Text style={styles.historyStatus}>
-              {getStatusIcon(visitor.status)} {getStatusText(visitor.status)}
+              {getStatusIcon(visitor.notification_status)} {getStatusText(visitor.notification_status)}
             </Text>
           </View>
         ))}
