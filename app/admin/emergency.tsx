@@ -35,7 +35,6 @@ export default function EmergencyPage() {
   };
 
   return (
-    <ProtectedRoute redirectTo="/login" userType={["admin"]}>
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -102,7 +101,6 @@ export default function EmergencyPage() {
           <View style={styles.bottomSpacing} />
         </ScrollView>
       </SafeAreaView>
-    </ProtectedRoute>
   );
 }
 

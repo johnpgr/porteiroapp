@@ -74,9 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('user_id', authUser.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code === 'PGRST116') {
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao carregar perfil:', error);
+        return;
+      }
+
+      if (!profile) {
         // Se não encontrou na tabela profiles, verifica se é um admin
         console.log('Perfil não encontrado em profiles, verificando admin_profiles...');
 
@@ -84,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('admin_profiles')
           .select('*')
           .eq('user_id', authUser.id)
+          .eq('role', 'admin')
           .maybeSingle();
 
         if (adminError) {
@@ -91,30 +97,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        if (adminProfile) {
+        if (adminProfile && adminProfile.is_active) {
           console.log('Perfil de admin encontrado, definindo user_type como admin');
+          
+          // Atualiza o updated_at na tabela admin_profiles
+          await supabase
+            .from('admin_profiles')
+            .update({ updated_at: new Date().toISOString() })
+            .eq('user_id', authUser.id);
+
           setUser({
             id: authUser.id,
             email: adminProfile.email,
             user_type: 'admin',
             condominium_id: undefined,
             building_id: undefined,
-            is_active: true,
+            is_active: adminProfile.is_active,
             last_login: new Date().toISOString(),
             push_token: undefined,
           });
           return;
         } else {
-          console.log('Nenhum perfil de admin encontrado para este usuário');
+          console.log('Nenhum perfil de admin ativo encontrado para este usuário');
           return;
         }
       }
 
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-        return;
-      }
-
+      // Se encontrou perfil na tabela profiles
       await supabase
         .from('profiles')
         .update({ last_login: new Date().toISOString() })
