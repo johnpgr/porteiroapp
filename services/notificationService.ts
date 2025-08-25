@@ -39,6 +39,20 @@ export interface PushNotificationData {
   data?: any;
 }
 
+// Interfaces para notificações
+interface NotificationData {
+  apartmentId: string;
+  visitorLogId: string;
+  visitorName: string;
+  visitorType: TipoVisita;
+  companyName?: string;
+  purpose: string;
+  expiresAt: Date;
+}
+
+// Tipo de visita para compatibilidade com RegistrarVisitante
+export type TipoVisita = 'social' | 'prestador' | 'entrega';
+
 class NotificationService {
   private expoPushToken: string | null = null;
 
@@ -499,6 +513,121 @@ class NotificationService {
       onNotificationResponse?.(response);
     });
     */
+  }
+
+  /**
+   * Cria notificação para morador após registro de visitante
+   */
+  async createNotificationForResident(
+    apartmentId: string,
+    visitorLogId: string,
+    visitorData: {
+      name: string;
+      type: TipoVisita;
+      company?: string;
+      purpose?: string;
+    }
+  ): Promise<boolean> {
+    try {
+      // Calcular tempo de expiração (24 horas)
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      // Determinar entry_type baseado no tipo de visita
+      let entryType = 'visitor';
+      if (visitorData.type === 'entrega') entryType = 'delivery';
+      if (visitorData.type === 'prestador') entryType = 'service';
+
+      // Atualizar o visitor_log com dados de notificação
+      const { error: updateError } = await supabase
+        .from('visitor_logs')
+        .update({
+          notification_status: 'pending',
+          notification_sent_at: new Date().toISOString(),
+          requires_resident_approval: true,
+          expires_at: expiresAt.toISOString(),
+          entry_type: entryType,
+          guest_name: visitorData.name,
+          // Campos específicos por tipo
+          ...(visitorData.company && { delivery_sender: visitorData.company }),
+          ...(visitorData.purpose && { purpose: visitorData.purpose })
+        })
+        .eq('id', visitorLogId);
+
+      if (updateError) {
+        console.error('Erro ao atualizar visitor_log para notificação:', updateError);
+        return false;
+      }
+
+      console.log('Notificação criada para morador do apartamento:', apartmentId);
+      return true;
+    } catch (error) {
+      console.error('Erro ao criar notificação para morador:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Cria notificação com sistema de retry
+   */
+  async createNotificationWithRetry(
+    apartmentId: string,
+    visitorLogId: string,
+    visitorData: {
+      name: string;
+      type: TipoVisita;
+      company?: string;
+      purpose?: string;
+    },
+    maxRetries: number = 3
+  ): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const success = await this.createNotificationForResident(apartmentId, visitorLogId, visitorData);
+      
+      if (success) {
+        return true;
+      }
+      
+      if (attempt < maxRetries) {
+        // Aguardar antes de tentar novamente
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        console.log(`Tentativa ${attempt} falhou, tentando novamente...`);
+      }
+    }
+    
+    console.error(`Falha ao criar notificação após ${maxRetries} tentativas`);
+    return false;
+  }
+
+  /**
+   * Formata mensagem de notificação baseada no tipo de visita
+   */
+  formatNotificationMessage(
+    visitorName: string,
+    visitorType: string,
+    company?: string
+  ): string {
+    switch (visitorType) {
+      case 'delivery':
+        return `📦 Encomenda de ${company || 'remetente desconhecido'} chegou`;
+      case 'service':
+        return `🔧 Prestador de serviço ${company ? `(${company})` : ''} - ${visitorName}`;
+      default:
+        return `👤 ${visitorName} quer subir`;
+    }
+  }
+
+  /**
+   * Log estruturado para eventos de notificação
+   */
+  logNotificationEvent(event: string, data: any): void {
+    console.log(`[NOTIFICATION] ${event}:`, {
+      timestamp: new Date().toISOString(),
+      apartmentId: data.apartmentId,
+      visitorName: data.visitorName,
+      success: data.success,
+      error: data.error
+    });
   }
 
   /**

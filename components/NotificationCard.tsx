@@ -1,6 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput } from 'react-native';
+import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
+// Legacy notification interface for backward compatibility
 interface Notification {
   id: string;
   title: string;
@@ -10,13 +12,37 @@ interface Notification {
   read: boolean;
 }
 
-interface NotificationCardProps {
+// Legacy props for backward compatibility
+interface LegacyNotificationCardProps {
   notification: Notification;
   onPress?: (id: string) => void;
   onMarkAsRead?: (id: string) => void;
 }
 
-export function NotificationCard({ notification, onPress, onMarkAsRead }: NotificationCardProps) {
+// New props for pending notifications
+interface PendingNotificationCardProps {
+  notification: PendingNotification;
+  onRespond: (id: string, response: NotificationResponse) => Promise<{success: boolean; error?: string}>;
+}
+
+type NotificationCardProps = LegacyNotificationCardProps | PendingNotificationCardProps;
+
+// Type guard to check if it's a pending notification
+function isPendingNotification(props: NotificationCardProps): props is PendingNotificationCardProps {
+  return 'onRespond' in props;
+}
+
+// Main component that routes to appropriate card type
+export function NotificationCard(props: NotificationCardProps) {
+  if (isPendingNotification(props)) {
+    return <PendingNotificationCard {...props} />;
+  } else {
+    return <LegacyNotificationCard {...props} />;
+  }
+}
+
+// Legacy notification card component
+function LegacyNotificationCard({ notification, onPress, onMarkAsRead }: LegacyNotificationCardProps) {
   const getTypeIcon = () => {
     switch (notification.type) {
       case 'visitor':
@@ -101,6 +127,235 @@ export function NotificationCard({ notification, onPress, onMarkAsRead }: Notifi
   );
 }
 
+// New pending notification card component
+function PendingNotificationCard({ notification, onRespond }: PendingNotificationCardProps) {
+  const [responding, setResponding] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const sent = new Date(dateString);
+    const diffMinutes = Math.floor((now.getTime() - sent.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'agora';
+    if (diffMinutes < 60) return `há ${diffMinutes} min`;
+    
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `há ${diffHours}h`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `há ${diffDays} dias`;
+  };
+
+  const getNotificationTitle = () => {
+    switch (notification.entry_type) {
+      case 'visitor':
+        return `👤 ${notification.guest_name} quer subir`;
+      case 'delivery':
+        return `📦 Encomenda de ${notification.delivery_sender || 'remetente desconhecido'}`;
+      case 'vehicle':
+        return `🚗 Veículo ${notification.license_plate} quer entrar`;
+      default:
+        return '📬 Nova notificação';
+    }
+  };
+
+  const getNotificationDetails = () => {
+    switch (notification.entry_type) {
+      case 'visitor':
+        return notification.purpose || 'Visita';
+      case 'delivery':
+        return notification.delivery_description || 'Encomenda chegou';
+      case 'vehicle':
+        return `${notification.vehicle_brand || ''} ${notification.vehicle_model || ''} ${notification.vehicle_color || ''}`.trim();
+      default:
+        return '';
+    }
+  };
+
+  const handleApprove = async () => {
+    if (notification.entry_type === 'delivery') {
+      setShowDeliveryModal(true);
+      return;
+    }
+    
+    setResponding(true);
+    const result = await onRespond(notification.id, { action: 'approve' });
+    
+    if (!result.success) {
+      Alert.alert('Erro', 'Não foi possível aprovar a solicitação');
+    }
+    setResponding(false);
+  };
+
+  const handleReject = () => {
+    setShowRejectModal(true);
+  };
+
+  const confirmReject = async () => {
+    setResponding(true);
+    const result = await onRespond(notification.id, {
+      action: 'reject',
+      reason: rejectReason || 'Não autorizado'
+    });
+    
+    if (!result.success) {
+      Alert.alert('Erro', 'Não foi possível recusar a solicitação');
+    }
+    
+    setShowRejectModal(false);
+    setRejectReason('');
+    setResponding(false);
+  };
+
+  const handleDeliveryDestination = async (destination: 'portaria' | 'elevador' | 'apartamento') => {
+    setResponding(true);
+    const result = await onRespond(notification.id, {
+      action: 'approve',
+      delivery_destination: destination
+    });
+    
+    if (!result.success) {
+      Alert.alert('Erro', 'Não foi possível processar a encomenda');
+    }
+    
+    setShowDeliveryModal(false);
+    setResponding(false);
+  };
+
+  return (
+    <View style={styles.notificationCard}>
+      <View style={styles.notificationHeader}>
+        <Text style={styles.notificationTitle}>{getNotificationTitle()}</Text>
+        <Text style={styles.notificationTime}>
+          {getTimeAgo(notification.notification_sent_at)}
+        </Text>
+      </View>
+      
+      {getNotificationDetails() && (
+        <Text style={styles.notificationDetails}>{getNotificationDetails()}</Text>
+      )}
+      
+      <View style={styles.notificationActions}>
+        {notification.entry_type === 'delivery' ? (
+          <>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.approveButton]}
+              onPress={handleApprove}
+              disabled={responding}
+            >
+              <Text style={styles.actionButtonText}>📦 Processar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.denyButton]}
+              onPress={handleReject}
+              disabled={responding}
+            >
+              <Text style={styles.actionButtonText}>❌ Recusar</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.approveButton]}
+              onPress={handleApprove}
+              disabled={responding}
+            >
+              <Text style={styles.actionButtonText}>✅ Aprovar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.denyButton]}
+              onPress={handleReject}
+              disabled={responding}
+            >
+              <Text style={styles.actionButtonText}>❌ Recusar</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      {/* Modal de rejeição */}
+      <Modal
+        visible={showRejectModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRejectModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Motivo da recusa</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Digite o motivo (opcional)"
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowRejectModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={confirmReject}
+                disabled={responding}
+              >
+                <Text style={styles.confirmButtonText}>Recusar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de destino da encomenda */}
+      <Modal
+        visible={showDeliveryModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeliveryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Onde deixar a encomenda?</Text>
+            <TouchableOpacity
+              style={[styles.deliveryOption, styles.porterButton]}
+              onPress={() => handleDeliveryDestination('portaria')}
+              disabled={responding}
+            >
+              <Text style={styles.deliveryOptionText}>🏢 Deixar na portaria</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deliveryOption, styles.elevatorButton]}
+              onPress={() => handleDeliveryDestination('elevador')}
+              disabled={responding}
+            >
+              <Text style={styles.deliveryOptionText}>🛗 Colocar no elevador</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deliveryOption, styles.apartmentButton]}
+              onPress={() => handleDeliveryDestination('apartamento')}
+              disabled={responding}
+            >
+              <Text style={styles.deliveryOptionText}>🚪 Trazer ao apartamento</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton]}
+              onPress={() => setShowDeliveryModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
@@ -182,5 +437,136 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#1976d2',
     fontWeight: '600',
+  },
+  // Pending notification styles
+  notificationCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 6,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    marginRight: 8,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: '#666',
+  },
+  notificationDetails: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  notificationActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  approveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  denyButton: {
+    backgroundColor: '#f44336',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  confirmButton: {
+    backgroundColor: '#f44336',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  deliveryOption: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  porterButton: {
+    backgroundColor: '#e3f2fd',
+  },
+  elevatorButton: {
+    backgroundColor: '#f3e5f5',
+  },
+  apartmentButton: {
+    backgroundColor: '#e8f5e8',
+  },
+  deliveryOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });

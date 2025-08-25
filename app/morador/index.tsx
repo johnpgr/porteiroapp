@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { usePendingNotifications } from '~/hooks/usePendingNotifications';
+import { NotificationCard } from '~/components/NotificationCard';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
 import EnquetesTab from './EnquetesTab';
@@ -41,6 +43,14 @@ export default function MoradorDashboard() {
   const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  
+  // Hook para notificações pendentes em tempo real
+  const {
+    notifications: pendingNotifications,
+    loading: loadingNotifications,
+    error: notificationsError,
+    respondToNotification
+  } = usePendingNotifications();
 
   // Handle tab parameter from navigation
   useEffect(() => {
@@ -325,35 +335,32 @@ export default function MoradorDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📬 Notificações Pendentes</Text>
 
-        <View style={styles.notificationCard}>
-          <View style={styles.notificationHeader}>
-            <Text style={styles.notificationTitle}>👤 Roberto Silva quer subir</Text>
-            <Text style={styles.notificationTime}>há 5 min</Text>
+        {loadingNotifications && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#4CAF50" />
+            <Text style={styles.loadingText}>Carregando notificações...</Text>
           </View>
-          <View style={styles.notificationActions}>
-            <TouchableOpacity style={[styles.actionButton, styles.approveButton]}>
-              <Text style={styles.actionButtonText}>✅ Aprovar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.denyButton]}>
-              <Text style={styles.actionButtonText}>❌ Recusar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        )}
 
-        <View style={styles.notificationCard}>
-          <View style={styles.notificationHeader}>
-            <Text style={styles.notificationTitle}>📦 Encomenda da Amazon chegou</Text>
-            <Text style={styles.notificationTime}>há 15 min</Text>
+        {notificationsError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>❌ {notificationsError}</Text>
           </View>
-          <View style={styles.notificationActions}>
-            <TouchableOpacity style={[styles.actionButton, styles.porterButton]}>
-              <Text style={styles.actionButtonText}>🏢 Deixar na portaria</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.elevatorButton]}>
-              <Text style={styles.actionButtonText}>🛗 Colocar no elevador</Text>
-            </TouchableOpacity>
+        )}
+
+        {!loadingNotifications && !notificationsError && pendingNotifications.length === 0 && (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>📭 Nenhuma notificação pendente</Text>
           </View>
-        </View>
+        )}
+
+        {!loadingNotifications && !notificationsError && pendingNotifications.map((notification) => (
+          <NotificationCard
+            key={notification.id}
+            notification={notification}
+            onRespond={respondToNotification}
+          />
+        ))}
       </View>
 
       <View style={styles.section}>

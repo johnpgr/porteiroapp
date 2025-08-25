@@ -8,11 +8,12 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { notificationService, TipoVisita } from '../../services/notificationService';
 
 type FlowStep =
   | 'apartamento'
@@ -60,6 +61,45 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  // Função para criar notificação para morador
+  const createResidentNotification = async (
+    apartmentId: string,
+    visitorLogId: string,
+    visitorData: {
+      name: string;
+      type: TipoVisita;
+      company?: string;
+      purpose?: string;
+    }
+  ): Promise<boolean> => {
+    try {
+      const success = await notificationService.createNotificationWithRetry(
+        apartmentId,
+        visitorLogId,
+        visitorData
+      );
+
+      // Log do evento
+      notificationService.logNotificationEvent('visitor_notification_created', {
+        apartmentId,
+        visitorName: visitorData.name,
+        success,
+        error: success ? null : 'Falha ao criar notificação'
+      });
+
+      return success;
+    } catch (error) {
+      console.error('Erro ao criar notificação para morador:', error);
+      notificationService.logNotificationEvent('visitor_notification_error', {
+        apartmentId,
+        visitorName: visitorData.name,
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+      return false;
+    }
+  };
 
   const renderNumericKeypad = (
     value: string,
@@ -425,7 +465,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         }
 
         // Inserir log de entrada na tabela visitor_logs
-        const { error: logError } = await supabase
+        const { data: logData, error: logError } = await supabase
           .from('visitor_logs')
           .insert({
             visitor_id: visitorId,
@@ -436,12 +476,38 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             visit_session_id: visitSessionId,
             purpose: observacoes || purpose,
             authorized_by: user.id
-          });
+          })
+          .select('id')
+          .single();
 
-        if (logError) {
+        if (logError || !logData) {
           console.error('Erro ao inserir log de entrada:', logError);
           Alert.alert('Erro', 'Falha ao registrar entrada do visitante.');
           return;
+        }
+
+        // Criar notificação para o morador
+        try {
+          const company = tipoVisita === 'prestador' ? empresaPrestador : 
+                        tipoVisita === 'entrega' ? empresaEntrega : undefined;
+          
+          const notificationSuccess = await createResidentNotification(
+            apartmentData.id,
+            logData.id,
+            {
+              name: nomeVisitante,
+              type: tipoVisita!,
+              company: company?.replace('_', ' '),
+              purpose: observacoes || purpose
+            }
+          );
+
+          if (!notificationSuccess) {
+            console.warn('Visitante registrado, mas notificação falhou');
+          }
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação:', notificationError);
+          // Não bloquear o fluxo se a notificação falhar
         }
 
         const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
