@@ -180,6 +180,7 @@ export const usePendingNotifications = () => {
       const updateData: any = {
         notification_status: response.action === 'approve' ? 'approved' : 'rejected',
         resident_response_at: new Date().toISOString(),
+        resident_response_by: user?.id,
       };
       
       if (response.reason) {
@@ -205,7 +206,7 @@ export const usePendingNotifications = () => {
       console.error('Erro ao responder notificação:', err);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [user?.id]);
 
   // Inicializar
   useEffect(() => {
