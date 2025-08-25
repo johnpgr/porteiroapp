@@ -16,6 +16,7 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
+import EnquetesTab from './EnquetesTab';
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
@@ -109,6 +110,8 @@ export default function MoradorDashboard() {
         return renderInicioTab();
       case 'visitantes':
         return <VisitantesTab />;
+      case 'enquetes':
+        return <EnquetesTab />;
       case 'avisos':
         return <AvisosTab />;
       default:
@@ -201,6 +204,19 @@ export default function MoradorDashboard() {
         />
         <Text style={[styles.navLabel, activeTab === 'visitantes' && styles.navLabelActive]}>
           Visitantes
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.navItem, activeTab === 'enquetes' && styles.navItemActive]}
+        onPress={() => setActiveTab('enquetes')}>
+        <Ionicons
+          name={activeTab === 'enquetes' ? 'bar-chart' : 'bar-chart-outline'}
+          size={24}
+          color={activeTab === 'enquetes' ? '#4CAF50' : '#666'}
+        />
+        <Text style={[styles.navLabel, activeTab === 'enquetes' && styles.navLabelActive]}>
+          Enquetes
         </Text>
       </TouchableOpacity>
 
