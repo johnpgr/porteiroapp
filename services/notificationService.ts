@@ -1,8 +1,7 @@
-// PUSH NOTIFICATIONS DESABILITADAS TEMPORARIAMENTE
-// import * as Notifications from 'expo-notifications';
-// import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
+import { NotificationService as NewNotificationService } from '../utils/notificationService';
 
 // Interface para dados do morador para WhatsApp
 interface ResidentData {
@@ -19,18 +18,17 @@ interface WhatsAppApiResponse {
   error?: string;
 }
 
-// CONFIGURAÇÃO DE NOTIFICAÇÕES DESABILITADA TEMPORARIAMENTE
-// // Configurar como as notificações devem ser tratadas quando recebidas
-// // Evitar registrar handler na Web para prevenir problemas de symbolication
-// if (Platform.OS !== 'web') {
-//   Notifications.setNotificationHandler({
-//     handleNotification: async () => ({
-//       shouldShowAlert: true,
-//       shouldPlaySound: true,
-//       shouldSetBadge: true,
-//     }),
-//   });
-// }
+// Configurar como as notificações devem ser tratadas quando recebidas
+// Evitar registrar handler na Web para prevenir problemas de symbolication
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
 
 export interface PushNotificationData {
   type: 'visitor' | 'delivery' | 'communication' | 'emergency';
@@ -40,21 +38,17 @@ export interface PushNotificationData {
 }
 
 // Interfaces para notificações
-interface NotificationData {
-  apartmentId: string;
-  visitorLogId: string;
-  visitorName: string;
-  visitorType: TipoVisita;
-  companyName?: string;
-  purpose: string;
-  expiresAt: Date;
-}
 
 // Tipo de visita para compatibilidade com RegistrarVisitante
 export type TipoVisita = 'social' | 'prestador' | 'entrega';
 
 class NotificationService {
   private expoPushToken: string | null = null;
+  private newNotificationService: NewNotificationService;
+
+  constructor() {
+    this.newNotificationService = new NewNotificationService();
+  }
 
   /**
    * Registra o dispositivo para receber notificações push
@@ -559,6 +553,47 @@ class NotificationService {
         return false;
       }
 
+      // Buscar moradores do apartamento para enviar push notifications
+      const { data: residents, error: residentsError } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('apartment_id', apartmentId)
+        .eq('user_type', 'morador');
+
+      if (residentsError) {
+        console.error('Erro ao buscar moradores:', residentsError);
+      } else if (residents && residents.length > 0) {
+        // Enviar push notification via Edge Function
+        for (const resident of residents) {
+          try {
+            const notificationTitle = this.formatNotificationTitle(visitorData.type);
+            const notificationMessage = this.formatNotificationMessage(
+              visitorData.name,
+              visitorData.type,
+              visitorData.company
+            );
+
+            await this.newNotificationService.sendNotification(
+              resident.user_id,
+              notificationTitle,
+              notificationMessage,
+              {
+                type: 'visitor',
+                visitorLogId,
+                apartmentId,
+                visitorName: visitorData.name,
+                visitorType: visitorData.type,
+                company: visitorData.company,
+                purpose: visitorData.purpose
+              }
+            );
+          } catch (pushError) {
+            console.error('Erro ao enviar push notification:', pushError);
+            // Não bloquear o fluxo se a push notification falhar
+          }
+        }
+      }
+
       console.log('Notificação criada para morador do apartamento:', apartmentId);
       return true;
     } catch (error) {
@@ -600,6 +635,20 @@ class NotificationService {
   }
 
   /**
+   * Formata título da notificação baseado no tipo de visita
+   */
+  formatNotificationTitle(visitorType: string): string {
+    switch (visitorType) {
+      case 'entrega':
+        return '📦 Nova Encomenda';
+      case 'prestador':
+        return '🔧 Prestador de Serviço';
+      default:
+        return '🚪 Novo Visitante';
+    }
+  }
+
+  /**
    * Formata mensagem de notificação baseada no tipo de visita
    */
   formatNotificationMessage(
@@ -608,9 +657,9 @@ class NotificationService {
     company?: string
   ): string {
     switch (visitorType) {
-      case 'delivery':
+      case 'entrega':
         return `📦 Encomenda de ${company || 'remetente desconhecido'} chegou`;
-      case 'service':
+      case 'prestador':
         return `🔧 Prestador de serviço ${company ? `(${company})` : ''} - ${visitorName}`;
       default:
         return `👤 ${visitorName} quer subir`;
