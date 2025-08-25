@@ -166,67 +166,252 @@ export default function MoradorProfile() {
     }
   }, [user?.id]);
 
+  // Formatador de data de nascimento para padrão dd/mm/yyyy
+  const formatBirthDate = (text: string) => {
+    console.log('📅 LOG - Formatando data de nascimento:', { input: text });
+    
+    // Remove todos os caracteres não numéricos
+    const numbers = text.replace(/\D/g, '');
+    
+    // Aplica a máscara dd/mm/yyyy
+    let formatted = numbers;
+    if (numbers.length >= 3) {
+      formatted = `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}`;
+    }
+    if (numbers.length >= 5) {
+      formatted = `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+    }
+    
+    console.log('📅 LOG - Data formatada:', { output: formatted });
+    return formatted;
+  };
+
   const validateForm = () => {
+    console.log('🔍 LOG - Iniciando validação de dados de entrada');
+    console.log('📊 LOG - Dados recebidos para validação:', {
+      full_name: formData.full_name,
+      phone: formData.phone,
+      birth_date: formData.birth_date,
+      emergency_contact_name: formData.emergency_contact_name,
+      emergency_contact_phone: formData.emergency_contact_phone,
+      avatar_url: formData.avatar_url ? 'URL presente' : 'Sem URL'
+    });
+
+    // Validação do nome completo
+    console.log('✅ LOG - Validando nome completo:', formData.full_name);
     if (!formData.full_name.trim()) {
+      console.log('❌ LOG - Erro de validação: Nome completo é obrigatório');
       Alert.alert('Erro de Validação', 'Nome completo é obrigatório');
       return false;
     }
-    if (formData.phone && !/^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/.test(formData.phone.replace(/\D/g, ''))) {
-      Alert.alert('Erro de Validação', 'Formato de telefone inválido');
-      return false;
+    console.log('✅ LOG - Nome completo válido');
+
+    // Validação do telefone
+    if (formData.phone) {
+      console.log('📞 LOG - Validando telefone:', formData.phone);
+      const phoneRegex = /^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/;
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      console.log('📞 LOG - Telefone limpo:', cleanPhone);
+      
+      if (!phoneRegex.test(formData.phone)) {
+        console.log('❌ LOG - Erro de validação: Formato de telefone inválido');
+        Alert.alert('Erro de Validação', 'Formato de telefone inválido');
+        return false;
+      }
+      console.log('✅ LOG - Telefone válido');
     }
-    if (formData.birth_date && !/^\d{2}\/\d{2}\/\d{4}$/.test(formData.birth_date)) {
-      Alert.alert('Erro de Validação', 'Data de nascimento deve estar no formato DD/MM/AAAA');
-      return false;
+
+    // Validação da data de nascimento
+    if (formData.birth_date) {
+      console.log('📅 LOG - Validando data de nascimento:', formData.birth_date);
+      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+      
+      if (!dateRegex.test(formData.birth_date)) {
+        console.log('❌ LOG - Erro de validação: Data de nascimento deve estar no formato DD/MM/AAAA');
+        Alert.alert('Erro de Validação', 'Data de nascimento deve estar no formato DD/MM/AAAA');
+        return false;
+      }
+      
+      // Validação adicional da data
+      const [day, month, year] = formData.birth_date.split('/').map(Number);
+      const date = new Date(year, month - 1, day);
+      const isValidDate = date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
+      
+      console.log('📅 LOG - Validação detalhada da data:', {
+        day, month, year,
+        dateObject: date,
+        isValidDate
+      });
+      
+      if (!isValidDate) {
+        console.log('❌ LOG - Erro de validação: Data inválida');
+        Alert.alert('Erro de Validação', 'Data de nascimento inválida');
+        return false;
+      }
+      console.log('✅ LOG - Data de nascimento válida');
     }
-    if (formData.emergency_contact_phone && !/^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/.test(formData.emergency_contact_phone.replace(/\D/g, ''))) {
-      Alert.alert('Erro de Validação', 'Formato de telefone do contato de emergência inválido');
-      return false;
+
+    // Validação do telefone de emergência
+    if (formData.emergency_contact_phone) {
+      console.log('🚨 LOG - Validando telefone de emergência:', formData.emergency_contact_phone);
+      const phoneRegex = /^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/;
+      const cleanPhone = formData.emergency_contact_phone.replace(/\D/g, '');
+      console.log('🚨 LOG - Telefone de emergência limpo:', cleanPhone);
+      
+      if (!phoneRegex.test(formData.emergency_contact_phone)) {
+        console.log('❌ LOG - Erro de validação: Formato de telefone do contato de emergência inválido');
+        Alert.alert('Erro de Validação', 'Formato de telefone do contato de emergência inválido');
+        return false;
+      }
+      console.log('✅ LOG - Telefone de emergência válido');
     }
+
+    console.log('✅ LOG - Validação concluída com sucesso - Todos os dados são válidos');
     return true;
   };
 
   const handleSave = async () => {
+    console.log('💾 LOG - Iniciando processo de salvamento do perfil');
+    console.log('👤 LOG - Usuário autenticado:', { user_id: user?.id, email: user?.email });
+    
     try {
       if (!user?.id) {
+        console.log('❌ LOG - Erro: Usuário não autenticado');
         Alert.alert('Erro', 'Usuário não autenticado');
         return;
       }
 
+      console.log('📊 LOG - Dados recebidos no submit:', {
+        full_name: formData.full_name,
+        phone: formData.phone,
+        birth_date: formData.birth_date,
+        avatar_url: formData.avatar_url ? 'URL presente' : 'Sem URL',
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_phone: formData.emergency_contact_phone,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log('🔍 LOG - Iniciando validação dos dados antes do salvamento');
       if (!validateForm()) {
+        console.log('❌ LOG - Validação falhou - Cancelando salvamento');
         return;
       }
+      console.log('✅ LOG - Validação passou - Prosseguindo com salvamento');
 
-      const { error } = await supabase
+      // Log do estado do banco ANTES da atualização
+      console.log('🔍 LOG - Verificando estado atual do perfil no banco de dados');
+      const { data: currentProfile, error: fetchError } = await supabase
         .from('profiles')
-        .update({
-          full_name: formData.full_name.trim(),
-          phone: formData.phone.trim(),
-          birth_date: formData.birth_date.trim(),
-          avatar_url: formData.avatar_url,
-          emergency_contact_name: formData.emergency_contact_name.trim(),
-          emergency_contact_phone: formData.emergency_contact_phone.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id);
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      console.log('📊 LOG - Estado do banco ANTES da atualização:', {
+        profile_found: !!currentProfile,
+        current_data: currentProfile,
+        fetch_error: fetchError
+      });
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.log('❌ LOG - Erro ao verificar estado atual do perfil:', fetchError);
+      }
+
+      // Preparar dados para atualização
+      const updateData = {
+        full_name: formData.full_name.trim(),
+        phone: formData.phone.trim(),
+        birth_date: formData.birth_date.trim(),
+        avatar_url: formData.avatar_url,
+        emergency_contact_name: formData.emergency_contact_name.trim(),
+        emergency_contact_phone: formData.emergency_contact_phone.trim(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log('📝 LOG - Dados preparados para atualização:', updateData);
+      console.log('🔄 LOG - Executando query de atualização no banco de dados');
+      console.log('🎯 LOG - Condição da query: user_id =', user.id);
+
+      const { data: updateResult, error } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', user.id)
+        .select();
+
+      console.log('📊 LOG - Resultado da tentativa de atualização:', {
+        success: !error,
+        updated_data: updateResult,
+        error_details: error,
+        rows_affected: updateResult?.length || 0
+      });
 
       if (error) {
-        console.error('Erro ao atualizar perfil:', error);
+        console.error('❌ LOG - Erro detalhado ao atualizar perfil:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          user_id_usado: user.id,
+          dados_enviados: updateData
+        });
+        
         if (error.code === 'PGRST116') {
+          console.log('❌ LOG - Perfil não encontrado para user_id:', user.id);
           Alert.alert('Erro', 'Perfil não encontrado');
         } else if (error.code === '23505') {
+          console.log('❌ LOG - Dados duplicados encontrados');
           Alert.alert('Erro', 'Dados duplicados encontrados');
         } else {
+          console.log('❌ LOG - Erro genérico na atualização:', error.message);
           Alert.alert('Erro', `Não foi possível salvar as alterações: ${error.message}`);
         }
         return;
       }
 
+      // Log do estado do banco APÓS a atualização
+      console.log('🔍 LOG - Verificando estado do perfil após atualização');
+      const { data: updatedProfile, error: postUpdateError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      console.log('📊 LOG - Estado do banco APÓS a atualização:', {
+        profile_found: !!updatedProfile,
+        updated_data: updatedProfile,
+        post_update_error: postUpdateError,
+        changes_persisted: !!updatedProfile
+      });
+
+      // Comparação dos dados antes e depois
+      if (currentProfile && updatedProfile) {
+        console.log('🔄 LOG - Comparação antes/depois:', {
+          full_name: { antes: currentProfile.full_name, depois: updatedProfile.full_name },
+          phone: { antes: currentProfile.phone, depois: updatedProfile.phone },
+          birth_date: { antes: currentProfile.birth_date, depois: updatedProfile.birth_date },
+          emergency_contact_name: { antes: currentProfile.emergency_contact_name, depois: updatedProfile.emergency_contact_name },
+          emergency_contact_phone: { antes: currentProfile.emergency_contact_phone, depois: updatedProfile.emergency_contact_phone },
+          updated_at: { antes: currentProfile.updated_at, depois: updatedProfile.updated_at }
+        });
+      }
+
+      console.log('✅ LOG - Perfil atualizado com sucesso no banco de dados');
+      console.log('📊 LOG - Mensagem de sucesso retornada pelo banco:', 'Operação concluída');
+      
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
       setIsEditing(false);
+      
+      console.log('🔄 LOG - Recarregando dados do perfil após salvamento');
       fetchProfile();
+      
     } catch (err) {
-      console.error('Erro interno:', err);
+      console.error('❌ LOG - Erro interno capturado:', {
+        error: err,
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        user_id: user?.id,
+        timestamp: new Date().toISOString()
+      });
       Alert.alert('Erro', 'Erro interno do servidor');
     }
   };
@@ -273,7 +458,7 @@ export default function MoradorProfile() {
               const { error } = await supabase
                 .from('profiles')
                 .delete()
-                .eq('user_id', user.id);
+                .eq('id', user.id);
 
               if (error) {
                 console.error('Erro ao excluir perfil:', error);
@@ -417,10 +602,17 @@ export default function MoradorProfile() {
                 <Text style={styles.fieldLabel}>Data de Nascimento</Text>
                 <TextInput
                   style={flattenStyles([styles.input, !isEditing && styles.inputDisabled])}
-                  value={formData.birth_date}
-                  onChangeText={(text) => setFormData({ ...formData, birth_date: text })}
+                  value={formatBirthDate(formData.birth_date)}
+                  onChangeText={(text) => {
+                    console.log('📅 LOG - Data de nascimento digitada:', text);
+                    const formattedDate = formatBirthDate(text);
+                    console.log('📅 LOG - Data formatada:', formattedDate);
+                    setFormData({ ...formData, birth_date: formattedDate });
+                  }}
                   editable={isEditing}
-                  placeholder="DD/MM/AAAA"
+                  placeholder="dd/mm/yyyy"
+                  maxLength={10}
+                  keyboardType="numeric"
                 />
               </View>
             </View>
