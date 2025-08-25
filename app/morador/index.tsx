@@ -256,7 +256,7 @@ export default function MoradorDashboard() {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/admin/emergency')}>
+      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
         <Ionicons name="warning" size={24} color="#fff" />
       </TouchableOpacity>
 

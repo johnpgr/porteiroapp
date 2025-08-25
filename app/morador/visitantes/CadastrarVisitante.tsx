@@ -9,7 +9,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Crypto from 'expo-crypto';
+
+import { router } from 'expo-router';
+import { flattenStyles } from '../../../utils/styles';
+import { supabase } from '../../../utils/supabase';
+import { useAuth } from '../../../hooks/useAuth';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {
@@ -19,10 +23,6 @@ const generateUUID = () => {
     return v.toString(16);
   });
 };
-import { router } from 'expo-router';
-import { flattenStyles } from '../../../utils/styles';
-import { supabase } from '../../../utils/supabase';
-import { useAuth } from '../../../hooks/useAuth';
 
 type FlowStep =
   | 'tipo'
@@ -65,6 +65,65 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
   const [empresaEntrega, setEmpresaEntrega] = useState<EmpresaEntrega | null>(null);
   const [nomeVisitante, setNomeVisitante] = useState('');
   const [cpfVisitante, setCpfVisitante] = useState('');
+
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    // Remove tudo que não é dígito
+    const cleanValue = value.replace(/\D/g, '');
+    
+    // Limita a 11 dígitos
+    const limitedValue = cleanValue.slice(0, 11);
+    
+    // Aplica a máscara XXX.XXX.XXX-XX
+    if (limitedValue.length <= 3) {
+      return limitedValue;
+    } else if (limitedValue.length <= 6) {
+      return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3)}`;
+    } else if (limitedValue.length <= 9) {
+      return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6)}`;
+    } else {
+      return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6, 9)}-${limitedValue.slice(9)}`;
+    }
+  };
+
+  // Função para remover formatação do CPF
+  const cleanCPF = (value: string) => {
+    return value.replace(/\D/g, '');
+  };
+
+  // Função para validar CPF
+  const validateCPF = (cpf: string) => {
+    const cleanedCPF = cleanCPF(cpf);
+    
+    // Verifica se tem exatamente 11 dígitos
+    if (cleanedCPF.length !== 11) {
+      return false;
+    }
+    
+    // Verifica se todos os dígitos são iguais
+    if (/^(\d)\1{10}$/.test(cleanedCPF)) {
+      return false;
+    }
+    
+    // Validação básica do CPF
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(cleanedCPF.charAt(i)) * (10 - i);
+    }
+    let remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanedCPF.charAt(9))) return false;
+    
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(cleanedCPF.charAt(i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(cleanedCPF.charAt(10))) return false;
+    
+    return true;
+  };
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -226,7 +285,10 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
         <TextInput
           style={styles.textInput}
           value={cpfVisitante}
-          onChangeText={setCpfVisitante}
+          onChangeText={(text) => {
+            const formatted = formatCPF(text);
+            setCpfVisitante(formatted);
+          }}
           placeholder="000.000.000-00"
           keyboardType="numeric"
           autoFocus
@@ -429,11 +491,18 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           visitorId = existingVisitor.id;
         } else {
           console.log('🔍 DEBUG: Visitante não existe, criando novo...');
+          // Validar CPF antes da inserção
+          if (!validateCPF(cpfVisitante)) {
+            Alert.alert('Erro', 'CPF inválido. Por favor, verifique o número digitado.');
+            return;
+          }
+
           const visitorData = {
             name: nomeVisitante,
-            document: cpfVisitante,
+            document: cleanCPF(cpfVisitante), // Salva apenas números no banco
             phone: null,
-            photo_url: fotoTirada || null
+            photo_url: fotoTirada || null,
+            is_active: true
           };
           console.log('🔍 DEBUG: Dados do novo visitante:', visitorData);
           
@@ -530,7 +599,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           Alert.alert('✅ Visitante Cadastrado!', message, [
             { 
               text: 'OK', 
-              onPress: () => router.push('/morador/visitantes')
+              onPress: () => router.push('/morador')
             }
           ]);
         }

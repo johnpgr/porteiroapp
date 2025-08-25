@@ -9,6 +9,7 @@ export default function MoradorLayout() {
       <Stack.Screen name="preregister" />
       <Stack.Screen name="logs" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="emergency" />
       <Stack.Screen name="avisos" />
       <Stack.Screen name="visitantes/novo" />
       <Stack.Screen name="visitantes/nome" />
