@@ -21,13 +21,16 @@ export default function PorteiroProfile() {
   const [profile, setProfile] = useState<PorteiroProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     phone: '',
     cpf: '',
     birth_date: '',
     address: '',
-    photo_url: '',
+    avatar_url: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    work_schedule: '',
   });
   const [loading, setLoading] = useState(true);
 
@@ -40,61 +43,175 @@ export default function PorteiroProfile() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('❌ Usuário não autenticado');
+        return;
+      }
 
+      console.log('🔍 Buscando perfil do porteiro para user_id:', user.id);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .eq('user_type', 'porteiro')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro na query do perfil:', error);
+        if (error.code === 'PGRST116') {
+          Alert.alert('Perfil não encontrado', 'Nenhum perfil de porteiro foi encontrado para este usuário.');
+        } else if (error.message.includes('permission denied')) {
+          Alert.alert('Erro de Permissão', 'Você não tem permissão para acessar este perfil.');
+        } else {
+          Alert.alert('Erro', `Falha ao carregar perfil: ${error.message}`);
+        }
+        return;
+      }
+
+      console.log('✅ Perfil encontrado:', data);
+
+      if (!data) {
+        Alert.alert('Perfil não encontrado', 'Nenhum perfil de porteiro foi encontrado.');
+        return;
+      }
 
       setProfile(data);
       setFormData({
-        name: data.name || '',
+        full_name: data.full_name || '',
         email: data.email || '',
         phone: data.phone || '',
         cpf: data.cpf || '',
         birth_date: data.birth_date || '',
         address: data.address || '',
-        photo_url: data.photo_url || '',
+        avatar_url: data.avatar_url || '',
+        emergency_contact_name: data.emergency_contact_name || '',
+        emergency_contact_phone: data.emergency_contact_phone || '',
+        work_schedule: data.work_schedule || '',
       });
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-      Alert.alert('Erro', 'Falha ao carregar dados do perfil');
+      console.error('❌ Erro inesperado ao buscar perfil:', error);
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        Alert.alert('Erro de Conexão', 'Verifique sua conexão com a internet e tente novamente.');
+      } else if (error.message.includes('timeout')) {
+        Alert.alert('Timeout', 'A operação demorou muito para responder. Tente novamente.');
+      } else {
+        Alert.alert('Erro Inesperado', 'Ocorreu um erro inesperado ao carregar o perfil.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const validateForm = () => {
+    // Validação do nome completo
+    if (!formData.full_name || formData.full_name.trim().length < 2) {
+      Alert.alert('Erro de Validação', 'Nome completo deve ter pelo menos 2 caracteres');
+      return false;
+    }
+
+    // Validação do telefone
+    const phoneRegex = /^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/;
+    if (formData.phone && !phoneRegex.test(formData.phone.replace(/\D/g, ''))) {
+      Alert.alert('Erro de Validação', 'Formato de telefone inválido');
+      return false;
+    }
+
+    // Validação da data de nascimento (formato DD/MM/AAAA)
+    if (formData.birth_date) {
+      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+      if (!dateRegex.test(formData.birth_date)) {
+        Alert.alert('Erro de Validação', 'Data de nascimento deve estar no formato DD/MM/AAAA');
+        return false;
+      }
+
+      const [day, month, year] = formData.birth_date.split('/').map(Number);
+      const date = new Date(year, month - 1, day);
+      const now = new Date();
+      
+      if (date > now) {
+        Alert.alert('Erro de Validação', 'Data de nascimento não pode ser no futuro');
+        return false;
+      }
+
+      if (year < 1900 || year > now.getFullYear()) {
+        Alert.alert('Erro de Validação', 'Ano de nascimento inválido');
+        return false;
+      }
+    }
+
+    // Validação do telefone de emergência
+    if (formData.emergency_contact_phone && !phoneRegex.test(formData.emergency_contact_phone.replace(/\D/g, ''))) {
+      Alert.alert('Erro de Validação', 'Formato de telefone de emergência inválido');
+      return false;
+    }
+
+    // Validação do nome do contato de emergência
+    if (formData.emergency_contact_phone && (!formData.emergency_contact_name || formData.emergency_contact_name.trim().length < 2)) {
+      Alert.alert('Erro de Validação', 'Nome do contato de emergência é obrigatório quando telefone é informado');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     if (!profile) return;
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
+
+      console.log('💾 Salvando perfil do porteiro para user_id:', user.id);
       const { error } = await supabase
         .from('profiles')
         .update({
-          name: formData.name,
+          full_name: formData.full_name,
           email: formData.email,
           phone: formData.phone,
           cpf: formData.cpf,
           birth_date: formData.birth_date,
           address: formData.address,
-          photo_url: formData.photo_url,
+          avatar_url: formData.avatar_url,
+          emergency_contact_name: formData.emergency_contact_name,
+          emergency_contact_phone: formData.emergency_contact_phone,
+          work_schedule: formData.work_schedule,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', profile.id);
+        .eq('user_id', user.id)
+        .eq('user_type', 'porteiro');
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao salvar perfil:', error);
+        if (error.code === 'PGRST116') {
+          Alert.alert('Perfil não encontrado', 'Perfil não encontrado para atualização.');
+        } else if (error.message.includes('permission denied')) {
+          Alert.alert('Erro de Permissão', 'Você não tem permissão para atualizar este perfil.');
+        } else if (error.message.includes('duplicate')) {
+          Alert.alert('Dados Duplicados', 'Alguns dados já estão em uso por outro usuário.');
+        } else if (error.message.includes('violates check constraint')) {
+          Alert.alert('Dados Inválidos', 'Alguns dados não atendem aos critérios de validação.');
+        } else {
+          Alert.alert('Erro', `Falha ao salvar: ${error.message}`);
+        }
+        return;
+      }
 
+      console.log('✅ Perfil atualizado com sucesso');
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso');
       setIsEditing(false);
       fetchProfile();
     } catch (saveError) {
-      console.error('Erro ao salvar perfil:', saveError);
-      Alert.alert('Erro', 'Falha ao salvar dados do perfil');
+      console.error('❌ Erro inesperado ao salvar:', saveError);
+      Alert.alert('Erro Inesperado', 'Ocorreu um erro inesperado. Tente novamente.');
     }
   };
 
@@ -102,13 +219,16 @@ export default function PorteiroProfile() {
     setIsEditing(false);
     if (profile) {
       setFormData({
-        name: profile.name || '',
+        full_name: profile.full_name || '',
         email: profile.email || '',
         phone: profile.phone || '',
         cpf: profile.cpf || '',
         birth_date: profile.birth_date || '',
         address: profile.address || '',
-        photo_url: profile.photo_url || '',
+        avatar_url: profile.avatar_url || '',
+        emergency_contact_name: profile.emergency_contact_name || '',
+        emergency_contact_phone: profile.emergency_contact_phone || '',
+        work_schedule: profile.work_schedule || '',
       });
     }
   };
@@ -121,15 +241,66 @@ export default function PorteiroProfile() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets[0]) {
-      setFormData({ ...formData, photo_url: result.assets[0].uri });
+      setFormData({ ...formData, avatar_url: result.assets[0].uri });
     }
+  };
+
+  const handleDeleteProfile = async () => {
+    Alert.alert(
+      'Excluir Perfil',
+      'Esta ação é irreversível. Tem certeza que deseja excluir permanentemente seu perfil?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Erro', 'Usuário não autenticado');
+                return;
+              }
+
+              console.log('🗑️ Excluindo perfil do porteiro para user_id:', user.id);
+              const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('user_type', 'porteiro');
+
+              if (error) {
+                console.error('❌ Erro ao excluir perfil:', error);
+                throw error;
+              }
+
+              console.log('✅ Perfil excluído com sucesso');
+              Alert.alert('Sucesso', 'Perfil excluído com sucesso', [
+                {
+                  text: 'OK',
+                  onPress: async () => {
+                    await signOut();
+                    router.replace('/porteiro/login');
+                  },
+                },
+              ]);
+            } catch (error) {
+              console.error('❌ Erro ao excluir perfil:', error);
+              Alert.alert('Erro', 'Falha ao excluir perfil');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = async () => {
@@ -184,8 +355,8 @@ export default function PorteiroProfile() {
             <View style={styles.profileCard}>
               {/* Photo Section */}
               <View style={styles.photoContainer}>
-                {formData.photo_url ? (
-                  <Image source={{ uri: formData.photo_url }} style={styles.profilePhoto} />
+                {formData.avatar_url ? (
+                  <Image source={{ uri: formData.avatar_url }} style={styles.profilePhoto} />
                 ) : (
                   <View style={styles.defaultPhoto}>
                     <Text style={styles.defaultPhotoText}>👤</Text>
@@ -205,12 +376,12 @@ export default function PorteiroProfile() {
                   {isEditing ? (
                     <TextInput
                       style={styles.input}
-                      value={formData.name}
-                      onChangeText={(text) => setFormData({ ...formData, name: text })}
+                      value={formData.full_name}
+                      onChangeText={(text) => setFormData({ ...formData, full_name: text })}
                       placeholder="Digite seu nome completo"
                     />
                   ) : (
-                    <Text style={styles.value}>{formData.name || 'Não informado'}</Text>
+                    <Text style={styles.value}>{formData.full_name || 'Não informado'}</Text>
                   )}
                 </View>
 
@@ -236,7 +407,20 @@ export default function PorteiroProfile() {
                     <TextInput
                       style={styles.input}
                       value={formData.phone}
-                      onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                      onChangeText={(text) => {
+                        const numbers = text.replace(/\D/g, '');
+                        let formattedValue;
+                        if (numbers.length <= 2) {
+                          formattedValue = numbers;
+                        } else if (numbers.length <= 7) {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+                        } else if (numbers.length <= 10) {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+                        } else {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+                        }
+                        setFormData({ ...formData, phone: formattedValue });
+                      }}
                       placeholder="Digite seu telefone"
                       keyboardType="phone-pad"
                     />
@@ -266,7 +450,18 @@ export default function PorteiroProfile() {
                     <TextInput
                       style={styles.input}
                       value={formData.birth_date}
-                      onChangeText={(text) => setFormData({ ...formData, birth_date: text })}
+                      onChangeText={(text) => {
+                        const numbers = text.replace(/\D/g, '');
+                        let formattedValue;
+                        if (numbers.length <= 2) {
+                          formattedValue = numbers;
+                        } else if (numbers.length <= 4) {
+                          formattedValue = `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+                        } else {
+                          formattedValue = `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+                        }
+                        setFormData({ ...formData, birth_date: formattedValue });
+                      }}
                       placeholder="DD/MM/AAAA"
                     />
                   ) : (
@@ -287,6 +482,62 @@ export default function PorteiroProfile() {
                     />
                   ) : (
                     <Text style={styles.value}>{formData.address || 'Não informado'}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Horário de Trabalho</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.work_schedule}
+                      onChangeText={(text) => setFormData({ ...formData, work_schedule: text })}
+                      placeholder="Ex: 08:00-18:00"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{formData.work_schedule || 'Não informado'}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Contato de Emergência - Nome</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.emergency_contact_name}
+                      onChangeText={(text) => setFormData({ ...formData, emergency_contact_name: text })}
+                      placeholder="Nome do contato de emergência"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{formData.emergency_contact_name || 'Não informado'}</Text>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Contato de Emergência - Telefone</Text>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.input}
+                      value={formData.emergency_contact_phone}
+                      onChangeText={(text) => {
+                        const numbers = text.replace(/\D/g, '');
+                        let formattedValue;
+                        if (numbers.length <= 2) {
+                          formattedValue = numbers;
+                        } else if (numbers.length <= 7) {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+                        } else if (numbers.length <= 10) {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+                        } else {
+                          formattedValue = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+                        }
+                        setFormData({ ...formData, emergency_contact_phone: formattedValue });
+                      }}
+                      placeholder="Telefone do contato de emergência"
+                      keyboardType="phone-pad"
+                    />
+                  ) : (
+                    <Text style={styles.value}>{formData.emergency_contact_phone || 'Não informado'}</Text>
                   )}
                 </View>
 
@@ -313,6 +564,13 @@ export default function PorteiroProfile() {
               </TouchableOpacity>
 
               <View style={styles.divider} />
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={handleDeleteProfile}
+              >
+                <Text style={styles.deleteButtonText}>Excluir Perfil</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                 <Text style={styles.logoutButtonText}>Sair da Conta</Text>
@@ -505,6 +763,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    backgroundColor: '#ff5722',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  deleteButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
