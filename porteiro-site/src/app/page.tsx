@@ -1,4 +1,4 @@
-// Landing Page do PorteiroApp - Sistema de Portaria Digital
+// Landing Page do JAMES AVISA - Sistema de Portaria Digital
 import Image from 'next/image';
 
 export default function HomePage() {
@@ -11,7 +11,7 @@ export default function HomePage() {
             <div className="flex items-center space-x-3">
               <div className="text-3xl">🏢</div>
               <h1 className="text-2xl font-bold text-gray-900">
-                PorteiroApp
+                JAMES AVISA
               </h1>
             </div>
             <div className="flex space-x-4">
@@ -27,11 +27,11 @@ export default function HomePage() {
       <section className="bg-gradient-to-br from-blue-50 to-white py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
-            Sistema de Portaria Digital
+            Bem-vindo ao <span className="text-blue-600">JAMES AVISA</span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Solução completa para gestão de visitantes, controle de acesso e segurança predial. 
-            Modernize sua portaria com tecnologia inteligente e eficiente.
+            A solução completa para modernizar a portaria do seu condomínio. 
+            Gerencie visitantes, entregas e moradores com tecnologia de ponta.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="#" className="inline-block hover:opacity-80 transition-opacity">
@@ -61,7 +61,7 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl font-bold text-gray-900 mb-4">
-              O que o PorteiroApp oferece
+              O que o JAMES AVISA oferece
             </h3>
             <p className="text-lg text-gray-600">
               Tudo que você precisa para uma portaria moderna e eficiente
@@ -221,7 +221,7 @@ export default function HomePage() {
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <h3 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Por que escolher o PorteiroApp?
+            Por que escolher o JAMES AVISA?
           </h3>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -256,7 +256,7 @@ export default function HomePage() {
             Pronto para modernizar sua portaria?
           </h3>
           <p className="text-xl text-blue-100 mb-8">
-            Baixe o PorteiroApp agora e transforme a gestão do seu condomínio!
+            Baixe o JAMES AVISA agora e transforme a gestão do seu condomínio!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a href="#" className="inline-block hover:opacity-80 transition-opacity">
@@ -286,13 +286,21 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center space-x-3 mb-4">
             <div className="text-2xl">🏢</div>
-            <h4 className="text-xl font-bold text-white">PorteiroApp</h4>
+            <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
           </div>
           <p className="text-gray-400 mb-4">
             Sistema de Portaria Digital - Segurança e praticidade para seu condomínio
           </p>
+          <div className="mb-4">
+            <h4 className="font-semibold mb-3">Legal</h4>
+            <ul className="space-y-2 text-sm text-gray-400">
+              <li><a href="/politicas" className="hover:text-white">Políticas de Privacidade</a></li>
+              <li><a href="/termos" className="hover:text-white">Termos de Uso</a></li>
+              <li><a href="#" className="hover:text-white">Cookies</a></li>
+            </ul>
+          </div>
           <p className="text-gray-500 text-sm">
-            © 2024 PorteiroApp. Todos os direitos reservados.
+            © 2024 JAMES AVISA. Todos os direitos reservados.
           </p>
         </div>
       </footer>
