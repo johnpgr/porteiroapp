@@ -338,6 +338,8 @@ export default function MoradorDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📬 Notificações Pendentes</Text>
 
+
+
         {loadingNotifications && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#4CAF50" />
@@ -642,6 +644,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+
   notificationCard: {
     backgroundColor: '#fff',
     borderRadius: 12,

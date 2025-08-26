@@ -69,8 +69,90 @@ function validateResidentData(residentData) {
   return { valid: true, errors: [] };
 }
 
+/**
+ * Gera um link de regularização personalizado para o morador
+ * @param {Object} regularizationData - Dados da regularização
+ * @param {string} regularizationData.name - Nome do morador
+ * @param {string} regularizationData.phone - Telefone do morador
+ * @param {string} regularizationData.building - Prédio
+ * @param {string} regularizationData.apartment - Apartamento
+ * @param {string} regularizationData.issueType - Tipo do problema
+ * @param {string} [baseUrl='https://regularizacao.porteiroapp.com'] - URL base para regularização
+ * @returns {string} Link de regularização personalizado
+ */
+function generateRegularizationLink(regularizationData, baseUrl = 'https://regularizacao.porteiroapp.com') {
+  const params = new URLSearchParams({
+    name: regularizationData.name,
+    phone: regularizationData.phone,
+    building: regularizationData.building,
+    apartment: regularizationData.apartment,
+    issue: regularizationData.issueType
+  });
+  
+  return `${baseUrl}?${params.toString()}`;
+}
+
+/**
+ * Gera uma mensagem formatada para WhatsApp sobre regularização
+ * @param {Object} regularizationData - Dados da regularização
+ * @param {string} regularizationData.name - Nome do morador
+ * @param {string} regularizationData.building - Prédio
+ * @param {string} regularizationData.apartment - Apartamento
+ * @param {string} regularizationData.issueType - Tipo do problema
+ * @param {string} regularizationLink - Link de regularização personalizado
+ * @returns {string} Mensagem formatada para WhatsApp
+ */
+function generateRegularizationMessage(regularizationData, regularizationLink) {
+  const issueTypeMap = {
+    'visitor': 'Visitante não autorizado',
+    'vehicle': 'Veículo não registrado',
+    'package': 'Encomenda não autorizada',
+    'other': 'Situação irregular'
+  };
+  
+  const issueDescription = issueTypeMap[regularizationData.issueType] || regularizationData.issueType;
+  
+  return `🚨 *PorteiroApp - Regularização Necessária*\n\n` +
+         `Olá *${regularizationData.name}*!\n\n` +
+         `Identificamos uma situação que precisa ser regularizada em seu apartamento.\n\n` +
+         `📍 *Dados do apartamento:*\n` +
+         `🏢 Prédio: ${regularizationData.building}\n` +
+         `🚪 Apartamento: ${regularizationData.apartment}\n` +
+         `⚠️ Situação: ${issueDescription}\n\n` +
+         `Para regularizar esta situação, clique no link abaixo:\n` +
+         `${regularizationLink}\n\n` +
+         `📋 *O que você pode fazer:*\n` +
+         `✅ Autorizar a entrada retroativamente\n` +
+         `✅ Registrar informações adicionais\n` +
+         `✅ Comunicar-se com a portaria\n` +
+         `✅ Evitar futuras ocorrências\n\n` +
+         `_Mensagem enviada automaticamente pelo sistema PorteiroApp_`;
+}
+
+/**
+ * Valida se os dados de regularização estão completos
+ * @param {Object} regularizationData - Dados da regularização
+ * @returns {Object} Resultado da validação
+ */
+function validateRegularizationData(regularizationData) {
+  const requiredFields = ['name', 'phone', 'building', 'apartment', 'issueType'];
+  const missingFields = requiredFields.filter(field => !regularizationData[field]);
+  
+  if (missingFields.length > 0) {
+    return {
+      valid: false,
+      errors: [`Campos obrigatórios ausentes: ${missingFields.join(', ')}`]
+    };
+  }
+  
+  return { valid: true, errors: [] };
+}
+
 module.exports = {
   generateRegistrationLink,
   generateWhatsAppMessage,
-  validateResidentData
+  validateResidentData,
+  generateRegularizationLink,
+  generateRegularizationMessage,
+  validateRegularizationData
 };

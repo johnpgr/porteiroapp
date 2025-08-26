@@ -140,6 +140,10 @@ export default function VisitantesTab() {
     max_simultaneous_visits: 1
   });
   
+  // Estado para armazenar apartment_id e evitar múltiplas consultas
+  const [apartmentId, setApartmentId] = useState<string | null>(null);
+  const [apartmentIdLoading, setApartmentIdLoading] = useState(false);
+  
   // Rate limiting para pré-cadastros
   const [lastRegistrationTime, setLastRegistrationTime] = useState<number>(0);
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
@@ -148,6 +152,58 @@ export default function VisitantesTab() {
   // Estados para o DatePicker modal
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Função para carregar apartment_id uma única vez
+  const loadApartmentId = useCallback(async (): Promise<string | null> => {
+    if (apartmentId) {
+      return apartmentId; // Retorna o valor já carregado
+    }
+
+    if (apartmentIdLoading) {
+      // Se já está carregando, aguarda um pouco e tenta novamente
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return apartmentId;
+    }
+
+    try {
+      setApartmentIdLoading(true);
+      
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // Buscar profile_id do usuário
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (profileError || !profileData) {
+        throw new Error('Erro ao buscar perfil do usuário');
+      }
+
+      // Buscar apartment_id usando profile_id
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', profileData.id)
+        .single();
+
+      if (apartmentError || !apartmentData?.apartment_id) {
+        throw new Error('Erro ao buscar apartment_id');
+      }
+
+      setApartmentId(apartmentData.apartment_id);
+      return apartmentData.apartment_id;
+    } catch (error) {
+      console.error('Erro ao carregar apartment_id:', error);
+      return null;
+    } finally {
+      setApartmentIdLoading(false);
+    }
+  }, [apartmentId, apartmentIdLoading]);
 
   const fetchVisitors = useCallback(async () => {
     try {
@@ -163,26 +219,17 @@ export default function VisitantesTab() {
         return;
       }
 
-      // Primeiro, buscar o apartment_id do usuário logado
-      console.log('🏠 Buscando apartment_id do usuário...');
-      const { data: apartmentData, error: apartmentError } = await supabase
-        .from('apartment_residents')
-        .select('apartment_id')
-        .eq('profile_id', user.id)
-        .single();
+      // Usar apartment_id do estado ou carregá-lo se necessário
+      console.log('🏠 Obtendo apartment_id...');
+      const currentApartmentId = await loadApartmentId();
 
-      if (apartmentError) {
-        console.error('❌ Erro ao buscar apartment_id:', apartmentError);
-        throw apartmentError;
-      }
-
-      if (!apartmentData?.apartment_id) {
+      if (!currentApartmentId) {
         console.log('❌ Apartment_id não encontrado para o usuário');
         setError('Apartamento não encontrado para o usuário');
         return;
       }
 
-      console.log('✅ Apartment_id encontrado:', apartmentData.apartment_id);
+      console.log('✅ Apartment_id encontrado:', currentApartmentId);
 
       // Buscar visitantes filtrados por apartment_id
       console.log('📋 Buscando visitantes do apartamento...');
@@ -201,7 +248,7 @@ export default function VisitantesTab() {
           is_active,
           apartment_id
         `)
-        .eq('apartment_id', apartmentData.apartment_id)
+        .eq('apartment_id', currentApartmentId)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -220,7 +267,7 @@ export default function VisitantesTab() {
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'pending',
+        status: visitor.status || 'approved',
         visitor_type: visitor.visitor_type || 'comum',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
@@ -365,32 +412,10 @@ export default function VisitantesTab() {
   // Função para verificar conflitos de agendamento
   const checkSchedulingConflicts = async (visitData: any): Promise<{ hasConflict: boolean; message?: string }> => {
     try {
-      // Buscar dados do apartamento do usuário logado
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Usuário não autenticado');
-      }
-
-      // Buscar profile_id do usuário
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profileData) {
-        throw new Error('Erro ao buscar perfil do usuário');
-      }
-
-      // Buscar apartment_id usando profile_id
-      const { data: apartmentData, error: apartmentError } = await supabase
-        .from('apartment_residents')
-        .select('apartment_id')
-        .eq('profile_id', profileData.id)
-        .single();
-
-      if (apartmentError || !apartmentData?.apartment_id) {
-        throw new Error('Erro ao buscar apartment_id');
+      // Usar apartment_id do estado
+      const currentApartmentId = await loadApartmentId();
+      if (!currentApartmentId) {
+        throw new Error('Apartment_id não encontrado');
       }
 
       if (visitData.visit_type === 'pontual') {
@@ -398,7 +423,7 @@ export default function VisitantesTab() {
         const { data: conflicts } = await supabase
           .from('visitors')
           .select('id, name, visit_start_time, visit_end_time')
-          .eq('apartment_id', apartmentData.apartment_id)
+          .eq('apartment_id', currentApartmentId)
           .eq('visit_date', visitData.visit_date)
           .eq('visit_type', 'pontual')
           .eq('notification_status', 'approved')
@@ -427,7 +452,7 @@ export default function VisitantesTab() {
         const { data: conflicts } = await supabase
           .from('visitors')
           .select('id, name, visit_start_time, visit_end_time, allowed_days')
-          .eq('apartment_id', apartmentData.apartment_id)
+          .eq('apartment_id', currentApartmentId)
           .eq('visit_type', 'frequente')
           .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0);
@@ -474,32 +499,10 @@ export default function VisitantesTab() {
   // Função para verificar limite de visitas simultâneas
   const checkSimultaneousVisitsLimit = async (visitData: any): Promise<{ exceedsLimit: boolean; message?: string }> => {
     try {
-      // Buscar dados do apartamento do usuário logado
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Usuário não autenticado');
-      }
-
-      // Buscar profile_id do usuário
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError || !profileData) {
-        throw new Error('Erro ao buscar perfil do usuário');
-      }
-
-      // Buscar apartment_id usando profile_id
-      const { data: apartmentData, error: apartmentError } = await supabase
-        .from('apartment_residents')
-        .select('apartment_id')
-        .eq('profile_id', profileData.id)
-        .single();
-
-      if (apartmentError || !apartmentData?.apartment_id) {
-        throw new Error('Erro ao buscar apartment_id');
+      // Garantir que temos o apartment_id
+      const currentApartmentId = await loadApartmentId();
+      if (!currentApartmentId) {
+        throw new Error('Erro ao obter apartment_id');
       }
 
       const maxLimit = visitData.max_simultaneous_visits || 1;
@@ -509,7 +512,7 @@ export default function VisitantesTab() {
         const { data: simultaneousVisits } = await supabase
           .from('visitors')
           .select('id, name')
-          .eq('apartment_id', apartmentData.apartment_id)
+          .eq('apartment_id', currentApartmentId)
           .eq('visit_date', visitData.visit_date)
           .eq('visit_type', 'pontual')
           .eq('notification_status', 'approved')
@@ -552,7 +555,7 @@ export default function VisitantesTab() {
         const { data: frequentVisits } = await supabase
           .from('visitors')
           .select('id, name, allowed_days, visit_start_time, visit_end_time')
-          .eq('apartment_id', apartmentData.apartment_id)
+          .eq('apartment_id', currentApartmentId)
           .eq('visit_type', 'frequente')
           .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0);
@@ -612,39 +615,10 @@ export default function VisitantesTab() {
     const sanitizedPhone = sanitizeInput(preRegistrationData.phone);
 
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) throw new Error('Usuário não autenticado');
-
-      // Primeiro, buscar o profile_id do usuário autenticado
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .single();
-
-      if (profileError) {
-        console.error('❌ Erro ao buscar profile_id:', profileError);
-        throw profileError;
-      }
-
-      if (!profileData?.id) {
-        throw new Error('Profile não encontrado para o usuário');
-      }
-
-      // Buscar o apartment_id do usuário logado
-      const { data: apartmentData, error: apartmentError } = await supabase
-        .from('apartment_residents')
-        .select('apartment_id')
-        .eq('profile_id', profileData.id)
-        .single();
-
-      if (apartmentError) {
-        console.error('❌ Erro ao buscar apartment_id:', apartmentError);
-        throw apartmentError;
-      }
-
-      if (!apartmentData?.apartment_id) {
-        throw new Error('Apartamento não encontrado para o usuário');
+      // Garantir que temos o apartment_id
+      const currentApartmentId = await loadApartmentId();
+      if (!currentApartmentId) {
+        throw new Error('Erro ao obter apartment_id');
       }
 
     // Validar campos obrigatórios
@@ -738,7 +712,7 @@ export default function VisitantesTab() {
         .select('id, name, phone')
         .eq('name', sanitizedName)
         .eq('phone', sanitizedPhone.replace(/\D/g, ''))
-        .eq('apartment_id', apartmentData.apartment_id)
+        .eq('apartment_id', currentApartmentId)
         .single();
 
       if (existingVisitor) {
@@ -752,7 +726,7 @@ export default function VisitantesTab() {
         phone: sanitizedPhone.replace(/\D/g, ''),
         visitor_type: preRegistrationData.visitor_type,
         status: initialStatus,
-        apartment_id: apartmentData.apartment_id,
+        apartment_id: currentApartmentId,
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
         is_active: true,

@@ -13,6 +13,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
+import { notificationApi } from '../../services/notificationApi';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
@@ -423,7 +424,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         });
 
         // Inserir dados na tabela deliveries
-        const { error: deliveryError } = await supabase
+        const { data: deliveryData, error: deliveryError } = await supabase
           .from('deliveries')
           .insert({
             apartment_id: selectedApartment.id,
@@ -434,7 +435,9 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             notification_status: 'delivered',
             received_at: currentTime,
             notes: observacoes || null
-          });
+          })
+          .select('id')
+          .single();
 
         if (deliveryError) {
           console.error('Erro ao inserir entrega:', deliveryError);
@@ -468,6 +471,46 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         }
 
         console.log('Log de visitante inserido com sucesso');
+
+        // Enviar notificação WhatsApp para o morador
+        try {
+          // Buscar dados do morador proprietário
+          const { data: residentData, error: residentError } = await supabase
+            .from('residents')
+            .select('name, whatsapp_number')
+            .eq('apartment_id', selectedApartment.id)
+            .eq('is_owner', true)
+            .single();
+
+          if (residentError) {
+            console.error('Erro ao buscar dados do morador:', residentError);
+          } else if (residentData && residentData.whatsapp_number) {
+            // Buscar dados do prédio
+            const { data: buildingData, error: buildingError } = await supabase
+              .from('buildings')
+              .select('name')
+              .eq('id', doormanBuildingId)
+              .single();
+
+            if (buildingError) {
+              console.error('Erro ao buscar dados do prédio:', buildingError);
+            } else {
+              // Enviar notificação via API
+              await notificationApi.sendVisitorNotification({
+                residentName: residentData.name,
+                residentPhone: residentData.whatsapp_number,
+                buildingName: buildingData?.name || 'Seu prédio',
+                apartmentNumber: selectedApartment.number,
+                visitorName: empresaSelecionada.nome,
+                visitorType: 'entrega',
+                description: descricaoEncomenda || 'Entrega'
+              });
+            }
+          }
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação WhatsApp:', notificationError);
+          // Não bloquear o fluxo principal se a notificação falhar
+        }
 
         const message = `Encomenda registrada com sucesso para o apartamento ${selectedApartment.number}.`;
 

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { notificationApi } from '../../services/notificationApi';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {
@@ -697,7 +698,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         }
 
         // Salvar no visitor_logs com vehicle_info completo
-        const { error } = await supabase
+        const { data: visitorLogData, error } = await supabase
           .from('visitor_logs')
           .insert({
             visitor_id: visitorId,
@@ -709,12 +710,57 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             vehicle_info: vehicleData,
             notification_status: 'pending',
             purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
-          });
+          })
+          .select('id')
+          .single();
 
         if (error) {
           console.error('Erro ao salvar log de visitante:', error);
           Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
           return;
+        }
+
+        // Enviar notificação via API (WhatsApp) após registro bem-sucedido
+        if (visitorLogData?.id) {
+          try {
+            // Buscar dados do morador proprietário e do prédio
+            const { data: residentData } = await supabase
+              .from('apartments')
+              .select(`
+                id,
+                number,
+                residents!residents_apartment_id_fkey (
+                  full_name,
+                  phone
+                ),
+                buildings (
+                  name
+                )
+              `)
+              .eq('id', apartmentData.id)
+              .eq('residents.is_owner', true)
+              .single();
+
+            if (residentData?.residents?.phone) {
+              await notificationApi.sendVisitorNotification({
+                visitorLogId: visitorLogData.id,
+                visitorName: nomeConvidado,
+                residentPhone: residentData.residents.phone,
+                residentName: residentData.residents.full_name || 'Morador',
+                building: residentData.buildings?.name || 'Prédio',
+                apartment: residentData.number,
+                vehicleInfo: {
+                  licensePlate: placa,
+                  brand: marcaSelecionada?.nome || vehicleInfo?.brand,
+                  model: modelo || vehicleInfo?.model,
+                  color: corSelecionada?.nome || vehicleInfo?.color
+                }
+              });
+            }
+          } catch (apiError) {
+            console.error('Erro ao enviar notificação via API:', apiError);
+            // Não bloquear o fluxo principal em caso de erro na API
+          }
         }
 
         // Preparar mensagem baseada no tipo de veículo

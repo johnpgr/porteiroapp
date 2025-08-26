@@ -255,6 +255,106 @@ class NotificationService {
       };
     }
   }
+
+  /**
+   * Envia mensagem WhatsApp de regularização para morador
+   */
+  async sendRegularizationWhatsApp(
+    residentData: ResidentData,
+    situationType: string,
+    description: string,
+    regularizationUrl?: string
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    console.log('🚀 Iniciando envio de mensagem de regularização WhatsApp:', {
+      name: residentData.name,
+      phone: residentData.phone,
+      apartment: residentData.apartment,
+      building: residentData.building,
+      situationType,
+      description,
+      regularizationUrl
+    });
+
+    try {
+      // Configuração da API local
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://192.168.0.2:3001'}/api/send-regularization-whatsapp`;
+      
+      // Preparar dados para a API
+      const apiData = {
+        name: residentData.name,
+        phone: residentData.phone.replace(/\D/g, ''), // Remove caracteres não numéricos
+        building: residentData.building,
+        apartment: residentData.apartment,
+        situationType,
+        description,
+        regularizationUrl: regularizationUrl || 'https://regularizacao.porteiroapp.com'
+      };
+
+      console.log('🌐 Fazendo chamada para API de regularização:', {
+        url: apiUrl,
+        phone: apiData.phone,
+        name: apiData.name,
+        situationType: apiData.situationType
+      });
+
+      // Fazer chamada para a API
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      console.log('📡 Resposta da API de regularização:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+          console.error('❌ Erro detalhado da API de regularização:', errorData);
+        } catch (parseError) {
+          console.error('❌ Erro ao parsear resposta de erro:', parseError);
+        }
+        
+        const errorMessage = errorData.message || errorData.error || `Erro HTTP ${response.status}: ${response.statusText}`;
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+        console.log('✅ Resposta de sucesso da API de regularização:', responseData);
+      } catch (parseError) {
+        console.warn('⚠️ Não foi possível parsear resposta de sucesso:', parseError);
+      }
+
+      console.log('🎉 Mensagem de regularização enviada com sucesso!');
+      return {
+        success: true,
+        message: 'Mensagem de regularização enviada com sucesso!',
+      };
+
+    } catch (error) {
+      console.error('💥 Erro inesperado ao enviar mensagem de regularização:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      return {
+        success: false,
+        error: `Erro de conexão: ${errorMessage}`,
+      };
+    }
+  }
 }
 
 // Instância singleton do serviço

@@ -16,6 +16,7 @@ import { VisitorCard } from '~/components/VisitorCard';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaTypeOptions } from 'expo-image-picker';
+import { notificationApi } from '../../services/notificationApi';
 
 interface Visitor {
   id: string;
@@ -138,6 +139,44 @@ export default function VisitorManagement() {
         }
       } else if (action === 'aprovado') {
         newStatus = 'approved';
+        
+        // Enviar notificação para o morador quando visitante for aprovado
+        try {
+          // Buscar dados do apartamento e morador
+          const { data: apartment, error: aptError } = await supabase
+            .from('apartments')
+            .select(`
+              number,
+              buildings(name),
+              residents!inner(
+                users!inner(phone, full_name)
+              )
+            `)
+            .eq('id', visitor.apartment_id)
+            .single();
+
+          if (!aptError && apartment && apartment.residents?.[0]?.users) {
+            const resident = apartment.residents[0].users;
+            const building = apartment.buildings;
+            
+            // Gerar um ID único para o log de visitante
+            const visitSessionId = Crypto.randomUUID();
+            
+            await notificationApi.sendVisitorNotification({
+              visitorLogId: visitSessionId,
+              visitorName: visitor.name,
+              residentPhone: resident.phone || '',
+              residentName: resident.full_name || '',
+              building: building?.name || 'Edifício',
+              apartment: apartment.number
+            });
+            
+            console.log('Notificação enviada com sucesso para o morador');
+          }
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação:', notificationError);
+          // Não interromper o fluxo principal se a notificação falhar
+        }
       } else if (action === 'negado') {
         newStatus = 'rejected';
       }

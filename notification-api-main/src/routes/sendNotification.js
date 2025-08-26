@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
-const { validateResidentNotification } = require('../validators/notificationValidator');
+const { validateResidentNotification, validateRegularizationNotification } = require('../validators/notificationValidator');
 const { sendWhatsApp } = require('../services/whatsappService');
-const { generateRegistrationLink, generateWhatsAppMessage } = require('../utils/messageFormatter');
+const { generateRegistrationLink, generateWhatsAppMessage, generateRegularizationLink, generateRegularizationMessage } = require('../utils/messageFormatter');
 
 // POST /api/send-resident-whatsapp - Endpoint específico para envio de mensagens WhatsApp para moradores
 router.post('/send-resident-whatsapp', async (req, res) => {
@@ -101,6 +101,84 @@ router.get('/whatsapp-qr', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       error: error.message
+    });
+  }
+});
+
+// POST /api/send-regularization-whatsapp - Endpoint para envio de mensagens de regularização para moradores
+router.post('/send-regularization-whatsapp', async (req, res) => {
+  const startTime = Date.now();
+  console.log('🚀 Iniciando envio de mensagem de regularização WhatsApp para morador:', req.body);
+  
+  try {
+    // Validar dados usando o validator
+    const validation = validateRegularizationNotification(req.body);
+    if (!validation.success) {
+      console.error('❌ Dados inválidos:', validation.errors);
+      return res.status(400).json({ 
+        success: false, 
+        whatsappSent: false, 
+        error: 'Dados inválidos',
+        details: validation.errors,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const regularizationData = validation.parsed;
+    regularizationData.phone = regularizationData.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+
+    console.log('✅ Dados de regularização validados:', {
+      name: regularizationData.name,
+      phone: regularizationData.phone,
+      building: regularizationData.building,
+      apartment: regularizationData.apartment,
+      issueType: regularizationData.issueType
+    });
+
+    // Gerar link de regularização personalizado
+    const regularizationLink = generateRegularizationLink(regularizationData, regularizationData.regularizationUrl);
+    console.log('🔗 Link de regularização gerado:', regularizationLink);
+
+    // Gerar mensagem formatada
+    const whatsappMessage = generateRegularizationMessage(regularizationData, regularizationLink);
+    console.log('📝 Mensagem de regularização formatada:', whatsappMessage.substring(0, 100) + '...');
+
+    // Enviar mensagem via WhatsApp
+    const whatsappResult = await sendWhatsApp({
+      to: regularizationData.phone,
+      message: whatsappMessage
+    });
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Mensagem de regularização WhatsApp enviada com sucesso em ${duration}ms para:`, regularizationData.phone);
+
+    res.json({
+      success: true,
+      whatsappSent: true,
+      messageId: whatsappResult.messageId,
+      regularizationLink,
+      recipient: {
+        name: regularizationData.name,
+        phone: regularizationData.phone,
+        building: regularizationData.building,
+        apartment: regularizationData.apartment,
+        issueType: regularizationData.issueType
+      },
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`
+    });
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error('❌ Erro ao enviar mensagem de regularização WhatsApp:', error.message);
+    console.error('Stack trace:', error.stack);
+
+    res.status(500).json({
+      success: false,
+      whatsappSent: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`
     });
   }
 });

@@ -13,7 +13,8 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { notificationService, TipoVisita } from '../../services/notificationService';
+// Removido import incorreto do notificationService
+import { notificationApi } from '../../services/notificationApi';
 
 type FlowStep =
   | 'apartamento'
@@ -62,44 +63,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  // Função para criar notificação para morador
-  const createResidentNotification = async (
-    apartmentId: string,
-    visitorLogId: string,
-    visitorData: {
-      name: string;
-      type: TipoVisita;
-      company?: string;
-      purpose?: string;
-    }
-  ): Promise<boolean> => {
-    try {
-      const success = await notificationService.createNotificationWithRetry(
-        apartmentId,
-        visitorLogId,
-        visitorData
-      );
-
-      // Log do evento
-      notificationService.logNotificationEvent('visitor_notification_created', {
-        apartmentId,
-        visitorName: visitorData.name,
-        success,
-        error: success ? null : 'Falha ao criar notificação'
-      });
-
-      return success;
-    } catch (error) {
-      console.error('Erro ao criar notificação para morador:', error);
-      notificationService.logNotificationEvent('visitor_notification_error', {
-        apartmentId,
-        visitorName: visitorData.name,
-        success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
-      });
-      return false;
-    }
-  };
+  // Função removida - usava métodos inexistentes do notificationService
 
   const renderNumericKeypad = (
     value: string,
@@ -486,28 +450,49 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-        // Criar notificação para o morador
-        try {
-          const company = tipoVisita === 'prestador' ? empresaPrestador : 
-                        tipoVisita === 'entrega' ? empresaEntrega : undefined;
-          
-          const notificationSuccess = await createResidentNotification(
-            apartmentData.id,
-            logData.id,
-            {
-              name: nomeVisitante,
-              type: tipoVisita!,
-              company: company?.replace('_', ' '),
-              purpose: observacoes || purpose
-            }
-          );
+        // Notificação removida - usava métodos inexistentes
 
-          if (!notificationSuccess) {
-            console.warn('Visitante registrado, mas notificação falhou');
+        // Enviar notificação via API (WhatsApp)
+        try {
+          // Buscar dados do morador proprietário
+          const { data: residentData, error: residentError } = await supabase
+            .from('apartments')
+            .select(`
+              residents!inner(
+                name,
+                phone,
+                is_owner
+              ),
+              buildings!inner(
+                name
+              )
+            `)
+            .eq('id', apartmentData.id)
+            .eq('residents.is_owner', true)
+            .single();
+
+          if (residentData && residentData.residents && residentData.residents.length > 0) {
+            const resident = residentData.residents[0];
+            const building = residentData.buildings;
+            
+            if (resident.phone && building) {
+              await notificationApi.sendVisitorNotification({
+                visitorLogId: logData.id,
+                visitorName: nomeVisitante,
+                residentPhone: resident.phone,
+                residentName: resident.name,
+                building: building.name,
+                apartment: apartamento
+              });
+              
+              console.log('Notificação via API enviada com sucesso');
+            } else {
+              console.warn('Dados insuficientes para enviar notificação via API');
+            }
           }
-        } catch (notificationError) {
-          console.error('Erro ao enviar notificação:', notificationError);
-          // Não bloquear o fluxo se a notificação falhar
+        } catch (apiError) {
+          console.error('Erro ao enviar notificação via API:', apiError);
+          // Não bloquear o fluxo se a notificação via API falhar
         }
 
         const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;

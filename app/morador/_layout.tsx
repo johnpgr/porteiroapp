@@ -6,6 +6,7 @@ export default function MoradorLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="authorize" />
+      <Stack.Screen name="token-authorize" />
       <Stack.Screen name="preregister" />
       <Stack.Screen name="logs" />
       <Stack.Screen name="profile" />

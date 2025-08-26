@@ -71,7 +71,58 @@ function validateResidentNotification(data) {
   }
 }
 
+// Esquema específico para notificações de visitantes com autorização
+const visitorNotificationSchema = z.object({
+  visitorLogId: z.string().min(1, 'ID do log do visitante é obrigatório'),
+  visitorName: z.string().min(1, 'Nome do visitante é obrigatório'),
+  residentPhone: z.string().min(10, 'Telefone do morador deve ter pelo menos 10 dígitos'),
+  residentName: z.string().min(1, 'Nome do morador é obrigatório'),
+  building: z.string().min(1, 'Prédio é obrigatório'),
+  apartment: z.string().min(1, 'Apartamento é obrigatório')
+});
+
+function validateVisitorNotification(data) {
+  try {
+    const parsed = visitorNotificationSchema.parse(data);
+    return { success: true, parsed, errors: null };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const errors = error.errors.map(err => `${err.path.join('.')}: ${err.message}`);
+      return { success: false, parsed: null, errors };
+    }
+    return { success: false, parsed: null, errors: ['Erro de validação desconhecido'] };
+  }
+}
+
+// Esquema específico para notificações de regularização
+const regularizationNotificationSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório'),
+  phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
+  building: z.string().min(1, 'Prédio é obrigatório'),
+  apartment: z.string().min(1, 'Apartamento é obrigatório'),
+  issueType: z.enum(['visitor', 'vehicle', 'package', 'other'], {
+    errorMap: () => ({ message: 'Tipo de problema deve ser: visitor, vehicle, package ou other' })
+  }),
+  description: z.string().optional(),
+  regularizationUrl: z.string().url().default('https://regularizacao.porteiroapp.com')
+});
+
+function validateRegularizationNotification(data) {
+  try {
+    const parsed = regularizationNotificationSchema.parse(data);
+    return { success: true, parsed, errors: null };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const errors = error.errors.map(err => `${err.path.join('.')}: ${err.message}`);
+      return { success: false, parsed: null, errors };
+    }
+    return { success: false, parsed: null, errors: ['Erro de validação desconhecido'] };
+  }
+}
+
 module.exports = {
   validateNotification,
-  validateResidentNotification
+  validateResidentNotification,
+  validateVisitorNotification,
+  validateRegularizationNotification
 };

@@ -14,19 +14,16 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
-import { NotificationsList } from '~/src/components/NotificationsList';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
-import { useNotifications } from '~/src/hooks/useNotifications';
 import ActivityLogs from './logs';
 
-type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'notificacoes' | 'logs';
+type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 
 export default function PorteiroDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const { notifications, unreadCount, acknowledgeNotification, clearAllNotifications, isConnected } = useNotifications();
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -1287,30 +1284,7 @@ export default function PorteiroDashboard() {
     );
   };
 
-  // Função para renderizar a aba de notificações
-  const renderNotificacoesTab = () => {
-    return (
-      <View style={styles.tabContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>🔔 Notificações de Visitantes</Text>
-          <Text style={styles.headerSubtitle}>
-            {unreadCount > 0 ? `${unreadCount} notificação${unreadCount > 1 ? 'ões' : ''} não lida${unreadCount > 1 ? 's' : ''}` : 'Todas as notificações foram lidas'}
-          </Text>
-          {!isConnected && (
-            <Text style={styles.connectionWarning}>
-              ⚠️ Desconectado - Notificações em tempo real indisponíveis
-            </Text>
-          )}
-        </View>
-        
-        <NotificationsList
-          notifications={notifications}
-          onAcknowledge={acknowledgeNotification}
-          onClearAll={clearAllNotifications}
-        />
-      </View>
-    );
-  };
+
 
   // Função para renderizar a aba de logs
   const renderLogsTab = () => {
@@ -1327,8 +1301,6 @@ export default function PorteiroDashboard() {
         return renderConsultaTab();
       case 'avisos':
         return renderAvisosTab();
-      case 'notificacoes':
-        return renderNotificacoesTab();
       case 'logs':
         return renderLogsTab();
       default:
@@ -1442,36 +1414,7 @@ export default function PorteiroDashboard() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'notificacoes' && styles.navItemActive,
-              ])}
-              onPress={() => setActiveTab('notificacoes')}>
-              <View style={styles.notificationIconContainer}>
-                <Text
-                  style={flattenStyles([
-                    styles.navIcon,
-                    activeTab === 'notificacoes' && styles.navIconActive,
-                  ])}>
-                  🔔
-                </Text>
-                {unreadCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'notificacoes' && styles.navLabelActive,
-                ])}>
-                Notificações
-              </Text>
-            </TouchableOpacity>
+
 
             <TouchableOpacity
               style={flattenStyles([
@@ -2388,36 +2331,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  // Estilos para notificações
-  notificationIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: '#FF5722',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  notificationBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  connectionWarning: {
-    fontSize: 14,
-    color: '#FF9800',
-    textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500',
-  },
+
 });
