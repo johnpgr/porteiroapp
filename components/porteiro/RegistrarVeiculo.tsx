@@ -1048,17 +1048,18 @@ const styles = StyleSheet.create({
   },
   marcasContainer: {
     flex: 1,
+    paddingHorizontal: 5,
   },
   marcasGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 15,
+    paddingHorizontal: 5,
   },
   marcaButton: {
-    width: '48%',
+    width: '47%',
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     elevation: 2,
@@ -1068,7 +1069,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     borderWidth: 2,
     borderColor: '#e0e0e0',
-    marginBottom: 15,
+    marginBottom: 12,
+    minHeight: 100,
   },
   marcaButtonSelected: {
     borderColor: '#2196F3',
@@ -1086,17 +1088,18 @@ const styles = StyleSheet.create({
   },
   coresContainer: {
     flex: 1,
+    paddingHorizontal: 5,
   },
   coresGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 15,
+    paddingHorizontal: 5,
   },
   corButton: {
-    width: '48%',
+    width: '47%',
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     elevation: 2,
@@ -1105,7 +1108,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 2,
-    marginBottom: 15,
+    marginBottom: 12,
+    minHeight: 100,
   },
   corButtonSelected: {
     borderColor: '#2196F3',

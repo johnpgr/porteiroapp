@@ -189,7 +189,7 @@ export default function PorteiroDashboard() {
           )
         `)
         .eq('apartments.building_id', profile.building_id)
-        .eq('status', 'approved')
+        .eq('status', 'aprovado')
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -501,6 +501,58 @@ export default function PorteiroDashboard() {
 
   const confirmarChegada = async (autorizacao: any) => {
     try {
+      // Validar horários permitidos
+      const now = new Date();
+      const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+      const currentDay = now.toLocaleDateString('en-US', { weekday: 'lowercase' });
+      const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      // Verificar se há restrições de horário
+      if (autorizacao.visit_start_time && autorizacao.visit_end_time) {
+        if (currentTime < autorizacao.visit_start_time || currentTime > autorizacao.visit_end_time) {
+          Alert.alert(
+            'Horário não permitido',
+            `Este visitante só pode entrar entre ${autorizacao.visit_start_time} e ${autorizacao.visit_end_time}.\n\nHorário atual: ${currentTime}`
+          );
+          return;
+        }
+      }
+
+      // Verificar data específica para visitas pontuais
+      if (autorizacao.visit_type === 'pontual' && autorizacao.visit_date) {
+        if (currentDate !== autorizacao.visit_date) {
+          Alert.alert(
+            'Data não permitida',
+            `Este visitante só pode entrar na data: ${new Date(autorizacao.visit_date).toLocaleDateString('pt-BR')}\n\nData atual: ${now.toLocaleDateString('pt-BR')}`
+          );
+          return;
+        }
+      }
+
+      // Verificar dias permitidos para visitas frequentes
+      if (autorizacao.visit_type === 'frequente' && autorizacao.allowed_days && autorizacao.allowed_days.length > 0) {
+        if (!autorizacao.allowed_days.includes(currentDay)) {
+          const allowedDaysPortuguese = autorizacao.allowed_days.map((day: string) => {
+            const dayMap: { [key: string]: string } = {
+              'monday': 'Segunda-feira',
+              'tuesday': 'Terça-feira',
+              'wednesday': 'Quarta-feira',
+              'thursday': 'Quinta-feira',
+              'friday': 'Sexta-feira',
+              'saturday': 'Sábado',
+              'sunday': 'Domingo'
+            };
+            return dayMap[day] || day;
+          }).join(', ');
+          
+          Alert.alert(
+            'Dia não permitido',
+            `Este visitante frequente só pode entrar nos dias: ${allowedDaysPortuguese}\n\nHoje é: ${now.toLocaleDateString('pt-BR', { weekday: 'long' })}`
+          );
+          return;
+        }
+      }
+
       // Buscar o building_id do porteiro
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -519,11 +571,11 @@ export default function PorteiroDashboard() {
       const visitorType = autorizacao.visitor_type || 'comum';
       const newStatus = visitorType === 'frequente' ? 'aprovado' : 'pendente';
 
-      // Atualizar status do visitante baseado no tipo
+      // Atualizar status do visitante para pendente
       const { error: updateError } = await supabase
         .from('visitors')
         .update({ 
-          notification_status: newStatus === 'aprovado' ? 'approved' : 'pending'
+          status: 'pendente'
         })
         .eq('id', autorizacao.id);
 
@@ -551,9 +603,18 @@ export default function PorteiroDashboard() {
           building_id: profile.building_id,
           log_time: new Date().toISOString(),
           tipo_log: 'IN',
-          notification_status: 'entered',
           visit_session_id: generateUUID(),
-          purpose: `Check-in realizado pelo porteiro ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Novo status: ${newStatus === 'aprovado' ? 'approved' : 'pending'}`
+          purpose: `ACESSO PRÉ-AUTORIZADO - Visitante já aprovado pelo morador. Porteiro realizou verificação de entrada. Check-in por: ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Status: ${newStatus}`,
+          authorized_by: user.id, // ID do porteiro que está confirmando
+          guest_name: autorizacao.nomeConvidado, // Nome do visitante para exibição
+          entry_type: autorizacao.isEncomenda ? 'delivery' : 'visitor', // Tipo de entrada
+          requires_notification: !autorizacao.jaAutorizado, // Se precisa notificar morador
+          requires_resident_approval: !autorizacao.jaAutorizado, // Se precisa aprovação do morador
+          auto_approved: autorizacao.jaAutorizado || false, // Se foi aprovado automaticamente
+          emergency_override: false, // Não é emergência
+          notification_status: autorizacao.jaAutorizado ? 'approved' : 'pending', // Status baseado na pré-aprovação
+          delivery_destination: autorizacao.isEncomenda ? 'portaria' : null, // Destino se for encomenda
+          notification_preferences: '{}' // Configurações padrão
         });
 
       if (logError) {
@@ -666,6 +727,43 @@ export default function PorteiroDashboard() {
                     <Text style={styles.authCardTime}>
                       {autorizacao.dataAprovacao} às {autorizacao.horaAprovacao}
                     </Text>
+                    
+                    {/* Informações de horários e restrições */}
+                    {autorizacao.visit_start_time && autorizacao.visit_end_time && (
+                      <Text style={styles.authCardSchedule}>
+                        🕐 Horário permitido: {autorizacao.visit_start_time} às {autorizacao.visit_end_time}
+                      </Text>
+                    )}
+                    
+                    {autorizacao.visit_type === 'pontual' && autorizacao.visit_date && (
+                      <Text style={styles.authCardDate}>
+                        📅 Data específica: {new Date(autorizacao.visit_date).toLocaleDateString('pt-BR')}
+                      </Text>
+                    )}
+                    
+                    {autorizacao.visit_type === 'frequente' && autorizacao.allowed_days && autorizacao.allowed_days.length > 0 && (
+                      <Text style={styles.authCardDays}>
+                        📆 Dias permitidos: {autorizacao.allowed_days.map((day: string) => {
+                          const dayMap: { [key: string]: string } = {
+                            'monday': 'Seg',
+                            'tuesday': 'Ter',
+                            'wednesday': 'Qua',
+                            'thursday': 'Qui',
+                            'friday': 'Sex',
+                            'saturday': 'Sáb',
+                            'sunday': 'Dom'
+                          };
+                          return dayMap[day] || day;
+                        }).join(', ')}
+                      </Text>
+                    )}
+                    
+                    {autorizacao.visitor_type === 'frequente' && (
+                      <Text style={styles.authCardFrequent}>
+                        🔄 Visitante frequente - Acesso permanente
+                      </Text>
+                    )}
+                    
                     {autorizacao.jaAutorizado && (
                       <Text style={styles.authCardStatus}>✅ Morador já autorizou a subida</Text>
                     )}
@@ -1640,6 +1738,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     fontStyle: 'italic',
+  },
+  authCardStatus: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  authCardSchedule: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  scheduleTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 6,
+  },
+  scheduleText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 3,
+  },
+  frequentVisitorTag: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  frequentVisitorText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   confirmButton: {
     backgroundColor: '#4CAF50',

@@ -10,9 +10,11 @@ import {
   TextInput,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePickerAndroid from '@react-native-community/datetimepicker';
 import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { 
@@ -152,6 +154,27 @@ export default function VisitantesTab() {
   // Estados para o DatePicker modal
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Função para mostrar o DatePicker com tratamento específico para iOS
+  const showDatePickerModal = () => {
+    if (Platform.OS === 'ios') {
+      setShowDatePicker(true);
+    } else {
+      // Para Android, usar o DateTimePickerAndroid
+      DateTimePickerAndroid.open({
+        value: selectedDate,
+        onChange: (event, date) => {
+          if (date) {
+            setSelectedDate(date);
+            const formattedDate = date.toLocaleDateString('pt-BR');
+            setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
+          }
+        },
+        mode: 'date',
+        is24Hour: true,
+      });
+    }
+  };
 
   // Função para carregar apartment_id uma única vez
   const loadApartmentId = useCallback(async (): Promise<string | null> => {
@@ -1036,7 +1059,7 @@ export default function VisitantesTab() {
                     <Text style={styles.inputLabel}>Data da Visita *</Text>
                     <TouchableOpacity
                       style={styles.datePickerButton}
-                      onPress={() => setShowDatePicker(true)}
+                      onPress={showDatePickerModal}
                     >
                       <Text style={[
                         styles.datePickerButtonText,
@@ -1211,11 +1234,16 @@ export default function VisitantesTab() {
           mode="date"
           display="default"
           onChange={(event, date) => {
-            setShowDatePicker(false);
+            if (Platform.OS === 'ios') {
+              setShowDatePicker(false);
+            }
             if (date) {
               setSelectedDate(date);
               const formattedDate = date.toLocaleDateString('pt-BR');
               setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
+            }
+            if (Platform.OS === 'android' && event.type === 'dismissed') {
+              setShowDatePicker(false);
             }
           }}
         />

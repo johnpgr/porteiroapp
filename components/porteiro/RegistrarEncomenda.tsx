@@ -885,17 +885,18 @@ const styles = StyleSheet.create({
   },
   empresasContainer: {
     flex: 1,
+    paddingHorizontal: 5,
   },
   empresasGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 15,
+    paddingHorizontal: 5,
   },
   empresaButton: {
-    width: '48%',
+    width: '47%',
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     elevation: 2,
@@ -905,7 +906,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     borderWidth: 2,
     borderColor: '#e0e0e0',
-    marginBottom: 15,
+    marginBottom: 12,
+    minHeight: 100,
   },
   empresaButtonSelected: {
     borderColor: '#2196F3',

@@ -7,6 +7,7 @@ import { AuthStateManager } from './AuthStateManager';
 import { AdminAuthStrategy } from './strategies/AdminAuthStrategy';
 import { PorteiroAuthStrategy } from './strategies/PorteiroAuthStrategy';
 import { MoradorAuthStrategy } from './strategies/MoradorAuthStrategy';
+import { TokenStorage, StoredUserData } from '../TokenStorage';
 
 export interface AuthUser {
   id: string;
@@ -44,6 +45,7 @@ export class AuthManager {
   private iOSHandler: iOSNetworkHandler;
   private strategies: Map<string, AuthStrategy>;
   private currentPlatform: string;
+  private isInitialized: boolean = false;
 
   private constructor() {
     this.logger = new AuthLogger();
@@ -59,6 +61,9 @@ export class AuthManager {
     this.strategies.set('morador', new MoradorAuthStrategy(this.logger, this.metrics));
 
     this.logger.info('AuthManager initialized', { platform: this.currentPlatform });
+    
+    // Inicializar login automático
+    this.initializeAutoLogin();
   }
 
   public static getInstance(): AuthManager {
@@ -66,6 +71,79 @@ export class AuthManager {
       AuthManager.instance = new AuthManager();
     }
     return AuthManager.instance;
+  }
+
+  /**
+   * Inicializa o login automático verificando token salvo
+   */
+  private async initializeAutoLogin(): Promise<void> {
+    try {
+      this.logger.info('Initializing auto login');
+      this.stateManager.setInitializing(true);
+      
+      const token = await TokenStorage.getToken();
+      const userData = await TokenStorage.getUserData();
+      
+      if (token && userData) {
+        this.logger.info('Found saved token, attempting auto login', { userId: userData.id });
+        
+        // Verificar se a sessão do Supabase ainda é válida
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session && session.user) {
+          // Sessão válida, restaurar usuário
+          const authUser: AuthUser = {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role,
+            profile: userData,
+            building_id: userData.buildingId,
+            apartment_id: userData.apartmentNumber
+          };
+          
+          this.stateManager.setCurrentUser(authUser);
+          this.logger.info('Auto login successful', { userId: userData.id });
+        } else {
+          // Sessão inválida, limpar dados salvos
+          await TokenStorage.clearAll();
+          this.logger.info('Saved session expired, cleared storage');
+        }
+      } else {
+        this.logger.info('No saved token found');
+      }
+    } catch (error) {
+      this.logger.error('Auto login failed', { error: error.message });
+      // Em caso de erro, limpar dados possivelmente corrompidos
+      await TokenStorage.clearAll();
+    } finally {
+      this.stateManager.setInitializing(false);
+      this.isInitialized = true;
+    }
+  }
+
+  /**
+   * Verifica se o AuthManager foi inicializado
+   */
+  public isReady(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Aguarda a inicialização do AuthManager
+   */
+  public async waitForInitialization(): Promise<void> {
+    if (this.isInitialized) return;
+    
+    return new Promise((resolve) => {
+      const checkInitialization = () => {
+        if (this.isInitialized) {
+          resolve();
+        } else {
+          setTimeout(checkInitialization, 100);
+        }
+      };
+      checkInitialization();
+    });
   }
 
   /**
@@ -187,6 +265,9 @@ export class AuthManager {
       // Limpar estado local primeiro
       this.stateManager.clearCurrentUser();
       
+      // Limpar token e dados salvos
+      await TokenStorage.clearAll();
+      
       // Fazer logout no Supabase
       const { error } = await supabase.auth.signOut();
       
@@ -297,6 +378,116 @@ export class AuthManager {
     }
     
     return 'UNKNOWN_ERROR';
+  }
+
+  /**
+   * Inicializar AuthManager a partir do storage salvo
+   */
+  private async initializeFromStorage(): Promise<void> {
+    try {
+      this.logger.info('Initializing from storage');
+      
+      const token = await TokenStorage.getToken();
+      const userData = await TokenStorage.getUserData();
+      
+      if (token && userData && TokenStorage.isTokenValid(token)) {
+        this.logger.info('Valid token found, attempting auto login', { userId: userData.id });
+        
+        // Tentar login automático
+        const autoLoginResult = await this.performAutoLogin(userData, token);
+        
+        if (autoLoginResult.success) {
+          this.logger.info('Auto login successful', { userId: userData.id });
+          this.stateManager.setCurrentUser(autoLoginResult.user!);
+        } else {
+          this.logger.warn('Auto login failed, clearing stored data');
+          await TokenStorage.clearAll();
+        }
+      } else {
+        this.logger.info('No valid token found or token expired');
+        await TokenStorage.clearAll();
+      }
+    } catch (error) {
+      this.logger.error('Error initializing from storage', { error: error.message });
+      await TokenStorage.clearAll();
+    }
+  }
+
+  /**
+   * Realizar login automático com dados salvos
+   */
+  private async performAutoLogin(userData: StoredUserData, token: string): Promise<AuthResult> {
+    try {
+      // Verificar se a sessão do Supabase ainda é válida
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        // Tentar renovar a sessão
+        const refreshResult = await this.refreshSession();
+        if (refreshResult.success) {
+          return refreshResult;
+        }
+        throw new Error('Session expired and refresh failed');
+      }
+      
+      // Usar estratégia apropriada para carregar perfil atualizado
+      const strategy = this.strategies.get(userData.role);
+      if (!strategy) {
+        throw new Error(`Unsupported user type: ${userData.role}`);
+      }
+      
+      const currentUser = await strategy.getCurrentUser();
+      if (!currentUser) {
+        throw new Error('Failed to load user profile');
+      }
+      
+      return {
+        success: true,
+        user: currentUser
+      };
+    } catch (error) {
+      this.logger.error('Auto login failed', { error: error.message });
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Salva a sessão do usuário para login persistente
+   */
+  private async saveUserSession(result: any, token?: string): Promise<void> {
+    try {
+      if (!token || !result) {
+        if (__DEV__) {
+          console.log('[AuthManager] Token ou resultado não fornecido para salvamento');
+        }
+        return;
+      }
+
+      const userData = {
+        id: result.id,
+        email: result.email,
+        role: result.role,
+        building_id: result.building_id,
+        apartment_id: result.apartment_id,
+        profile: result.profile
+      };
+
+      // Salva token e dados do usuário separadamente
+      await Promise.all([
+        TokenStorage.saveToken(token),
+        TokenStorage.saveUserData(userData)
+      ]);
+      
+      if (__DEV__) {
+        console.log('[AuthManager] Sessão do usuário salva com sucesso');
+      }
+    } catch (error) {
+      console.error('[AuthManager] Erro ao salvar sessão do usuário:', error);
+      // Não propaga o erro para não interromper o login
+    }
   }
 }
 
