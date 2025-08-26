@@ -101,9 +101,9 @@ const validateDate = (date: string): boolean => {
   return true;
 };
 
-// Função para verificar se a API está configurada (sempre retorna true agora)
-const isEvolutionApiConfigured = (): boolean => {
-  return true; // A API de notificação cuida da configuração
+// Função para verificar se a API local está disponível
+const isLocalApiAvailable = (): boolean => {
+  return true; // A API local está sempre disponível em localhost:3001
 };
 
 // Função para mostrar alerta de configuração (não mais necessária)
@@ -981,7 +981,7 @@ export default function UsersManagement() {
   const handleBulkRegistration = async () => {
     if (!validateBulkResidents()) return;
 
-    if (sendWhatsApp && !isEvolutionApiConfigured()) {
+    if (sendWhatsApp && !isLocalApiAvailable()) {
       showConfigurationAlert();
       return;
     }
@@ -1092,15 +1092,15 @@ export default function UsersManagement() {
   const handleSingleUserWhatsApp = async (userData: any, apartmentIds: string[]) => {
     console.log('📱 [DEBUG] handleSingleUserWhatsApp iniciado');
     console.log('📱 [DEBUG] sendWhatsApp:', sendWhatsApp);
-    console.log('📱 [DEBUG] isEvolutionApiConfigured():', isEvolutionApiConfigured());
+    console.log('📱 [DEBUG] isLocalApiAvailable():', isLocalApiAvailable());
     console.log('📱 [DEBUG] userData:', userData);
     console.log('📱 [DEBUG] apartmentIds:', apartmentIds);
     console.log('📱 [DEBUG] whatsappBaseUrl:', whatsappBaseUrl);
     
-    if (!sendWhatsApp || !isEvolutionApiConfigured()) {
+    if (!sendWhatsApp || !isLocalApiAvailable()) {
       console.log('📱 [DEBUG] Condições não atendidas - retornando sem enviar');
       console.log('📱 [DEBUG] sendWhatsApp:', sendWhatsApp);
-      console.log('📱 [DEBUG] isEvolutionApiConfigured():', isEvolutionApiConfigured());
+      console.log('📱 [DEBUG] isLocalApiAvailable():', isLocalApiAvailable());
       return;
     }
 

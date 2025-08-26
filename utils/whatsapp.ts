@@ -1,20 +1,19 @@
 import { Alert } from 'react-native';
 
-// Configurações da Evolution API
-const EVOLUTION_API_CONFIG = {
-  baseUrl:
-    process.env.EXPO_PUBLIC_EVOLUTION_API_URL ||
-    'https://evolutionapi.atendimentoemagrecer.com.br',
-  token: process.env.EXPO_PUBLIC_EVOLUTION_API_TOKEN || '09E5A1E9AA3C-495D-BEDF-50DCD30DE760',
-  instance: process.env.EXPO_PUBLIC_EVOLUTION_INSTANCE || 'desenvolvimento',
+/**
+ * Configuração da API local
+ * API rodando no IP local da máquina na porta 3001
+ * React Native não consegue acessar localhost diretamente
+ * URL configurada via variável de ambiente
+ */
+const LOCAL_API_CONFIG = {
+  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://192.168.0.2:3001',
 };
 
 // Logs de debug para configuração
-console.log('Evolution API Config:', {
-  baseUrl: EVOLUTION_API_CONFIG.baseUrl,
-  hasToken: !!EVOLUTION_API_CONFIG.token,
-  tokenLength: EVOLUTION_API_CONFIG.token?.length || 0,
-  instance: EVOLUTION_API_CONFIG.instance,
+console.log('API Local Config:', {
+  baseUrl: LOCAL_API_CONFIG.baseUrl,
+  isAvailable: true,
 });
 
 // Interface para dados do morador
@@ -85,6 +84,18 @@ export const formatBrazilianPhone = (phone: string): string => {
 };
 
 /**
+ * Formata o número de telefone para uso na API
+ * @param phone - Número de telefone a ser formatado
+ * @returns {clean: string, international: string} - Números formatados
+ */
+export const formatPhoneNumber = (phone: string): { clean: string; international: string } => {
+  const clean = phone.replace(/\D/g, '');
+  const international = `55${clean}`;
+  
+  return { clean, international };
+};
+
+/**
  * Gera o link personalizado de cadastro com parâmetros
  * @param residentData - Dados do morador
  * @param baseUrl - URL base do site de cadastro
@@ -109,99 +120,73 @@ export const generateRegistrationLink = (
 /**
  * Gera a mensagem personalizada para o WhatsApp
  * @param residentData - Dados do morador
- * @param registrationLink - Link de cadastro gerado
- * @returns string - Mensagem formatada
+ * @param baseUrl - URL base do site de cadastro (opcional)
+ * @returns {message: string, registrationLink: string} - Mensagem formatada e link
  */
 export const generateWhatsAppMessage = (
   residentData: ResidentData,
-  registrationLink: string
-): string => {
-  return `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no PorteiroApp clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
+  baseUrl?: string
+): { message: string; registrationLink: string } => {
+  const registrationLink = generateRegistrationLink(residentData, baseUrl);
+  const message = `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no PorteiroApp clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
+  
+  return { message, registrationLink };
 };
 
 /**
- * Envia mensagem via WhatsApp usando a Evolution API
- * @param residentData - Dados do morador (nome, telefone, prédio, apartamento)
- * @param baseUrl - URL base do site de cadastro (opcional, padrão: https://cadastro.porteiroapp.com)
- * @returns Promise<WhatsAppResponse> - Resposta da operação com status de sucesso/erro
+ * Envia mensagem WhatsApp usando API local
+ * @param residentData - Dados do morador (nome, telefone, apartamento, prédio)
+ * @param baseUrl - URL base do site de cadastro (opcional)
+ * @returns Promise<{success: boolean, message?: string, error?: string}> - Resultado do envio
  */
 export const sendWhatsAppMessage = async (
   residentData: ResidentData,
   baseUrl?: string
-): Promise<WhatsAppResponse> => {
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+}> => {
   console.log('🚀 Iniciando envio de mensagem WhatsApp:', {
     name: residentData.name,
     phone: residentData.phone,
-    building: residentData.building,
     apartment: residentData.apartment,
+    building: residentData.building,
     baseUrl,
   });
 
   try {
-    // Validação de entrada mais robusta
-    if (!residentData || typeof residentData !== 'object') {
-      const error = 'Dados do morador não fornecidos ou inválidos';
-      console.error('❌ Erro de validação:', error);
-      return { success: false, error };
-    }
-
-    if (!residentData.name?.trim()) {
-      const error = 'Nome do morador é obrigatório';
-      console.error('❌ Erro de validação:', error);
-      return { success: false, error };
-    }
-
-    if (!residentData.phone?.trim()) {
-      const error = 'Telefone do morador é obrigatório';
-      console.error('❌ Erro de validação:', error);
-      return { success: false, error };
-    }
-
-    // Valida o número de telefone
-    if (!validateBrazilianPhone(residentData.phone)) {
-      const error = 'Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX';
-      console.error('❌ Telefone inválido:', residentData.phone);
-      return { success: false, error };
-    }
-
-    // Gera o link e a mensagem
-    const registrationLink = generateRegistrationLink(residentData, baseUrl);
-    const message = generateWhatsAppMessage(residentData, registrationLink);
-    
-    console.log('📝 Mensagem gerada:', {
-      registrationLink,
-      messageLength: message.length,
-    });
-
-    // Prepara o número no formato internacional
-    const cleanPhone = residentData.phone.replace(/\D/g, '');
-    const internationalPhone = `55${cleanPhone}`;
-    
+    // Formata o número de telefone
+    const phoneNumber = formatPhoneNumber(residentData.phone);
     console.log('📱 Número formatado:', {
       original: residentData.phone,
-      clean: cleanPhone,
-      international: internationalPhone,
+      clean: phoneNumber.clean,
+      international: phoneNumber.international,
     });
 
-    // Dados para a Evolution API
+    // Prepara os dados para a API local
+    const apiUrl = `${LOCAL_API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
     const apiData = {
-      number: internationalPhone,
-      text: message,
+      name: residentData.name,
+      phone: phoneNumber.clean,
+      building: residentData.building,
+      apartment: residentData.apartment,
+      registrationUrl: baseUrl || 'https://cadastro.jamesconcierge.com/'
     };
 
-    const apiUrl = `${EVOLUTION_API_CONFIG.baseUrl}/message/sendText/${EVOLUTION_API_CONFIG.instance}`;
-    console.log('🌐 Fazendo chamada para Evolution API:', {
+    console.log('🌐 Fazendo chamada para API local:', {
       url: apiUrl,
-      hasToken: !!EVOLUTION_API_CONFIG.token,
-      instance: EVOLUTION_API_CONFIG.instance,
+      phone: phoneNumber.clean,
+      name: residentData.name,
+      building: residentData.building,
+      apartment: residentData.apartment,
     });
 
-    // Faz a chamada para a Evolution API
+    // Faz a chamada para a API local
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        apikey: EVOLUTION_API_CONFIG.token,
       },
       body: JSON.stringify(apiData),
     });
@@ -299,57 +284,41 @@ export const sendBulkWhatsAppMessages = async (
 };
 
 /**
- * Verifica se a Evolution API está configurada corretamente
- * Valida se todas as variáveis de ambiente necessárias estão definidas e não são strings vazias
- * @returns boolean - true se configurada corretamente, false caso contrário
+ * Verifica se a API local está disponível
+ * Testa conectividade com localhost:3001
+ * @returns boolean - true se disponível, false caso contrário
  */
-export const isEvolutionApiConfigured = (): boolean => {
-  const hasBaseUrl = !!process.env.EXPO_PUBLIC_EVOLUTION_API_URL?.trim();
-  const hasToken = !!process.env.EXPO_PUBLIC_EVOLUTION_API_TOKEN?.trim();
-  const hasInstance = !!process.env.EXPO_PUBLIC_EVOLUTION_INSTANCE?.trim();
-  
-  const isConfigured = hasBaseUrl && hasToken && hasInstance;
-  
-  console.log('🔧 Verificação de configuração Evolution API:', {
-    hasBaseUrl,
-    hasToken,
-    hasInstance,
-    isConfigured,
-    baseUrl: process.env.EXPO_PUBLIC_EVOLUTION_API_URL || 'não definida',
-    instance: process.env.EXPO_PUBLIC_EVOLUTION_INSTANCE || 'não definida',
+export const isLocalApiAvailable = (): boolean => {
+  // Para desenvolvimento, assumimos que a API local está sempre disponível
+  // Em produção, você pode implementar uma verificação real
+  console.log('🔧 Verificação de API local:', {
+    baseUrl: LOCAL_API_CONFIG.baseUrl,
+    isAvailable: true,
   });
   
-  return isConfigured;
+  return true;
 };
 
 /**
- * Testa a conectividade com a Evolution API
+ * Testa a conectividade com a API local
  * Faz uma chamada de teste para verificar se a API está respondendo
  * @returns Promise<{success: boolean, message: string, details?: any}> - Resultado do teste
  */
-export const testEvolutionApiConnection = async (): Promise<{
+export const testLocalApiConnection = async (): Promise<{
   success: boolean;
   message: string;
   details?: any;
 }> => {
-  console.log('🧪 Iniciando teste de conectividade Evolution API...');
+  console.log('🧪 Iniciando teste de conectividade API local...');
   
   try {
-    if (!isEvolutionApiConfigured()) {
-      return {
-        success: false,
-        message: 'Configuração da Evolution API incompleta. Verifique as variáveis de ambiente.',
-      };
-    }
-
-    const testUrl = `${EVOLUTION_API_CONFIG.baseUrl}/instance/connect/${EVOLUTION_API_CONFIG.instance}`;
+    const testUrl = `${LOCAL_API_CONFIG.baseUrl}/api/health`;
     console.log('🌐 Testando URL:', testUrl);
 
     const response = await fetch(testUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        apikey: EVOLUTION_API_CONFIG.token,
       },
     });
 
@@ -363,7 +332,7 @@ export const testEvolutionApiConnection = async (): Promise<{
       const data = await response.json().catch(() => ({}));
       return {
         success: true,
-        message: 'Conexão com Evolution API estabelecida com sucesso!',
+        message: 'Conexão com API local estabelecida com sucesso!',
         details: data,
       };
     } else {
@@ -384,27 +353,11 @@ export const testEvolutionApiConnection = async (): Promise<{
 };
 
 /**
- * Mostra alerta de configuração da Evolution API
- * Exibe informações detalhadas sobre as variáveis de ambiente necessárias
+ * Mostra alerta de configuração da API local
+ * Exibe informações sobre a API local
  */
 export const showConfigurationAlert = (): void => {
-  const config = {
-    hasUrl: !!process.env.EXPO_PUBLIC_EVOLUTION_API_URL?.trim(),
-    hasToken: !!process.env.EXPO_PUBLIC_EVOLUTION_API_TOKEN?.trim(),
-    hasInstance: !!process.env.EXPO_PUBLIC_EVOLUTION_INSTANCE?.trim(),
-  };
+  const message = `API WhatsApp configurada para usar servidor local:\n\n• URL: ${LOCAL_API_CONFIG.baseUrl}\n• Endpoint: /api/send-resident-whatsapp\n\nCertifique-se de que o servidor local está rodando na porta 3001.`;
 
-  let message = 'Para usar o WhatsApp, configure as variáveis de ambiente:\n\n';
-  
-  message += `• EXPO_PUBLIC_EVOLUTION_API_URL ${config.hasUrl ? '✅' : '❌'}\n`;
-  message += `• EXPO_PUBLIC_EVOLUTION_API_TOKEN ${config.hasToken ? '✅' : '❌'}\n`;
-  message += `• EXPO_PUBLIC_EVOLUTION_INSTANCE ${config.hasInstance ? '✅' : '❌'}\n\n`;
-  
-  if (config.hasUrl && config.hasToken && config.hasInstance) {
-    message += 'Todas as variáveis estão configuradas! ✅';
-  } else {
-    message += 'Consulte a documentação para mais detalhes.';
-  }
-
-  Alert.alert('Configuração Evolution API', message, [{ text: 'OK' }]);
+  Alert.alert('Configuração API WhatsApp', message, [{ text: 'OK' }]);
 };

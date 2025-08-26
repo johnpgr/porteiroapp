@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { sendWhatsAppMessage, ResidentData } from '../utils/whatsapp';
 
 export interface NotificationData {
   visitor_log_id: string;
@@ -230,6 +231,28 @@ class NotificationService {
     } catch (error) {
       console.error('❌ Erro ao confirmar notificação:', error);
       return false;
+    }
+  }
+
+  /**
+   * Envia mensagem WhatsApp para morador usando a API local configurada dinamicamente
+   */
+  async sendResidentWhatsApp(
+    residentData: ResidentData,
+    baseUrl?: string
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      return await sendWhatsAppMessage(residentData, baseUrl);
+    } catch (error) {
+      console.error('❌ Erro ao enviar WhatsApp via notificationService:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      };
     }
   }
 }

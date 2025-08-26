@@ -20,8 +20,9 @@ import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { useNotifications } from '~/src/hooks/useNotifications';
+import ActivityLogs from './logs';
 
-type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'notificacoes';
+type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'notificacoes' | 'logs';
 
 export default function PorteiroDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -173,63 +174,50 @@ export default function PorteiroDashboard() {
         return;
       }
       
-      // Buscar visitor_logs com notification_status 'approved' do prédio
-      const { data: logs, error: logsError } = await supabase
-        .from('visitor_logs')
+      // Buscar visitantes diretamente da tabela 'visitors' com status aprovado
+      const { data: visitors, error: visitorsError } = await supabase
+        .from('visitors')
         .select(`
           id,
-          visitor_id,
+          name,
+          document,
+          phone,
+          visitor_type,
           apartment_id,
-          log_time,
-          notification_status,
-          visitors!inner(
-            id,
-            name,
-            document,
-            phone,
-            visitor_type
-          ),
+          created_at,
+          status,
           apartments!inner(
             number,
             building_id
           )
         `)
-        .eq('building_id', profile.building_id)
-        .eq('notification_status', 'approved')
-        .order('log_time', { ascending: false })
+        .eq('apartments.building_id', profile.building_id)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false })
         .limit(50);
-
-      // Criar set vazio para visitantes com check-in (funcionalidade removida temporariamente)
-      const checkedInVisitorIds = new Set();
         
-      if (logsError) {
-        console.error('Erro ao carregar visitantes aprovados:', logsError);
+      if (visitorsError) {
+        console.error('Erro ao carregar visitantes aprovados:', visitorsError);
         return;
       }
-      
-      // Filtrar logs excluindo visitantes que já fizeram check-in
-      const filteredLogs = (logs || []).filter(log => 
-        !checkedInVisitorIds.has(log.visitor_id)
-      );
 
       // Transformar dados para o formato esperado pela interface
-      const autorizacoesFormatadas = filteredLogs.map(log => ({
-        id: log.visitor_id,
-        logId: log.id,
-        tipo: 'Visitante',
-        nomeConvidado: log.visitors?.name || 'N/A',
+      const autorizacoesFormatadas = (visitors || []).map(visitor => ({
+        id: visitor.id,
+        tipo: visitor.visitor_type === 'delivery' ? 'Encomenda' : 'Visitante',
+        nomeConvidado: visitor.name || 'N/A',
         moradorAprovador: 'Morador',
-        apartamento: log.apartments?.number || 'N/A',
-        apartamento_id: log.apartment_id,
-        dataAprovacao: new Date(log.log_time).toLocaleDateString('pt-BR'),
-        horaAprovacao: new Date(log.log_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        apartamento: visitor.apartments?.number || 'N/A',
+        apartamento_id: visitor.apartment_id,
+        dataAprovacao: new Date(visitor.created_at).toLocaleDateString('pt-BR'),
+        horaAprovacao: new Date(visitor.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         statusLabel: 'Aprovado',
         statusColor: '#10B981',
         jaAutorizado: false,
-        isEncomenda: false,
-        cpf: log.visitors?.document || '',
-        phone: log.visitors?.phone || '',
-        visitor_type: log.visitors?.visitor_type || 'comum'
+        isEncomenda: visitor.visitor_type === 'delivery',
+        cpf: visitor.document || '',
+        phone: visitor.phone || '',
+        visitor_type: visitor.visitor_type || 'comum'
       }));
       
       setAutorizacoes(autorizacoesFormatadas);
@@ -1336,6 +1324,8 @@ export default function PorteiroDashboard() {
         return renderAvisosTab();
       case 'notificacoes':
         return renderNotificacoesTab();
+      case 'logs':
+        return <ActivityLogs />;
       default:
         return renderChegadaTab();
     }
@@ -1478,6 +1468,27 @@ export default function PorteiroDashboard() {
               </Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={flattenStyles([
+                styles.navItem,
+                activeTab === 'logs' && styles.navItemActive,
+              ])}
+              onPress={() => setActiveTab('logs')}>
+              <Text
+                style={flattenStyles([
+                  styles.navIcon,
+                  activeTab === 'logs' && styles.navIconActive,
+                ])}>
+                📋
+              </Text>
+              <Text
+                style={flattenStyles([
+                  styles.navLabel,
+                  activeTab === 'logs' && styles.navLabelActive,
+                ])}>
+                Logs
+              </Text>
+            </TouchableOpacity>
 
           </View>
         </SafeAreaView>
