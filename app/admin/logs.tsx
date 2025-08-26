@@ -11,7 +11,6 @@ import {
   Platform,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { IOSCompatiblePicker, IOSCompatibleTimePicker } from '../../components/IOSCompatiblePickers';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { router } from 'expo-router';
@@ -49,16 +48,7 @@ export default function SystemLogs() {
     start: null as Date | null,
     end: null as Date | null,
   });
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-  
-  // Estados para modais customizados iOS
-  const [showIOSStartDatePicker, setShowIOSStartDatePicker] = useState(false);
-  const [showIOSEndDatePicker, setShowIOSEndDatePicker] = useState(false);
-  const [showIOSStartTimePicker, setShowIOSStartTimePicker] = useState(false);
-  const [showIOSEndTimePicker, setShowIOSEndTimePicker] = useState(false);
+
   
   const isIOS = Platform.OS === 'ios';
 
@@ -237,31 +227,18 @@ export default function SystemLogs() {
           <View style={styles.filterContainer}>
             <View style={styles.searchTypeContainer}>
               <View style={styles.pickerContainer}>
-                {isIOS ? (
-                  <IOSCompatiblePicker
-                    selectedValue={logSearchType}
-                    onValueChange={setLogSearchType}
-                    items={[
-                      { label: "Buscar em Tudo", value: "all" },
-                      { label: "Buscar Morador", value: "morador" },
-                      { label: "Buscar Porteiro", value: "porteiro" },
-                      { label: "Buscar Prédio", value: "predio" },
-                      { label: "Buscar Ação", value: "acao" }
-                    ]}
-                    placeholder="Selecione o tipo de busca"
-                  />
-                ) : (
-                  <Picker
-                    selectedValue={logSearchType}
-                    onValueChange={setLogSearchType}
-                    style={styles.picker}>
-                    <Picker.Item label="Buscar em Tudo" value="all" />
-                    <Picker.Item label="Buscar Morador" value="morador" />
-                    <Picker.Item label="Buscar Porteiro" value="porteiro" />
-                    <Picker.Item label="Buscar Prédio" value="predio" />
-                    <Picker.Item label="Buscar Ação" value="acao" />
-                  </Picker>
-                )}
+                <IOSCompatiblePicker
+                selectedValue={logSearchType}
+                onValueChange={setLogSearchType}
+                items={[
+                  { label: "Buscar em Tudo", value: "all" },
+                  { label: "Buscar Morador", value: "morador" },
+                  { label: "Buscar Porteiro", value: "porteiro" },
+                  { label: "Buscar Prédio", value: "predio" },
+                  { label: "Buscar Ação", value: "acao" }
+                ]}
+                placeholder="Selecione o tipo de busca"
+              />
               </View>
 
               <TextInput
@@ -273,180 +250,51 @@ export default function SystemLogs() {
             </View>
 
             <View style={styles.pickerContainer}>
-              {isIOS ? (
-                <IOSCompatiblePicker
-                  selectedValue={logBuildingFilter}
-                  onValueChange={setLogBuildingFilter}
-                  items={[
-                    { label: "Todos os Prédios", value: "" },
-                    ...buildings.map((building) => ({
-                      label: building.name,
-                      value: building.name
-                    }))
-                  ]}
-                  placeholder="Selecione o prédio"
-                />
-              ) : (
-                <Picker
-                  selectedValue={logBuildingFilter}
-                  onValueChange={setLogBuildingFilter}
-                  style={styles.picker}>
-                  <Picker.Item label="Todos os Prédios" value="" />
-                  {buildings.map((building) => (
-                    <Picker.Item key={building.id} label={building.name} value={building.name} />
-                  ))}
-                </Picker>
-              )}
+              <IOSCompatiblePicker
+                selectedValue={logBuildingFilter}
+                onValueChange={setLogBuildingFilter}
+                items={[
+                  { label: "Todos os Prédios", value: "" },
+                  ...buildings.map((building) => ({
+                    label: building.name,
+                    value: building.name
+                  }))
+                ]}
+                placeholder="Selecione o prédio"
+              />
             </View>
 
 
 
             <View style={styles.dateFilterContainer}>
               <View style={styles.datePickerGroup}>
-                {isIOS ? (
-                  <IOSCompatibleTimePicker
-                    value={logDateFilter.start || new Date()}
-                    mode="datetime"
-                    onDateChange={(selectedDate) => {
-                      if (selectedDate) {
-                        setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
-                      }
-                    }}
-                    placeholder="Selecione data e hora de início"
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.datePickerButton}
-                      onPress={() => setShowStartDatePicker(true)}>
-                      <Text style={styles.datePickerButtonText}>
-                        📅{' '}
-                        {logDateFilter.start
-                          ? logDateFilter.start.toLocaleDateString('pt-BR')
-                          : 'Data início'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.timePickerButton}
-                      onPress={() => setShowStartTimePicker(true)}>
-                      <Text style={styles.timePickerButtonText}>
-                        🕐{' '}
-                        {logDateFilter.start
-                          ? logDateFilter.start.toLocaleTimeString('pt-BR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'Hora'}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                <IOSCompatibleTimePicker
+                  value={logDateFilter.start || new Date()}
+                  mode="datetime"
+                  onDateChange={(selectedDate) => {
+                    if (selectedDate) {
+                      setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
+                    }
+                  }}
+                  placeholder="Selecione data e hora de início"
+                />
               </View>
 
               <View style={styles.datePickerGroup}>
-                {isIOS ? (
-                  <IOSCompatibleTimePicker
-                    value={logDateFilter.end || new Date()}
-                    mode="datetime"
-                    onDateChange={(selectedDate) => {
-                      if (selectedDate) {
-                        setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
-                      }
-                    }}
-                    placeholder="Selecione data e hora de fim"
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={styles.datePickerButton}
-                      onPress={() => setShowEndDatePicker(true)}>
-                      <Text style={styles.datePickerButtonText}>
-                        📅 {logDateFilter.end ? logDateFilter.end.toLocaleDateString('pt-BR') : 'Data fim'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.timePickerButton}
-                      onPress={() => setShowEndTimePicker(true)}>
-                      <Text style={styles.timePickerButtonText}>
-                        🕐{' '}
-                        {logDateFilter.end
-                          ? logDateFilter.end.toLocaleTimeString('pt-BR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'Hora'}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                <IOSCompatibleTimePicker
+                  value={logDateFilter.end || new Date()}
+                  mode="datetime"
+                  onDateChange={(selectedDate) => {
+                    if (selectedDate) {
+                      setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
+                    }
+                  }}
+                  placeholder="Selecione data e hora de fim"
+                />
               </View>
             </View>
 
-            {!isIOS && showStartDatePicker && (
-              <DateTimePicker
-                value={logDateFilter.start || new Date()}
-                mode="date"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowStartDatePicker(false);
-                  if (selectedDate) {
-                    const currentTime = logDateFilter.start || new Date();
-                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
-                  }
-                }}
-              />
-            )}
 
-            {!isIOS && showStartTimePicker && (
-              <DateTimePicker
-                value={logDateFilter.start || new Date()}
-                mode="time"
-                display="default"
-                onChange={(event, selectedTime) => {
-                  setShowStartTimePicker(false);
-                  if (selectedTime) {
-                    const currentDate = logDateFilter.start || new Date();
-                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, start: currentDate }));
-                  }
-                }}
-              />
-            )}
-
-            {!isIOS && showEndDatePicker && (
-              <DateTimePicker
-                value={logDateFilter.end || new Date()}
-                mode="date"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowEndDatePicker(false);
-                  if (selectedDate) {
-                    const currentTime = logDateFilter.end || new Date();
-                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
-                  }
-                }}
-              />
-            )}
-
-            {!isIOS && showEndTimePicker && (
-              <DateTimePicker
-                value={logDateFilter.end || new Date()}
-                mode="time"
-                display="default"
-                onChange={(event, selectedTime) => {
-                  setShowEndTimePicker(false);
-                  if (selectedTime) {
-                    const currentDate = logDateFilter.end || new Date();
-                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, end: currentDate }));
-                  }
-                }}
-              />
-            )}
           </View>
 
           <View style={styles.tabsContainer}>
