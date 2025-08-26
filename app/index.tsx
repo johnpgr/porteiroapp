@@ -32,12 +32,12 @@ export default function Home() {
             </TouchableOpacity>
           </Link>
 
-          <Link href="/visitante" asChild>
+          {/* <Link href="/visitante" asChild>
             <TouchableOpacity style={flattenStyles([styles.button, styles.visitanteButton])}>
               <Text style={styles.buttonIcon}>👋</Text>
               <Text style={styles.buttonText}>Visitante</Text>
             </TouchableOpacity>
-          </Link>
+          </Link> */}
         </View>
       </View>
     </Container>

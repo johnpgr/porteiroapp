@@ -31,6 +31,7 @@ interface VisitorHistory {
   notification_status: 'approved' | 'pending' | 'denied';
   visitor_document?: string;
   visitor_phone?: string;
+  delivery_destination?: string;
 }
 
 export default function MoradorDashboard() {
@@ -130,6 +131,7 @@ export default function MoradorDashboard() {
           tipo_log,
           purpose,
           notification_status,
+          delivery_destination,
           visitors (
             id,
             name,
@@ -178,7 +180,8 @@ export default function MoradorDashboard() {
           visitor_name: log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
           purpose: log.purpose || 'Não informado',
           log_time: log.log_time,
-          notification_status: log.notification_status || 'pending'
+          notification_status: log.notification_status || 'pending',
+          delivery_destination: log.delivery_destination
         };
       }) || [];
       
@@ -405,11 +408,22 @@ export default function MoradorDashboard() {
         )}
 
         {!loadingHistory && !historyError && visitorsHistory.map((visitor) => (
-          <View key={visitor.id} style={styles.historyCard}>
+          <View key={visitor.id} style={[
+            styles.historyCard,
+            visitor.purpose?.includes('entrega') && styles.deliveryHistoryCard
+          ]}>
             <Text style={styles.historyTitle}>{visitor.visitor_name}</Text>
             <Text style={styles.historyDetails}>
               {visitor.purpose} • {formatDate(visitor.log_time)}
             </Text>
+            {visitor.purpose?.includes('entrega') && visitor.delivery_destination && (
+              <Text style={[
+                styles.deliveryDestination,
+                visitor.delivery_destination === 'portaria' ? styles.porterDestination : styles.elevatorDestination
+              ]}>
+                {visitor.delivery_destination === 'portaria' ? '📦 Deixada na portaria' : '📦 Enviada pelo elevador'}
+              </Text>
+            )}
             <Text style={styles.historyStatus}>
               {getStatusIcon(visitor.notification_status)} {getStatusText(visitor.notification_status)}
             </Text>
@@ -707,6 +721,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4CAF50',
     fontWeight: 'bold',
+  },
+  deliveryHistoryCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+    backgroundColor: '#f8fbff',
+  },
+  deliveryDestination: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  porterDestination: {
+    backgroundColor: '#e3f2fd',
+    color: '#1976d2',
+    borderWidth: 1,
+    borderColor: '#bbdefb',
+  },
+  elevatorDestination: {
+    backgroundColor: '#f3e5f5',
+    color: '#7b1fa2',
+    borderWidth: 1,
+    borderColor: '#ce93d8',
   },
 
 
