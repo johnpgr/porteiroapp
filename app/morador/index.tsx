@@ -175,7 +175,7 @@ export default function MoradorDashboard() {
         
         return {
           id: log.id,
-          visitor_name: log.visitors?.name || 'Visitante não identificado',
+          visitor_name: log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
           purpose: log.purpose || 'Não informado',
           log_time: log.log_time,
           notification_status: log.notification_status || 'pending'

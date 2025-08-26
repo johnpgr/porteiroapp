@@ -255,10 +255,15 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
     setResponding(false);
   };
 
+  // Verificar se é uma entrega baseado no purpose
+  const isDelivery = notification.purpose && notification.purpose.toLowerCase().includes('entrega');
+
   return (
-    <View style={styles.notificationCard}>
+    <View style={[styles.notificationCard, isDelivery && styles.deliveryCard]}>
       <View style={styles.notificationHeader}>
-        <Text style={styles.notificationTitle}>{getNotificationTitle()}</Text>
+        <Text style={[styles.notificationTitle, isDelivery && styles.deliveryTitle]}>
+          {isDelivery ? '📦 ' : ''}{getNotificationTitle()}
+        </Text>
         <Text style={styles.notificationTime}>
           {getTimeAgo(notification.notification_sent_at)}
         </Text>
@@ -268,23 +273,31 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         <Text style={styles.notificationDetails}>{getNotificationDetails()}</Text>
       )}
       
+      {isDelivery && (
+        <View style={styles.deliveryInfo}>
+          <Text style={styles.deliveryInfoText}>🚚 Entrega aguardando destino</Text>
+        </View>
+      )}
+      
       <View style={styles.notificationActions}>
-        {notification.entry_type === 'delivery' ? (
+        {isDelivery ? (
           // Botões específicos para entregas
           <>
             <TouchableOpacity
               style={[styles.actionButton, styles.porterButton]}
               onPress={handleDeliveryPortaria}
               disabled={responding}
+              activeOpacity={0.8}
             >
-              <Text style={styles.actionButtonText}>Deixar na portaria</Text>
+              <Text style={styles.actionButtonText}>🏢 Deixar na portaria</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.elevatorButton]}
               onPress={handleDeliveryElevador}
               disabled={responding}
+              activeOpacity={0.8}
             >
-              <Text style={styles.actionButtonText}>Enviar pelo elevador</Text>
+              <Text style={styles.actionButtonText}>🛗 Enviar pelo elevador</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -489,15 +502,43 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
   },
   porterButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginHorizontal: 8,
+    flex: 1,
+    alignItems: 'center',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#45a049',
   },
   elevatorButton: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: '#2196F3',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginHorizontal: 8,
+    flex: 1,
+    alignItems: 'center',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#1976D2',
   },
   actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#000',
+    fontWeight: '700',
+    textAlign: 'center',
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   modalOverlay: {
     flex: 1,
@@ -571,5 +612,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  // Estilos específicos para card de entrega
+  deliveryCard: {
+    borderLeftColor: '#FF9800',
+    backgroundColor: '#fff8e1',
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+  },
+  deliveryTitle: {
+    color: '#E65100',
+    fontWeight: 'bold',
+  },
+  deliveryInfo: {
+    backgroundColor: '#FFF3E0',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9800',
+  },
+  deliveryInfoText: {
+    fontSize: 13,
+    color: '#E65100',
+    fontWeight: '600',
   },
 });
