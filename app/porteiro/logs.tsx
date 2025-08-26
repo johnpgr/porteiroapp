@@ -354,12 +354,10 @@ export default function ActivityLogs() {
     } else if (diffInHours < 24) {
       return `${Math.floor(diffInHours)}h atrás`;
     } else {
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      // Manual date formatting to avoid Hermes locale issues
+      const day = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      return `${day} ${time}`;
     }
   };
 

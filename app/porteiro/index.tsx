@@ -206,8 +206,15 @@ export default function PorteiroDashboard() {
         moradorAprovador: 'Morador',
         apartamento: visitor.apartments?.number || 'N/A',
         apartamento_id: visitor.apartment_id,
-        dataAprovacao: new Date(visitor.created_at).toLocaleDateString('pt-BR'),
-        horaAprovacao: new Date(visitor.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        // Manual date/time formatting to avoid Hermes locale issues
+        dataAprovacao: (() => {
+          const date = new Date(visitor.created_at);
+          return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+        })(),
+        horaAprovacao: (() => {
+          const date = new Date(visitor.created_at);
+          return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        })(),
         statusLabel: 'Aprovado',
         statusColor: '#10B981',
         jaAutorizado: false,
@@ -504,7 +511,11 @@ export default function PorteiroDashboard() {
       // Validar horários permitidos
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 5); // HH:MM
-      const currentDay = now.toLocaleDateString('en-US', { weekday: 'lowercase' });
+      
+      // Manual day extraction to avoid Hermes locale issues
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const currentDay = dayNames[now.getDay()];
+      
       const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
       // Verificar se há restrições de horário
@@ -521,9 +532,14 @@ export default function PorteiroDashboard() {
       // Verificar data específica para visitas pontuais
       if (autorizacao.visit_type === 'pontual' && autorizacao.visit_date) {
         if (currentDate !== autorizacao.visit_date) {
+          // Manual date formatting to avoid Hermes locale issues
+          const visitDate = new Date(autorizacao.visit_date);
+          const visitDateFormatted = `${visitDate.getDate().toString().padStart(2, '0')}/${(visitDate.getMonth() + 1).toString().padStart(2, '0')}/${visitDate.getFullYear()}`;
+          const currentDateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+          
           Alert.alert(
             'Data não permitida',
-            `Este visitante só pode entrar na data: ${new Date(autorizacao.visit_date).toLocaleDateString('pt-BR')}\n\nData atual: ${now.toLocaleDateString('pt-BR')}`
+            `Este visitante só pode entrar na data: ${visitDateFormatted}\n\nData atual: ${currentDateFormatted}`
           );
           return;
         }
@@ -545,9 +561,20 @@ export default function PorteiroDashboard() {
             return dayMap[day] || day;
           }).join(', ');
           
+          // Manual day name formatting to avoid Hermes locale issues
+          const currentDayPortuguese = {
+            'sunday': 'Domingo',
+            'monday': 'Segunda-feira',
+            'tuesday': 'Terça-feira',
+            'wednesday': 'Quarta-feira',
+            'thursday': 'Quinta-feira',
+            'friday': 'Sexta-feira',
+            'saturday': 'Sábado'
+          }[currentDay] || currentDay;
+          
           Alert.alert(
             'Dia não permitido',
-            `Este visitante frequente só pode entrar nos dias: ${allowedDaysPortuguese}\n\nHoje é: ${now.toLocaleDateString('pt-BR', { weekday: 'long' })}`
+            `Este visitante frequente só pode entrar nos dias: ${allowedDaysPortuguese}\n\nHoje é: ${currentDayPortuguese}`
           );
           return;
         }
@@ -737,7 +764,10 @@ export default function PorteiroDashboard() {
                     
                     {autorizacao.visit_type === 'pontual' && autorizacao.visit_date && (
                       <Text style={styles.authCardDate}>
-                        📅 Data específica: {new Date(autorizacao.visit_date).toLocaleDateString('pt-BR')}
+                        📅 Data específica: {(() => {
+                  const date = new Date(autorizacao.visit_date);
+                  return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+                })()}
                       </Text>
                     )}
                     
@@ -1324,8 +1354,9 @@ export default function PorteiroDashboard() {
 
     const formatDateTime = (dateString: string) => {
       const date = new Date(dateString);
-      const day = date.toLocaleDateString('pt-BR');
-      const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      // Manual date/time formatting to avoid Hermes locale issues
+    const day = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+    const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
       return { day, time };
     };
 
