@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function PoliticasPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -100,12 +102,12 @@ export default function PoliticasPage() {
           </div>
 
           <div className="mt-12 pt-8 border-t border-gray-200">
-            <a 
+            <Link 
               href="/" 
               className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
             >
               ← Voltar ao início
-            </a>
+            </Link>
           </div>
         </div>
       </main>

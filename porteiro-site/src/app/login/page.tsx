@@ -141,7 +141,7 @@ export default function LoginPage() {
         setMessage('Login realizado com sucesso!');
         setMessageType('success');
       }
-    } catch (error) {
+    } catch {
       setMessage('Erro inesperado durante o login');
       setMessageType('error');
     } finally {
@@ -154,7 +154,7 @@ export default function LoginPage() {
       await supabase.auth.signOut();
       setMessage('Logout realizado com sucesso!');
       setMessageType('success');
-    } catch (error) {
+    } catch {
       setMessage('Erro ao fazer logout');
       setMessageType('error');
     }
@@ -197,7 +197,7 @@ export default function LoginPage() {
       setEditMode(false);
       setMessage('Perfil atualizado com sucesso!');
       setMessageType('success');
-    } catch (error) {
+    } catch {
       setMessage('Erro inesperado ao atualizar perfil');
       setMessageType('error');
     } finally {
@@ -247,7 +247,7 @@ export default function LoginPage() {
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
-    } catch (error) {
+    } catch {
       setMessage('Erro inesperado ao excluir conta');
       setMessageType('error');
     } finally {

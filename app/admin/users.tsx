@@ -367,7 +367,7 @@ export default function UsersManagement() {
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkResidents, setBulkResidents] = useState<ResidentData[]>([]);
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
-  const [whatsappBaseUrl, setWhatsappBaseUrl] = useState('https://cadastro.porteiroapp.com');
+  const [whatsappBaseUrl, setWhatsappBaseUrl] = useState('https://cadastro.jamesavisa.com');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);

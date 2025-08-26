@@ -163,7 +163,7 @@ export default function HelpScreen() {
               <View style={styles.contactButtons}>
                 <TouchableOpacity
                   style={styles.contactButton}
-                  onPress={() => handleEmail('suporte@porteiroapp.com')}>
+                  onPress={() => handleEmail('suporte@jamesavisa.com')}>
                   <Ionicons name="mail" size={16} color="#FF9800" />
                   <Text style={[styles.contactButtonText, { color: '#FF9800' }]}>E-mail</Text>
                 </TouchableOpacity>
@@ -172,7 +172,7 @@ export default function HelpScreen() {
                   onPress={() =>
                     handleWhatsApp(
                       '5511987654321',
-                      'Preciso de suporte técnico para o PorteiroApp.'
+                      'Preciso de suporte técnico para o James Avisa.'
                     )
                   }>
                   <Ionicons name="logo-whatsapp" size={16} color="#25D366" />
@@ -244,7 +244,7 @@ export default function HelpScreen() {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoTitle}>PorteiroApp</Text>
+          <Text style={styles.appInfoTitle}>James Avisa</Text>
           <Text style={styles.appInfoVersion}>Versão 1.0.0</Text>
           <Text style={styles.appInfoDescription}>
             Sistema inteligente de gestão de visitantes para prédios residenciais

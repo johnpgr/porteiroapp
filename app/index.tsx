@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <Container>
       <View style={styles.container}>
-        <Text style={styles.title}>🏢 PorteiroApp</Text>
+        <Text style={styles.title}>🏢 James Avisa</Text>
         <Text style={styles.subtitle}>Selecione seu perfil de acesso</Text>
 
         <View style={styles.buttonsContainer}>
