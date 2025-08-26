@@ -21,7 +21,7 @@ import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { useNotifications } from '~/src/hooks/useNotifications';
 
-type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'historico' | 'notificacoes';
+type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'notificacoes';
 
 export default function PorteiroDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -53,10 +53,6 @@ export default function PorteiroDashboard() {
   const [communications, setCommunications] = useState<any[]>([]);
   const [loadingCommunications, setLoadingCommunications] = useState(false);
   
-  // Estados para a aba Histórico
-  const [visitorLogs, setVisitorLogs] = useState<any[]>([]);
-  const [loadingVisitorLogs, setLoadingVisitorLogs] = useState(false);
-
   // Estados para a aba Autorizações
   const [autorizacoes, setAutorizacoes] = useState<any[]>([]);
   const [loadingAutorizacoes, setLoadingAutorizacoes] = useState(false);
@@ -154,47 +150,6 @@ export default function PorteiroDashboard() {
       console.error('Erro ao carregar comunicados:', error);
     } finally {
       setLoadingCommunications(false);
-    }
-  }, [user]);
-
-  // Função para carregar histórico de visitantes
-  const loadVisitorLogs = useCallback(async () => {
-    if (!user) return;
-    
-    try {
-      setLoadingVisitorLogs(true);
-      
-      // Buscar o building_id do porteiro
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('building_id')
-        .eq('id', user.id)
-        .eq('user_type', 'porteiro')
-        .single();
-        
-      if (profileError || !profile?.building_id) {
-        console.error('Erro ao buscar building_id do porteiro:', profileError);
-        return;
-      }
-      
-      // Buscar logs de visitantes do prédio - consulta simples sem joins
-      const { data: logs, error: logsError } = await supabase
-        .from('visitor_logs')
-        .select('id, visitor_id, apartment_id, log_time, tipo_log, purpose, notification_status')
-        .eq('building_id', profile.building_id)
-        .order('log_time', { ascending: false })
-        .limit(50);
-        
-      if (logsError) {
-        console.error('Erro ao carregar logs de visitantes:', logsError);
-        return;
-      }
-      
-      setVisitorLogs(logs || []);
-    } catch (error) {
-      console.error('Erro ao carregar logs de visitantes:', error);
-    } finally {
-      setLoadingVisitorLogs(false);
     }
   }, [user]);
 
@@ -393,13 +348,6 @@ export default function PorteiroDashboard() {
       loadCommunications();
     }
   }, [activeTab, user, loadCommunications]);
-
-  // Carregar histórico de visitantes quando a aba histórico for ativada
-  useEffect(() => {
-    if (activeTab === 'historico' && user) {
-      loadVisitorLogs();
-    }
-  }, [activeTab, user, loadVisitorLogs]);
 
   // Carregar autorizações quando a aba autorizações for ativada
   useEffect(() => {
@@ -1351,111 +1299,6 @@ export default function PorteiroDashboard() {
     );
   };
 
-  const renderHistoricoTab = () => {
-    const getIconeTipoLog = (tipoLog: string) => {
-      switch (tipoLog) {
-        case 'IN':
-          return '🔵'; // Entrada
-        case 'OUT':
-          return '🔴'; // Saída
-        default:
-          return '👤';
-      }
-    };
-
-    const getCorStatus = (notification_status: string) => {
-      switch (notification_status) {
-        case 'approved':
-        case 'completed':
-          return '#4CAF50';
-        case 'pending':
-          return '#FF9800';
-        case 'rejected':
-          return '#F44336';
-        default:
-          return '#666';
-      }
-    };
-
-    const formatDateTime = (dateTime: string) => {
-      const date = new Date(dateTime);
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${day}/${month}/${year} às ${hours}:${minutes}`;
-    };
-
-    if (loadingVisitorLogs) {
-      return (
-        <ScrollView style={styles.tabContent}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>📚 Histórico</Text>
-            <Text style={styles.headerSubtitle}>Registros de visitantes</Text>
-          </View>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando histórico...</Text>
-          </View>
-        </ScrollView>
-      );
-    }
-
-    return (
-      <ScrollView style={styles.tabContent}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>📚 Histórico</Text>
-          <Text style={styles.headerSubtitle}>Registros de visitantes</Text>
-        </View>
-
-        <View style={styles.buttonsContainer}>
-          {visitorLogs.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.historicoEmptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
-              <Text style={styles.emptySubtitle}>Os registros de visitantes aparecerão aqui</Text>
-            </View>
-          ) : (
-            visitorLogs.map((log) => (
-              <View
-                key={log.id}
-                style={flattenStyles([
-                  styles.historicoCard,
-                  { borderLeftColor: getCorStatus(log.notification_status) },
-                ])}>
-                <View style={styles.historicoHeader}>
-                  <Text style={styles.historicoIcon}>{getIconeTipoLog(log.tipo_log)}</Text>
-                  <View style={styles.historicoInfo}>
-                    <Text style={styles.historicoAcao}>
-                      Visitante ID: {log.visitor_id} - Apt. ID: {log.apartment_id}
-                    </Text>
-                    <Text style={styles.historicoDetalhes}>
-                      {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}
-                      {log.purpose ? ` - ${log.purpose}` : ''}
-                    </Text>
-                    <Text style={styles.historicoDateTime}>
-                      {formatDateTime(log.log_time)}
-                    </Text>
-                  </View>
-                  <View
-                    style={flattenStyles([
-                      styles.historicoStatusBadge,
-                      { backgroundColor: getCorStatus(log.notification_status) },
-                    ])}>
-                    <Text style={styles.statusText}>
-                      {log.notification_status === 'approved' || log.notification_status === 'completed' ? '✓' : 
-                       log.notification_status === 'pending' ? '⏳' : '✗'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-    );
-  };
-
   // Função para renderizar a aba de notificações
   const renderNotificacoesTab = () => {
     return (
@@ -1491,8 +1334,6 @@ export default function PorteiroDashboard() {
         return renderConsultaTab();
       case 'avisos':
         return renderAvisosTab();
-      case 'historico':
-        return renderHistoricoTab();
       case 'notificacoes':
         return renderNotificacoesTab();
       default:
@@ -1637,27 +1478,7 @@ export default function PorteiroDashboard() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'historico' && styles.navItemActive,
-              ])}
-              onPress={() => setActiveTab('historico')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'historico' && styles.navIconActive,
-                ])}>
-                📚
-              </Text>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'historico' && styles.navLabelActive,
-                ])}>
-                Histórico
-              </Text>
-            </TouchableOpacity>
+
           </View>
         </SafeAreaView>
       )}
@@ -2060,46 +1881,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'justify',
   },
-  // Estilos para histórico
-  historicoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  historicoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  historicoIcon: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  historicoInfo: {
-    flex: 1,
-  },
-  historicoAcao: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  historicoDetalhes: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  historicoDateTime: {
-    fontSize: 12,
-    color: '#999',
-  },
+
   statusBadge: {
     width: 24,
     height: 24,
@@ -2327,17 +2109,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  historicoStatusBadge: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  statusBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
+
   moradorMainInfo: {
     padding: 20,
     borderBottomWidth: 1,
@@ -2586,10 +2358,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 20,
   },
-  historicoEmptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
+
   emptyTitle: {
     fontSize: 20,
     fontWeight: 'bold',

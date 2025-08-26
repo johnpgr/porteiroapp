@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
+import { useAuth } from '~/hooks/useAuth';
 
 interface VisitorLog {
   id: string;
@@ -18,6 +19,17 @@ interface VisitorLog {
   apartments?: {
     number: string;
   };
+}
+
+// Interface para logs de visitantes do histórico (index.tsx)
+interface HistoricoVisitorLog {
+  id: string;
+  visitor_id: string;
+  apartment_id: string;
+  log_time: string;
+  tipo_log: string;
+  purpose?: string;
+  notification_status: string;
 }
 
 interface DeliveryLog {
@@ -50,14 +62,96 @@ type LogEntry = {
 };
 
 export default function ActivityLogs() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'visitor' | 'delivery'>('all');
+  const [filter, setFilter] = useState<'all' | 'visitor' | 'delivery' | 'historico'>('all');
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  
+  // Estados específicos para histórico de visitantes (transferidos do index.tsx)
+  const [visitorLogs, setVisitorLogs] = useState<HistoricoVisitorLog[]>([]);
+  const [loadingVisitorLogs, setLoadingVisitorLogs] = useState(false);
 
   useEffect(() => {
     fetchLogs();
   }, [filter, timeFilter, fetchLogs]);
+
+  // Função transferida do index.tsx para carregar logs de visitantes do histórico
+  const loadVisitorLogs = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingVisitorLogs(true);
+      
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
+      // Buscar logs de visitantes do prédio - consulta simples sem joins
+      const { data: logs, error: logsError } = await supabase
+        .from('visitor_logs')
+        .select('id, visitor_id, apartment_id, log_time, tipo_log, purpose, notification_status')
+        .eq('building_id', profile.building_id)
+        .order('log_time', { ascending: false })
+        .limit(50);
+        
+      if (logsError) {
+        console.error('Erro ao carregar logs de visitantes:', logsError);
+        return;
+      }
+      
+      setVisitorLogs(logs || []);
+    } catch (error) {
+      console.error('Erro ao carregar logs de visitantes:', error);
+    } finally {
+      setLoadingVisitorLogs(false);
+    }
+  }, [user]);
+
+  // Funções auxiliares transferidas do index.tsx
+  const getIconeTipoLog = (tipoLog: string) => {
+    switch (tipoLog) {
+      case 'IN':
+        return '🔵'; // Entrada
+      case 'OUT':
+        return '🔴'; // Saída
+      default:
+        return '👤';
+    }
+  };
+
+  const getCorStatus = (notification_status: string) => {
+    switch (notification_status) {
+      case 'approved':
+      case 'completed':
+        return '#4CAF50';
+      case 'pending':
+        return '#FF9800';
+      case 'rejected':
+        return '#F44336';
+      default:
+        return '#666';
+    }
+  };
+
+  const formatDateTimeHistorico = (dateTime: string) => {
+    const date = new Date(dateTime);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${day}/${month}/${year} às ${hours}:${minutes}`;
+  };
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -240,6 +334,7 @@ export default function ActivityLogs() {
 
   const getFilterCount = (filterType: string) => {
     if (filterType === 'all') return logs.length;
+    if (filterType === 'historico') return visitorLogs.length;
     return logs.filter((log) => log.type === filterType).length;
   };
 
@@ -308,6 +403,7 @@ export default function ActivityLogs() {
                 { key: 'all', label: 'Todas', icon: '📋' },
                 { key: 'visitor', label: 'Visitantes', icon: '👥' },
                 { key: 'delivery', label: 'Encomendas', icon: '📦' },
+                { key: 'historico', label: 'Histórico', icon: '📊' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
@@ -366,10 +462,55 @@ export default function ActivityLogs() {
         </View>
 
         <ScrollView style={styles.logsList}>
-          {loading ? (
+          {(loading || (filter === 'historico' && loadingVisitorLogs)) ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Carregando histórico...</Text>
             </View>
+          ) : filter === 'historico' ? (
+            visitorLogs.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>📊</Text>
+                <Text style={styles.emptyText}>Nenhum histórico encontrado</Text>
+              </View>
+            ) : (
+              visitorLogs.map((log) => (
+                <View key={log.id} style={styles.historicoCard}>
+                  <View style={styles.historicoHeader}>
+                    <Text style={styles.historicoIcon}>
+                      {getIconeTipoLog(log.tipo_log)}
+                    </Text>
+                    <View style={styles.historicoInfo}>
+                      <Text style={styles.historicoAcao}>
+                        {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'} de Visitante
+                      </Text>
+                      <Text style={styles.historicoDetalhes}>
+                        Apartamento: {log.apartment_id}
+                      </Text>
+                      {log.purpose && (
+                        <Text style={styles.historicoDetalhes}>
+                          Motivo: {log.purpose}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.historicoDateTime}>
+                    <Text style={styles.historicoDateTime}>
+                      {formatDateTimeHistorico(log.log_time)}
+                    </Text>
+                    <View style={[
+                      styles.historicoStatusBadge,
+                      { backgroundColor: getCorStatus(log.notification_status) }
+                    ]}>
+                      <Text style={styles.statusBadgeText}>
+                        {log.notification_status === 'approved' ? 'Aprovado' :
+                         log.notification_status === 'pending' ? 'Pendente' :
+                         log.notification_status === 'rejected' ? 'Rejeitado' : 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )
           ) : logs.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📋</Text>
@@ -589,6 +730,62 @@ const styles = StyleSheet.create({
   expandText: {
     fontSize: 11,
     color: '#999',
+    fontWeight: '600',
+  },
+  
+  // Estilos transferidos do index.tsx para o histórico
+  historicoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  historicoHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  historicoIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  historicoInfo: {
+    flex: 1,
+  },
+  historicoAcao: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  historicoDetalhes: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  historicoDateTime: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  historicoStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
   },
 });
