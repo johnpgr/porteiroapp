@@ -28,26 +28,19 @@ interface Profile {
 
 interface AdminProfile {
   id: string;
-  user_id: string | null;
-  full_name: string;
+  user_id: string;
+  name: string;
   email: string;
-  role: string | null;
-  is_active: boolean | null;
+  phone: string | null;
+  role: string;
   created_at: string;
   updated_at: string;
-  phone: string | null;
-  cpf: string | null;
-  birth_date: string | null;
-  address: string | null;
-  avatar_url: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_phone: string | null;
 }
 
 type UserProfile = Profile | AdminProfile;
 
 function isAdminProfile(profile: UserProfile): profile is AdminProfile {
-  return 'is_active' in profile;
+  return 'name' in profile && !('full_name' in profile);
 }
 
 export default function LoginPage() {
@@ -175,19 +168,24 @@ export default function LoginPage() {
 
     try {
       const tableName = isAdminProfile(profile) ? 'admin_profiles' : 'profiles';
-      const updateData = {
-        full_name: editedProfile.full_name,
-        phone: editedProfile.phone,
-        address: editedProfile.address,
-        birth_date: editedProfile.birth_date,
-        emergency_contact_name: editedProfile.emergency_contact_name,
-        emergency_contact_phone: editedProfile.emergency_contact_phone,
-      };
+      const updateData = isAdminProfile(profile) 
+        ? {
+            name: (editedProfile as Partial<AdminProfile>).name || (editedProfile as Partial<Profile>).full_name,
+            phone: editedProfile.phone,
+          }
+        : {
+            full_name: (editedProfile as Partial<Profile>).full_name,
+            phone: editedProfile.phone,
+            address: (editedProfile as Partial<Profile>).address,
+            birth_date: (editedProfile as Partial<Profile>).birth_date,
+            emergency_contact_name: (editedProfile as Partial<Profile>).emergency_contact_name,
+            emergency_contact_phone: (editedProfile as Partial<Profile>).emergency_contact_phone,
+          };
 
       const { error } = await supabase
         .from(tableName)
         .update(updateData)
-        .eq('user_id', profile.user_id);
+        .eq('user_id', profile.user_id!);
 
       if (error) {
         setMessage('Erro ao atualizar perfil: ' + error.message);
@@ -195,7 +193,7 @@ export default function LoginPage() {
         return;
       }
 
-      setProfile({ ...profile, ...editedProfile });
+      setProfile({ ...profile, ...editedProfile } as UserProfile);
       setEditMode(false);
       setMessage('Perfil atualizado com sucesso!');
       setMessageType('success');
@@ -304,12 +302,18 @@ export default function LoginPage() {
                     {editMode ? (
                       <input
                         type="text"
-                        value={editedProfile.full_name || ''}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, full_name: e.target.value })}
+                        value={isAdminProfile(profile) ? ((editedProfile as Partial<AdminProfile>).name || '') : ((editedProfile as Partial<Profile>).full_name || '')}
+                        onChange={(e) => {
+                          if (isAdminProfile(profile)) {
+                            setEditedProfile({ ...editedProfile, name: e.target.value } as Partial<UserProfile>);
+                          } else {
+                            setEditedProfile({ ...editedProfile, full_name: e.target.value } as Partial<UserProfile>);
+                          }
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     ) : (
-                      <p className="text-gray-900">{profile.full_name || 'Não informado'}</p>
+                      <p className="text-gray-900">{isAdminProfile(profile) ? (profile.name || 'Não informado') : (profile.full_name || 'Não informado')}</p>
                     )}
                   </div>
 
@@ -338,22 +342,24 @@ export default function LoginPage() {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Data de Nascimento
-                    </label>
-                    {editMode ? (
-                      <input
-                        type="date"
-                        value={editedProfile.birth_date || ''}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, birth_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    ) : (
-                      <p className="text-gray-900">{profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('pt-BR') : 'Não informado'}</p>
-                    )}
-                  </div>
+                  {!isAdminProfile(profile) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                        <Calendar className="h-4 w-4 mr-1" />
+                        Data de Nascimento
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="date"
+                          value={(editedProfile as Partial<Profile>).birth_date || ''}
+                          onChange={(e) => setEditedProfile({ ...editedProfile, birth_date: e.target.value } as Partial<UserProfile>)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('pt-BR') : 'Não informado'}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Additional Info */}
@@ -363,49 +369,53 @@ export default function LoginPage() {
                     Informações Adicionais
                   </h3>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
-                    {editMode ? (
-                      <textarea
-                        value={editedProfile.address || ''}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, address: e.target.value })}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    ) : (
-                      <p className="text-gray-900">{profile.address || 'Não informado'}</p>
-                    )}
-                  </div>
+                  {!isAdminProfile(profile) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                      {editMode ? (
+                        <textarea
+                          value={(editedProfile as Partial<Profile>).address || ''}
+                          onChange={(e) => setEditedProfile({ ...editedProfile, address: e.target.value } as Partial<UserProfile>)}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <p className="text-gray-900">{profile.address || 'Não informado'}</p>
+                      )}
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                      <UserCheck className="h-4 w-4 mr-1" />
-                      Contato de Emergência
-                    </label>
-                    {editMode ? (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          placeholder="Nome"
-                          value={editedProfile.emergency_contact_name || ''}
-                          onChange={(e) => setEditedProfile({ ...editedProfile, emergency_contact_name: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Telefone"
-                          value={editedProfile.emergency_contact_phone || ''}
-                          onChange={(e) => setEditedProfile({ ...editedProfile, emergency_contact_phone: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-gray-900">{profile.emergency_contact_name || 'Não informado'}</p>
-                        <p className="text-gray-600 text-sm">{profile.emergency_contact_phone || ''}</p>
-                      </div>
-                    )}
-                  </div>
+                  {!isAdminProfile(profile) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+                        <UserCheck className="h-4 w-4 mr-1" />
+                        Contato de Emergência
+                      </label>
+                      {editMode ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Nome"
+                            value={(editedProfile as Partial<Profile>).emergency_contact_name || ''}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, emergency_contact_name: e.target.value } as Partial<UserProfile>)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <input
+                            type="tel"
+                            placeholder="Telefone"
+                            value={(editedProfile as Partial<Profile>).emergency_contact_phone || ''}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, emergency_contact_phone: e.target.value } as Partial<UserProfile>)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-gray-900">{profile.emergency_contact_name || 'Não informado'}</p>
+                          <p className="text-gray-600 text-sm">{profile.emergency_contact_phone || ''}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Usuário</label>
@@ -432,11 +442,9 @@ export default function LoginPage() {
 
                   {isAdminProfile(profile) && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <p className={`text-gray-900 font-semibold ${
-                        profile.is_active ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {profile.is_active ? 'Ativo' : 'Inativo'}
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Função</label>
+                      <p className="text-gray-900 font-semibold text-blue-600">
+                        {profile.role || 'Administrador'}
                       </p>
                     </div>
                   )}
