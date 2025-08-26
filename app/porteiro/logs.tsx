@@ -5,6 +5,7 @@ import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
+import { useNotifications } from '~/src/hooks/useNotifications';
 
 interface VisitorLog {
   id: string;
@@ -63,6 +64,7 @@ type LogEntry = {
 
 export default function ActivityLogs() {
   const { user } = useAuth();
+  const { notifications, isConnected } = useNotifications();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'visitor' | 'delivery' | 'historico'>('all');
@@ -75,6 +77,13 @@ export default function ActivityLogs() {
   useEffect(() => {
     fetchLogs();
   }, [filter, timeFilter, fetchLogs]);
+
+  // Atualizar logs quando as notificações mudarem (tempo real)
+  useEffect(() => {
+    if (notifications.length > 0) {
+      fetchLogs();
+    }
+  }, [notifications, fetchLogs]);
 
   // Função transferida do index.tsx para carregar logs de visitantes do histórico
   const loadVisitorLogs = useCallback(async () => {
@@ -154,7 +163,22 @@ export default function ActivityLogs() {
   };
 
   const fetchLogs = useCallback(async () => {
+    if (!user) return;
+    
     try {
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
       const promises = [];
 
       // Buscar logs de visitantes se necessário
@@ -164,10 +188,12 @@ export default function ActivityLogs() {
           .select(
             `
             *,
-            apartments!inner(number)
+            apartments!inner(number),
+            visitors(name, document, photo_url)
           `
           )
-          .order('created_at', { ascending: false });
+          .eq('building_id', profile.building_id)
+          .order('log_time', { ascending: false });
 
         // Aplicar filtro de tempo
         if (timeFilter !== 'all') {
@@ -188,7 +214,7 @@ export default function ActivityLogs() {
               startDate = new Date(0);
           }
 
-          visitorQuery = visitorQuery.gte('created_at', startDate.toISOString());
+          visitorQuery = visitorQuery.gte('log_time', startDate.toISOString());
         }
 
         promises.push(visitorQuery);
@@ -241,36 +267,41 @@ export default function ActivityLogs() {
       if (deliveryResult.error) throw deliveryResult.error;
 
       // Processar logs de visitantes
-      const visitorLogs: LogEntry[] = (visitorResult.data || []).map((log: VisitorLog) => {
-        const getVisitorStatus = (action: string) => {
-          switch (action) {
-            case 'entrada':
-              return { status: 'Entrada autorizada', icon: '✅', color: '#4CAF50' };
-            case 'saida':
-              return { status: 'Saída registrada', icon: '🚪', color: '#2196F3' };
-            case 'negado':
-              return { status: 'Acesso negado', icon: '❌', color: '#F44336' };
-            default:
-              return { status: 'Pendente', icon: '⏳', color: '#FF9800' };
+      const visitorLogs: LogEntry[] = (visitorResult.data || []).map((log: any) => {
+        const getVisitorStatus = (tipoLog: string, notificationStatus: string) => {
+          if (notificationStatus === 'approved') {
+            return tipoLog === 'IN' 
+              ? { status: 'Entrada autorizada', icon: '✅', color: '#4CAF50' }
+              : { status: 'Saída registrada', icon: '🚪', color: '#2196F3' };
+          } else if (notificationStatus === 'rejected') {
+            return { status: 'Acesso negado', icon: '❌', color: '#F44336' };
+          } else if (notificationStatus === 'pending') {
+            return { status: 'Aguardando aprovação', icon: '⏳', color: '#FF9800' };
+          } else {
+            return { status: 'Expirado', icon: '⏰', color: '#666' };
           }
         };
 
-        const statusInfo = getVisitorStatus(log.action);
+        const statusInfo = getVisitorStatus(log.tipo_log, log.notification_status);
+        const visitorName = log.visitors?.name || log.guest_name || 'Visitante';
+        const visitorDocument = log.visitors?.document || 'N/A';
+        const visitorPhoto = log.visitors?.photo_url;
 
         return {
           id: log.id,
           type: 'visitor',
-          title: log.visitor_name,
-          subtitle: `Apto ${log.apartments?.number || 'N/A'}`,
+          title: visitorName,
+          subtitle: `Apto ${log.apartments?.number || 'N/A'} • ${log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}`,
           status: statusInfo.status,
-          time: formatDate(log.created_at),
+          time: formatDate(log.log_time),
           icon: statusInfo.icon,
           color: statusInfo.color,
-          photo_url: log.photo_url,
+          photo_url: visitorPhoto,
           details: [
-            `Documento: ${log.document}`,
-            `Autorizado por: ${log.authorized_by || 'N/A'}`,
-            ...(log.notes ? [`Observações: ${log.notes}`] : []),
+            `Documento: ${visitorDocument}`,
+            `Tipo: ${log.entry_type || 'visitor'}`,
+            `Status: ${log.notification_status}`,
+            ...(log.purpose ? [`Motivo: ${log.purpose}`] : []),
           ],
         };
       });
@@ -310,7 +341,7 @@ export default function ActivityLogs() {
     } finally {
       setLoading(false);
     }
-  }, [filter, timeFilter]);
+  }, [filter, timeFilter, user]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

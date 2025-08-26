@@ -1312,6 +1312,11 @@ export default function PorteiroDashboard() {
     );
   };
 
+  // Função para renderizar a aba de logs
+  const renderLogsTab = () => {
+    return <ActivityLogs />;
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'chegada':
@@ -1325,7 +1330,7 @@ export default function PorteiroDashboard() {
       case 'notificacoes':
         return renderNotificacoesTab();
       case 'logs':
-        return <ActivityLogs />;
+        return renderLogsTab();
       default:
         return renderChegadaTab();
     }
