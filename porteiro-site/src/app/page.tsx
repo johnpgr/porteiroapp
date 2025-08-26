@@ -1,102 +1,300 @@
-import Image from "next/image";
+// Landing Page do PorteiroApp - Sistema de Portaria Digital
+import Image from 'next/image';
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="text-3xl">🏢</div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                PorteiroApp
+              </h1>
+            </div>
+            <div className="flex space-x-4">
+              <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                📱 Baixar App
+              </button>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </header>
+
+      {/* Hero Section */}
+      <section className="bg-gradient-to-br from-blue-50 to-white py-20">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h2 className="text-5xl font-bold text-gray-900 mb-6">
+            Sistema de Portaria Digital
+          </h2>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+            Solução completa para gestão de visitantes, controle de acesso e segurança predial. 
+            Modernize sua portaria com tecnologia inteligente e eficiente.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+              <Image 
+                src="/disponivel-app-store-badge.png" 
+                alt="Disponível na App Store" 
+                width={200} 
+                height={60}
+                className="h-15"
+              />
+            </a>
+            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+              <Image 
+                src="/disponivel-google-play-badge.png" 
+                alt="Disponível no Google Play" 
+                width={200} 
+                height={60}
+                className="h-15"
+              />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Benefícios do App - Formato Checklist */}
+      <section className="py-16 bg-gradient-to-br from-green-50 to-blue-50">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">
+              O que o PorteiroApp oferece
+            </h3>
+            <p className="text-lg text-gray-600">
+              Tudo que você precisa para uma portaria moderna e eficiente
+            </p>
+          </div>
+          
+          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Coluna 1 */}
+              <div className="space-y-4">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Controle de Acesso Inteligente</h4>
+                    <p className="text-gray-600">Sistema automatizado para autorização de visitantes</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Notificações em Tempo Real</h4>
+                    <p className="text-gray-600">Alertas instantâneos para moradores e administradores</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Histórico Completo</h4>
+                    <p className="text-gray-600">Registro detalhado de todas as movimentações</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Interface Intuitiva</h4>
+                    <p className="text-gray-600">Fácil de usar para porteiros e moradores</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Coluna 2 */}
+              <div className="space-y-4">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Segurança Avançada</h4>
+                    <p className="text-gray-600">Criptografia e proteção de dados garantidas</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Relatórios Detalhados</h4>
+                    <p className="text-gray-600">Estatísticas e análises para melhor gestão</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Suporte 24/7</h4>
+                    <p className="text-gray-600">Atendimento especializado sempre disponível</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900">Atualizações Automáticas</h4>
+                    <p className="text-gray-600">Sempre com as últimas funcionalidades</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Destaque final */}
+            <div className="mt-8 pt-8 border-t border-gray-200 text-center">
+              <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-4 py-2 rounded-full font-medium">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Tudo isso em uma única plataforma integrada</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Principais Funcionalidades */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <h3 className="text-3xl font-bold text-center text-gray-900 mb-12">
+            Principais Funcionalidades
+          </h3>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">🔐</div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Controle de Acesso</h4>
+              <p className="text-gray-600">Gerencie entradas e saídas com segurança e praticidade total.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">👥</div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Gestão de Visitantes</h4>
+              <p className="text-gray-600">Cadastre, autorize e monitore visitantes em tempo real.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">🔔</div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Notificações</h4>
+              <p className="text-gray-600">Receba alertas instantâneos sobre chegadas e autorizações.</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="text-4xl mb-4">📊</div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Relatórios</h4>
+              <p className="text-gray-600">Acompanhe estatísticas e histórico completo de acessos.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Benefícios */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <h3 className="text-3xl font-bold text-center text-gray-900 mb-12">
+            Por que escolher o PorteiroApp?
+          </h3>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="text-2xl">🛡️</div>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Máxima Segurança</h4>
+              <p className="text-gray-600">Controle rigoroso de acessos com tecnologia de ponta e criptografia avançada.</p>
+            </div>
+            <div className="text-center">
+              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="text-2xl">⚡</div>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Praticidade Total</h4>
+              <p className="text-gray-600">Interface intuitiva que facilita o dia a dia de porteiros, moradores e administradores.</p>
+            </div>
+            <div className="text-center">
+              <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="text-2xl">🚀</div>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-3">Alta Eficiência</h4>
+              <p className="text-gray-600">Automatize processos e reduza tempo de espera com nossa solução inteligente.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Call to Action */}
+      <section className="py-16 bg-gradient-to-r from-blue-500 to-blue-600">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h3 className="text-3xl font-bold text-white mb-4">
+            Pronto para modernizar sua portaria?
+          </h3>
+          <p className="text-xl text-blue-100 mb-8">
+            Baixe o PorteiroApp agora e transforme a gestão do seu condomínio!
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+              <Image 
+                src="/disponivel-app-store-badge.png" 
+                alt="Disponível na App Store" 
+                width={200} 
+                height={60}
+                className="h-15"
+              />
+            </a>
+            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+              <Image 
+                src="/disponivel-google-play-badge.png" 
+                alt="Disponível no Google Play" 
+                width={200} 
+                height={60}
+                className="h-15"
+              />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 py-8">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <div className="flex items-center justify-center space-x-3 mb-4">
+            <div className="text-2xl">🏢</div>
+            <h4 className="text-xl font-bold text-white">PorteiroApp</h4>
+          </div>
+          <p className="text-gray-400 mb-4">
+            Sistema de Portaria Digital - Segurança e praticidade para seu condomínio
+          </p>
+          <p className="text-gray-500 text-sm">
+            © 2024 PorteiroApp. Todos os direitos reservados.
+          </p>
+        </div>
       </footer>
     </div>
   );
