@@ -1,9 +1,33 @@
+'use client';
 // Landing Page do JAMES AVISA - Sistema de Portaria Digital
 import Image from 'next/image';
 
 export default function HomePage() {
+  const scrollToListaEspera = () => {
+    const element = document.getElementById('lista-espera');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
+      {/* Badges Promocionais */}
+      <div className="bg-gradient-to-r from-green-500 to-blue-500 py-2">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-8 text-center">
+            <div className="flex items-center space-x-2 text-white font-medium text-sm">
+              <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold">🎉 OFERTA LIMITADA</span>
+              <span>Os 100 primeiros cadastrados receberão o aplicativo gratuitamente</span>
+            </div>
+            <div className="flex items-center space-x-2 text-white font-medium text-sm">
+              <span className="bg-red-500 px-2 py-1 rounded-full text-xs font-bold animate-pulse">⚡ URGENTE</span>
+              <span>Estamos com muita demanda no momento, garanta seu acesso prioritário</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -15,6 +39,12 @@ export default function HomePage() {
               </h1>
             </div>
             <div className="flex space-x-4">
+              <button 
+                onClick={scrollToListaEspera}
+                className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-6 py-2 rounded-lg font-bold transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              >
+                🚀 Cadastre-se na lista de espera
+              </button>
               <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">
                 📱 Baixar App
               </button>
@@ -244,6 +274,126 @@ export default function HomePage() {
               </div>
               <h4 className="text-xl font-bold text-gray-900 mb-3">Alta Eficiência</h4>
               <p className="text-gray-600">Automatize processos e reduza tempo de espera com nossa solução inteligente.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Lista de Espera CTA */}
+      <section id="lista-espera" className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Badge promocional */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-medium text-sm border border-blue-200">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+              </svg>
+              Os 100 primeiros cadastrados receberão o aplicativo gratuitamente
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-8 items-center">
+            {/* Lado esquerdo - Texto promocional */}
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Cadastre-se na Lista de Espera
+              </h2>
+              <p className="text-lg text-gray-600 mb-6">
+                Seja um dos primeiros a ter acesso ao JAMES AVISA e transforme a gestão da sua portaria.
+              </p>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="text-lg mr-3">⏰</div>
+                  <div>
+                    <p className="font-semibold text-gray-900">Estamos com muita demanda no momento</p>
+                    <p className="text-gray-600 text-sm">Garanta seu acesso prioritário</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Lado direito - Formulário */}
+            <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Preencha seus dados
+                </h3>
+                <p className="text-gray-600 text-sm">
+                  Entraremos em contato quando o sistema estiver disponível
+                </p>
+              </div>
+
+              <form className="space-y-4">
+                <div>
+                  <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome Completo *
+                  </label>
+                  <input
+                    type="text"
+                    id="nome"
+                    name="nome"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="Seu nome completo"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    E-mail *
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="seu@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefone/WhatsApp *
+                  </label>
+                  <input
+                    type="tel"
+                    id="telefone"
+                    name="telefone"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="(11) 99999-9999"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="condominio" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome do Condomínio/Empresa *
+                  </label>
+                  <input
+                    type="text"
+                    id="condominio"
+                    name="condominio"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="Nome do seu condomínio ou empresa"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md transition-colors duration-200"
+                >
+                  Cadastrar na Lista de Espera
+                </button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <p className="text-xs text-gray-500">
+                  Seus dados estão seguros conosco. Não compartilhamos com terceiros.
+                </p>
+              </div>
             </div>
           </div>
         </div>
