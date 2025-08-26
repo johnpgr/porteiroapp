@@ -431,7 +431,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             recipient_name: nomeDestinatario,
             delivery_company: empresaSelecionada.nome,
             description: descricaoEncomenda,
-            status: 'delivered',
+            notification_status: 'delivered',
             received_at: currentTime,
             notes: observacoes || null
           });
@@ -457,7 +457,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             tipo_log: 'IN',
             visit_session_id: null,
             purpose: `Entrega: ${descricaoEncomenda}`,
-            status: 'approved'
+            notification_status: 'approved'
           });
 
         if (logError) {

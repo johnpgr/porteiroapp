@@ -401,7 +401,7 @@ export default function VisitantesTab() {
           .eq('apartment_id', apartmentData.apartment_id)
           .eq('visit_date', visitData.visit_date)
           .eq('visit_type', 'pontual')
-          .eq('status', 'approved')
+          .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0); // Excluir o próprio registro se for edição
 
         if (conflicts && conflicts.length > 0) {
@@ -429,7 +429,7 @@ export default function VisitantesTab() {
           .select('id, name, visit_start_time, visit_end_time, allowed_days')
           .eq('apartment_id', apartmentData.apartment_id)
           .eq('visit_type', 'frequente')
-          .eq('status', 'approved')
+          .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0);
 
         if (conflicts && conflicts.length > 0) {
@@ -512,7 +512,7 @@ export default function VisitantesTab() {
           .eq('apartment_id', apartmentData.apartment_id)
           .eq('visit_date', visitData.visit_date)
           .eq('visit_type', 'pontual')
-          .eq('status', 'approved')
+          .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0);
 
         if (simultaneousVisits && simultaneousVisits.length > 0) {
@@ -554,7 +554,7 @@ export default function VisitantesTab() {
           .select('id, name, allowed_days, visit_start_time, visit_end_time')
           .eq('apartment_id', apartmentData.apartment_id)
           .eq('visit_type', 'frequente')
-          .eq('status', 'approved')
+          .eq('notification_status', 'approved')
           .neq('id', visitData.id || 0);
 
         if (frequentVisits && frequentVisits.length > 0) {

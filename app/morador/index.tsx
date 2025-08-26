@@ -120,7 +120,7 @@ export default function MoradorDashboard() {
       
       console.log('✅ DEBUG: Apartment ID encontrado:', apartmentData.apartment_id);
       
-      // Buscar histórico de visitantes
+      // Buscar histórico de visitantes (apenas aprovadas)
       console.log('🔍 DEBUG: Iniciando busca de visitor_logs para apartment_id:', apartmentData.apartment_id);
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitor_logs')
@@ -138,6 +138,7 @@ export default function MoradorDashboard() {
           )
         `)
         .eq('apartment_id', apartmentData.apartment_id)
+        .eq('notification_status', 'approved')
         .order('log_time', { ascending: false })
         .limit(20);
       

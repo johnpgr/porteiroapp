@@ -110,7 +110,7 @@ export const usePendingNotifications = () => {
         .eq('apartment_id', apartmentId)
         .eq('notification_status', 'pending')
         .eq('requires_resident_approval', true)
-        .gt('expires_at', new Date().toISOString())
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('notification_sent_at', { ascending: false });
       
       if (error) throw error;

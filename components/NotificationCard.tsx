@@ -152,26 +152,26 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
   const getNotificationTitle = () => {
     switch (notification.entry_type) {
       case 'visitor':
-        return `👤 ${notification.guest_name} quer subir`;
+        return `🚶 ${notification.guest_name || 'Visitante'}`;
       case 'delivery':
-        return `📦 Encomenda de ${notification.delivery_sender || 'remetente desconhecido'}`;
+        return `📦 Encomenda de ${notification.delivery_sender || 'Remetente não informado'}`;
       case 'vehicle':
-        return `🚗 Veículo ${notification.license_plate} quer entrar`;
+        return `🚗 Veículo ${notification.license_plate || 'sem placa'}`;
       default:
-        return '📬 Nova notificação';
+        return '🔔 Nova notificação';
     }
   };
 
   const getNotificationDetails = () => {
     switch (notification.entry_type) {
       case 'visitor':
-        return notification.purpose || 'Visita';
+        return notification.purpose || 'Motivo não informado';
       case 'delivery':
-        return notification.delivery_description || 'Encomenda chegou';
+        return notification.delivery_description || 'Descrição não informada';
       case 'vehicle':
-        return `${notification.vehicle_brand || ''} ${notification.vehicle_model || ''} ${notification.vehicle_color || ''}`.trim();
+        return `${notification.vehicle_brand || ''} ${notification.vehicle_model || ''} ${notification.vehicle_color || ''} - quer entrar`.trim();
       default:
-        return '';
+        return 'Detalhes não disponíveis';
     }
   };
 
@@ -192,6 +192,36 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
 
   const handleReject = () => {
     setShowRejectModal(true);
+  };
+
+  const handleDeliveryPortaria = async () => {
+    setResponding(true);
+    const result = await onRespond(notification.id, { 
+      action: 'approve', 
+      delivery_destination: 'portaria' 
+    });
+    
+    if (!result.success) {
+      Alert.alert('Erro', 'Não foi possível processar a encomenda');
+    }
+    
+    setShowDeliveryModal(false);
+    setResponding(false);
+  };
+
+  const handleDeliveryElevador = async () => {
+    setResponding(true);
+    const result = await onRespond(notification.id, { 
+      action: 'approve', 
+      delivery_destination: 'elevador' 
+    });
+    
+    if (!result.success) {
+      Alert.alert('Erro', 'Não foi possível processar a encomenda');
+    }
+    
+    setShowDeliveryModal(false);
+    setResponding(false);
   };
 
   const confirmReject = async () => {
@@ -240,37 +270,43 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
       
       <View style={styles.notificationActions}>
         {notification.entry_type === 'delivery' ? (
+          // Botões específicos para entregas
           <>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.approveButton]}
-              onPress={handleApprove}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.porterButton]}
+              onPress={handleDeliveryPortaria}
               disabled={responding}
             >
-              <Text style={styles.actionButtonText}>📦 Processar</Text>
+              <Text style={styles.actionButtonText}>Deixar na portaria</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.denyButton]}
-              onPress={handleReject}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.elevatorButton]}
+              onPress={handleDeliveryElevador}
               disabled={responding}
             >
-              <Text style={styles.actionButtonText}>❌ Recusar</Text>
+              <Text style={styles.actionButtonText}>Enviar pelo elevador</Text>
             </TouchableOpacity>
           </>
         ) : (
+          // Botões padrão para visitantes e veículos
           <>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.approveButton]}
-              onPress={handleApprove}
-              disabled={responding}
-            >
-              <Text style={styles.actionButtonText}>✅ Aprovar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.actionButton, styles.denyButton]}
               onPress={handleReject}
               disabled={responding}
             >
-              <Text style={styles.actionButtonText}>❌ Recusar</Text>
+              <Text style={styles.actionButtonText}>
+                {notification.entry_type === 'vehicle' ? 'Recusar' : 'Recusar'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.approveButton]}
+              onPress={handleApprove}
+              disabled={responding}
+            >
+              <Text style={styles.actionButtonText}>
+                {notification.entry_type === 'vehicle' ? 'Aceitar' : 'Aprovar'}
+              </Text>
             </TouchableOpacity>
           </>
         )}
@@ -312,46 +348,7 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         </View>
       </Modal>
 
-      {/* Modal de destino da encomenda */}
-      <Modal
-        visible={showDeliveryModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeliveryModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Onde deixar a encomenda?</Text>
-            <TouchableOpacity
-              style={[styles.deliveryOption, styles.porterButton]}
-              onPress={() => handleDeliveryDestination('portaria')}
-              disabled={responding}
-            >
-              <Text style={styles.deliveryOptionText}>🏢 Deixar na portaria</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.deliveryOption, styles.elevatorButton]}
-              onPress={() => handleDeliveryDestination('elevador')}
-              disabled={responding}
-            >
-              <Text style={styles.deliveryOptionText}>🛗 Colocar no elevador</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.deliveryOption, styles.apartmentButton]}
-              onPress={() => handleDeliveryDestination('apartamento')}
-              disabled={responding}
-            >
-              <Text style={styles.deliveryOptionText}>🚪 Trazer ao apartamento</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton]}
-              onPress={() => setShowDeliveryModal(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+
     </View>
   );
 }
@@ -490,6 +487,12 @@ const styles = StyleSheet.create({
   },
   denyButton: {
     backgroundColor: '#f44336',
+  },
+  porterButton: {
+    backgroundColor: '#2196F3',
+  },
+  elevatorButton: {
+    backgroundColor: '#9C27B0',
   },
   actionButtonText: {
     color: '#fff',

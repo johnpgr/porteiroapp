@@ -707,7 +707,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             tipo_log: 'IN',
             visit_session_id: generateUUID(),
             vehicle_info: vehicleData,
-            status: 'approved',
+            notification_status: 'pending',
             purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
           });
 
