@@ -34,6 +34,32 @@ interface Log {
   created_at: string;
 }
 
+// Funções de formatação
+const formatTime = (value: string): string => {
+  // Remove todos os caracteres não numéricos
+  const numbers = value.replace(/\D/g, '');
+  
+  // Aplica a máscara HH:MM
+  if (numbers.length <= 2) {
+    return numbers;
+  } else {
+    return `${numbers.slice(0, 2)}:${numbers.slice(2, 4)}`;
+  }
+};
+
+// Funções de validação
+const validateTime = (timeString: string): boolean => {
+  if (!timeString || timeString.length !== 5) return false;
+  
+  const [hours, minutes] = timeString.split(':').map(Number);
+  
+  if (isNaN(hours) || isNaN(minutes)) return false;
+  if (hours < 0 || hours > 23) return false;
+  if (minutes < 0 || minutes > 59) return false;
+  
+  return true;
+};
+
 export default function SystemLogs() {
   const [activeTab, setActiveTab] = useState('logs');
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -49,8 +75,9 @@ export default function SystemLogs() {
   });
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  // Estados para os campos de hora formatados
+  const [startTimeInput, setStartTimeInput] = useState('');
+  const [endTimeInput, setEndTimeInput] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -225,19 +252,7 @@ export default function SystemLogs() {
 
         <ScrollView style={styles.content}>
           <View style={styles.filterContainer}>
-            <View style={styles.searchTypeContainer}>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={logSearchType}
-                  onValueChange={setLogSearchType}
-                  style={styles.picker}>
-                  <Picker.Item label="Buscar em Tudo" value="all" />
-                  <Picker.Item label="Buscar Morador" value="morador" />
-                  <Picker.Item label="Buscar Porteiro" value="porteiro" />
-                  <Picker.Item label="Buscar Prédio" value="predio" />
-                  <Picker.Item label="Buscar Ação" value="acao" />
-                </Picker>
-              </View>
+            <View style={styles.searchTypeContainer}>             
 
               <TextInput
                 style={[styles.filterInput, styles.searchInput]}
@@ -272,19 +287,26 @@ export default function SystemLogs() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.timePickerButton}
-                  onPress={() => setShowStartTimePicker(true)}>
-                  <Text style={styles.timePickerButtonText}>
-                    🕐{' '}
-                    {logDateFilter.start
-                      ? logDateFilter.start.toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : 'Hora'}
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={styles.timeInput}
+                  placeholder="🕐 HH:MM"
+                  value={startTimeInput}
+                  onChangeText={(text) => {
+                    const formatted = formatTime(text);
+                    setStartTimeInput(formatted);
+                    
+                    // Se o horário for válido, atualizar o filtro de data
+                    if (validateTime(formatted)) {
+                      const [hours, minutes] = formatted.split(':').map(Number);
+                      const currentDate = logDateFilter.start || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setHours(hours, minutes);
+                      setLogDateFilter((prev) => ({ ...prev, start: newDate }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
               </View>
 
               <View style={styles.datePickerGroup}>
@@ -296,19 +318,26 @@ export default function SystemLogs() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.timePickerButton}
-                  onPress={() => setShowEndTimePicker(true)}>
-                  <Text style={styles.timePickerButtonText}>
-                    🕐{' '}
-                    {logDateFilter.end
-                      ? logDateFilter.end.toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : 'Hora'}
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={styles.timeInput}
+                  placeholder="🕐 HH:MM"
+                  value={endTimeInput}
+                  onChangeText={(text) => {
+                    const formatted = formatTime(text);
+                    setEndTimeInput(formatted);
+                    
+                    // Se o horário for válido, atualizar o filtro de data
+                    if (validateTime(formatted)) {
+                      const [hours, minutes] = formatted.split(':').map(Number);
+                      const currentDate = logDateFilter.end || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setHours(hours, minutes);
+                      setLogDateFilter((prev) => ({ ...prev, end: newDate }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
               </View>
             </View>
 
@@ -328,21 +357,7 @@ export default function SystemLogs() {
               />
             )}
 
-            {showStartTimePicker && (
-              <DateTimePicker
-                value={logDateFilter.start || new Date()}
-                mode="time"
-                display="default"
-                onChange={(event, selectedTime) => {
-                  setShowStartTimePicker(false);
-                  if (selectedTime) {
-                    const currentDate = logDateFilter.start || new Date();
-                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, start: currentDate }));
-                  }
-                }}
-              />
-            )}
+
 
             {showEndDatePicker && (
               <DateTimePicker
@@ -360,21 +375,7 @@ export default function SystemLogs() {
               />
             )}
 
-            {showEndTimePicker && (
-              <DateTimePicker
-                value={logDateFilter.end || new Date()}
-                mode="time"
-                display="default"
-                onChange={(event, selectedTime) => {
-                  setShowEndTimePicker(false);
-                  if (selectedTime) {
-                    const currentDate = logDateFilter.end || new Date();
-                    currentDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, end: currentDate }));
-                  }
-                }}
-              />
-            )}
+
           </View>
 
           <View style={styles.tabsContainer}>
@@ -512,15 +513,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 60,
-    padding: 20,
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 30,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   backButtonText: {
     color: '#fff',
@@ -528,7 +533,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
@@ -586,6 +591,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timePickerButtonText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+  },
+  timeInput: {
+    height: 45,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
     fontSize: 14,
     color: '#333',
     textAlign: 'center',
@@ -818,7 +835,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   navItemActive: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: '#F5F5F5',
   },
   navIcon: {
     fontSize: 20,
