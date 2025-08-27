@@ -353,7 +353,7 @@ _JamesAvisa - Facilite sua vida_`;
 
 ```mermaid
 sequenceDiagram
-    participant P as Porteiro App
+    participant P as James Avisa
     participant DB as Supabase
     participant API as Notification API
     participant WA as WhatsApp
