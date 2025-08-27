@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  Image,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
@@ -61,6 +62,9 @@ export default function PorteiroDashboard() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
+
+  // Estados para modal de foto
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   // Função para processar work_schedule
   const parseWorkSchedule = (workSchedule: string | null) => {
@@ -473,10 +477,10 @@ export default function PorteiroDashboard() {
 
   const renderChegadaTab = () => (
     <ScrollView style={styles.tabContent}>
-      <View style={styles.header}>
+      {/* <View style={styles.header}>
         <Text style={styles.headerTitle}>🏠 Chegadas</Text>
         <Text style={styles.headerSubtitle}>Registre visitantes, encomendas e veículos</Text>
-      </View>
+      </View> */}
 
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
@@ -1255,6 +1259,15 @@ export default function PorteiroDashboard() {
                     </View>
                   )}
                 </View>
+                
+                {/* Botão Ver Foto */}
+                <TouchableOpacity 
+                  style={styles.photoButton}
+                  onPress={() => setShowPhotoModal(true)}
+                >
+                  <Text style={styles.photoButtonIcon}>📷</Text>
+                  <Text style={styles.photoButtonText}>Ver Foto</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -1591,6 +1604,49 @@ export default function PorteiroDashboard() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Foto do Morador */}
+      <Modal
+        visible={showPhotoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}>
+        <View style={styles.photoModalOverlay}>
+          <View style={styles.photoModalContainer}>
+            <View style={styles.photoModalHeader}>
+              <Text style={styles.photoModalTitle}>
+                {profileResult?.full_name || 'Morador'}
+              </Text>
+              <TouchableOpacity 
+                style={styles.photoModalCloseButton}
+                onPress={() => setShowPhotoModal(false)}>
+                <Text style={styles.photoModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.photoContainer}>
+              {profileResult?.photo_url ? (
+                <Image 
+                  source={{ uri: profileResult.photo_url }}
+                  style={styles.photoModalImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoPlaceholderIcon}>👤</Text>
+                  <Text style={styles.photoPlaceholderText}>Foto não disponível</Text>
+                </View>
+              )}
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.photoModalButton}
+              onPress={() => setShowPhotoModal(false)}>
+              <Text style={styles.photoModalButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ProtectedRoute>
   );
 }
@@ -1609,6 +1665,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#2196F3',
     padding: 20,
+    marginBottom: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
@@ -2495,6 +2552,107 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  // Estilos do modal de foto
+  photoModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  photoModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    margin: 20,
+    maxWidth: 400,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  photoModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  photoModalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalCloseText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  photoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    minHeight: 200,
+  },
+  photoModalImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 10,
+  },
+  photoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    padding: 40,
+    width: '100%',
+    height: 300,
+  },
+  photoPlaceholderIcon: {
+    fontSize: 64,
+    color: '#ccc',
+    marginBottom: 10,
+  },
+  photoPlaceholderText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+  },
+  photoModalButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  photoModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 
 });

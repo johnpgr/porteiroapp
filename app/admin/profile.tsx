@@ -33,7 +33,14 @@ export default function AdminProfilePage() {
     emergency_contact_name: '',
     emergency_contact_phone: '',
   });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     console.log('🔄 [AdminProfile] Iniciando busca do perfil...');
@@ -160,6 +167,29 @@ export default function AdminProfilePage() {
   const validateCPF = (cpf: string): boolean => {
     const numbers = cpf.replace(/\D/g, '');
     return numbers.length === 11;
+  };
+
+  // Validação de senha
+  const validatePassword = (password: string): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (password.length < 8) {
+      errors.push('Deve ter pelo menos 8 caracteres');
+    }
+    if (!/[A-Z]/.test(password)) {
+      errors.push('Deve conter pelo menos uma letra maiúscula');
+    }
+    if (!/[a-z]/.test(password)) {
+      errors.push('Deve conter pelo menos uma letra minúscula');
+    }
+    if (!/\d/.test(password)) {
+      errors.push('Deve conter pelo menos um número');
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      errors.push('Deve conter pelo menos um caractere especial');
+    }
+    
+    return { isValid: errors.length === 0, errors };
   };
 
   const handleSave = async () => {
@@ -357,6 +387,93 @@ export default function AdminProfilePage() {
     } catch (error: any) {
       console.error('❌ [AdminProfile] Erro geral na exclusão:', error);
       Alert.alert('Erro', error.message || 'Falha ao excluir perfil');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    console.log('🔐 [AdminProfile] Iniciando alteração de senha...');
+    
+    // Validações
+    if (!passwordData.currentPassword) {
+      Alert.alert('Erro', 'Digite sua senha atual');
+      return;
+    }
+    
+    if (!passwordData.newPassword) {
+      Alert.alert('Erro', 'Digite sua nova senha');
+      return;
+    }
+    
+    if (!passwordData.confirmPassword) {
+      Alert.alert('Erro', 'Confirme sua nova senha');
+      return;
+    }
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      Alert.alert('Erro', 'As senhas não coincidem');
+      return;
+    }
+    
+    const passwordValidation = validatePassword(passwordData.newPassword);
+    if (!passwordValidation.isValid) {
+      Alert.alert('Erro', 'A nova senha não atende aos requisitos:\n\n' + passwordValidation.errors.join('\n'));
+      return;
+    }
+    
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      Alert.alert('Erro', 'A nova senha deve ser diferente da senha atual');
+      return;
+    }
+    
+    setPasswordLoading(true);
+    
+    try {
+      // Primeiro, verificar a senha atual fazendo login
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        throw new Error('Usuário não autenticado');
+      }
+      
+      // Tentar fazer login com a senha atual para verificar se está correta
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: passwordData.currentPassword,
+      });
+      
+      if (signInError) {
+        Alert.alert('Erro', 'Senha atual incorreta');
+        return;
+      }
+      
+      // Atualizar a senha
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+      
+      if (updateError) {
+        console.error('❌ [AdminProfile] Erro ao atualizar senha:', updateError);
+        throw updateError;
+      }
+      
+      console.log('✅ [AdminProfile] Senha alterada com sucesso');
+      
+      // Limpar os campos
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      
+      setShowPasswordSection(false);
+      
+      Alert.alert('Sucesso', 'Senha alterada com sucesso!');
+      
+    } catch (error: any) {
+      console.error('❌ [AdminProfile] Erro geral na alteração de senha:', error);
+      Alert.alert('Erro', error.message || 'Falha ao alterar senha');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -608,11 +725,79 @@ export default function AdminProfilePage() {
 
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
+              onPress={() => setShowPasswordSection(!showPasswordSection)}>
               <Ionicons name="lock-closed" size={20} color="#666" />
               <Text style={styles.actionButtonText}>Alterar Senha</Text>
-              <Text style={styles.actionButtonArrow}>›</Text>
+              <Text style={styles.actionButtonArrow}>{showPasswordSection ? '▼' : '›'}</Text>
             </TouchableOpacity>
+
+            {showPasswordSection && (
+              <View style={styles.passwordSection}>
+                <Text style={styles.passwordSectionTitle}>Alteração de Senha</Text>
+                
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Senha Atual</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={passwordData.currentPassword}
+                    onChangeText={(text) => setPasswordData(prev => ({ ...prev, currentPassword: text }))}
+                    placeholder="Digite sua senha atual"
+                    secureTextEntry
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Nova Senha</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={passwordData.newPassword}
+                    onChangeText={(text) => setPasswordData(prev => ({ ...prev, newPassword: text }))}
+                    placeholder="Digite sua nova senha"
+                    secureTextEntry
+                  />
+                  {passwordData.newPassword && (
+                    <View style={styles.passwordRequirements}>
+                      <Text style={styles.requirementsTitle}>Requisitos da senha:</Text>
+                      {validatePassword(passwordData.newPassword).errors.map((error, index) => (
+                        <Text key={index} style={styles.requirementError}>• {error}</Text>
+                      ))}
+                      {validatePassword(passwordData.newPassword).isValid && (
+                        <Text style={styles.requirementSuccess}>✓ Senha válida</Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirmar Nova Senha</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={passwordData.confirmPassword}
+                    onChangeText={(text) => setPasswordData(prev => ({ ...prev, confirmPassword: text }))}
+                    placeholder="Confirme sua nova senha"
+                    secureTextEntry
+                  />
+                  {passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
+                    <Text style={styles.requirementError}>• As senhas não coincidem</Text>
+                  )}
+                </View>
+
+                <TouchableOpacity 
+                  style={[styles.changePasswordButton, passwordLoading && styles.disabledButton]} 
+                  onPress={handleChangePassword}
+                  disabled={passwordLoading}
+                >
+                  {passwordLoading ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={20} color="white" />
+                      <Text style={styles.changePasswordButtonText}>Alterar Senha</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.actionButton}
@@ -881,5 +1066,63 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  passwordSection: {
+    backgroundColor: '#f8f9fa',
+    padding: 20,
+    borderRadius: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  passwordSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  passwordRequirements: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 6,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  requirementError: {
+    fontSize: 12,
+    color: '#dc3545',
+    marginBottom: 4,
+  },
+  requirementSuccess: {
+    fontSize: 14,
+    color: '#28a745',
+    fontWeight: '600',
+  },
+  changePasswordButton: {
+    backgroundColor: '#007bff',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+  },
+  changePasswordButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
   },
 });

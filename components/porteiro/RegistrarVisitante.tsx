@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TextInput,
   Alert,
   SafeAreaView,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
@@ -45,6 +47,12 @@ type EmpresaEntrega =
   | 'correios'
   | 'outro';
 
+interface Apartment {
+  id: string;
+  number: string;
+  floor: number;
+}
+
 interface RegistrarVisitanteProps {
   onClose: () => void;
   onConfirm?: (message: string) => void;
@@ -54,6 +62,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
+  const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
+  const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
+  const [isLoadingApartments, setIsLoadingApartments] = useState(false);
+  const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
   const [empresaPrestador, setEmpresaPrestador] = useState<EmpresaPrestador | null>(null);
   const [empresaEntrega, setEmpresaEntrega] = useState<EmpresaEntrega | null>(null);
@@ -63,7 +75,57 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [fotoTirada, setFotoTirada] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  // Função removida - usava métodos inexistentes do notificationService
+  // Obter building_id do porteiro
+  useEffect(() => {
+    const getDoormanBuildingId = async () => {
+      if (user?.id) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('building_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profile && profile.building_id) {
+          setDoormanBuildingId(profile.building_id);
+        } else {
+          console.error('Erro ao buscar building_id do porteiro:', error);
+          Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
+        }
+      }
+    };
+
+    getDoormanBuildingId();
+  }, [user]);
+
+  // Carregar apartamentos disponíveis
+  useEffect(() => {
+    const fetchAvailableApartments = async () => {
+      if (doormanBuildingId) {
+        setIsLoadingApartments(true);
+        try {
+          const { data: apartments, error } = await supabase
+            .from('apartments')
+            .select('id, number, floor')
+            .eq('building_id', doormanBuildingId)
+            .order('number');
+
+          if (error) {
+            console.error('Erro ao buscar apartamentos:', error);
+            Alert.alert('Erro', 'Não foi possível carregar os apartamentos.');
+          } else {
+            setAvailableApartments(apartments || []);
+          }
+        } catch (error) {
+          console.error('Erro ao buscar apartamentos:', error);
+          Alert.alert('Erro', 'Não foi possível carregar os apartamentos.');
+        } finally {
+          setIsLoadingApartments(false);
+        }
+      }
+    };
+
+    fetchAvailableApartments();
+  }, [doormanBuildingId]);
 
   const renderNumericKeypad = (
     value: string,
@@ -103,13 +165,46 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-      <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
+      <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
 
-      {renderNumericKeypad(apartamento, setApartamento, () => {
-        if (apartamento) {
-          setCurrentStep('tipo');
-        }
-      })}
+      {isLoadingApartments ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2196F3" />
+          <Text style={styles.loadingText}>Carregando apartamentos...</Text>
+        </View>
+      ) : availableApartments.length === 0 ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
+          <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.apartmentsGrid}>
+            {availableApartments.map((apartment) => (
+              <TouchableOpacity
+                key={apartment.id}
+                style={[
+                  styles.apartmentButton,
+                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                ]}
+                onPress={() => {
+                  if (!apartment.id) {
+                    Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+                    return;
+                  }
+                  setSelectedApartment(apartment);
+                  setApartamento(apartment.number);
+                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
+                  setCurrentStep('tipo');
+                }}>
+                <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
+                <Text style={styles.apartmentId}>ID: {apartment.id}</Text>
+                <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 
@@ -366,17 +461,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-        // Buscar informações do apartamento no prédio do porteiro
-        const { data: apartmentData, error: apartmentError } = await supabase
-          .from('apartments')
-          .select('id, building_id')
-          .eq('number', apartamento)
-          .eq('building_id', user.building_id)
-          .single();
-
-        if (apartmentError || !apartmentData) {
-          console.error('Erro ao buscar apartamento:', apartmentError);
-          Alert.alert('Erro', `Apartamento ${apartamento} não encontrado neste prédio.`);
+        // Verificar se um apartamento foi selecionado
+        if (!selectedApartment) {
+          Alert.alert('Erro', 'Nenhum apartamento selecionado.');
           return;
         }
 
@@ -433,8 +520,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           .from('visitor_logs')
           .insert({
             visitor_id: visitorId,
-            apartment_id: apartmentData.id,
-            building_id: apartmentData.building_id,
+            apartment_id: selectedApartment.id,
+            building_id: user.building_id,
             log_time: new Date().toISOString(),
             tipo_log: 'IN',
             visit_session_id: visitSessionId,
@@ -467,7 +554,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 name
               )
             `)
-            .eq('id', apartmentData.id)
+            .eq('id', selectedApartment.id)
             .eq('residents.is_owner', true)
             .single();
 
@@ -482,7 +569,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 residentPhone: resident.phone,
                 residentName: resident.name,
                 building: building.name,
-                apartment: apartamento
+                apartment: selectedApartment.number
               });
               
               console.log('Notificação via API enviada com sucesso');
@@ -495,7 +582,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           // Não bloquear o fluxo se a notificação via API falhar
         }
 
-        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
+        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
 
         if (onConfirm) {
           onConfirm(message);
@@ -517,7 +604,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
-            <Text style={styles.summaryValue}>{apartamento}</Text>
+            <Text style={styles.summaryValue}>{selectedApartment?.number || 'Não selecionado'}</Text>
           </View>
 
           <View style={styles.summaryItem}>
@@ -863,5 +950,81 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
+    gap: 10,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+    marginVertical: 10,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#c62828',
+    marginBottom: 5,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#d32f2f',
+  },
+  apartmentsContainer: {
+    flex: 1,
+    marginTop: 20,
+  },
+  apartmentsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 15,
+  },
+  apartmentButton: {
+    width: '48%',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    marginBottom: 15,
+  },
+  apartmentButtonSelected: {
+    borderColor: '#2196F3',
+    backgroundColor: '#e3f2fd',
+  },
+  apartmentNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  apartmentId: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  apartmentFloor: {
+    fontSize: 12,
+    color: '#888',
+    textAlign: 'center',
   },
 });

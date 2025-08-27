@@ -6,62 +6,21 @@ import { adminAuth } from '../../utils/supabase';
 
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   // Use generic timeout return type for compatibility across environments (RN / web / Node)
   const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
-  const isCheckingRef = useRef(false); // Flag para evitar múltiplas verificações
 
   useEffect(() => {
-    // Verificar se já existe um administrador logado apenas uma vez
-    if (!isCheckingRef.current) {
-      checkCurrentAdmin();
-    }
-
     // Cleanup na desmontagem do componente
     return () => {
       isMountedRef.current = false;
-      isCheckingRef.current = false;
       if (loginTimeoutRef.current) {
         clearTimeout(loginTimeoutRef.current);
       }
     };
   }, []);
 
-  const checkCurrentAdmin = async () => {
-    // Evitar múltiplas verificações simultâneas
-    if (isCheckingRef.current) {
-      console.log('🔄 Verificação já em andamento, ignorando...');
-      return;
-    }
-
-    try {
-      isCheckingRef.current = true;
-      console.log('🔍 Verificando se há administrador logado...');
-      setIsCheckingAuth(true);
-
-      // Timeout para verificação inicial
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout na verificação de autenticação')), 8000);
-      });
-
-      const currentAdmin = await Promise.race([adminAuth.getCurrentAdmin(), timeoutPromise]);
-
-      if (currentAdmin && isMountedRef.current) {
-        console.log('✅ Administrador já logado, redirecionando...');
-        router.replace('/admin');
-      } else {
-        console.log('👤 Nenhum administrador logado');
-      }
-    } catch (error) {
-      console.log('⚠️ Erro ao verificar administrador logado:', error);
-    } finally {
-      isCheckingRef.current = false;
-      if (isMountedRef.current) {
-        setIsCheckingAuth(false);
-      }
-    }
-  };
+  // Removida função checkCurrentAdmin - verificação automática deve ocorrer apenas em rotas protegidas
 
   const handleLogin = async (
     email: string,
@@ -133,14 +92,7 @@ export default function AdminLogin() {
     }
   };
 
-  // Mostrar loading durante verificação inicial
-  if (isCheckingAuth) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <Text style={styles.loadingText}>🔍 Verificando autenticação...</Text>
-      </View>
-    );
-  }
+  // Removida verificação de loading inicial - não há mais verificação automática
 
   return (
     <View style={styles.container}>
@@ -169,16 +121,7 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
   },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    color: '#2196F3',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
+  // Removidos estilos de loading da verificação automática
   backButton: {
     position: 'absolute',
     top: 50,

@@ -52,6 +52,13 @@ export default function MoradorProfile() {
     emergency_contact_phone: '',
   });
   const [loading, setLoading] = useState(true);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -439,6 +446,74 @@ export default function MoradorProfile() {
     }
   };
 
+  const validatePassword = (password: string) => {
+    const minLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    return {
+      minLength,
+      hasUpperCase,
+      hasLowerCase,
+      hasNumbers,
+      hasSpecialChar,
+      isValid: minLength && hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar
+    };
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      Alert.alert('Erro', 'Todos os campos de senha são obrigatórios.');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      Alert.alert('Erro', 'A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    const validation = validatePassword(passwordData.newPassword);
+    if (!validation.isValid) {
+      Alert.alert('Erro', 'A nova senha não atende aos critérios de segurança.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      // Verificar senha atual tentando fazer login
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: passwordData.currentPassword
+      });
+
+      if (signInError) {
+        Alert.alert('Erro', 'Senha atual incorreta.');
+        setPasswordLoading(false);
+        return;
+      }
+
+      // Atualizar senha
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+
+      if (updateError) {
+        Alert.alert('Erro', 'Não foi possível alterar a senha: ' + updateError.message);
+      } else {
+        Alert.alert('Sucesso', 'Senha alterada com sucesso!');
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setShowPasswordSection(false);
+      }
+    } catch (error) {
+      console.error('Erro ao alterar senha:', error);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const handleDeleteProfile = async () => {
     Alert.alert(
       'Excluir Perfil',
@@ -663,6 +738,103 @@ export default function MoradorProfile() {
             </View>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🔐 Configurações da Conta</Text>
+              
+              <TouchableOpacity 
+                style={styles.passwordToggleButton} 
+                onPress={() => setShowPasswordSection(!showPasswordSection)}
+              >
+                <Ionicons name="key" size={20} color="#4CAF50" />
+                <Text style={styles.passwordToggleText}>Alterar Senha</Text>
+                <Ionicons 
+                  name={showPasswordSection ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color="#4CAF50" 
+                />
+              </TouchableOpacity>
+
+              {showPasswordSection && (
+                <View style={styles.passwordSection}>
+                  <Text style={styles.passwordSectionTitle}>Alteração de Senha</Text>
+                  
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Senha Atual</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.currentPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, currentPassword: text})}
+                      secureTextEntry
+                      placeholder="Digite sua senha atual"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Nova Senha</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.newPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, newPassword: text})}
+                      secureTextEntry
+                      placeholder="Digite a nova senha"
+                    />
+                  </View>
+
+                  <View style={styles.field}>
+                    <Text style={styles.fieldLabel}>Confirmar Nova Senha</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.confirmPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, confirmPassword: text})}
+                      secureTextEntry
+                      placeholder="Confirme a nova senha"
+                    />
+                  </View>
+
+                  {passwordData.newPassword && (
+                    <View style={styles.passwordRequirements}>
+                      <Text style={styles.requirementsTitle}>Requisitos da senha:</Text>
+                      {Object.entries({
+                        'Mínimo 8 caracteres': validatePassword(passwordData.newPassword).minLength,
+                        'Pelo menos uma letra maiúscula': validatePassword(passwordData.newPassword).hasUpperCase,
+                        'Pelo menos uma letra minúscula': validatePassword(passwordData.newPassword).hasLowerCase,
+                        'Pelo menos um número': validatePassword(passwordData.newPassword).hasNumbers,
+                        'Pelo menos um caractere especial': validatePassword(passwordData.newPassword).hasSpecialChar
+                      }).map(([requirement, met]) => (
+                        <View key={requirement} style={styles.requirementItem}>
+                          <Ionicons 
+                            name={met ? "checkmark-circle" : "close-circle"} 
+                            size={16} 
+                            color={met ? "#4CAF50" : "#f44336"} 
+                          />
+                          <Text style={[styles.requirementText, { color: met ? "#4CAF50" : "#f44336" }]}>
+                            {requirement}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <TouchableOpacity 
+                    style={[
+                      styles.changePasswordButton,
+                      (!validatePassword(passwordData.newPassword).isValid || 
+                       passwordData.newPassword !== passwordData.confirmPassword || 
+                       !passwordData.currentPassword || 
+                       passwordLoading) && styles.changePasswordButtonDisabled
+                    ]}
+                    onPress={handleChangePassword}
+                    disabled={!validatePassword(passwordData.newPassword).isValid || 
+                             passwordData.newPassword !== passwordData.confirmPassword || 
+                             !passwordData.currentPassword || 
+                             passwordLoading}
+                  >
+                    <Text style={styles.changePasswordButtonText}>
+                      {passwordLoading ? 'Alterando...' : 'Alterar Senha'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
               <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProfile}>
                 <Ionicons name="trash" size={20} color="#fff" />
                 <Text style={styles.deleteButtonText}>Excluir Perfil</Text>
@@ -815,5 +987,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  passwordToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  passwordToggleText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginLeft: 10,
+  },
+  passwordSection: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  passwordSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  passwordRequirements: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  requirementText: {
+    fontSize: 12,
+    marginLeft: 6,
+  },
+  changePasswordButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  changePasswordButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  changePasswordButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

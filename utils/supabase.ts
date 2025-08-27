@@ -459,7 +459,6 @@ export const adminAuth = {
 
       if (!user) {
         console.log('👤 Nenhum usuário logado', { platform: Platform.OS });
-        router.push('/');
         return null;
       }
 
@@ -479,7 +478,6 @@ export const adminAuth = {
         });
       } else {
         console.log('❌ Perfil de administrador não encontrado', { platform: Platform.OS });
-        router.push('/');
       }
 
       return adminProfile;

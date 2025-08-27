@@ -8,11 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 export default function MoradorLogin() {
   const { signIn, user } = useAuth();
 
-  useEffect(() => {
-    if (user && user.user_type === 'morador') {
-      router.replace('/morador');
-    }
-  }, [user]);
+  // Removido useEffect de verificação automática - redirecionamento deve ocorrer apenas após login bem-sucedido
 
   const handleLogin = async (
     email: string,
@@ -26,7 +22,8 @@ export default function MoradorLogin() {
         return { success: false, error: result.error };
       }
 
-      // O redirecionamento será feito pelo useEffect quando user for atualizado
+      // Redirecionar após login bem-sucedido
+      router.replace('/morador');
       return { success: true };
     } catch (error) {
       const errorMessage = 'Ocorreu um erro inesperado';

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "698173328657",
+    "project_id": "james-avisa",
+    "storage_bucket": "james-avisa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:698173328657:android:a184aedabdb6d238d950b0",
+        "android_client_info": {
+          "package_name": "com.porteiroapp.notifications"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-rsckDvqAQKTULiMiWVF5ZFlgWwZg5jQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

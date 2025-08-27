@@ -33,6 +33,13 @@ export default function PorteiroProfile() {
     work_schedule: '',
   });
   const [loading, setLoading] = useState(true);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -303,6 +310,74 @@ export default function PorteiroProfile() {
     );
   };
 
+  const validatePassword = (password: string) => {
+    const minLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    return {
+      minLength,
+      hasUpperCase,
+      hasLowerCase,
+      hasNumbers,
+      hasSpecialChar,
+      isValid: minLength && hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar
+    };
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      Alert.alert('Erro', 'Todos os campos de senha são obrigatórios.');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      Alert.alert('Erro', 'A nova senha e a confirmação não coincidem.');
+      return;
+    }
+
+    const validation = validatePassword(passwordData.newPassword);
+    if (!validation.isValid) {
+      Alert.alert('Erro', 'A nova senha não atende aos critérios de segurança.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      // Verificar senha atual tentando fazer login
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: passwordData.currentPassword
+      });
+
+      if (signInError) {
+        Alert.alert('Erro', 'Senha atual incorreta.');
+        setPasswordLoading(false);
+        return;
+      }
+
+      // Atualizar senha
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+
+      if (updateError) {
+        Alert.alert('Erro', 'Não foi possível alterar a senha: ' + updateError.message);
+      } else {
+        Alert.alert('Sucesso', 'Senha alterada com sucesso!');
+        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setShowPasswordSection(false);
+      }
+    } catch (error) {
+      console.error('Erro ao alterar senha:', error);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert('Confirmar Logout', 'Tem certeza que deseja sair?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -553,10 +628,93 @@ export default function PorteiroProfile() {
             <View style={styles.actionsCard}>
               <Text style={styles.actionsTitle}>Configurações</Text>
 
-              <TouchableOpacity style={styles.actionButton}>
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                onPress={() => setShowPasswordSection(!showPasswordSection)}
+              >
                 <Text style={styles.actionButtonText}>Alterar Senha</Text>
-                <Text style={styles.actionButtonArrow}>›</Text>
+                <Text style={styles.actionButtonArrow}>{showPasswordSection ? '▼' : '›'}</Text>
               </TouchableOpacity>
+
+              {showPasswordSection && (
+                <View style={styles.passwordSection}>
+                  <Text style={styles.passwordSectionTitle}>Alteração de Senha</Text>
+                  
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Senha Atual</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.currentPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, currentPassword: text})}
+                      secureTextEntry
+                      placeholder="Digite sua senha atual"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Nova Senha</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.newPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, newPassword: text})}
+                      secureTextEntry
+                      placeholder="Digite a nova senha"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Confirmar Nova Senha</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={passwordData.confirmPassword}
+                      onChangeText={(text) => setPasswordData({...passwordData, confirmPassword: text})}
+                      secureTextEntry
+                      placeholder="Confirme a nova senha"
+                    />
+                  </View>
+
+                  {passwordData.newPassword && (
+                    <View style={styles.passwordRequirements}>
+                      <Text style={styles.requirementsTitle}>Requisitos da senha:</Text>
+                      {Object.entries({
+                        'Mínimo 8 caracteres': validatePassword(passwordData.newPassword).minLength,
+                        'Pelo menos uma letra maiúscula': validatePassword(passwordData.newPassword).hasUpperCase,
+                        'Pelo menos uma letra minúscula': validatePassword(passwordData.newPassword).hasLowerCase,
+                        'Pelo menos um número': validatePassword(passwordData.newPassword).hasNumbers,
+                        'Pelo menos um caractere especial': validatePassword(passwordData.newPassword).hasSpecialChar
+                      }).map(([requirement, met]) => (
+                        <View key={requirement} style={styles.requirementItem}>
+                          <Text style={[styles.requirementIcon, { color: met ? '#4CAF50' : '#f44336' }]}>
+                            {met ? '✓' : '✗'}
+                          </Text>
+                          <Text style={[styles.requirementText, { color: met ? '#4CAF50' : '#f44336' }]}>
+                            {requirement}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <TouchableOpacity 
+                    style={[
+                      styles.changePasswordButton,
+                      (!validatePassword(passwordData.newPassword).isValid || 
+                       passwordData.newPassword !== passwordData.confirmPassword || 
+                       !passwordData.currentPassword || 
+                       passwordLoading) && styles.changePasswordButtonDisabled
+                    ]}
+                    onPress={handleChangePassword}
+                    disabled={!validatePassword(passwordData.newPassword).isValid || 
+                             passwordData.newPassword !== passwordData.confirmPassword || 
+                             !passwordData.currentPassword || 
+                             passwordLoading}
+                  >
+                    <Text style={styles.changePasswordButtonText}>
+                      {passwordLoading ? 'Alterando...' : 'Alterar Senha'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <TouchableOpacity style={styles.actionButton}>
                 <Text style={styles.actionButtonText}>Notificações</Text>
@@ -778,5 +936,65 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  passwordSection: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    marginTop: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  passwordSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  passwordRequirements: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 6,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  requirementsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  requirementIcon: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginRight: 8,
+    width: 16,
+  },
+  requirementText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  changePasswordButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  changePasswordButtonDisabled: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
+  },
+  changePasswordButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
