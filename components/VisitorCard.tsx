@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, ActivityIndicator, Alert } from 'react-native';
+import { supabase } from '../utils/supabase';
 
 interface Visitor {
   id: string;
@@ -21,7 +22,17 @@ interface VisitorCardProps {
   showActions?: boolean;
 }
 
+interface ResidentData {
+  id: string;
+  full_name: string;
+  photo_url?: string;
+  apartment_number?: string;
+}
+
 export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions = false }: VisitorCardProps) {
+  const [showResidentModal, setShowResidentModal] = useState(false);
+  const [residentData, setResidentData] = useState<ResidentData | null>(null);
+  const [loadingResident, setLoadingResident] = useState(false);
   const getStatusColor = () => {
     switch (visitor.notification_status) {
       case 'approved':
@@ -58,6 +69,48 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const fetchResidentData = async () => {
+    if (!visitor.authorized_by) {
+      Alert.alert('Erro', 'Visitante não possui morador autorizado');
+      return;
+    }
+
+    setLoadingResident(true);
+    try {
+      // Buscar dados do morador através do authorized_by
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          full_name,
+          photo_url,
+          apartment_residents!inner(
+            apartments!inner(number)
+          )
+        `)
+        .eq('user_id', visitor.authorized_by)
+        .single();
+
+      if (error || !profile) {
+        Alert.alert('Erro', 'Não foi possível encontrar os dados do morador');
+        return;
+      }
+
+      setResidentData({
+        id: profile.id,
+        full_name: profile.full_name,
+        photo_url: profile.photo_url,
+        apartment_number: profile.apartment_residents?.[0]?.apartments?.number
+      });
+      setShowResidentModal(true);
+    } catch (error) {
+      console.error('Erro ao buscar dados do morador:', error);
+      Alert.alert('Erro', 'Falha ao carregar dados do morador');
+    } finally {
+      setLoadingResident(false);
+    }
   };
 
   return (
@@ -144,8 +197,68 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
               <Text style={styles.actionButtonText}>🚪 Registrar Saída</Text>
             </TouchableOpacity>
           )}
+          
+          {/* Botão para ver foto do morador */}
+          {visitor.authorized_by && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.residentButton]}
+              onPress={fetchResidentData}
+              disabled={loadingResident}>
+              {loadingResident ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.actionButtonText}>👤 Ver Morador</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       )}
+      
+      {/* Modal para exibir foto do morador */}
+      <Modal
+        visible={showResidentModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowResidentModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Morador Autorizado</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowResidentModal(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {residentData && (
+              <View style={styles.residentInfo}>
+                <View style={styles.residentPhotoContainer}>
+                  {residentData.photo_url ? (
+                    <Image 
+                      source={{ uri: residentData.photo_url }} 
+                      style={styles.residentPhoto} 
+                    />
+                  ) : (
+                    <View style={styles.residentPhotoPlaceholder}>
+                      <Text style={styles.residentPhotoPlaceholderText}>👤</Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.residentDetails}>
+                  <Text style={styles.residentName}>{residentData.full_name}</Text>
+                  {residentData.apartment_number && (
+                    <Text style={styles.residentApartment}>
+                      Apartamento {residentData.apartment_number}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -299,5 +412,89 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  residentButton: {
+    backgroundColor: '#6B46C1',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    margin: 20,
+    maxWidth: 350,
+    width: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  residentInfo: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  residentPhotoContainer: {
+    width: 120,
+    height: 120,
+  },
+  residentPhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: '#6B46C1',
+  },
+  residentPhotoPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#6B46C1',
+  },
+  residentPhotoPlaceholderText: {
+    fontSize: 48,
+  },
+  residentDetails: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  residentName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  residentApartment: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });

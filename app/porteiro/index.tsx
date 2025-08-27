@@ -963,9 +963,9 @@ export default function PorteiroDashboard() {
           return null;
         }
 
-        // Buscar informações do apartamento através da tabela profiles
+        // Buscar informações do apartamento através da tabela apartment_residents
         const { data: residentData, error: residentError } = await supabase
-          .from('profiles')
+          .from('apartment_residents')
           .select(`
             apartment_id,
             apartments!inner(
@@ -978,7 +978,7 @@ export default function PorteiroDashboard() {
               )
             )
           `)
-          .eq('id', profileData.id)
+          .eq('profile_id', profileData.id)
           .single();
 
         if (residentError && residentError.code !== 'PGRST116') {
@@ -1637,6 +1637,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
+    marginBottom: 12,
     borderLeftWidth: 5,
   },
   visitorButton: {
