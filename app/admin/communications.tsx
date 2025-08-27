@@ -241,12 +241,14 @@ export default function Communications() {
 
   const renderHeader = () => (
     <View style={styles.header}>
+      <View style={styles.headerContent}>
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Text style={styles.backButtonText}>← Voltar</Text>
       </TouchableOpacity>
       <Text style={styles.title}>
         {activeTab === 'communications' ? '📢 Comunicados' : '📊 Enquetes'}
       </Text>
+      </View>
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'communications' && styles.activeTab]}
@@ -479,11 +481,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
     paddingBottom: 15,
     paddingHorizontal: 20,
-    paddingTop: 50,
+  },
+  headerContent: {
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: "center",
+    flexDirection: "row",
+    paddingTop: 20,
+    gap: 34,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   backButtonText: {
     color: '#fff',

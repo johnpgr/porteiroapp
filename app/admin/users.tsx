@@ -1946,16 +1946,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingTop: 60,
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 20,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingVertical: 30,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   backButtonText: {
     color: '#fff',
@@ -1963,7 +1966,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
