@@ -79,7 +79,7 @@ export default function HomePage() {
             Gerencie visitantes, entregas e moradores com tecnologia de ponta.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+            {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-app-store-badge.png" 
                 alt="Disponível na App Store" 
@@ -87,7 +87,7 @@ export default function HomePage() {
                 height={60}
                 className="h-15"
               />
-            </a>
+            </a> */}
             <a href="#" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-google-play-badge.png" 
@@ -349,7 +349,7 @@ export default function HomePage() {
                     id="nome"
                     name="nome"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 text-gray-500 focus:ring-blue-500 focus:border-transparent transition-colors"
                     placeholder="Seu nome completo"
                   />
                 </div>
@@ -363,7 +363,7 @@ export default function HomePage() {
                     id="email"
                     name="email"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 text-gray-500 focus:ring-blue-500 focus:border-transparent transition-colors"
                     placeholder="seu@email.com"
                   />
                 </div>
@@ -377,7 +377,7 @@ export default function HomePage() {
                     id="telefone"
                     name="telefone"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    className="w-full px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                     placeholder="(11) 99999-9999"
                   />
                 </div>
@@ -391,7 +391,7 @@ export default function HomePage() {
                     id="condominio"
                     name="condominio"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    className="w-full px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                     placeholder="Nome do seu condomínio ou empresa"
                   />
                 </div>
@@ -424,7 +424,7 @@ export default function HomePage() {
             Baixe o JAMES AVISA agora e transforme a gestão do seu condomínio!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+            {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-app-store-badge.png" 
                 alt="Disponível na App Store" 
@@ -432,7 +432,7 @@ export default function HomePage() {
                 height={60}
                 className="h-15"
               />
-            </a>
+            </a> */}
             <a href="#" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-google-play-badge.png" 
@@ -455,7 +455,7 @@ export default function HomePage() {
               alt="Logo JAMES AVISA" 
               width={32} 
               height={32}
-              className="h-8 w-auto"
+              className="h-8 w-auto bg-white rounded-full p-1"
             />
             <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
           </div>
@@ -471,7 +471,7 @@ export default function HomePage() {
             </ul>
           </div>
           <p className="text-gray-500 text-sm">
-            © 2024 JAMES AVISA. Todos os direitos reservados.
+            © 2025 JAMES AVISA. Todos os direitos reservados.
           </p>
         </div>
       </footer>

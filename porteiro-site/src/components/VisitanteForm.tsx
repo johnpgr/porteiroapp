@@ -298,18 +298,44 @@ export default function VisitanteForm({ tokenData, onSuccess, onError }: Visitan
         </div>
       </div>
 
-      <div>
+      <div className="space-y-4">
+        {isSubmitting && (
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="flex items-center">
+              <LoadingSpinner size="sm" color="blue" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-blue-800">Processando cadastro do visitante...</p>
+                <p className="text-xs text-blue-600">Aguarde enquanto enviamos sua solicitação</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
         >
           {isSubmitting ? (
-            <LoadingSpinner size="sm" color="white" />
+            <>
+              <LoadingSpinner size="sm" color="white" />
+              <span className="ml-2">Enviando...</span>
+            </>
           ) : (
-            'Finalizar Cadastro de Visitante'
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              Solicitar Aprovação da Visita
+            </>
           )}
         </button>
+        
+        <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+          <p className="text-xs text-gray-600 text-center">
+            ℹ️ Após o envio, o morador receberá uma notificação para aprovar sua visita
+          </p>
+        </div>
       </div>
     </form>
   );

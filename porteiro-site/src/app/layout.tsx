@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JAMES AVISA",
+  title: "James avisa - Portaria Virtual",
   description: "Sistema inteligente de portaria virtual para condomínios e empresas",
 };
 

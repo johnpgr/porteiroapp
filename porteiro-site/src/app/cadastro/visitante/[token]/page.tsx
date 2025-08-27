@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import TokenValidator from '@/components/TokenValidator';
 import VisitanteForm from '@/components/VisitanteForm';
-
 import { Json } from '@/types/database';
 
 interface TokenData {
@@ -20,7 +20,10 @@ interface TokenData {
   updated_at: string;
 }
 
-export default function VisitanteRegistrationPage({ params }: { params: { token: string } }) {
+export default function VisitanteRegistrationPage() {
+  const params = useParams();
+  const router = useRouter();
+  const token = params.token as string;
   const [validatedTokenData, setValidatedTokenData] = useState<TokenData | null>(null);
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,12 @@ export default function VisitanteRegistrationPage({ params }: { params: { token:
               <p className="mt-2 text-center text-sm text-gray-600">
                 Seu cadastro de visitante foi realizado com sucesso. Aguarde a aprovação do morador.
               </p>
+              <button
+                onClick={() => router.push('/')}
+                className="mt-4 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Voltar ao Início
+              </button>
             </div>
           </div>
         </div>
@@ -104,7 +113,7 @@ export default function VisitanteRegistrationPage({ params }: { params: { token:
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {!validatedTokenData ? (
             <TokenValidator
-              token={params.token}
+              token={token}
               expectedType="visitante"
               onValidToken={handleTokenValidated}
               onInvalidToken={handleTokenError}

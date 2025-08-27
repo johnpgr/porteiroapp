@@ -307,18 +307,42 @@ export default function MoradorForm({ tokenData, onSuccess, onError }: MoradorFo
         </div>
       </div>
 
-      <div>
+      <div className="space-y-4">
+        {isSubmitting && (
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="flex items-center">
+              <LoadingSpinner size="sm" color="blue" />
+              <div className="ml-3">
+                <p className="text-sm font-medium text-blue-800">Processando seu cadastro...</p>
+                <p className="text-xs text-blue-600">Por favor, não feche esta página</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
         >
           {isSubmitting ? (
-            <LoadingSpinner size="sm" color="white" />
+            <>
+              <LoadingSpinner size="sm" color="white" />
+              <span className="ml-2">Finalizando...</span>
+            </>
           ) : (
-            'Finalizar Cadastro'
+            <>
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Finalizar Cadastro
+            </>
           )}
         </button>
+        
+        <p className="text-xs text-gray-500 text-center">
+          Ao finalizar o cadastro, você concorda com nossos termos de uso
+        </p>
       </div>
     </form>
   );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import LoadingSpinner from './LoadingSpinner';
+import { CheckCircle, XCircle, Clock } from 'lucide-react';
 
 import { Json } from '@/types/database';
 
@@ -195,12 +196,18 @@ export default function VisitaApprovalForm({ tokenData, onSuccess, onError }: Vi
           <button
             onClick={() => handleApproval(false)}
             disabled={!rejectionReason.trim() || isProcessing}
-            className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isProcessing ? (
-              <LoadingSpinner size="sm" color="white" />
+              <>
+                <LoadingSpinner size="sm" color="white" />
+                <span>Processando rejeição...</span>
+              </>
             ) : (
-              'Confirmar Rejeição'
+              <>
+                <XCircle className="w-4 h-4" />
+                <span>Confirmar Rejeição</span>
+              </>
             )}
           </button>
         </div>
@@ -280,27 +287,48 @@ export default function VisitaApprovalForm({ tokenData, onSuccess, onError }: Vi
         <button
           onClick={() => handleApproval(false)}
           disabled={isProcessing}
-          className="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isProcessing ? (
-            <LoadingSpinner size="sm" color="white" />
+            <>
+              <LoadingSpinner size="sm" color="white" />
+              <span>Processando...</span>
+            </>
           ) : (
-            'Rejeitar Visita'
+            <>
+              <XCircle className="w-5 h-5" />
+              <span>Rejeitar Visita</span>
+            </>
           )}
         </button>
         
         <button
           onClick={() => handleApproval(true)}
           disabled={isProcessing}
-          className="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isProcessing ? (
-            <LoadingSpinner size="sm" color="white" />
+            <>
+              <LoadingSpinner size="sm" color="white" />
+              <span>Processando...</span>
+            </>
           ) : (
-            'Aprovar Visita'
+            <>
+              <CheckCircle className="w-5 h-5" />
+              <span>Aprovar Visita</span>
+            </>
           )}
         </button>
       </div>
+      
+      {isProcessing && (
+        <div className="text-center">
+          <p className="text-sm text-gray-600 flex items-center justify-center gap-2">
+            <Clock className="w-4 h-4" />
+            <span>O visitante será notificado via WhatsApp sobre sua decisão</span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

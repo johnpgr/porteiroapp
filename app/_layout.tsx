@@ -8,9 +8,9 @@ import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider } from '../hooks/useAuth';
-// import { notificationService } from '../services/notificationService'; // TEMPORARIAMENTE DESABILITADO
+import { notificationService } from '../services/notificationService';
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
-// import * as Notifications from 'expo-notifications'; // TEMPORARIAMENTE DESABILITADO
+import * as Notifications from 'expo-notifications';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -25,37 +25,24 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // TEMPORARIAMENTE DESABILITADO - PUSH NOTIFICATIONS
-  // useEffect(() => {
-  //   const setupNotifications = () => {
-  //     notificationService.setupNotificationListeners(
-  //       (notification) => {
-  //         console.log('Notificação recebida:', notification);
-  //       },
-  //       (response) => {
-  //         const data = response.notification.request.content.data;
-  //         console.log('Resposta da notificação:', data);
-  //       }
-  //     );
-  //   };
+  // PUSH NOTIFICATIONS HABILITADAS
+  useEffect(() => {
+    const setupNotifications = () => {
+      notificationService.setupNotificationListeners(
+        (notification) => {
+          console.log('Notificação recebida:', notification);
+        },
+        (response) => {
+          const data = response.notification.request.content.data;
+          console.log('Resposta da notificação:', data);
+        }
+      );
+    };
 
-  //   setupNotifications();
-  // }, []);
+    setupNotifications();
+  }, []);
 
-  // FUNÇÃO SETUPNOTIFICATIONS DESABILITADA TEMPORARIAMENTE
-  /*
-  const setupNotifications = () => {
-    notificationService.setupNotificationListeners(
-      (notification) => {
-        console.log('Notificação recebida:', notification);
-      },
-      (response) => {
-        const data = response.notification.request.content.data;
-        console.log('Resposta da notificação:', data);
-      }
-    );
-  };
-  */
+
 
   if (!loaded) {
     return null;
