@@ -1246,9 +1246,6 @@ export default function UsersManagement() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← Voltar</Text>
-        </TouchableOpacity>
         <Text style={styles.title}>👥 Gerenciar Usuários</Text>
       </View>
 
@@ -1257,7 +1254,7 @@ export default function UsersManagement() {
           <Text style={styles.addButtonText}>➕ Novo Usuário</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.multipleButton} onPress={openMultipleModal}>
-          <Text style={styles.multipleButtonText}>👥 Múltiplos Disparos</Text>
+          <Text style={styles.multipleButtonText}>👥 Múltiplos Usuários</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -1947,7 +1944,7 @@ const styles = StyleSheet.create({
   },
   header: {
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: "center",
     flexDirection: "row",
     gap: 20,
@@ -2421,7 +2418,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
-    marginLeft: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },

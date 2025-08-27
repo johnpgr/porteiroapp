@@ -39,7 +39,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    service: 'PorteiroApp WhatsApp API',
+    service: 'JamesAvisa WhatsApp API',
     version: '1.0.0'
   });
 });
@@ -47,7 +47,7 @@ app.get('/health', (req, res) => {
 // Rota principal
 app.get('/', (req, res) => {
   res.json({
-    message: 'PorteiroApp WhatsApp API',
+    message: 'JamesAvisa WhatsApp API',
     description: 'API responsável pelo envio de mensagens WhatsApp para moradores',
     endpoints: {
       health: 'GET /health',
@@ -84,7 +84,7 @@ app.use('*', (req, res) => {
 
 // Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`\n🚀 PorteiroApp WhatsApp API iniciada!`);
+  console.log(`\n🚀 JamesAvisa WhatsApp API iniciada!`);
   console.log(`📡 Servidor rodando na porta ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📋 Health Check: http://localhost:${PORT}/health`);

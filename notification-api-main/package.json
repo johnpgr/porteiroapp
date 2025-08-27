@@ -1,7 +1,7 @@
 {
   "name": "notification-api",
   "version": "1.0.0",
-  "description": "API para envio de mensagens WhatsApp para moradores do PorteiroApp",
+  "description": "API para envio de mensagens WhatsApp para moradores do JamesAvisa",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {

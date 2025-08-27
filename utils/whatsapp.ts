@@ -128,7 +128,7 @@ export const generateWhatsAppMessage = (
   baseUrl?: string
 ): { message: string; registrationLink: string } => {
   const registrationLink = generateRegistrationLink(residentData, baseUrl);
-  const message = `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no PorteiroApp clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
+  const message = `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no JamesAvisa clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
   
   return { message, registrationLink };
 };

@@ -111,15 +111,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
+ header: {
     backgroundColor: '#f44336',
-    paddingBottom: 20,
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 20,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingVertical: 30,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 10,
+    marginTop: 10,
   },
   backButtonText: {
     color: '#fff',

@@ -1,4 +1,4 @@
-# Documento de Arquitetura Técnica - PorteiroApp
+# Documento de Arquitetura Técnica - JamesAvisa
 
 ## 1. Design da Arquitetura
 

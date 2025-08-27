@@ -244,9 +244,6 @@ export default function SystemLogs() {
   return (
     <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
           <Text style={styles.title}>📊 Historico de visitantes</Text>
         </View>
 
@@ -514,7 +511,7 @@ const styles = StyleSheet.create({
   },
   header: {
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: "center",
     flexDirection: "row",
     gap: 20,

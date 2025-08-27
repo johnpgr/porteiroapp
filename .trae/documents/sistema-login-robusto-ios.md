@@ -520,7 +520,7 @@ export const iOSSupabaseConfig = {
         credentials: 'include',
         headers: {
           ...options.headers,
-          'User-Agent': 'PorteiroApp-iOS/1.0'
+          'User-Agent': 'JamesAvisa-iOS/1.0'
         }
       });
     }

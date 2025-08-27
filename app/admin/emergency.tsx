@@ -40,8 +40,10 @@ export default function EmergencyPage() {
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>🚨 Emergência</Text>
-          <Text style={styles.subtitle}>Contatos de Emergência</Text>
+          <View>
+            <Text style={styles.title}>🚨 Emergência</Text>
+            <Text style={styles.subtitle}>Contatos de Emergência</Text>
+          </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -111,12 +113,17 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#f44336',
-    paddingBottom: 20,
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 20,
     paddingHorizontal: 20,
+    paddingVertical: 30,
   },
   backButton: {
     alignSelf: 'flex-start',
-    marginBottom: 10,
+    marginTop: 10,
   },
   backButtonText: {
     color: '#fff',
@@ -124,7 +131,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

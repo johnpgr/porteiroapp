@@ -10,7 +10,7 @@ if (Platform.OS !== 'web') {
   AsyncStorage = require('@react-native-async-storage/async-storage').default;
 }
 
-// Configurações do projeto Supabase 'porteiroapp-dev'
+// Configurações do projeto Supabase 'JamesAvisa-dev'
 const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
 const supabaseAnonKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';

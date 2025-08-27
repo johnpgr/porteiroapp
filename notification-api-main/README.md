@@ -1,10 +1,10 @@
-# PorteiroApp WhatsApp API
+# JamesAvisa WhatsApp API
 
-API responsável pelo envio exclusivo de mensagens WhatsApp para moradores do PorteiroApp.
+API responsável pelo envio exclusivo de mensagens WhatsApp para moradores do JamesAvisa.
 
 ## 📋 Descrição
 
-Esta API foi desenvolvida especificamente para o PorteiroApp e é responsável por:
+Esta API foi desenvolvida especificamente para o JamesAvisa e é responsável por:
 - Enviar mensagens WhatsApp para moradores
 - Gerar links de cadastro personalizados
 - Validar dados de moradores
@@ -49,7 +49,7 @@ PORT=3001
 NODE_ENV=development
 
 # CORS Configuration (opcional)
-ALLOWED_ORIGINS=http://localhost:3000,https://porteiroapp.com
+ALLOWED_ORIGINS=http://localhost:3000,https://JamesAvisa.com
 ```
 
 ### Variáveis Obrigatórias:
@@ -69,7 +69,7 @@ GET /health
 {
   "status": "OK",
   "timestamp": "2025-08-22T14:26:47.513Z",
-  "service": "PorteiroApp WhatsApp API",
+  "service": "JamesAvisa WhatsApp API",
   "version": "1.0.0"
 }
 ```
@@ -82,7 +82,7 @@ GET /
 **Resposta:**
 ```json
 {
-  "message": "PorteiroApp WhatsApp API",
+  "message": "JamesAvisa WhatsApp API",
   "description": "API responsável pelo envio de mensagens WhatsApp para moradores",
   "endpoints": {
     "health": "GET /health",
@@ -109,7 +109,7 @@ Content-Type: application/json
   "phone": "11999887766",
   "building": "Edifício Central",
   "apartment": "101",
-  "registrationUrl": "https://cadastro.porteiroapp.com" // opcional
+  "registrationUrl": "https://jamesavisa.jamesconcierge.com/" // opcional
 }
 ```
 
@@ -120,7 +120,7 @@ Content-Type: application/json
 - `apartment`: Número do apartamento (string, mínimo 1 caractere)
 
 **Campos Opcionais:**
-- `registrationUrl`: URL de cadastro personalizada (padrão: "https://cadastro.porteiroapp.com")
+- `registrationUrl`: URL de cadastro personalizada (padrão: "https://jamesavisa.jamesconcierge.com/")
 
 **Resposta de Sucesso (200):**
 ```json
@@ -133,7 +133,7 @@ Content-Type: application/json
     "phone": "5511999887766",
     "building": "Edifício Central",
     "apartment": "101",
-    "registrationLink": "https://cadastro.porteiroapp.com?name=Jo%C3%A3o+Silva&phone=11999887766&building=Edif%C3%ADcio+Central&apartment=101"
+    "registrationLink": "https://jamesavisa.jamesconcierge.com/?name=Jo%C3%A3o+Silva&phone=11999887766&building=Edif%C3%ADcio+Central&apartment=101"
   },
   "timestamp": "2025-08-22T14:30:00.000Z",
   "duration": "1.2s"
@@ -171,26 +171,26 @@ Content-Type: application/json
 A API gera automaticamente uma mensagem formatada como:
 
 ```
-🏢 *PorteiroApp - Cadastro de Morador*
+🏢 *JamesAvisa - Cadastro de Morador*
 
 Olá *João Silva*!
 
-Você foi convidado(a) para se cadastrar no PorteiroApp.
+Você foi convidado(a) para se cadastrar no JamesAvisa.
 
 📍 *Dados do seu apartamento:*
 🏢 Prédio: Edifício Central
 🚪 Apartamento: 101
 
 Para completar seu cadastro, clique no link abaixo:
-https://cadastro.porteiroapp.com?name=João+Silva&phone=11999887766&building=Edifício+Central&apartment=101
+https://jamesavisa.jamesconcierge.com/?name=João+Silva&phone=11999887766&building=Edifício+Central&apartment=101
 
-Com o PorteiroApp você pode:
+Com o JamesAvisa você pode:
 ✅ Receber visitantes com mais segurança
 ✅ Autorizar entregas remotamente
 ✅ Comunicar-se diretamente com a portaria
 ✅ Acompanhar movimentações do seu apartamento
 
-_Mensagem enviada automaticamente pelo sistema PorteiroApp_
+_Mensagem enviada automaticamente pelo sistema JamesAvisa_
 ```
 
 ## 🧪 Testando a API
@@ -289,9 +289,9 @@ A API gera logs detalhados:
 - Timestamps em todas as respostas
 - Duração de processamento
 
-## 🤝 Integração com PorteiroApp
+## 🤝 Integração com JamesAvisa
 
-Esta API foi projetada para ser consumida pelo aplicativo principal do PorteiroApp, substituindo a integração direta com a Evolution API e centralizando o envio de mensagens WhatsApp.
+Esta API foi projetada para ser consumida pelo aplicativo principal do JamesAvisa, substituindo a integração direta com a Evolution API e centralizando o envio de mensagens WhatsApp.
 
 ## 📝 Licença
 

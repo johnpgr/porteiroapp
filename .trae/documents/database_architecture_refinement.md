@@ -1,4 +1,4 @@
-# Arquitetura de Banco de Dados - PorteiroApp
+# Arquitetura de Banco de Dados - JamesAvisa
 ## Estrutura Hierárquica Multi-Condomínio
 
 ## 1. Visão Geral da Arquitetura
@@ -565,4 +565,4 @@ GROUP BY c.id, c.name, b.id, b.name;
 - Testes de integração para fluxos completos
 - Testes de performance com dados em volume
 
-Esta arquitetura garante escalabilidade, segurança e manutenibilidade para o sistema PorteiroApp com múltiplos condomínios e prédios.
+Esta arquitetura garante escalabilidade, segurança e manutenibilidade para o sistema JamesAvisa com múltiplos condomínios e prédios.

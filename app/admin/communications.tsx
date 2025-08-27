@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Platform,
   SafeAreaView,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
@@ -23,6 +25,33 @@ interface Building {
 interface PollOption {
   id: string;
   text: string;
+}
+
+interface Communication {
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  priority: string;
+  created_at: string;
+  building: {
+    name: string;
+  };
+}
+
+interface Poll {
+  id: string;
+  title: string;
+  description: string;
+  expires_at: string;
+  created_at: string;
+  building: {
+    name: string;
+  };
+  poll_options: {
+    id: string;
+    option_text: string;
+  }[];
 }
 
 export default function Communications() {
@@ -47,6 +76,14 @@ export default function Communications() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [dateError, setDateError] = useState('');
+  
+  // Modal states
+  const [showCommunicationsModal, setShowCommunicationsModal] = useState(false);
+  const [showPollsModal, setShowPollsModal] = useState(false);
+  const [communicationsList, setCommunicationsList] = useState<Communication[]>([]);
+  const [pollsList, setPollsList] = useState<Poll[]>([]);
+  const [loadingCommunications, setLoadingCommunications] = useState(false);
+  const [loadingPolls, setLoadingPolls] = useState(false);
 
   useEffect(() => {
     fetchBuildings();
@@ -76,6 +113,88 @@ export default function Communications() {
       }
     } catch (error) {
       console.error('Erro ao obter ID do administrador:', error);
+    }
+  };
+
+  const fetchCommunications = async () => {
+    setLoadingCommunications(true);
+    try {
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        Alert.alert('Erro', 'Administrador não encontrado');
+        return;
+      }
+
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      const buildingIds = adminBuildings?.map(building => building.id) || [];
+
+      if (buildingIds.length === 0) {
+        setCommunicationsList([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('communications')
+        .select(`
+          id,
+          title,
+          content,
+          type,
+          priority,
+          created_at,
+          building:buildings(name)
+        `)
+        .in('building_id', buildingIds)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCommunicationsList(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar comunicados:', error);
+      Alert.alert('Erro', 'Falha ao carregar comunicados');
+    } finally {
+      setLoadingCommunications(false);
+    }
+  };
+
+  const fetchPolls = async () => {
+    setLoadingPolls(true);
+    try {
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        Alert.alert('Erro', 'Administrador não encontrado');
+        return;
+      }
+
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      const buildingIds = adminBuildings?.map(building => building.id) || [];
+
+      if (buildingIds.length === 0) {
+        setPollsList([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('polls')
+        .select(`
+          id,
+          title,
+          description,
+          expires_at,
+          created_at,
+          building:buildings(name),
+          poll_options(id, option_text)
+        `)
+        .in('building_id', buildingIds)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPollsList(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar enquetes:', error);
+      Alert.alert('Erro', 'Falha ao carregar enquetes');
+    } finally {
+      setLoadingPolls(false);
     }
   };
 
@@ -242,9 +361,6 @@ export default function Communications() {
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <Text style={styles.backButtonText}>← Voltar</Text>
-      </TouchableOpacity>
       <Text style={styles.title}>
         {activeTab === 'communications' ? '📢 Comunicados' : '📊 Enquetes'}
       </Text>
@@ -273,7 +389,10 @@ export default function Communications() {
       <View style={styles.communicationsHeader}>
         <TouchableOpacity
           style={styles.listCommunicationsButton}
-          onPress={() => router.push('/admin/communications')}>
+          onPress={() => {
+            setShowCommunicationsModal(true);
+            fetchCommunications();
+          }}>
           <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
         </TouchableOpacity>
       </View>
@@ -342,12 +461,137 @@ export default function Communications() {
     </ScrollView>
   );
 
+  const renderCommunicationsModal = () => (
+    <Modal
+      visible={showCommunicationsModal}
+      animationType="slide"
+      presentationStyle="fullScreen">
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity
+            style={styles.modalCloseButton}
+            onPress={() => setShowCommunicationsModal(false)}>
+            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>📋 Todos os Comunicados</Text>
+        </View>
+        
+        {loadingCommunications ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Carregando comunicados...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={communicationsList}
+            keyExtractor={(item) => item.id}
+            style={styles.modalContent}
+            renderItem={({ item }) => (
+              <View style={styles.communicationItem}>
+                <View style={styles.communicationHeader}>
+                  <Text style={styles.communicationTitle}>{item.title}</Text>
+                  <View style={styles.communicationMeta}>
+                    <Text style={styles.communicationType}>
+                      {item.type === 'notice' ? '📢 Aviso' :
+                       item.type === 'emergency' ? '🚨 Emergência' :
+                       item.type === 'maintenance' ? '🔧 Manutenção' : '🎉 Evento'}
+                    </Text>
+                    <Text style={styles.communicationPriority}>
+                      {item.priority === 'high' ? '🔴 Alta' :
+                       item.priority === 'low' ? '🟢 Baixa' : '🟡 Normal'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.communicationContent}>{item.content}</Text>
+                <View style={styles.communicationFooter}>
+                  <Text style={styles.communicationBuilding}>🏢 {item.building?.name}</Text>
+                  <Text style={styles.communicationDate}>
+                    {new Date(item.created_at).toLocaleString('pt-BR')}
+                  </Text>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Nenhum comunicado encontrado</Text>
+              </View>
+            }
+          />
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+
+  const renderPollsModal = () => (
+    <Modal
+      visible={showPollsModal}
+      animationType="slide"
+      presentationStyle="fullScreen">
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity
+            style={styles.modalCloseButton}
+            onPress={() => setShowPollsModal(false)}>
+            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>📊 Todas as Enquetes</Text>
+        </View>
+        
+        {loadingPolls ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Carregando enquetes...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={pollsList}
+            keyExtractor={(item) => item.id}
+            style={styles.modalContent}
+            renderItem={({ item }) => (
+              <View style={styles.pollItem}>
+                <View style={styles.pollHeader}>
+                  <Text style={styles.pollTitle}>{item.title}</Text>
+                  <Text style={styles.pollStatus}>
+                    {new Date(item.expires_at) > new Date() ? '🟢 Ativa' : '🔴 Expirada'}
+                  </Text>
+                </View>
+                <Text style={styles.pollDescription}>{item.description}</Text>
+                
+                <View style={styles.pollOptions}>
+                  <Text style={styles.pollOptionsTitle}>Opções:</Text>
+                  {item.poll_options?.map((option, index) => (
+                    <Text key={option.id} style={styles.pollOption}>
+                      {index + 1}. {option.option_text}
+                    </Text>
+                  ))}
+                </View>
+                
+                <View style={styles.pollFooter}>
+                  <Text style={styles.pollBuilding}>🏢 {item.building?.name}</Text>
+                  <Text style={styles.pollDate}>
+                    Expira: {new Date(item.expires_at).toLocaleString('pt-BR')}
+                  </Text>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Nenhuma enquete encontrada</Text>
+              </View>
+            }
+          />
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+
   const renderPolls = () => (
     <ScrollView style={styles.content}>
       <View style={styles.communicationsHeader}>
         <TouchableOpacity
           style={styles.listCommunicationsButton}
-          onPress={() => router.push('/admin/polls')}>
+          onPress={() => {
+            setShowPollsModal(true);
+            fetchPolls();
+          }}>
           <Text style={styles.listCommunicationsButtonText}>📊 Listar Todas as Enquetes</Text>
         </TouchableOpacity>
       </View>
@@ -442,6 +686,8 @@ export default function Communications() {
     <SafeAreaView style={styles.container}>
       {renderHeader()}
       {activeTab === 'communications' ? renderCommunications() : renderPolls()}
+      {renderCommunicationsModal()}
+      {renderPollsModal()}
       
       <View style={styles.bottomNav}>
         <TouchableOpacity
@@ -484,7 +730,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: "center",
     flexDirection: "row",
     paddingTop: 20,
@@ -687,5 +933,189 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     fontWeight: '500',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  modalHeader: {
+    backgroundColor: '#FF9800',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalCloseButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  modalCloseText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    flex: 1,
+    textAlign: 'center',
+    marginRight: 80,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  // Communication item styles
+  communicationItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  communicationHeader: {
+    marginBottom: 8,
+  },
+  communicationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  communicationMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  communicationType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF9800',
+  },
+  communicationPriority: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  communicationContent: {
+    fontSize: 16,
+    color: '#555',
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  communicationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 8,
+  },
+  communicationBuilding: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  communicationDate: {
+    fontSize: 12,
+    color: '#999',
+  },
+  // Poll item styles
+  pollItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pollHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  pollTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+    marginRight: 10,
+  },
+  pollStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pollDescription: {
+    fontSize: 16,
+    color: '#555',
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  pollOptions: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  pollOptionsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  pollOption: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 4,
+    paddingLeft: 8,
+  },
+  pollFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 8,
+  },
+  pollBuilding: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  pollDate: {
+    fontSize: 12,
+    color: '#999',
   },
 });

@@ -291,7 +291,7 @@ class NotificationService {
         apartment: residentData.apartment,
         situationType,
         description,
-        regularizationUrl: regularizationUrl || 'https://regularizacao.porteiroapp.com'
+        regularizationUrl: regularizationUrl || 'https://regularizacao.JamesAvisa.com'
       };
 
       console.log('🌐 Fazendo chamada para API de regularização:', {

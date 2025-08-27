@@ -1,5 +1,5 @@
 /**
- * Utilitários para formatação de mensagens do PorteiroApp
+ * Utilitários para formatação de mensagens do JamesAvisa
  * Funções para gerar links de cadastro e mensagens formatadas para WhatsApp
  */
 
@@ -10,10 +10,10 @@
  * @param {string} residentData.phone - Telefone do morador
  * @param {string} residentData.building - Prédio
  * @param {string} residentData.apartment - Apartamento
- * @param {string} [baseUrl='https://cadastro.porteiroapp.com'] - URL base para cadastro
+ * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/'] - URL base para cadastro
  * @returns {string} Link de cadastro personalizado
  */
-function generateRegistrationLink(residentData, baseUrl = 'https://cadastro.porteiroapp.com') {
+function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
   const params = new URLSearchParams({
     name: residentData.name,
     phone: residentData.phone,
@@ -34,20 +34,20 @@ function generateRegistrationLink(residentData, baseUrl = 'https://cadastro.port
  * @returns {string} Mensagem formatada para WhatsApp
  */
 function generateWhatsAppMessage(residentData, registrationLink) {
-  return `🏢 *PorteiroApp - Cadastro de Morador*\n\n` +
+  return `🏢 *JamesAvisa - Cadastro de Morador*\n\n` +
          `Olá *${residentData.name}*!\n\n` +
-         `Você foi convidado(a) para se cadastrar no PorteiroApp.\n\n` +
+         `Você foi convidado(a) para se cadastrar no JamesAvisa.\n\n` +
          `📍 *Dados do seu apartamento:*\n` +
          `🏢 Prédio: ${residentData.building}\n` +
          `🚪 Apartamento: ${residentData.apartment}\n\n` +
          `Para completar seu cadastro, clique no link abaixo:\n` +
          `${registrationLink}\n\n` +
-         `Com o PorteiroApp você pode:\n` +
+         `Com o JamesAvisa você pode:\n` +
          `✅ Receber visitantes com mais segurança\n` +
          `✅ Autorizar entregas remotamente\n` +
          `✅ Comunicar-se diretamente com a portaria\n` +
          `✅ Acompanhar movimentações do seu apartamento\n\n` +
-         `_Mensagem enviada automaticamente pelo sistema PorteiroApp_`;
+         `_Mensagem enviada automaticamente pelo sistema JamesAvisa_`;
 }
 
 /**
@@ -77,10 +77,10 @@ function validateResidentData(residentData) {
  * @param {string} regularizationData.building - Prédio
  * @param {string} regularizationData.apartment - Apartamento
  * @param {string} regularizationData.issueType - Tipo do problema
- * @param {string} [baseUrl='https://regularizacao.porteiroapp.com'] - URL base para regularização
+ * @param {string} [baseUrl='https://regularizacao.JamesAvisa.com'] - URL base para regularização
  * @returns {string} Link de regularização personalizado
  */
-function generateRegularizationLink(regularizationData, baseUrl = 'https://regularizacao.porteiroapp.com') {
+function generateRegularizationLink(regularizationData, baseUrl = 'https://regularizacao.JamesAvisa.com') {
   const params = new URLSearchParams({
     name: regularizationData.name,
     phone: regularizationData.phone,
@@ -112,7 +112,7 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
   
   const issueDescription = issueTypeMap[regularizationData.issueType] || regularizationData.issueType;
   
-  return `🚨 *PorteiroApp - Regularização Necessária*\n\n` +
+  return `🚨 *JamesAvisa - Regularização Necessária*\n\n` +
          `Olá *${regularizationData.name}*!\n\n` +
          `Identificamos uma situação que precisa ser regularizada em seu apartamento.\n\n` +
          `📍 *Dados do apartamento:*\n` +
@@ -126,7 +126,7 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
          `✅ Registrar informações adicionais\n` +
          `✅ Comunicar-se com a portaria\n` +
          `✅ Evitar futuras ocorrências\n\n` +
-         `_Mensagem enviada automaticamente pelo sistema PorteiroApp_`;
+         `_Mensagem enviada automaticamente pelo sistema JamesAvisa_`;
 }
 
 /**

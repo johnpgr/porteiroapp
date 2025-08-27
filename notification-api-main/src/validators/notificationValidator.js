@@ -19,7 +19,7 @@ const notificationSchema = z.object({
   subject: z.string().optional(),
   type: z.enum(['client', 'professional']),
   channels: channelsSchema,
-  registrationUrl: z.string().url().optional().default('https://cadastro.porteiroapp.com'),
+  registrationUrl: z.string().url().optional().default('https://jamesavisa.jamesconcierge.com/'),
 }).refine((data) => data.channels.email || data.channels.whatsapp, {
   message: 'Pelo menos um canal deve estar ativo (email ou whatsapp)'
 }).refine((data) => {
@@ -49,13 +49,13 @@ function validateNotification(data) {
   return { success: true, parsed: result.data };
 }
 
-// Esquema específico para notificações de moradores do PorteiroApp
+// Esquema específico para notificações de moradores do JamesAvisa
 const residentNotificationSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
   building: z.string().min(1, 'Prédio é obrigatório'),
   apartment: z.string().min(1, 'Apartamento é obrigatório'),
-  registrationUrl: z.string().url().default('https://cadastro.porteiroapp.com')
+  registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/')
 });
 
 function validateResidentNotification(data) {
@@ -104,7 +104,7 @@ const regularizationNotificationSchema = z.object({
     errorMap: () => ({ message: 'Tipo de problema deve ser: visitor, vehicle, package ou other' })
   }),
   description: z.string().optional(),
-  regularizationUrl: z.string().url().default('https://regularizacao.porteiroapp.com')
+  regularizationUrl: z.string().url().default('https://regularizacao.JamesAvisa.com')
 });
 
 function validateRegularizationNotification(data) {

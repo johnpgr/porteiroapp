@@ -1,7 +1,7 @@
 -- Criar admin padrão para testes com UUID gerado automaticamente
 -- Remove admin de teste anterior se existir
-DELETE FROM admin_profiles WHERE email = 'admin-test@porteiroapp.com';
-DELETE FROM auth.users WHERE email = 'admin-test@porteiroapp.com';
+DELETE FROM admin_profiles WHERE email = 'admin-test@JamesAvisa.com';
+DELETE FROM auth.users WHERE email = 'admin-test@JamesAvisa.com';
 
 -- Inserir usuário na tabela auth.users
 INSERT INTO auth.users (
@@ -20,7 +20,7 @@ INSERT INTO auth.users (
 ) VALUES (
   gen_random_uuid(),
   '00000000-0000-0000-0000-000000000000',
-  'admin-test@porteiroapp.com',
+  'admin-test@JamesAvisa.com',
   crypt('admin123456', gen_salt('bf')),
   now(),
   now(),
@@ -47,13 +47,13 @@ SELECT
   gen_random_uuid(),
   u.id,
   'Admin Teste',
-  'admin-test@porteiroapp.com',
+  'admin-test@JamesAvisa.com',
   'admin',
   true,
   now(),
   now()
 FROM auth.users u 
-WHERE u.email = 'admin-test@porteiroapp.com';
+WHERE u.email = 'admin-test@JamesAvisa.com';
 
 -- Comentário para identificar o propósito
 COMMENT ON TABLE admin_profiles IS 'Perfis dos administradores do sistema. Inclui admin padrão para testes.';

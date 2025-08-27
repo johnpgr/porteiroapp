@@ -53,7 +53,7 @@
 {
   "expo": {
     "ios": {
-      "bundleIdentifier": "com.porteiroapp.notifications",
+      "bundleIdentifier": "com.JamesAvisa.notifications",
       "buildNumber": "1.0.0"
     },
     "notification": {

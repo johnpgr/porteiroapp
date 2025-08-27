@@ -39,7 +39,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.porteiroapp.notifications",
+      "bundleIdentifier": "com.JamesAvisa.notifications",
       "buildNumber": "1.0.0"
     },
     "android": {
@@ -47,7 +47,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.porteiroapp.notifications"
+      "package": "com.JamesAvisa.notifications"
     },
     "notification": {
       "color": "#2563eb",

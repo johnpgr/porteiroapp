@@ -343,7 +343,7 @@ ${authorizationUrl}
 ⚠️ *Este link expira em 30 minutos*
 
 ---
-_PorteiroApp - Facilite sua vida_`;
+_JamesAvisa - Facilite sua vida_`;
 };
 ```
 

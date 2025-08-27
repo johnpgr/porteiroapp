@@ -81,7 +81,7 @@ function validateBrazilianPhone(phone) {
  * @param {string} baseUrl - URL base do site de cadastro
  * @returns {string} - Link completo com parâmetros
  */
-function generateRegistrationLink(residentData, baseUrl = 'https://cadastro.porteiroapp.com') {
+function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
   const cleanPhone = residentData.phone.replace(/\D/g, '');
   
   const params = new URLSearchParams({
@@ -101,7 +101,7 @@ function generateRegistrationLink(residentData, baseUrl = 'https://cadastro.port
  * @returns {string} - Mensagem formatada
  */
 function generateWhatsAppMessage(residentData, registrationLink) {
-  return `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no PorteiroApp clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
+  return `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no JamesAvisa clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
 }
 
 async function sendWhatsApp({ to, message }) {

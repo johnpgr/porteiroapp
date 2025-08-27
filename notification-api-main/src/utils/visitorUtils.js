@@ -1,5 +1,5 @@
 /**
- * Utilitários para processamento de dados de visitantes do PorteiroApp
+ * Utilitários para processamento de dados de visitantes do JamesAvisa
  * Funções para formatação, validação e geração de tokens
  */
 
@@ -163,7 +163,7 @@ function generateRegistrationConfirmationMessage(visitorData, token) {
   
   return `🎉 *Cadastro Finalizado com Sucesso!*\n\n` +
          `Olá *${visitorData.name}*!\n\n` +
-         `Seu cadastro no PorteiroApp foi finalizado com sucesso.\n\n` +
+         `Seu cadastro no JamesAvisa foi finalizado com sucesso.\n\n` +
          `📋 *Dados confirmados:*\n` +
          `👤 Nome: ${visitorData.name}\n` +
          `📱 Telefone: ${formattedPhone}\n` +
@@ -174,7 +174,7 @@ function generateRegistrationConfirmationMessage(visitorData, token) {
          `• Acessar o condomínio com seu token\n` +
          `• Receber notificações sobre suas visitas\n` +
          `• Acompanhar o status de suas autorizações\n\n` +
-         `_Mensagem enviada automaticamente pelo PorteiroApp_`;
+         `_Mensagem enviada automaticamente pelo JamesAvisa_`;
 }
 
 /**

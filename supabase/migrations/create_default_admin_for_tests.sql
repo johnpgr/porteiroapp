@@ -14,7 +14,7 @@ INSERT INTO auth.users (
 )
 SELECT 
   '00000000-0000-0000-0000-000000000001'::uuid,
-  'admin-test@porteiroapp.com',
+  'admin-test@JamesAvisa.com',
   crypt('admin123456', gen_salt('bf')),
   now(),
   now(),
@@ -38,7 +38,7 @@ SELECT
   '00000000-0000-0000-0000-000000000002'::uuid,
   '00000000-0000-0000-0000-000000000001'::uuid,
   'Admin Teste',
-  'admin-test@porteiroapp.com',
+  'admin-test@JamesAvisa.com',
   'admin',
   true
 WHERE NOT EXISTS (

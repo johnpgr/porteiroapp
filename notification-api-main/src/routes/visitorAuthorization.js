@@ -52,7 +52,7 @@ router.post('/send-visitor-notification', async (req, res) => {
     console.log('🔗 Link de autorização gerado:', authorizationLink);
 
     // Gerar mensagem WhatsApp personalizada
-    const whatsappMessage = `🏢 *PorteiroApp - Autorização de Visitante*\n\n` +
+    const whatsappMessage = `🏢 *JamesAvisa - Autorização de Visitante*\n\n` +
       `Olá *${visitorData.residentName}*!\n\n` +
       `O visitante *${visitorData.visitorName}* está aguardando autorização para acessar o prédio.\n\n` +
       `📍 *Destino:* ${visitorData.building} - Apt ${visitorData.apartment}\n` +
@@ -60,7 +60,7 @@ router.post('/send-visitor-notification', async (req, res) => {
       `Para autorizar ou recusar o acesso, clique no link abaixo:\n` +
       `${authorizationLink}\n\n` +
       `⚠️ *Este link expira em 30 minutos*\n\n` +
-      `_Mensagem automática do PorteiroApp_`;
+      `_Mensagem automática do JamesAvisa_`;
 
     console.log('📝 Mensagem formatada:', whatsappMessage.substring(0, 100) + '...');
 

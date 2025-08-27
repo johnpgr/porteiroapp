@@ -148,9 +148,6 @@ export default function BuildingsManagement() {
     <ProtectedRoute requiredRole="admin">
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
           <Text style={styles.title}>Gerenciar Prédios</Text>
           <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>{showAddForm ? 'Cancelar' : '+ Novo'}</Text>

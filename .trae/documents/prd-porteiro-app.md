@@ -1,4 +1,4 @@
-# Documento de Requisitos do Produto - PorteiroApp
+# Documento de Requisitos do Produto - JamesAvisa
 
 ## 1. Visão Geral do Produto
 Aplicativo mobile iOS/Android para comunicação entre porteiros e moradores em prédios residenciais, com interface visual e intuitiva usando ícones grandes e emojis.
