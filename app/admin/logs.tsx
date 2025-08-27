@@ -10,7 +10,6 @@ import {
   Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { router } from 'expo-router';
 
@@ -47,6 +46,20 @@ const formatTime = (value: string): string => {
   }
 };
 
+const formatDate = (value: string): string => {
+  // Remove todos os caracteres não numéricos
+  const numbers = value.replace(/\D/g, '');
+  
+  // Aplica a máscara DD/MM/YYYY
+  if (numbers.length <= 2) {
+    return numbers;
+  } else if (numbers.length <= 4) {
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}`;
+  } else {
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+  }
+};
+
 // Funções de validação
 const validateTime = (timeString: string): boolean => {
   if (!timeString || timeString.length !== 5) return false;
@@ -58,6 +71,21 @@ const validateTime = (timeString: string): boolean => {
   if (minutes < 0 || minutes > 59) return false;
   
   return true;
+};
+
+const validateDate = (dateString: string): boolean => {
+  if (!dateString || dateString.length !== 10) return false;
+  
+  const [day, month, year] = dateString.split('/').map(Number);
+  
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
+  if (day < 1 || day > 31) return false;
+  if (month < 1 || month > 12) return false;
+  if (year < 1900 || year > 2100) return false;
+  
+  // Validação mais específica de data
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 };
 
 export default function SystemLogs() {
@@ -73,11 +101,11 @@ export default function SystemLogs() {
     start: null as Date | null,
     end: null as Date | null,
   });
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  // Estados para os campos de hora formatados
+  // Estados para os campos de hora e data formatados
   const [startTimeInput, setStartTimeInput] = useState('');
   const [endTimeInput, setEndTimeInput] = useState('');
+  const [startDateInput, setStartDateInput] = useState('');
+  const [endDateInput, setEndDateInput] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -100,6 +128,7 @@ export default function SystemLogs() {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
         console.error('Administrador não encontrado');
+        router.push('/');
         return;
       }
 
@@ -273,16 +302,30 @@ export default function SystemLogs() {
 
             <View style={styles.dateFilterContainer}>
               <View style={styles.datePickerGroup}>
-                <TouchableOpacity
-                  style={styles.datePickerButton}
-                  onPress={() => setShowStartDatePicker(true)}>
-                  <Text style={styles.datePickerButtonText}>
-                    📅{' '}
-                    {logDateFilter.start
-                      ? logDateFilter.start.toLocaleDateString('pt-BR')
-                      : 'Data início'}
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={styles.dateInput}
+                  placeholder="📅 DD/MM/YYYY"
+                  value={startDateInput}
+                  onChangeText={(text) => {
+                    const formatted = formatDate(text);
+                    setStartDateInput(formatted);
+                    
+                    // Se a data for válida, atualizar o filtro de data
+                    if (validateDate(formatted)) {
+                      const [day, month, year] = formatted.split('/').map(Number);
+                      const newDate = new Date(year, month - 1, day);
+                      
+                      // Manter horário se já existir
+                      if (logDateFilter.start) {
+                        newDate.setHours(logDateFilter.start.getHours(), logDateFilter.start.getMinutes());
+                      }
+                      
+                      setLogDateFilter((prev) => ({ ...prev, start: newDate }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
 
                 <TextInput
                   style={styles.timeInput}
@@ -307,13 +350,30 @@ export default function SystemLogs() {
               </View>
 
               <View style={styles.datePickerGroup}>
-                <TouchableOpacity
-                  style={styles.datePickerButton}
-                  onPress={() => setShowEndDatePicker(true)}>
-                  <Text style={styles.datePickerButtonText}>
-                    📅 {logDateFilter.end ? logDateFilter.end.toLocaleDateString('pt-BR') : 'Data fim'}
-                  </Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={styles.dateInput}
+                  placeholder="📅 DD/MM/YYYY"
+                  value={endDateInput}
+                  onChangeText={(text) => {
+                    const formatted = formatDate(text);
+                    setEndDateInput(formatted);
+                    
+                    // Se a data for válida, atualizar o filtro de data
+                    if (validateDate(formatted)) {
+                      const [day, month, year] = formatted.split('/').map(Number);
+                      const newDate = new Date(year, month - 1, day);
+                      
+                      // Manter horário se já existir
+                      if (logDateFilter.end) {
+                        newDate.setHours(logDateFilter.end.getHours(), logDateFilter.end.getMinutes());
+                      }
+                      
+                      setLogDateFilter((prev) => ({ ...prev, end: newDate }));
+                    }
+                  }}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
 
                 <TextInput
                   style={styles.timeInput}
@@ -338,39 +398,7 @@ export default function SystemLogs() {
               </View>
             </View>
 
-            {showStartDatePicker && (
-              <DateTimePicker
-                value={logDateFilter.start || new Date()}
-                mode="date"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowStartDatePicker(false);
-                  if (selectedDate) {
-                    const currentTime = logDateFilter.start || new Date();
-                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, start: selectedDate }));
-                  }
-                }}
-              />
-            )}
 
-
-
-            {showEndDatePicker && (
-              <DateTimePicker
-                value={logDateFilter.end || new Date()}
-                mode="date"
-                display="default"
-                onChange={(event, selectedDate) => {
-                  setShowEndDatePicker(false);
-                  if (selectedDate) {
-                    const currentTime = logDateFilter.end || new Date();
-                    selectedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
-                    setLogDateFilter((prev) => ({ ...prev, end: selectedDate }));
-                  }
-                }}
-              />
-            )}
 
 
           </View>
@@ -561,7 +589,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 5,
   },
-  datePickerButton: {
+  dateInput: {
     height: 50,
     backgroundColor: '#fff',
     paddingHorizontal: 15,
@@ -570,9 +598,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#ddd',
-    justifyContent: 'center',
-  },
-  datePickerButtonText: {
     fontSize: 16,
     color: '#333',
     textAlign: 'center',

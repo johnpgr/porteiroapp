@@ -1611,7 +1611,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    marginBottom: 20,
   },
   headerTitle: {
     fontSize: 28,
@@ -1628,14 +1627,12 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     padding: 20,
-    gap: 20,
   },
   actionButton: {
     backgroundColor: '#fff',
     padding: 25,
     borderRadius: 16,
     alignItems: 'center',
-    elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

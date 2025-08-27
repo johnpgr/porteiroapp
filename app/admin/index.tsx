@@ -55,6 +55,7 @@ export default function AdminDashboard() {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
         console.error('Administrador não encontrado');
+        router.push('/');
         return;
       }
 

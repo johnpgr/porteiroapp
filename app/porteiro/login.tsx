@@ -37,7 +37,7 @@ export default function PorteiroLogin() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
         <Ionicons name="arrow-back" size={24} color="#2196F3" />
       </TouchableOpacity>
 

@@ -419,9 +419,6 @@ export default function ActivityLogs() {
     <Container>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
           <Text style={styles.title}>📋 Histórico de Atividades</Text>
         </View>
 
@@ -564,19 +561,9 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
     backgroundColor: '#2196F3',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   title: {
     fontSize: 24,
@@ -585,7 +572,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   filters: {
-    paddingVertical: 10,
+    paddingVertical: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',

@@ -2,6 +2,7 @@ import { supabase } from '../../../utils/supabase';
 import { AuthStrategy, AuthCredentials, AuthResult, AuthContext } from './AuthStrategy';
 import { AuthUser } from '../AuthManager';
 import { AuthLogger } from '../AuthLogger';
+import { router } from 'expo-router';
 
 export class AdminAuthStrategy extends AuthStrategy {
   private logger: AuthLogger;
@@ -134,6 +135,7 @@ export class AdminAuthStrategy extends AuthStrategy {
       }
 
       if (!adminData) {
+        router.push('/');
         return {
           success: false,
           error: 'Perfil de administrador não encontrado'

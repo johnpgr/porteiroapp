@@ -95,6 +95,7 @@ export default function Communications() {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
         console.error('Administrador não encontrado');
+        router.push('/');
         return;
       }
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
@@ -122,6 +123,7 @@ export default function Communications() {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
         Alert.alert('Erro', 'Administrador não encontrado');
+        router.push('/');
         return;
       }
 

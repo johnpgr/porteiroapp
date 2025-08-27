@@ -41,6 +41,7 @@ export default function BuildingsManagement() {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
         console.error('Administrador não encontrado');
+        router.push('/');
         setBuildings([]);
         return;
       }

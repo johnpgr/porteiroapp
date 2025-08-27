@@ -146,7 +146,7 @@ export default function AdminLogin() {
     <View style={styles.container}>
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => router.back()}
+        onPress={() => router.push('/')}
         disabled={isLoading}>
         <Text style={[styles.backButtonText, isLoading && styles.disabledText]}>← Voltar</Text>
       </TouchableOpacity>

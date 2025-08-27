@@ -2,6 +2,7 @@ import { supabase } from '../../../utils/supabase';
 import { AuthStrategy, AuthCredentials, AuthResult, AuthContext } from './AuthStrategy';
 import { AuthUser } from '../AuthManager';
 import { AuthLogger } from '../AuthLogger';
+import { router } from 'expo-router';
 
 export class MoradorAuthStrategy extends AuthStrategy {
   private logger: AuthLogger;
@@ -144,6 +145,7 @@ export class MoradorAuthStrategy extends AuthStrategy {
       }
 
       if (!moradorData) {
+        router.push('/');
         return {
           success: false,
           error: 'Perfil de morador não encontrado'

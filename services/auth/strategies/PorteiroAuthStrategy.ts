@@ -2,6 +2,7 @@ import { supabase } from '../../../utils/supabase';
 import { AuthStrategy, AuthCredentials, AuthResult, AuthContext } from './AuthStrategy';
 import { AuthUser } from '../AuthManager';
 import { AuthLogger } from '../AuthLogger';
+import { router } from 'expo-router';
 
 export class PorteiroAuthStrategy extends AuthStrategy {
   private logger: AuthLogger;
@@ -139,6 +140,7 @@ export class PorteiroAuthStrategy extends AuthStrategy {
       }
 
       if (!porteiroData) {
+        router.push('/');
         return {
           success: false,
           error: 'Perfil de porteiro não encontrado'
