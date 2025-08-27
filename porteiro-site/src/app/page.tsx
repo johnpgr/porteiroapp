@@ -17,12 +17,12 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-8 text-center">
             <div className="flex items-center space-x-2 text-white font-medium text-sm">
-              <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold">🎉 OFERTA LIMITADA</span>
-              <span>Os 100 primeiros cadastrados receberão o aplicativo gratuitamente</span>
+              <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold">🎉 OFERTA EXCLUSIVA</span>
+              <span>Os primeiros 100 condomínios inscritos ganham acesso gratuito ao app!</span>
             </div>
             <div className="flex items-center space-x-2 text-white font-medium text-sm">
-              <span className="bg-red-500 px-2 py-1 rounded-full text-xs font-bold animate-pulse">⚡ URGENTE</span>
-              <span>Estamos com muita demanda no momento, garanta seu acesso prioritário</span>
+              <span className="bg-red-500 px-2 py-1 rounded-full text-xs font-bold animate-pulse">⚡ ATENÇÃO</span>
+              <span>Alta demanda — garanta seu acesso prioritário agora!</span>
             </div>
           </div>
         </div>
@@ -41,7 +41,7 @@ export default function HomePage() {
                 className="h-10 w-auto"
               />
               <h1 className="text-2xl font-bold text-gray-900">
-                JAMES AVISA
+                James Avisa 
               </h1>
             </div>
             <div className="flex space-x-4">
@@ -72,11 +72,10 @@ export default function HomePage() {
             />
           </div>
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
-            Bem-vindo ao <span className="text-blue-600">JAMES AVISA</span>
+           <span className="text-blue-600">James Avisa</span>
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            A solução completa para modernizar a portaria do seu condomínio. 
-            Gerencie visitantes, entregas e moradores com tecnologia de ponta.
+            Tecnologia de ponta para gestão inteligente de visitantes, entregas e moradores.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
@@ -106,7 +105,7 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-4">
           <div className="text-center mb-12">
             <h3 className="text-3xl font-bold text-gray-900 mb-4">
-              O que o JAMES AVISA oferece
+              O que o James Avisa oferece
             </h3>
             <p className="text-lg text-gray-600">
               Tudo que você precisa para uma portaria moderna e eficiente
@@ -266,7 +265,7 @@ export default function HomePage() {
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <h3 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Por que escolher o JAMES AVISA?
+            Por que escolher o James Avisa?
           </h3>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
@@ -314,7 +313,7 @@ export default function HomePage() {
                 Cadastre-se na Lista de Espera
               </h2>
               <p className="text-lg text-gray-600 mb-6">
-                Seja um dos primeiros a ter acesso ao JAMES AVISA e transforme a gestão da sua portaria.
+                Seja um dos primeiros a ter acesso ao James Avisa e transforme a comunicação do seu condomínio.
               </p>
               
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -400,7 +399,7 @@ export default function HomePage() {
                   type="submit"
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md transition-colors duration-200"
                 >
-                  Cadastrar na Lista de Espera
+                  Quero acesso antecipado
                 </button>
               </form>
 
@@ -421,7 +420,7 @@ export default function HomePage() {
             Pronto para modernizar sua portaria?
           </h3>
           <p className="text-xl text-blue-100 mb-8">
-            Baixe o JAMES AVISA agora e transforme a gestão do seu condomínio!
+            Baixe o James Avisa agora e transforme a gestão do seu condomínio!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
@@ -460,7 +459,7 @@ export default function HomePage() {
             <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
           </div>
           <p className="text-gray-400 mb-4">
-            Sistema de Portaria Digital - Segurança e praticidade para seu condomínio
+            Sua portaria digital em tempo real - Segurança e praticidade para seu condomínio
           </p>
           <div className="mb-4">
             <h4 className="font-semibold mb-3">Legal</h4>
