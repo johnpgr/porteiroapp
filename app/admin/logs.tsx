@@ -10,7 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+
 import { IOSCompatiblePicker, IOSCompatibleTimePicker } from '../../components/IOSCompatiblePickers';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { router } from 'expo-router';
@@ -50,7 +50,7 @@ export default function SystemLogs() {
   });
 
   
-  const isIOS = Platform.OS === 'ios';
+
 
   useEffect(() => {
     fetchData();

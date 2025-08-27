@@ -33,7 +33,13 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="text-3xl">🏢</div>
+              <Image 
+                src="/logo-james.png" 
+                alt="Logo JAMES AVISA" 
+                width={40} 
+                height={40}
+                className="h-10 w-auto"
+              />
               <h1 className="text-2xl font-bold text-gray-900">
                 JAMES AVISA
               </h1>
@@ -56,6 +62,15 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-50 to-white py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
+          <div className="mb-8">
+            <Image 
+              src="/logo-james.png" 
+              alt="Logo JAMES AVISA" 
+              width={80} 
+              height={80}
+              className="h-20 w-auto mx-auto"
+            />
+          </div>
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
             Bem-vindo ao <span className="text-blue-600">JAMES AVISA</span>
           </h2>
@@ -435,7 +450,13 @@ export default function HomePage() {
       <footer className="bg-gray-900 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="text-2xl">🏢</div>
+            <Image 
+              src="/logo-james.png" 
+              alt="Logo JAMES AVISA" 
+              width={32} 
+              height={32}
+              className="h-8 w-auto"
+            />
             <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
           </div>
           <p className="text-gray-400 mb-4">

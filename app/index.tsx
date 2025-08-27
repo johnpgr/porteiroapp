@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
 
@@ -7,7 +7,14 @@ export default function Home() {
   return (
     <Container>
       <View style={styles.container}>
-        <Text style={styles.title}>🏢 James Avisa</Text>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('~/assets/logo-james.png')} 
+            style={styles.logo}
+            alt="James Logo"
+          />
+          <Text style={styles.title}>James Avisa</Text>
+        </View>
         <Text style={styles.subtitle}>Selecione seu perfil de acesso</Text>
 
         <View style={styles.buttonsContainer}>
@@ -45,6 +52,18 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  logoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  logo: {
+    width: 60,
+    height: 60,
+    marginBottom: 10,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -55,7 +74,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2196F3',
+    color: '#212429',
     marginBottom: 10,
     textAlign: 'center',
   },
