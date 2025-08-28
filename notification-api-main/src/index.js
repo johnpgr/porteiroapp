@@ -7,6 +7,7 @@ dotenv.config();
 const sendNotificationRouter = require('./routes/sendNotification');
 const completeRegistrationRouter = require('./routes/completeRegistration');
 const visitorAuthorizationRouter = require('./routes/visitorAuthorization');
+const residentRegistrationRouter = require('./routes/residentRegistration');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/api', sendNotificationRouter);
 app.use('/api', completeRegistrationRouter);
 app.use('/api', visitorAuthorizationRouter);
+app.use('/api', residentRegistrationRouter);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
