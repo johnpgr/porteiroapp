@@ -49,7 +49,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get('returnUrl');
   
-  const [email, setEmail] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -125,12 +125,66 @@ export default function LoginPage() {
     }
   };
 
+  const isEmail = (input: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(input);
+  };
+
+  const isPhone = (input: string) => {
+    // Remove todos os caracteres não numéricos
+    const cleanPhone = input.replace(/\D/g, '');
+    // Verifica se tem 10 ou 11 dígitos (telefone brasileiro)
+    return cleanPhone.length >= 10 && cleanPhone.length <= 11;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
+      let email = emailOrPhone;
+      
+      // Se não é email, assume que é telefone e busca o email correspondente
+      if (!isEmail(emailOrPhone)) {
+        if (!isPhone(emailOrPhone)) {
+          setMessage('Por favor, digite um email válido ou um número de telefone.');
+          setMessageType('error');
+          setLoading(false);
+          return;
+        }
+
+        // Buscar email pelo telefone nas tabelas profiles e admin_profiles
+        const cleanPhone = emailOrPhone.replace(/\D/g, '');
+        
+        // Primeiro tenta na tabela profiles
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('phone', cleanPhone)
+          .single();
+
+        if (profileData?.email) {
+          email = profileData.email;
+        } else {
+          // Se não encontrou, tenta na tabela admin_profiles
+          const { data: adminData } = await supabase
+            .from('admin_profiles')
+            .select('email')
+            .eq('phone', cleanPhone)
+            .single();
+
+          if (adminData?.email) {
+            email = adminData.email;
+          } else {
+            setMessage('Telefone não encontrado. Verifique o número ou use seu email.');
+            setMessageType('error');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -505,7 +559,7 @@ export default function LoginPage() {
           <div className="text-center">
             <UserIcon className="mx-auto h-12 w-12 text-blue-600" />
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Fazer Login</h2>
-            <p className="mt-2 text-sm text-gray-600">Acesse sua conta para gerenciar seu perfil</p>
+            <p className="mt-2 text-sm text-gray-600">Use seu email ou telefone para acessar sua conta</p>
           </div>
 
           {message && (
@@ -517,21 +571,25 @@ export default function LoginPage() {
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
             <div className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email
+                <label htmlFor="emailOrPhone" className="block text-sm font-medium text-gray-700">
+                  Email ou Telefone
                 </label>
                 <div className="mt-1 relative">
-                  <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  {isEmail(emailOrPhone) ? (
+                    <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  )}
                   <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
+                    id="emailOrPhone"
+                    name="emailOrPhone"
+                    type="text"
+                    autoComplete="username"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={emailOrPhone}
+                    onChange={(e) => setEmailOrPhone(e.target.value)}
                     className="pl-10 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                    placeholder="Digite seu email"
+                    placeholder="Digite seu email ou telefone"
                   />
                 </div>
               </div>

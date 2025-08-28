@@ -7,7 +7,7 @@ const multer = require('multer');
 const router = express.Router();
 
 // Configure multer for memory storage
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
@@ -40,21 +40,21 @@ const registerResidentSchema = z.object({
 router.post('/test-whatsapp-message', async (req, res) => {
   try {
     const { full_name, email, phone, apartment_number } = req.body;
-    
+
     if (!full_name || !email || !phone || !apartment_number) {
       return res.status(400).json({
         success: false,
         error: 'Campos obrigatórios: full_name, email, phone, apartment_number'
       });
     }
-    
+
     // Generate a test temporary password
     const temporaryPassword = 'Test123!';
-    
+
     // Create the WhatsApp message format
     const siteUrl = 'https://jamesavisa.jamesconcierge.com';
     const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=test-id`;
-    
+
     const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
 
 ✅ *Seu cadastro foi iniciado com sucesso!*
@@ -78,7 +78,7 @@ router.post('/test-whatsapp-message', async (req, res) => {
 
 🔗 *Clique aqui para finalizar:*
 ${completarCadastroUrl}`;
-    
+
     return res.json({
       success: true,
       message: 'Mensagem de teste gerada com sucesso',
@@ -89,7 +89,7 @@ ${completarCadastroUrl}`;
         temporary_password: temporaryPassword
       }
     });
-    
+
   } catch (error) {
     console.error('Erro no endpoint de teste:', error);
     return res.status(500).json({
@@ -117,29 +117,29 @@ const completeProfileSchema = z.object({
 router.post('/register-resident', async (req, res) => {
   try {
     console.log('Iniciando cadastro de morador:', req.body);
-    
+
     // Validate input data
     const validatedData = registerResidentSchema.parse(req.body);
     const { full_name, email, phone, building_id, apartment_number } = validatedData;
-    
+
     // Check if email already exists
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('id')
       .eq('email', email)
       .single();
-    
+
     if (existingProfile) {
       return res.status(400).json({
         success: false,
         error: 'Email já cadastrado no sistema'
       });
     }
-    
+
     // Generate random password using database function
     const { data: passwordData, error: passwordError } = await supabase
       .rpc('generate_random_password');
-    
+
     if (passwordError) {
       console.error('Erro ao gerar senha:', passwordError);
       return res.status(500).json({
@@ -147,10 +147,10 @@ router.post('/register-resident', async (req, res) => {
         error: 'Erro interno do servidor'
       });
     }
-    
+
     const temporaryPassword = passwordData;
     console.log('Senha temporária gerada:', temporaryPassword);
-    
+
     // Create user in Supabase Auth
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
@@ -161,7 +161,7 @@ router.post('/register-resident', async (req, res) => {
         phone
       }
     });
-    
+
     if (authError) {
       console.error('Erro ao criar usuário:', authError);
       return res.status(400).json({
@@ -169,9 +169,9 @@ router.post('/register-resident', async (req, res) => {
         error: authError.message
       });
     }
-    
+
     console.log('Usuário criado no Auth:', authUser.user.id);
-    
+
     // Create profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -181,14 +181,14 @@ router.post('/register-resident', async (req, res) => {
         email,
         phone,
         building_id,
-        role: 'resident',
-        user_type: 'resident',
+        role: 'morador',
+        user_type: 'morador',
         profile_complete: false,
         temporary_password_used: false
       })
       .select()
       .single();
-    
+
     if (profileError) {
       console.error('Erro ao criar perfil:', profileError);
       // Clean up auth user if profile creation fails
@@ -198,13 +198,13 @@ router.post('/register-resident', async (req, res) => {
         error: 'Erro ao criar perfil do usuário'
       });
     }
-    
+
     console.log('Perfil criado:', profile.id);
-    
+
     // Hash password for storage
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(temporaryPassword, saltRounds);
-    
+
     // Store temporary password
     const { error: tempPasswordError } = await supabase
       .from('temporary_passwords')
@@ -214,77 +214,57 @@ router.post('/register-resident', async (req, res) => {
         plain_password: temporaryPassword,
         used: false
       });
-    
+
     if (tempPasswordError) {
       console.error('Erro ao salvar senha temporária:', tempPasswordError);
     }
-    
+
     // Get building info for WhatsApp message
     const { data: building } = await supabase
       .from('buildings')
       .select('name')
       .eq('id', building_id)
       .single();
-    
+
     // Send WhatsApp notification with credentials
     const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
     const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${profile.id}`;
-    const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
+    const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
-✅ *Seu cadastro foi iniciado com sucesso!*
+Olá *${full_name}*!
 
-🏢 *Condomínio:* ${building?.name || 'Não informado'}
-🏠 *Apartamento:* ${apartment_number}
+Você foi convidado(a) para se cadastrar no JamesAvisa.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📍 Dados do seu apartamento:
 
-🔐 *SUAS CREDENCIAIS DE ACESSO:*
+🏢 Prédio: ${building?.name || 'Não informado'}
 
-📱 *Usuário (Celular):* ${phone}
-🔑 *Senha temporária:* ${temporaryPassword}
+🚪 Apartamento: ${apartment_number}
 
-💡 *IMPORTANTE:* Use seu número de celular como usuário para fazer login!
+Para completar seu cadastro, clique no link abaixo:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🌐 *COMPLETE SEU CADASTRO:*
-
-🔗 *Clique aqui para finalizar:*
 ${completarCadastroUrl}
 
-📱 *Ou acesse:*
-• Site: ${siteUrl}/login
-• Portal: ${siteUrl.replace('jamesavisa.jamesconcierge.com', 'jamesavisa.jamesconcierge.com/morador')}
+🔐 SUAS CREDENCIAIS DE ACESSO:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 Usuário (Celular): ${phone}
 
-⚠️ *PRÓXIMOS PASSOS IMPORTANTES:*
+🔑 Senha temporária: ${temporaryPassword}
 
-1️⃣ Clique no link acima para completar seu cadastro
-2️⃣ Adicione sua foto e dados pessoais
-3️⃣ Crie uma nova senha de sua preferência
-4️⃣ Faça login e explore as funcionalidades
+💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Com o JamesAvisa você pode:
 
-🚀 *FUNCIONALIDADES DISPONÍVEIS:*
+✅ Receber visitantes com mais segurança
 
-• 👥 Autorização de visitantes
-• 🔔 Notificações em tempo real
-• 📋 Histórico de acessos
-• ⚙️ Gestão de perfil
-• 🔒 Controle de segurança
+✅ Autorizar entregas remotamente
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Comunicar-se diretamente com a portaria
 
-💬 *Precisa de ajuda?*
-Nossa equipe está pronta para ajudar!
+✅ Acompanhar movimentações do seu apartamento
 
-📞 Suporte: Entre em contato conosco
-🕐 Horário: Segunda a Sexta, 8h às 18h
+Mensagem enviada automaticamente pelo sistema JamesAvisa`
 
-*JamesAvisa - Sua portaria digital!* 🏢✨`
-    
     try {
       await sendWhatsApp({
         to: phone,
@@ -295,7 +275,7 @@ Nossa equipe está pronta para ajudar!
       console.error('Erro ao enviar WhatsApp:', whatsappError.message);
       // Don't fail the registration if WhatsApp fails
     }
-    
+
     res.json({
       success: true,
       message: 'Cadastro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
@@ -306,10 +286,10 @@ Nossa equipe está pronta para ajudar!
         apartment_number
       }
     });
-    
+
   } catch (error) {
     console.error('Erro no cadastro de morador:', error);
-    
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -317,7 +297,7 @@ Nossa equipe está pronta para ajudar!
         details: error.errors
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
@@ -332,32 +312,32 @@ Nossa equipe está pronta para ajudar!
 router.post('/complete-profile', async (req, res) => {
   try {
     console.log('Completando perfil:', req.body);
-    
+
     // Validate input data
     const validatedData = completeProfileSchema.parse(req.body);
     const { profile_id, cpf, birth_date, address, emergency_contact_name, emergency_contact_phone, new_password } = validatedData;
-    
+
     // Get profile and user info
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('user_id, email, profile_complete')
       .eq('id', profile_id)
       .single();
-    
+
     if (profileError || !profile) {
       return res.status(404).json({
         success: false,
         error: 'Perfil não encontrado'
       });
     }
-    
+
     if (profile.profile_complete) {
       return res.status(400).json({
         success: false,
         error: 'Perfil já foi completado'
       });
     }
-    
+
     // Check if CPF already exists (excluding current profile)
     const { data: existingCpf } = await supabase
       .from('profiles')
@@ -365,20 +345,20 @@ router.post('/complete-profile', async (req, res) => {
       .eq('cpf', cpf)
       .neq('id', profile_id)
       .single();
-    
+
     if (existingCpf) {
       return res.status(400).json({
         success: false,
         error: 'CPF já cadastrado no sistema'
       });
     }
-    
+
     // Update user password in Auth
     const { error: passwordError } = await supabase.auth.admin.updateUserById(
       profile.user_id,
       { password: new_password }
     );
-    
+
     if (passwordError) {
       console.error('Erro ao atualizar senha:', passwordError);
       return res.status(500).json({
@@ -386,7 +366,7 @@ router.post('/complete-profile', async (req, res) => {
         error: 'Erro ao atualizar senha'
       });
     }
-    
+
     // Update profile with complete data
     const { error: updateError } = await supabase
       .from('profiles')
@@ -401,7 +381,7 @@ router.post('/complete-profile', async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', profile_id);
-    
+
     if (updateError) {
       console.error('Erro ao atualizar perfil:', updateError);
       return res.status(500).json({
@@ -409,7 +389,7 @@ router.post('/complete-profile', async (req, res) => {
         error: 'Erro ao completar perfil'
       });
     }
-    
+
     // Mark temporary password as used
     await supabase
       .from('temporary_passwords')
@@ -420,15 +400,15 @@ router.post('/complete-profile', async (req, res) => {
       })
       .eq('profile_id', profile_id)
       .eq('used', false);
-    
+
     res.json({
       success: true,
       message: 'Perfil completado com sucesso! Você já pode fazer login com sua nova senha.'
     });
-    
+
   } catch (error) {
     console.error('Erro ao completar perfil:', error);
-    
+
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -436,7 +416,7 @@ router.post('/complete-profile', async (req, res) => {
         details: error.errors
       });
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
@@ -448,52 +428,52 @@ router.post('/complete-profile', async (req, res) => {
 router.post('/upload-profile-photo', upload.single('photo'), async (req, res) => {
   try {
     const { profileId } = req.body;
-    
+
     if (!profileId) {
       return res.status(400).json({ error: 'Profile ID is required' });
     }
-    
+
     if (!req.file) {
       return res.status(400).json({ error: 'Photo file is required' });
     }
-    
+
     // Upload to Supabase Storage
     const fileName = `profile-photos/${profileId}-${Date.now()}.${req.file.originalname.split('.').pop()}`;
-    
+
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('profile-photos')
       .upload(fileName, req.file.buffer, {
         contentType: req.file.mimetype,
         upsert: false
       });
-    
+
     if (uploadError) {
       console.error('Upload error:', uploadError);
       return res.status(500).json({ error: 'Failed to upload photo' });
     }
-    
+
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('profile-photos')
       .getPublicUrl(fileName);
-    
+
     // Update profile with avatar URL
     const { error: updateError } = await supabase
       .from('profiles')
       .update({ avatar_url: publicUrl })
       .eq('id', profileId);
-    
+
     if (updateError) {
       console.error('Profile update error:', updateError);
       return res.status(500).json({ error: 'Failed to update profile with photo' });
     }
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       avatar_url: publicUrl,
-      message: 'Photo uploaded successfully' 
+      message: 'Photo uploaded successfully'
     });
-    
+
   } catch (error) {
     console.error('Upload photo error:', error);
     res.status(500).json({ error: 'Internal server error' });

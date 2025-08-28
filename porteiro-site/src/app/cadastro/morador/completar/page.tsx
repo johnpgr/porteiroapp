@@ -22,6 +22,9 @@ interface FormErrors {
 export default function CompletarCadastroPage() {
   const router = useRouter();
   const { user, profile, loading, requireAuth } = useAuth();
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
@@ -37,9 +40,31 @@ export default function CompletarCadastroPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // Get profile_id from URL on component mount
   useEffect(() => {
-    if (!loading) {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlProfileId = urlParams.get('profile_id');
+      setProfileId(urlProfileId);
+    }
+  }, []);
+
+  // Auto-login effect when profile_id is provided
+  useEffect(() => {
+    if (profileId && !user && !autoLoginAttempted) {
+      setAutoLoginAttempted(true);
+      performAutoLogin(profileId);
+    }
+  }, [profileId, user, autoLoginAttempted]);
+
+  // Main auth effect
+  useEffect(() => {
+    if (!loading && autoLoginAttempted) {
       if (!user) {
+        // Se tentou auto-login mas falhou, mostrar erro
+        if (autoLoginError) {
+          return; // Mostrar erro na tela
+        }
         requireAuth();
         return;
       }
@@ -61,7 +86,33 @@ export default function CompletarCadastroPage() {
         }));
       }
     }
-  }, [loading, user, profile, requireAuth, router]);
+  }, [loading, user, profile, requireAuth, router, autoLoginAttempted, autoLoginError]);
+
+  const performAutoLogin = async (profileId: string) => {
+    try {
+      const response = await fetch('/api/auto-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profile_id: profileId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAutoLoginError(data.error || 'Erro ao fazer login automático');
+        return;
+      }
+
+      // Auto-login bem-sucedido, aguardar o useAuth detectar a mudança
+      console.log('Auto-login realizado com sucesso');
+      
+    } catch (error) {
+      console.error('Erro no auto-login:', error);
+      setAutoLoginError('Erro de conexão ao fazer login automático');
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -303,6 +354,40 @@ export default function CompletarCadastroPage() {
                 Adicione sua foto e informações pessoais para finalizar o cadastro
               </p>
             </div>
+
+            {/* Auto-login Error */}
+            {autoLoginError && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex items-center">
+                  <div className="text-red-400 mr-3">
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">Link Inválido</h3>
+                    <p className="text-sm text-red-700 mt-1">{autoLoginError}</p>
+                    <p className="text-sm text-red-600 mt-2">
+                      Verifique se o link foi copiado corretamente ou solicite um novo link.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex space-x-3">
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Tentar Novamente
+                  </button>
+                  <Link
+                    href="/login"
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Voltar ao Início
+                  </Link>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Photo Upload */}
