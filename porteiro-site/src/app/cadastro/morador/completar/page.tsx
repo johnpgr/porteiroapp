@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/utils/useAuth';
 
 interface ProfileData {
   birth_date: string;
@@ -20,8 +21,7 @@ interface FormErrors {
 
 export default function CompletarCadastroPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const profileId = searchParams.get('profile_id');
+  const { user, profile, loading, requireAuth } = useAuth();
   
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
@@ -38,10 +38,30 @@ export default function CompletarCadastroPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
-    if (!profileId) {
-      router.push('/cadastro/morador');
+    if (!loading) {
+      if (!user) {
+        requireAuth();
+        return;
+      }
+      
+      // Verificar se o perfil já está completo
+      if (profile?.profile_complete) {
+        router.push('/login'); // Redirecionar para dashboard se já completou
+        return;
+      }
+      
+      // Pré-preencher dados existentes do perfil
+      if (profile) {
+        setProfileData(prev => ({
+          ...prev,
+          birth_date: profile.birth_date || '',
+          address: profile.address || '',
+          emergency_contact_name: profile.emergency_contact_name || '',
+          emergency_contact_phone: profile.emergency_contact_phone || ''
+        }));
+      }
     }
-  }, [profileId, router]);
+  }, [loading, user, profile, requireAuth, router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -93,12 +113,12 @@ export default function CompletarCadastroPage() {
   };
 
   const uploadPhoto = async (): Promise<string | null> => {
-    if (!selectedFile || !profileId) return null;
+    if (!selectedFile || !profile?.id) return null;
     
     setUploadingPhoto(true);
     const formData = new FormData();
     formData.append('photo', selectedFile);
-    formData.append('profile_id', profileId);
+    formData.append('profile_id', profile.id);
     
     try {
       const response = await fetch('/api/upload-profile-photo', {
@@ -169,7 +189,7 @@ export default function CompletarCadastroPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm() || !profileId) {
+    if (!validateForm() || !profile?.id) {
       return;
     }
 
@@ -194,7 +214,7 @@ export default function CompletarCadastroPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          profile_id: profileId,
+          profile_id: profile.id,
           birth_date: profileData.birth_date,
           address: profileData.address,
           emergency_contact_name: profileData.emergency_contact_name,
@@ -217,8 +237,21 @@ export default function CompletarCadastroPage() {
     }
   };
 
-  if (!profileId) {
-    return null; // Will redirect
+  // Mostrar loading enquanto verifica autenticação
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Se não está autenticado, não renderizar nada (será redirecionado)
+  if (!user || !profile) {
+    return null;
   }
 
   return (

@@ -165,6 +165,7 @@ router.post('/register-resident', async (req, res) => {
     
     // Send WhatsApp notification with credentials
     const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${profile.id}`;
     const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
 
 ✅ *Seu cadastro foi iniciado com sucesso!*
@@ -181,19 +182,23 @@ router.post('/register-resident', async (req, res) => {
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🌐 *ACESSE O SISTEMA:*
+🌐 *COMPLETE SEU CADASTRO:*
 
-🔗 *Site:* ${siteUrl}/login
-📱 *Portal do Morador:* ${siteUrl.replace('jamesavisa.jamesconcierge.com', 'jamesavisa.jamesconcierge.com/morador')}
+🔗 *Clique aqui para finalizar:*
+${completarCadastroUrl}
+
+📱 *Ou acesse:*
+• Site: ${siteUrl}/login
+• Portal: ${siteUrl.replace('jamesavisa.jamesconcierge.com', 'jamesavisa.jamesconcierge.com/morador')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⚠️ *PRÓXIMOS PASSOS IMPORTANTES:*
 
-1️⃣ Faça login com as credenciais acima
-2️⃣ Complete seu perfil com foto e dados pessoais
+1️⃣ Clique no link acima para completar seu cadastro
+2️⃣ Adicione sua foto e dados pessoais
 3️⃣ Crie uma nova senha de sua preferência
-4️⃣ Explore todas as funcionalidades disponíveis
+4️⃣ Faça login e explore as funcionalidades
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

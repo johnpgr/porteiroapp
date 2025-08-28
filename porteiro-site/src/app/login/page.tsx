@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, User as UserIcon, Mail, Phone, MapPin, Calendar, UserCheck, Trash2, Save, LogOut } from 'lucide-react';
 
 interface Profile {
@@ -44,6 +45,10 @@ function isAdminProfile(profile: UserProfile): profile is AdminProfile {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -140,6 +145,13 @@ export default function LoginPage() {
       if (data.user) {
         setMessage('Login realizado com sucesso!');
         setMessageType('success');
+        
+        // Redirecionar para a URL de retorno se existir
+        if (returnUrl) {
+          setTimeout(() => {
+            router.push(decodeURIComponent(returnUrl));
+          }, 1000);
+        }
       }
     } catch {
       setMessage('Erro inesperado durante o login');
