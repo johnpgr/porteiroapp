@@ -142,10 +142,10 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
  * @param {string} authorizationData.residentPhone - Telefone do morador
  * @param {string} authorizationData.building - Prédio
  * @param {string} authorizationData.apartment - Apartamento
- * @param {string} [baseUrl='https://regularizacao.porteiroapp.com'] - URL base para autorização
+ * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/morador/'] - URL base para autorização
  * @returns {string} Link de autorização personalizado
  */
-function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://regularizacao.porteiroapp.com') {
+function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/morador/') {
   const params = new URLSearchParams({
     name: authorizationData.residentName,
     phone: authorizationData.residentPhone,

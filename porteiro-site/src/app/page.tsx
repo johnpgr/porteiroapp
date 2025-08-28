@@ -51,9 +51,14 @@ export default function HomePage() {
               >
                 🚀 Cadastre-se na lista de espera
               </button>
-              <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                📱 Baixar App
-              </button>
+              <a 
+                href="http://jamesavisa.jamesconcierge.com/morador/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors inline-block"
+              >
+                👤 Área do Morador
+              </a>
             </div>
           </div>
         </div>
@@ -95,6 +100,14 @@ export default function HomePage() {
                 height={60}
                 className="h-15"
               />
+            </a>
+            <a 
+              href="http://jamesavisa.jamesconcierge.com/morador/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center"
+            >
+              👤 Acesse a Área do Morador
             </a>
           </div>
         </div>
@@ -441,6 +454,14 @@ export default function HomePage() {
                 className="h-15"
               />
             </a>
+            <a 
+              href="http://jamesavisa.jamesconcierge.com/morador/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center"
+            >
+              👤 Portal do Morador
+            </a>
           </div>
         </div>
       </section>
@@ -464,8 +485,8 @@ export default function HomePage() {
           <div className="mb-4">
             <h4 className="font-semibold mb-3">Legal</h4>
             <ul className="space-y-2 text-sm text-gray-400">
-              <li><a href="/politicas" className="hover:text-white">Políticas de Privacidade</a></li>
-              <li><a href="/termos" className="hover:text-white">Termos de Uso</a></li>
+              <li><a href="http://jamesavisa.jamesconcierge.com/morador/politicas" className="hover:text-white">Políticas de Privacidade</a></li>
+              <li><a href="http://jamesavisa.jamesconcierge.com/morador/termos" className="hover:text-white">Termos de Uso</a></li>
               <li><a href="#" className="hover:text-white">Cookies</a></li>
             </ul>
           </div>

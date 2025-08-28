@@ -42,6 +42,31 @@ interface SendRegularizationNotificationResponse {
   error?: string;
 }
 
+interface SendVisitorAuthorizationRequest {
+  visitorName: string;
+  residentName: string;
+  residentPhone: string;
+  building: string;
+  apartment: string;
+}
+
+interface SendVisitorAuthorizationResponse {
+  success: boolean;
+  whatsappSent: boolean;
+  messageId?: string;
+  authorizationLink?: string;
+  recipient?: {
+    visitorName: string;
+    residentName: string;
+    residentPhone: string;
+    building: string;
+    apartment: string;
+  };
+  error?: string;
+  timestamp?: string;
+  duration?: string;
+}
+
 class NotificationApiService {
   private async makeRequest<T>(
     endpoint: string,
@@ -161,6 +186,29 @@ class NotificationApiService {
       );
     }
   }
+
+  async sendVisitorAuthorization(
+    data: SendVisitorAuthorizationRequest
+  ): Promise<SendVisitorAuthorizationResponse> {
+    try {
+      const response = await this.makeRequest<SendVisitorAuthorizationResponse>(
+        '/send-visitor-authorization-whatsapp',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error('Erro ao enviar autorização de visitante:', error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : 'Falha ao enviar autorização de visitante para o morador'
+      );
+    }
+  }
 }
 
 export const notificationApi = new NotificationApiService();
@@ -168,5 +216,7 @@ export type {
   SendVisitorNotificationRequest, 
   SendVisitorNotificationResponse,
   SendRegularizationNotificationRequest,
-  SendRegularizationNotificationResponse
+  SendRegularizationNotificationResponse,
+  SendVisitorAuthorizationRequest,
+  SendVisitorAuthorizationResponse
 };

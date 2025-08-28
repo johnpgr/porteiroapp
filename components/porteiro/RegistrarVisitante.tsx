@@ -563,16 +563,15 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             const building = residentData.buildings;
             
             if (resident.phone && building) {
-              await notificationApi.sendVisitorNotification({
-                visitorLogId: logData.id,
+              await notificationApi.sendVisitorAuthorization({
                 visitorName: nomeVisitante,
-                residentPhone: resident.phone,
                 residentName: resident.name,
+                residentPhone: resident.phone,
                 building: building.name,
                 apartment: selectedApartment.number
               });
               
-              console.log('Notificação via API enviada com sucesso');
+              console.log('Mensagem de autorização WhatsApp enviada com sucesso');
             } else {
               console.warn('Dados insuficientes para enviar notificação via API');
             }

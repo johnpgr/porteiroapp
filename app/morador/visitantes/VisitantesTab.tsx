@@ -795,7 +795,7 @@ export default function VisitantesTab() {
       }
 
       // Gerar link de completação do cadastro
-      const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://cadastro.jamesavisa.com';
+      const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
       const completionLink = `${baseRegistrationUrl}/complete?token=${registrationToken}`;
 
       // Preparar dados para WhatsApp
