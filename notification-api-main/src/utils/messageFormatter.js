@@ -136,6 +136,63 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
 }
 
 /**
+ * Gera um link de autorização de visitante para o morador
+ * @param {Object} authorizationData - Dados da autorização
+ * @param {string} authorizationData.residentName - Nome do morador
+ * @param {string} authorizationData.residentPhone - Telefone do morador
+ * @param {string} authorizationData.building - Prédio
+ * @param {string} authorizationData.apartment - Apartamento
+ * @param {string} [baseUrl='https://regularizacao.porteiroapp.com'] - URL base para autorização
+ * @returns {string} Link de autorização personalizado
+ */
+function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://regularizacao.porteiroapp.com') {
+  const params = new URLSearchParams({
+    name: authorizationData.residentName,
+    phone: authorizationData.residentPhone,
+    building: authorizationData.building,
+    apartment: authorizationData.apartment,
+    issue: 'visitor'
+  });
+  
+  return `${baseUrl}?${params.toString()}`;
+}
+
+/**
+ * Gera uma mensagem formatada para WhatsApp sobre autorização de visitante
+ * @param {Object} authorizationData - Dados da autorização
+ * @param {string} authorizationData.visitorName - Nome do visitante
+ * @param {string} authorizationData.residentName - Nome do morador
+ * @param {string} authorizationData.building - Prédio
+ * @param {string} authorizationData.apartment - Apartamento
+ * @param {string} authorizationLink - Link de autorização personalizado
+ * @returns {string} Mensagem formatada para WhatsApp
+ */
+function generateVisitorAuthorizationMessage(authorizationData, authorizationLink) {
+  return `📢 James Avisa\n` +
+         `Prezado(a), informamos que há um visitante aguardando na portaria.\n\n` +
+         `👉 Acesse ${authorizationLink} para verificar os detalhes e autorizar ou recusar a entrada.`;
+}
+
+/**
+ * Valida se os dados de autorização de visitante estão completos
+ * @param {Object} authorizationData - Dados da autorização
+ * @returns {Object} Resultado da validação
+ */
+function validateVisitorAuthorizationData(authorizationData) {
+  const requiredFields = ['visitorName', 'residentName', 'residentPhone', 'building', 'apartment'];
+  const missingFields = requiredFields.filter(field => !authorizationData[field]);
+  
+  if (missingFields.length > 0) {
+    return {
+      valid: false,
+      errors: [`Campos obrigatórios ausentes: ${missingFields.join(', ')}`]
+    };
+  }
+  
+  return { valid: true, errors: [] };
+}
+
+/**
  * Valida se os dados de regularização estão completos
  * @param {Object} regularizationData - Dados da regularização
  * @returns {Object} Resultado da validação
@@ -160,5 +217,8 @@ module.exports = {
   validateResidentData,
   generateRegularizationLink,
   generateRegularizationMessage,
-  validateRegularizationData
+  validateRegularizationData,
+  generateVisitorAuthorizationLink,
+  generateVisitorAuthorizationMessage,
+  validateVisitorAuthorizationData
 };

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
-const { validateResidentNotification, validateRegularizationNotification } = require('../validators/notificationValidator');
+const { validateResidentNotification, validateRegularizationNotification, validateVisitorAuthorization } = require('../validators/notificationValidator');
 const { sendWhatsApp } = require('../services/whatsappService');
-const { generateRegistrationLink, generateWhatsAppMessage, generateRegularizationLink, generateRegularizationMessage } = require('../utils/messageFormatter');
+const { generateRegistrationLink, generateWhatsAppMessage, generateRegularizationLink, generateRegularizationMessage, generateVisitorAuthorizationLink, generateVisitorAuthorizationMessage } = require('../utils/messageFormatter');
 
 // POST /api/send-resident-whatsapp - Endpoint específico para envio de mensagens WhatsApp para moradores
 router.post('/send-resident-whatsapp', async (req, res) => {
@@ -179,6 +179,84 @@ router.post('/send-regularization-whatsapp', async (req, res) => {
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error('❌ Erro ao enviar mensagem de regularização WhatsApp:', error.message);
+    console.error('Stack trace:', error.stack);
+
+    res.status(500).json({
+      success: false,
+      whatsappSent: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`
+    });
+  }
+});
+
+// POST /api/send-visitor-authorization-whatsapp - Endpoint para envio de mensagens de autorização de visitante
+router.post('/send-visitor-authorization-whatsapp', async (req, res) => {
+  const startTime = Date.now();
+  console.log('🚀 Iniciando envio de mensagem de autorização de visitante WhatsApp:', req.body);
+  
+  try {
+    // Validar dados usando o validator
+    const validation = validateVisitorAuthorization(req.body);
+    if (!validation.success) {
+      console.error('❌ Dados inválidos:', validation.errors);
+      return res.status(400).json({ 
+        success: false, 
+        whatsappSent: false, 
+        error: 'Dados inválidos',
+        details: validation.errors,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const authorizationData = validation.parsed;
+    authorizationData.residentPhone = authorizationData.residentPhone.replace(/\D/g, ''); // Remove caracteres não numéricos
+
+    console.log('✅ Dados de autorização de visitante validados:', {
+      visitorName: authorizationData.visitorName,
+      residentName: authorizationData.residentName,
+      residentPhone: authorizationData.residentPhone,
+      building: authorizationData.building,
+      apartment: authorizationData.apartment
+    });
+
+    // Gerar link de autorização personalizado
+    const authorizationLink = generateVisitorAuthorizationLink(authorizationData);
+    console.log('🔗 Link de autorização gerado:', authorizationLink);
+
+    // Gerar mensagem formatada
+    const whatsappMessage = generateVisitorAuthorizationMessage(authorizationData, authorizationLink);
+    console.log('📝 Mensagem de autorização formatada:', whatsappMessage);
+
+    // Enviar mensagem via WhatsApp
+    const whatsappResult = await sendWhatsApp({
+      to: authorizationData.residentPhone,
+      message: whatsappMessage
+    });
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Mensagem de autorização WhatsApp enviada com sucesso em ${duration}ms para:`, authorizationData.residentPhone);
+
+    res.json({
+      success: true,
+      whatsappSent: true,
+      messageId: whatsappResult.messageId,
+      authorizationLink,
+      recipient: {
+        visitorName: authorizationData.visitorName,
+        residentName: authorizationData.residentName,
+        residentPhone: authorizationData.residentPhone,
+        building: authorizationData.building,
+        apartment: authorizationData.apartment
+      },
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`
+    });
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error('❌ Erro ao enviar mensagem de autorização WhatsApp:', error.message);
     console.error('Stack trace:', error.stack);
 
     res.status(500).json({
