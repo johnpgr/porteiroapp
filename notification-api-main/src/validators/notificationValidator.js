@@ -55,7 +55,8 @@ const residentNotificationSchema = z.object({
   phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
   building: z.string().min(1, 'Prédio é obrigatório'),
   apartment: z.string().min(1, 'Apartamento é obrigatório'),
-  registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/')
+  registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/'),
+  registrationLink: z.string().url().optional() // Link completo com token (opcional)
 });
 
 function validateResidentNotification(data) {
@@ -104,7 +105,7 @@ const regularizationNotificationSchema = z.object({
     errorMap: () => ({ message: 'Tipo de problema deve ser: visitor, vehicle, package ou other' })
   }),
   description: z.string().optional(),
-  regularizationUrl: z.string().url().default('https://regularizacao.JamesAvisa.com')
+  regularizationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/regularizacao')
 });
 
 function validateRegularizationNotification(data) {

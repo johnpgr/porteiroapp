@@ -86,9 +86,9 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 JamesAvisa WhatsApp API iniciada!`);
   console.log(`📡 Servidor rodando na porta ${PORT}`);
-  console.log(`🌐 URL: http://localhost:${PORT}`);
-  console.log(`📋 Health Check: http://localhost:${PORT}/health`);
-  console.log(`📱 WhatsApp Endpoint: http://localhost:${PORT}/api/send-resident-whatsapp`);
+  console.log(`🌐 URL: http://127.0.0.1:${PORT}`);
+  console.log(`📋 Health Check: http://127.0.0.1:${PORT}/health`);
+  console.log(`📱 WhatsApp Endpoint: http://127.0.0.1:${PORT}/api/send-resident-whatsapp`);
   console.log(`\n⚡ Pronto para enviar mensagens WhatsApp para moradores!\n`);
 });
 

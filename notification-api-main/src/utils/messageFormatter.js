@@ -5,15 +5,21 @@
 
 /**
  * Gera um link de cadastro personalizado para o morador
- * @param {Object} residentData - Dados do morador
- * @param {string} residentData.name - Nome do morador
- * @param {string} residentData.phone - Telefone do morador
- * @param {string} residentData.building - Prédio
- * @param {string} residentData.apartment - Apartamento
+ * Agora aceita tanto tokens únicos quanto dados do morador para compatibilidade
+ * @param {Object|string} residentDataOrToken - Dados do morador ou token único
  * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/'] - URL base para cadastro
  * @returns {string} Link de cadastro personalizado
  */
-function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
+function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
+  // Se o primeiro parâmetro é uma string, é um token
+  if (typeof residentDataOrToken === 'string') {
+    // Link com token: https://jamesavisa.jamesconcierge.com/cadastro/morador/{token}
+    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${cleanBaseUrl}/cadastro/morador/${residentDataOrToken}`;
+  }
+  
+  // Compatibilidade com o formato antigo (parâmetros de query string)
+  const residentData = residentDataOrToken;
   const params = new URLSearchParams({
     name: residentData.name,
     phone: residentData.phone,
@@ -80,7 +86,7 @@ function validateResidentData(residentData) {
  * @param {string} [baseUrl='https://regularizacao.JamesAvisa.com'] - URL base para regularização
  * @returns {string} Link de regularização personalizado
  */
-function generateRegularizationLink(regularizationData, baseUrl = 'https://regularizacao.JamesAvisa.com') {
+function generateRegularizationLink(regularizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/regularizacao') {
   const params = new URLSearchParams({
     name: regularizationData.name,
     phone: regularizationData.phone,

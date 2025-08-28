@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 /**
  * Configuração da API local
  * API rodando no IP local da máquina na porta 3001
- * React Native não consegue acessar localhost diretamente
+ * React Native não consegue acessar 127.0.0.1 diretamente
  * URL configurada via variável de ambiente
  */
 const LOCAL_API_CONFIG = {
@@ -285,7 +285,7 @@ export const sendBulkWhatsAppMessages = async (
 
 /**
  * Verifica se a API local está disponível
- * Testa conectividade com localhost:3001
+ * Testa conectividade com 127.0.0.1:3001
  * @returns boolean - true se disponível, false caso contrário
  */
 export const isLocalApiAvailable = (): boolean => {

@@ -40,7 +40,7 @@ Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
 
 ```env
 # Evolution API Configuration
-EVOLUTION_BASE_URL=http://localhost:8080
+EVOLUTION_BASE_URL=http://127.0.0.1:8080
 EVOLUTION_API_KEY=sua_api_key_aqui
 EVOLUTION_INSTANCE=default
 
@@ -49,7 +49,7 @@ PORT=3001
 NODE_ENV=development
 
 # CORS Configuration (opcional)
-ALLOWED_ORIGINS=http://localhost:3000,https://JamesAvisa.com
+ALLOWED_ORIGINS=http://127.0.0.1:3000,https://JamesAvisa.com
 ```
 
 ### Variáveis Obrigatórias:
@@ -198,10 +198,10 @@ _Mensagem enviada automaticamente pelo sistema JamesAvisa_
 ### Usando curl (Linux/Mac):
 ```bash
 # Health check
-curl http://localhost:3001/health
+curl http://127.0.0.1:3001/health
 
 # Enviar mensagem
-curl -X POST http://localhost:3001/api/send-resident-whatsapp \
+curl -X POST http://127.0.0.1:3001/api/send-resident-whatsapp \
   -H "Content-Type: application/json" \
   -d '{
     "name": "João Silva",
@@ -214,10 +214,10 @@ curl -X POST http://localhost:3001/api/send-resident-whatsapp \
 ### Usando PowerShell (Windows):
 ```powershell
 # Health check
-Invoke-WebRequest -Uri "http://localhost:3001/health"
+Invoke-WebRequest -Uri "http://127.0.0.1:3001/health"
 
 # Enviar mensagem
-Invoke-WebRequest -Uri "http://localhost:3001/api/send-resident-whatsapp" `
+Invoke-WebRequest -Uri "http://127.0.0.1:3001/api/send-resident-whatsapp" `
   -Method POST `
   -Headers @{"Content-Type"="application/json"} `
   -Body '{

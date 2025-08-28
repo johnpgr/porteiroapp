@@ -33,9 +33,17 @@ router.post('/send-resident-whatsapp', async (req, res) => {
       apartment: residentData.apartment
     });
 
-    // Gerar link de cadastro personalizado
-    const registrationLink = generateRegistrationLink(residentData, residentData.registrationUrl);
-    console.log('🔗 Link de cadastro gerado:', registrationLink);
+    // Usar link de cadastro fornecido ou gerar um novo (compatibilidade)
+    let registrationLink;
+    if (residentData.registrationLink) {
+      // Se o link já vem pronto (com token), usar diretamente
+      registrationLink = residentData.registrationLink;
+      console.log('🔗 Link de cadastro recebido (com token):', registrationLink);
+    } else {
+      // Compatibilidade: gerar link com parâmetros de query string
+      registrationLink = generateRegistrationLink(residentData, residentData.registrationUrl);
+      console.log('🔗 Link de cadastro gerado (formato antigo):', registrationLink);
+    }
 
     // Gerar mensagem formatada
     const whatsappMessage = generateWhatsAppMessage(residentData, registrationLink);

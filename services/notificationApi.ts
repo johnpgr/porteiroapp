@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 
-const API_BASE_URL = 'http://localhost:3001/api'; // TODO: Configurar URL da API de produção
+const API_BASE_URL = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://10.0.2.2:3001'}/api`;
 
 interface SendVisitorNotificationRequest {
   visitorLogId: string;
