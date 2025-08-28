@@ -17,6 +17,7 @@ import { supabase, adminAuth } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { notificationService } from '~/services/notificationService';
+import * as bcrypt from 'bcrypt';
 
 // Interface para dados do morador
 interface ResidentData {
@@ -24,6 +25,7 @@ interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
+  temporary_password?: string; // Senha temporária para moradores
 }
 
 // Funções auxiliares para validação
@@ -109,6 +111,47 @@ const isLocalApiAvailable = (): boolean => {
 // Função para mostrar alerta de configuração (não mais necessária)
 const showConfigurationAlert = (): void => {
   Alert.alert('Configuração', 'API de notificação está sendo usada.');
+};
+
+// Função para gerar senha temporária aleatória de 8 caracteres
+const generateTemporaryPassword = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let password = '';
+  for (let i = 0; i < 8; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
+
+// Função para criar hash da senha usando bcrypt
+const hashPassword = async (password: string): Promise<string> => {
+  const saltRounds = 10;
+  return await bcrypt.hash(password, saltRounds);
+};
+
+// Função para armazenar senha temporária no banco de dados
+const storeTemporaryPassword = async (profileId: string, plainPassword: string, hashedPassword: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('temporary_passwords')
+      .insert({
+        profile_id: profileId,
+        password_hash: hashedPassword,
+        plain_password: plainPassword,
+        used: false,
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
+      });
+    
+    if (error) {
+      console.error('Erro ao armazenar senha temporária:', error);
+      throw error;
+    }
+    
+    console.log('✅ Senha temporária armazenada com sucesso para o perfil:', profileId);
+  } catch (error) {
+    console.error('❌ Erro ao armazenar senha temporária:', error);
+    throw error;
+  }
 };
 
 // Interface flexível para refletir divergências atuais entre código e schema
@@ -852,7 +895,7 @@ export default function UsersManagement() {
 
       console.log('🚀 [DEBUG] usuário inserido:', insertedUser);
 
-      // Se for morador, associar aos apartamentos selecionados
+      // Se for morador, associar aos apartamentos selecionados e gerar senha temporária
       if (newUser.type === 'morador' && newUser.selectedApartmentIds.length > 0) {
         const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
           profile_id: insertedUser.id,
@@ -870,6 +913,37 @@ export default function UsersManagement() {
 
         if (associationError) throw associationError;
         console.log('🚀 [DEBUG] associações de apartamento criadas com sucesso');
+        
+        // Gerar e armazenar senha temporária para morador
+        try {
+          console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
+          const temporaryPassword = generateTemporaryPassword();
+          const hashedPassword = await hashPassword(temporaryPassword);
+          
+          // Armazenar senha temporária na tabela temporary_passwords
+          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword);
+          
+          // Atualizar campo temporary_password_used como false na tabela profiles
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ temporary_password_used: false })
+            .eq('id', insertedUser.id);
+          
+          if (updateError) {
+            console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
+            throw updateError;
+          }
+          
+          console.log('✅ [DEBUG] Senha temporária gerada e armazenada com sucesso');
+          
+          // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
+          insertedUser.temporary_password = temporaryPassword;
+          
+        } catch (passwordError) {
+          console.error('❌ [DEBUG] Erro ao gerar/armazenar senha temporária:', passwordError);
+          // Não interromper o cadastro, mas registrar o erro
+          Alert.alert('Aviso', 'Morador cadastrado com sucesso, mas houve um problema ao gerar a senha temporária. Entre em contato com o suporte.');
+        }
       }
 
       // Enviar WhatsApp APENAS para moradores (porteiros nunca recebem WhatsApp)
@@ -1126,6 +1200,8 @@ export default function UsersManagement() {
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
+            // Incluir senha temporária se disponível (apenas para moradores)
+            temporary_password: userData.temporary_password || undefined,
           };
 
           console.log('📱 [DEBUG] residentData criado:', residentData);

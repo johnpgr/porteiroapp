@@ -5,6 +5,9 @@ const path = require('path');
 
 // Importar rotas
 const sendNotificationRoutes = require('./src/routes/sendNotification');
+const residentRegistrationRoutes = require('./src/routes/residentRegistration');
+const completeRegistrationRoutes = require('./src/routes/completeRegistration');
+const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,7 +54,9 @@ app.get('/', (req, res) => {
     description: 'API responsável pelo envio de mensagens WhatsApp para moradores',
     endpoints: {
       health: 'GET /health',
-      sendWhatsApp: 'POST /api/send-resident-whatsapp'
+      sendWhatsApp: 'POST /api/send-resident-whatsapp',
+      registerResident: 'POST /api/register-resident',
+      completeProfile: 'POST /api/complete-profile'
     },
     version: '1.0.0'
   });
@@ -59,6 +64,9 @@ app.get('/', (req, res) => {
 
 // Usar rotas de notificação
 app.use('/api', sendNotificationRoutes);
+app.use('/api', residentRegistrationRoutes);
+app.use('/api', completeRegistrationRoutes);
+app.use('/api', visitorAuthorizationRoutes);
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
@@ -77,7 +85,9 @@ app.use('*', (req, res) => {
     message: 'Endpoint não encontrado',
     availableEndpoints: {
       health: 'GET /health',
-      sendWhatsApp: 'POST /api/send-resident-whatsapp'
+      sendWhatsApp: 'POST /api/send-resident-whatsapp',
+      registerResident: 'POST /api/register-resident',
+      completeProfile: 'POST /api/complete-profile'
     }
   });
 });

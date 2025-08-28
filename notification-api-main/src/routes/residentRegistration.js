@@ -32,8 +32,71 @@ const registerResidentSchema = z.object({
   full_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
   email: z.string().email('Email inválido'),
   phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
-  building_id: z.string().uuid('ID do prédio inválido'),
+  building_id: z.string().uuid('ID do prédio inválido').optional(),
   apartment_number: z.string().min(1, 'Número do apartamento é obrigatório')
+});
+
+// Test endpoint that returns the WhatsApp message format without database operations
+router.post('/test-whatsapp-message', async (req, res) => {
+  try {
+    const { full_name, email, phone, apartment_number } = req.body;
+    
+    if (!full_name || !email || !phone || !apartment_number) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: full_name, email, phone, apartment_number'
+      });
+    }
+    
+    // Generate a test temporary password
+    const temporaryPassword = 'Test123!';
+    
+    // Create the WhatsApp message format
+    const siteUrl = 'https://jamesavisa.jamesconcierge.com';
+    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=test-id`;
+    
+    const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
+
+✅ *Seu cadastro foi iniciado com sucesso!*
+
+🏢 *Condomínio:* Edifício Teste
+🏠 *Apartamento:* ${apartment_number}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 *SUAS CREDENCIAIS DE ACESSO:*
+
+📧 *E-mail:* ${email}
+📱 *Usuário (Celular):* ${phone}
+🔑 *Senha temporária:* ${temporaryPassword}
+
+💡 *IMPORTANTE:* Use seu número de celular como usuário para fazer login!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 *COMPLETE SEU CADASTRO:*
+
+🔗 *Clique aqui para finalizar:*
+${completarCadastroUrl}`;
+    
+    return res.json({
+      success: true,
+      message: 'Mensagem de teste gerada com sucesso',
+      whatsapp_message: whatsappMessage,
+      credentials: {
+        email,
+        phone,
+        temporary_password: temporaryPassword
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erro no endpoint de teste:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
 });
 
 // Validation schema for profile completion
@@ -177,8 +240,10 @@ router.post('/register-resident', async (req, res) => {
 
 🔐 *SUAS CREDENCIAIS DE ACESSO:*
 
-📧 *E-mail:* ${email}
+📱 *Usuário (Celular):* ${phone}
 🔑 *Senha temporária:* ${temporaryPassword}
+
+💡 *IMPORTANTE:* Use seu número de celular como usuário para fazer login!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

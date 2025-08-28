@@ -22,6 +22,9 @@ export interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
+  email?: string;
+  building_id?: string;
+  temporary_password?: string; // Senha temporária para moradores
 }
 
 // Interface para resposta da API
@@ -165,13 +168,15 @@ export const sendWhatsAppMessage = async (
     });
 
     // Prepara os dados para a API local
-    const apiUrl = `${LOCAL_API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
+    const apiUrl = `${LOCAL_API_CONFIG.baseUrl}/api/register-resident`;
     const apiData = {
-      name: residentData.name,
+      full_name: residentData.name,
+      email: residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`,
       phone: phoneNumber.clean,
-      building: residentData.building,
-      apartment: residentData.apartment,
-      registrationUrl: baseUrl || 'https://cadastro.jamesconcierge.com/'
+      building_id: residentData.building_id || residentData.building,
+      apartment_number: residentData.apartment,
+      // Incluir senha temporária se disponível (apenas para moradores)
+      ...(residentData.temporary_password && { temporary_password: residentData.temporary_password })
     };
 
     console.log('🌐 Fazendo chamada para API local:', {
@@ -357,7 +362,7 @@ export const testLocalApiConnection = async (): Promise<{
  * Exibe informações sobre a API local
  */
 export const showConfigurationAlert = (): void => {
-  const message = `API WhatsApp configurada para usar servidor local:\n\n• URL: ${LOCAL_API_CONFIG.baseUrl}\n• Endpoint: /api/send-resident-whatsapp\n\nCertifique-se de que o servidor local está rodando na porta 3001.`;
+  const message = `API WhatsApp configurada para usar servidor local:\n\n• URL: ${LOCAL_API_CONFIG.baseUrl}\n• Endpoint: /api/register-resident\n\nCertifique-se de que o servidor local está rodando na porta 3001.`;
 
   Alert.alert('Configuração API WhatsApp', message, [{ text: 'OK' }]);
 };
