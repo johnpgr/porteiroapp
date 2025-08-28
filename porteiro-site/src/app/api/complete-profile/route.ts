@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       .update({
         used: true,
         used_at: new Date().toISOString(),
-        plain_password: null // Clear plain password for security
+        plain_password: '' // Clear plain password for security
       })
       .eq('profile_id', profile_id)
       .eq('used', false);

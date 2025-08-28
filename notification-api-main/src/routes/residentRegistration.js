@@ -112,134 +112,43 @@ const completeProfileSchema = z.object({
 
 /**
  * POST /api/register-resident
- * Registers a new resident with automatic password generation and WhatsApp notification
+ * Sends WhatsApp notification for existing resident (no user creation)
  */
 router.post('/register-resident', async (req, res) => {
   try {
-    console.log('Iniciando cadastro de morador:', req.body);
+    console.log('Enviando notificação WhatsApp para morador:', req.body);
 
-    // Validate input data
-    const validatedData = registerResidentSchema.parse(req.body);
-    const { full_name, email, phone, building_id, apartment_number } = validatedData;
+    const { name, phone, building, apartment, building_id, temporary_password } = req.body;
 
-    // Check if email already exists
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
-
-    if (existingProfile) {
+    if (!name || !phone || !building || !apartment) {
       return res.status(400).json({
         success: false,
-        error: 'Email já cadastrado no sistema'
+        error: 'Campos obrigatórios: name, phone, building, apartment'
       });
     }
 
-    // Generate random password using database function
-    const { data: passwordData, error: passwordError } = await supabase
-      .rpc('generate_random_password');
+    // Generate email for WhatsApp message (not creating actual user)
+    const email = `${phone}@temp.jamesconcierge.com`;
+    
+    // Generate fake profile_id for response (since we're not creating a real profile)
+    const fakeProfileId = require('crypto').randomUUID();
 
-    if (passwordError) {
-      console.error('Erro ao gerar senha:', passwordError);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro interno do servidor'
-      });
-    }
+    console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
 
-    const temporaryPassword = passwordData;
-    console.log('Senha temporária gerada:', temporaryPassword);
-
-    // Create user in Supabase Auth
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name,
-        phone
-      }
-    });
-
-    if (authError) {
-      console.error('Erro ao criar usuário:', authError);
-      return res.status(400).json({
-        success: false,
-        error: authError.message
-      });
-    }
-
-    console.log('Usuário criado no Auth:', authUser.user.id);
-
-    // Create profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        user_id: authUser.user.id,
-        full_name,
-        email,
-        phone,
-        building_id,
-        role: 'morador',
-        user_type: 'morador',
-        profile_complete: false,
-        temporary_password_used: false
-      })
-      .select()
-      .single();
-
-    if (profileError) {
-      console.error('Erro ao criar perfil:', profileError);
-      // Clean up auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authUser.user.id);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao criar perfil do usuário'
-      });
-    }
-
-    console.log('Perfil criado:', profile.id);
-
-    // Hash password for storage
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(temporaryPassword, saltRounds);
-
-    // Store temporary password
-    const { error: tempPasswordError } = await supabase
-      .from('temporary_passwords')
-      .insert({
-        profile_id: profile.id,
-        password_hash: passwordHash,
-        plain_password: temporaryPassword,
-        used: false
-      });
-
-    if (tempPasswordError) {
-      console.error('Erro ao salvar senha temporária:', tempPasswordError);
-    }
-
-    // Get building info for WhatsApp message
-    const { data: building } = await supabase
-      .from('buildings')
-      .select('name')
-      .eq('id', building_id)
-      .single();
-
-    // Send WhatsApp notification with credentials
+    // Send WhatsApp notification with credentials (no user creation)
     const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
-    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${profile.id}`;
+    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${fakeProfileId}`;
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
-Olá *${full_name}*!
+Olá *${name}*!
 
 Você foi convidado(a) para se cadastrar no JamesAvisa.
 
 📍 Dados do seu apartamento:
 
-🏢 Prédio: ${building?.name || 'Não informado'}
+🏢 Prédio: ${building}
 
-🚪 Apartamento: ${apartment_number}
+🚪 Apartamento: ${apartment}
 
 Para completar seu cadastro, clique no link abaixo:
 
@@ -249,7 +158,7 @@ ${completarCadastroUrl}
 
 📱 Usuário (Celular): ${phone}
 
-🔑 Senha temporária: ${temporaryPassword}
+🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
 
 💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!
 
@@ -280,11 +189,11 @@ Mensagem enviada automaticamente pelo sistema JamesAvisa`
       success: true,
       message: 'Cadastro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
       data: {
-        profile_id: profile.id,
-        email,
-        building_name: building?.name,
-        apartment_number
-      }
+          profile_id: fakeProfileId,
+          email: `${phone}@temp.jamesconcierge.com`,
+          building_name: building,
+          apartment_number: apartment
+        }
     });
 
   } catch (error) {

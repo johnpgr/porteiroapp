@@ -142,6 +142,8 @@ export interface Database {
           building_id: string | null;
           cpf: string | null;
           photo_url: string | null;
+          profile_complete: boolean | null;
+          temporary_password_used: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -155,6 +157,8 @@ export interface Database {
           building_id?: string | null;
           cpf?: string | null;
           photo_url?: string | null;
+          profile_complete?: boolean | null;
+          temporary_password_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -168,6 +172,8 @@ export interface Database {
           building_id?: string | null;
           cpf?: string | null;
           photo_url?: string | null;
+          profile_complete?: boolean | null;
+          temporary_password_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };

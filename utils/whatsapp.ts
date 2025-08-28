@@ -336,7 +336,7 @@ export const testLocalApiConnection = async (): Promise<{
   console.log('🧪 Iniciando teste de conectividade API local...');
   
   try {
-    const testUrl = `${LOCAL_API_CONFIG.baseUrl}/api/health`;
+    const testUrl = `${LOCAL_API_CONFIG.baseUrl}/health`;
     console.log('🌐 Testando URL:', testUrl);
 
     const response = await fetch(testUrl, {

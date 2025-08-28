@@ -151,6 +151,8 @@ export interface Database {
           emergency_contact_phone: string | null;
           registration_token: string | null;
           token_expires_at: string | null;
+          profile_complete: boolean | null;
+          temporary_password_used: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -173,6 +175,8 @@ export interface Database {
           emergency_contact_phone?: string | null;
           registration_token?: string | null;
           token_expires_at?: string | null;
+          profile_complete?: boolean | null;
+          temporary_password_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -195,6 +199,8 @@ export interface Database {
           emergency_contact_phone?: string | null;
           registration_token?: string | null;
           token_expires_at?: string | null;
+          profile_complete?: boolean | null;
+          temporary_password_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -511,6 +517,47 @@ export interface Database {
             columns: ['created_by'];
             isOneToOne: false;
             referencedRelation: 'admin_profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      temporary_passwords: {
+        Row: {
+          id: string;
+          profile_id: string;
+          password_hash: string;
+          plain_password: string;
+          used: boolean | null;
+          created_at: string | null;
+          used_at: string | null;
+          expires_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          password_hash: string;
+          plain_password: string;
+          used?: boolean | null;
+          created_at?: string | null;
+          used_at?: string | null;
+          expires_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string;
+          password_hash?: string;
+          plain_password?: string;
+          used?: boolean | null;
+          created_at?: string | null;
+          used_at?: string | null;
+          expires_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'temporary_passwords_profile_id_fkey';
+            columns: ['profile_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
         ];

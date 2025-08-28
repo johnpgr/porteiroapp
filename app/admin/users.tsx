@@ -115,12 +115,7 @@ const showConfigurationAlert = (): void => {
 
 // Função para gerar senha temporária aleatória de 6 dígitos numéricos
 const generateTemporaryPassword = (): string => {
-  const digits = '0123456789';
-  let password = '';
-  for (let i = 0; i < 6; i++) {
-    password += digits.charAt(Math.floor(Math.random() * digits.length));
-  }
-  return password;
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 // Função para criar hash da senha usando expo-crypto
@@ -135,7 +130,7 @@ const hashPassword = async (password: string): Promise<string> => {
 };
 
 // Função para armazenar senha temporária no banco de dados
-const storeTemporaryPassword = async (profileId: string, plainPassword: string, hashedPassword: string): Promise<void> => {
+const storeTemporaryPassword = async (profileId: string, plainPassword: string, hashedPassword: string, phoneNumber: string): Promise<void> => {
   try {
     const { error } = await supabase
       .from('temporary_passwords')
@@ -143,8 +138,9 @@ const storeTemporaryPassword = async (profileId: string, plainPassword: string, 
         profile_id: profileId,
         password_hash: hashedPassword,
         plain_password: plainPassword,
+        phone_number: phoneNumber,
         used: false,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
       });
     
     if (error) {
@@ -214,6 +210,7 @@ export default function UsersManagement() {
     name: '',
     type: 'morador' as 'morador' | 'porteiro',
     phone: '',
+    // Campos apenas para porteiros
     cpf: '',
     email: '',
     birthDate: '',
@@ -627,7 +624,7 @@ export default function UsersManagement() {
         return false;
       }
     } else {
-      // Validações para morador
+      // Validações para morador - nome, telefone, prédio e apartamento obrigatórios
       if (!newUser.phone.trim()) {
         Alert.alert('Erro', 'Telefone é obrigatório');
         return false;
@@ -636,15 +633,14 @@ export default function UsersManagement() {
         Alert.alert('Erro', 'Telefone deve estar no formato brasileiro válido');
         return false;
       }
+      if (!newUser.selectedBuildingId) {
+        Alert.alert('Erro', 'Prédio é obrigatório para moradores');
+        return false;
+      }
       if (newUser.selectedApartmentIds.length === 0) {
         Alert.alert('Erro', 'Pelo menos um apartamento deve ser selecionado para moradores');
         return false;
       }
-    }
-    
-    if (!newUser.selectedBuildingId) {
-      Alert.alert('Erro', 'Prédio é obrigatório');
-      return false;
     }
     
     return true;
@@ -710,47 +706,79 @@ export default function UsersManagement() {
 
       for (const resident of multipleResidents) {
         try {
-          // Criar usuário
-          // @ts-ignore Inserção simplificada mantendo compatibilidade legada
-          const { data: userData, error: userError } = await supabase
+          console.log('🚀 [DEBUG] Processando morador:', resident.name);
+          
+          // Criar perfil diretamente na tabela profiles (sem auth.users para moradores)
+          const userData = {
+            full_name: resident.name,
+            phone: resident.phone,
+            role: 'morador',
+            user_type: 'morador'
+          };
+
+          const { data: insertedUser, error: userError } = await supabase
             .from('profiles')
-            .insert({
-              name: resident.name,
-              phone: resident.phone,
-              // Campos obrigatórios simulados (ajuste futuro necessário)
-              user_id: crypto.randomUUID(),
-              email: `temp_${Date.now()}_${Math.random().toString(36).slice(2)}@temp.local`,
-            })
+            .insert(userData)
             .select()
             .single();
 
-          if (userError) throw userError;
+          if (userError) {
+            console.error('❌ [DEBUG] Erro ao inserir profile:', userError);
+            throw userError;
+          }
+
+          console.log('✅ [DEBUG] Profile criado:', insertedUser);
+
+          // Gerar e armazenar senha temporária para morador
+          try {
+            console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
+            const temporaryPassword = generateTemporaryPassword();
+            const hashedPassword = await hashPassword(temporaryPassword);
+            
+            // Armazenar senha temporária na tabela temporary_passwords
+            await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.phone);
+            
+            // Atualizar campo temporary_password_used como false na tabela profiles
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ temporary_password_used: false })
+              .eq('id', insertedUser.id);
+            
+            if (updateError) {
+              console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
+              throw updateError;
+            }
+            
+            console.log('✅ [DEBUG] Senha temporária gerada e armazenada com sucesso');
+            
+            // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
+            insertedUser.temporary_password = temporaryPassword;
+            
+          } catch (passwordError) {
+            console.error('❌ [DEBUG] Erro ao gerar/armazenar senha temporária:', passwordError);
+            // Não interromper o cadastro, mas registrar o erro
+            errors.push(`${resident.name}: Problema ao gerar senha temporária`);
+          }
 
           // Associar ao apartamento
-          // @ts-ignore Campos reais da tabela podem diferir; ajuste futuro
           const { error: residentsError } = await supabase.from('apartment_residents').insert({
-            profile_id: userData.id,
+            profile_id: insertedUser.id,
             apartment_id: resident.selectedApartmentId,
-            relationship: 'resident',
+            relationship: 'morador',
             is_primary: false,
           });
 
-          if (residentsError) throw residentsError;
+          if (residentsError) {
+            console.error('❌ [DEBUG] Erro ao associar apartamento:', residentsError);
+            throw residentsError;
+          }
+
+          console.log('✅ [DEBUG] Associação de apartamento criada');
 
           // Enviar WhatsApp se habilitado
-          if (sendWhatsApp && whatsappBaseUrl) {
-            const building = buildings.find((b) => b.id === resident.selectedBuildingId);
-            const apartment = apartments.find((a) => a.id === resident.selectedApartmentId);
-
-            if (building && apartment) {
-              const residentData: ResidentData = {
-                name: resident.name,
-                phone: resident.phone,
-                building: building.name,
-                apartment: apartment.number,
-              };
-              await sendWhatsAppMessage(residentData, whatsappBaseUrl);
-            }
+          if (sendWhatsApp) {
+            console.log('📱 [DEBUG] Enviando WhatsApp para:', resident.name);
+            await handleSingleUserWhatsApp(insertedUser, [resident.selectedApartmentId]);
           }
 
           successCount++;
@@ -762,7 +790,13 @@ export default function UsersManagement() {
       }
 
       // Mostrar resultado
-      const message = `Cadastro concluído!\n${successCount} moradores cadastrados com sucesso.${errorCount > 0 ? `\n${errorCount} erros encontrados.` : ''}`;
+      let message = `Cadastro concluído!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`;
+      if (errors.length > 0) {
+        message += `\n\nErros:\n${errors.slice(0, 5).join('\n')}`;
+        if (errors.length > 5) {
+          message += `\n... e mais ${errors.length - 5} erros`;
+        }
+      }
       Alert.alert('Resultado', message);
 
       if (successCount > 0) {
@@ -876,8 +910,9 @@ export default function UsersManagement() {
           }
         }
       } else {
-        // Para moradores
+        // Para moradores - apenas dados básicos
         userData.phone = newUser.phone;
+        userData.user_type = 'morador';
       }
 
       console.log('🚀 [DEBUG] userData criado:', userData);
@@ -901,42 +936,38 @@ export default function UsersManagement() {
       console.log('🚀 [DEBUG] usuário inserido:', insertedUser);
 
       // Se for morador, associar aos apartamentos selecionados e gerar senha temporária
-      if (newUser.type === 'morador' && newUser.selectedApartmentIds.length > 0) {
-        const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
-          profile_id: insertedUser.id,
-          apartment_id: apartmentId,
-          relationship: 'resident',
-          is_primary: false,
-        }));
-
-        console.log('🚀 [DEBUG] apartmentAssociations:', apartmentAssociations);
-
-        // @ts-ignore Inserção em lote conforme estrutura atual
-        const { error: associationError } = await supabase
-          .from('apartment_residents')
-          .insert(apartmentAssociations);
-
-        if (associationError) throw associationError;
-        console.log('🚀 [DEBUG] associações de apartamento criadas com sucesso');
+      if (newUser.type === 'morador') {
+        // Gerar senha temporária para morador (sempre, mesmo sem apartamentos)
+        console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
+        const temporaryPassword = generateTemporaryPassword();
+        const hashedPassword = await hashPassword(temporaryPassword);
         
-        // Gerar e armazenar senha temporária para morador
         try {
-          console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
-          const temporaryPassword = generateTemporaryPassword();
-          const hashedPassword = await hashPassword(temporaryPassword);
-          
           // Armazenar senha temporária na tabela temporary_passwords
-          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword);
+          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, newUser.phone);
           
-          // Atualizar campo temporary_password_used como false na tabela profiles
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ temporary_password_used: false })
-            .eq('id', insertedUser.id);
-          
-          if (updateError) {
-            console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
-            throw updateError;
+          // Se há apartamentos selecionados, criar associações
+          if (newUser.selectedApartmentIds.length > 0) {
+            const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
+              profile_id: insertedUser.id,
+              apartment_id: apartmentId,
+              relationship: 'morador',
+              is_primary: false,
+            }));
+
+            console.log('🚀 [DEBUG] apartmentAssociations:', apartmentAssociations);
+
+            const { error: associationError } = await supabase
+              .from('apartment_residents')
+              .insert(apartmentAssociations);
+
+            if (associationError) {
+              // Se falhar, deletar senha temporária e perfil
+              await supabase.from('temporary_passwords').delete().eq('profile_id', insertedUser.id);
+              await supabase.from('profiles').delete().eq('id', insertedUser.id);
+              throw associationError;
+            }
+            console.log('🚀 [DEBUG] associações de apartamento criadas com sucesso');
           }
           
           console.log('✅ [DEBUG] Senha temporária gerada e armazenada com sucesso');
@@ -944,10 +975,11 @@ export default function UsersManagement() {
           // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
           insertedUser.temporary_password = temporaryPassword;
           
-        } catch (passwordError) {
-          console.error('❌ [DEBUG] Erro ao gerar/armazenar senha temporária:', passwordError);
-          // Não interromper o cadastro, mas registrar o erro
-          Alert.alert('Aviso', 'Morador cadastrado com sucesso, mas houve um problema ao gerar a senha temporária. Entre em contato com o suporte.');
+        } catch (error) {
+          console.error('❌ [DEBUG] Erro ao criar morador:', error);
+          // Deletar o perfil se tudo falhar
+          await supabase.from('profiles').delete().eq('id', insertedUser.id);
+          throw new Error('Erro ao criar morador com senha temporária. Operação cancelada.');
         }
       }
 
@@ -1421,6 +1453,79 @@ export default function UsersManagement() {
               />
             </View>
 
+            {/* Campos de prédio e apartamento para moradores */}
+            {newUser.type === 'morador' && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Prédio *</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={newUser.selectedBuildingId}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}
+                      onValueChange={(itemValue) =>
+                        setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
+                      }>
+                      <Picker.Item label="Selecione um prédio" value="" />
+                      {buildings.map((building) => (
+                        <Picker.Item key={building.id} label={building.name} value={building.id} />
+                      ))}
+                    </Picker>
+                  </View>
+                </View>
+
+                {newUser.selectedBuildingId && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Apartamentos *</Text>
+                    <Text style={styles.sublabel}>Selecione os apartamentos do morador</Text>
+                    <View style={styles.apartmentContainer}>
+                      {filteredApartments.length > 0 ? (
+                        filteredApartments.map((apartment) => (
+                          <TouchableOpacity
+                            key={apartment.id}
+                            style={[
+                              styles.apartmentOption,
+                              newUser.selectedApartmentIds.includes(apartment.id) &&
+                                styles.apartmentOptionSelected,
+                            ]}
+                            onPress={() => {
+                              const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
+                              if (isSelected) {
+                                setNewUser((prev) => ({
+                                  ...prev,
+                                  selectedApartmentIds: prev.selectedApartmentIds.filter(
+                                    (id) => id !== apartment.id
+                                  ),
+                                }));
+                              } else {
+                                setNewUser((prev) => ({
+                                  ...prev,
+                                  selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
+                                }));
+                              }
+                            }}>
+                            <Text
+                              style={[
+                                styles.apartmentOptionText,
+                                newUser.selectedApartmentIds.includes(apartment.id) &&
+                                  styles.apartmentOptionTextSelected,
+                              ]}>
+                              {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '🏠'}{' '}
+                              Apartamento {apartment.number}
+                            </Text>
+                          </TouchableOpacity>
+                        ))
+                      ) : (
+                        <Text style={styles.noApartmentsText}>
+                          Nenhum apartamento disponível para este prédio
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+
             {newUser.type === 'porteiro' && (
               <>
                 <View style={styles.inputGroup}>
@@ -1581,93 +1686,30 @@ export default function UsersManagement() {
               </>
             )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Prédio *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={newUser.selectedBuildingId}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                  onValueChange={(itemValue) =>
-                    setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
-                  }>
-                  <Picker.Item label="Selecione um prédio" value="" />
-                  {buildings.map((building) => (
-                    <Picker.Item key={building.id} label={building.name} value={building.id} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-
-            {newUser.type === 'morador' && newUser.selectedBuildingId && (
+            {/* Campo de prédio apenas para porteiros */}
+            {newUser.type === 'porteiro' && (
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Apartamentos *</Text>
-                <Text style={styles.sublabel}>Selecione um ou mais apartamentos</Text>
-                <View style={styles.apartmentsList}>
-                  {filteredApartments.map((apartment) => (
-                    <TouchableOpacity
-                      key={apartment.id}
-                      style={[
-                        styles.apartmentOption,
-                        newUser.selectedApartmentIds.includes(apartment.id) &&
-                          styles.apartmentOptionSelected,
-                      ]}
-                      onPress={() => {
-                        const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
-                        if (isSelected) {
-                          setNewUser((prev) => ({
-                            ...prev,
-                            selectedApartmentIds: prev.selectedApartmentIds.filter(
-                              (id) => id !== apartment.id
-                            ),
-                          }));
-                        } else {
-                          setNewUser((prev) => ({
-                            ...prev,
-                            selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
-                          }));
-                        }
-                      }}>
-                      <Text
-                        style={[
-                          styles.apartmentOptionText,
-                          newUser.selectedApartmentIds.includes(apartment.id) &&
-                            styles.apartmentOptionTextSelected,
-                        ]}>
-                        {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '⭕'}{' '}
-                        Apartamento {apartment.number}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                <Text style={styles.label}>Prédio *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newUser.selectedBuildingId}
+                    style={styles.picker}
+                    itemStyle={styles.pickerItem}
+                    onValueChange={(itemValue) =>
+                      setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
+                    }>
+                    <Picker.Item label="Selecione um prédio" value="" />
+                    {buildings.map((building) => (
+                      <Picker.Item key={building.id} label={building.name} value={building.id} />
+                    ))}
+                  </Picker>
                 </View>
               </View>
             )}
 
-            {newUser.type === 'morador' && sendWhatsApp && (
-              <View style={styles.whatsappSection}>
-                <View style={styles.checkboxContainer}>
-                  <TouchableOpacity
-                    style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
-                    onPress={() => setSendWhatsApp(!sendWhatsApp)}>
-                    {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                  <Text style={styles.checkboxLabel}>📱 Enviar mensagem via WhatsApp</Text>
-                </View>
+            {/* Campos de prédio e apartamentos removidos para moradores - serão configurados posteriormente */}
 
-                {sendWhatsApp && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>URL Base do Site de Cadastro</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="https://seusite.com/cadastro"
-                      value={whatsappBaseUrl}
-                      onChangeText={setWhatsappBaseUrl}
-                      autoCapitalize="none"
-                    />
-                  </View>
-                )}
-              </View>
-            )}
+            {/* Seção de WhatsApp removida para simplificar o cadastro inicial de moradores */}
           </ScrollView>
 
           <View style={styles.modalFooter}>
