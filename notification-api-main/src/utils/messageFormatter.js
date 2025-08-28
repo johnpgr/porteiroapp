@@ -34,26 +34,32 @@ function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesa
  * Gera uma mensagem formatada para WhatsApp com informações do morador
  * @param {Object} residentData - Dados do morador
  * @param {string} residentData.name - Nome do morador
+ * @param {string} residentData.phone - Telefone do morador
  * @param {string} residentData.building - Prédio
  * @param {string} residentData.apartment - Apartamento
+ * @param {string} residentData.temporaryPassword - Senha temporária
  * @param {string} registrationLink - Link de cadastro personalizado
  * @returns {string} Mensagem formatada para WhatsApp
  */
 function generateWhatsAppMessage(residentData, registrationLink) {
-  return `🏢 *JamesAvisa - Cadastro de Morador*\n\n` +
+  return `🏢 JamesAvisa - Cadastro de Morador\n\n` +
          `Olá *${residentData.name}*!\n\n` +
          `Você foi convidado(a) para se cadastrar no JamesAvisa.\n\n` +
-         `📍 *Dados do seu apartamento:*\n` +
+         `📍 Dados do seu apartamento:\n` +
          `🏢 Prédio: ${residentData.building}\n` +
          `🚪 Apartamento: ${residentData.apartment}\n\n` +
          `Para completar seu cadastro, clique no link abaixo:\n` +
-         `${registrationLink}\n\n` +
+         `\`${registrationLink}\`\n\n` +
+         `🔐 SUAS CREDENCIAIS DE ACESSO:\n\n` +
+         `📱 Usuário (Celular): ${residentData.phone}\n` +
+         `🔑 Senha temporária: ${residentData.temporaryPassword || 'Será enviada em breve'}\n\n` +
+         `💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!\n\n` +
          `Com o JamesAvisa você pode:\n` +
          `✅ Receber visitantes com mais segurança\n` +
          `✅ Autorizar entregas remotamente\n` +
          `✅ Comunicar-se diretamente com a portaria\n` +
          `✅ Acompanhar movimentações do seu apartamento\n\n` +
-         `_Mensagem enviada automaticamente pelo sistema JamesAvisa_`;
+         `Mensagem enviada automaticamente pelo sistema JamesAvisa`;
 }
 
 /**

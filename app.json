@@ -15,10 +15,7 @@
       [
         "expo-notifications",
         {
-          "color": "#2563eb",
-          "sounds": [
-            "./assets/notification-sound.wav"
-          ]
+          "color": "#2563eb"
         }
       ]
     ],

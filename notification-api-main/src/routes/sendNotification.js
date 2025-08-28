@@ -46,7 +46,7 @@ router.post('/send-resident-whatsapp', async (req, res) => {
     }
 
     // Gerar mensagem formatada
-    const whatsappMessage = generateWhatsAppMessage(residentData, registrationLink);
+    const whatsappMessage = generateWhatsAppMessage(residentData, registrationLink, residentData.temporaryPassword);
     console.log('📝 Mensagem formatada:', whatsappMessage.substring(0, 100) + '...');
 
     // Enviar mensagem via WhatsApp

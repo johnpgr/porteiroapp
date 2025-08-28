@@ -27,7 +27,7 @@ Nossos requisitos de simplificação consistem nas seguintes páginas principais
 
 | Nome da Página | Nome do Módulo | Descrição da Funcionalidade |
 |----------------|----------------|-----------------------------|
-| Cadastro Inicial | Formulário de Registro | Capturar dados básicos (nome, telefone, email), validar informações, gerar senha automática de 8 caracteres alfanuméricos |
+| Cadastro Inicial | Formulário de Registro | Capturar dados básicos (nome, telefone, email), validar informações, gerar senha automática de 6 dígitos numéricos |
 | Cadastro Inicial | Sistema de Notificação | Enviar WhatsApp com login, senha temporária e link para https://jamesavisa.jamesconcierge.com/ |
 | Completar Cadastro | Upload de Foto | Permitir upload de foto do perfil com validação de formato e tamanho |
 | Completar Cadastro | Dados Pessoais | Coletar CPF, data de nascimento, endereço, contato de emergência |
@@ -39,7 +39,7 @@ Nossos requisitos de simplificação consistem nas seguintes páginas principais
 ### Fluxo do Morador
 
 1. **Cadastro Inicial**: Morador acessa página de cadastro e preenche dados básicos (nome, telefone, email)
-2. **Processamento Automático**: Sistema gera senha aleatória de 8 caracteres e cria conta automaticamente
+2. **Processamento Automático**: Sistema gera senha aleatória de 6 dígitos numéricos e cria conta automaticamente
 3. **Notificação WhatsApp**: Sistema envia mensagem com login, senha temporária e link do site
 4. **Completar Cadastro**: Morador acessa link, faz login e completa dados (foto, CPF, nova senha)
 5. **Confirmação**: Sistema confirma cadastro completo e direciona para área do morador

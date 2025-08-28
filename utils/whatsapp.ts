@@ -23,7 +23,7 @@ export interface ResidentData {
   building: string;
   apartment: string;
   email?: string;
-  building_id?: string;
+  building_id: string; // UUID obrigatório do prédio
   temporary_password?: string; // Senha temporária para moradores
 }
 
@@ -167,13 +167,32 @@ export const sendWhatsAppMessage = async (
       international: phoneNumber.international,
     });
 
+    // Validar se building_id está disponível
+    if (!residentData.building_id) {
+      console.error('❌ building_id não fornecido:', residentData);
+      return {
+        success: false,
+        error: 'ID do prédio é obrigatório para envio via WhatsApp',
+      };
+    }
+
+    // Validar se building_id é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(residentData.building_id)) {
+      console.error('❌ building_id inválido (não é UUID):', residentData.building_id);
+      return {
+        success: false,
+        error: 'ID do prédio deve ser um UUID válido',
+      };
+    }
+
     // Prepara os dados para a API local
     const apiUrl = `${LOCAL_API_CONFIG.baseUrl}/api/register-resident`;
     const apiData = {
       full_name: residentData.name,
       email: residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`,
       phone: phoneNumber.clean,
-      building_id: residentData.building_id || residentData.building,
+      building_id: residentData.building_id,
       apartment_number: residentData.apartment,
       // Incluir senha temporária se disponível (apenas para moradores)
       ...(residentData.temporary_password && { temporary_password: residentData.temporary_password })

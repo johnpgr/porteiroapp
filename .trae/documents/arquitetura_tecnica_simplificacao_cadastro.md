@@ -228,16 +228,16 @@ CREATE POLICY "Allow authenticated users full access" ON profiles
 
 **Função para gerar senha aleatória (seguindo padrão do admin)**
 ```sql
--- Função para gerar senha aleatória de 8 caracteres alfanuméricos
+-- Função para gerar senha aleatória de 6 dígitos numéricos
 CREATE OR REPLACE FUNCTION generate_random_password()
 RETURNS TEXT AS $$
 DECLARE
-    chars TEXT := 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    digits TEXT := '0123456789';
     result TEXT := '';
     i INTEGER;
 BEGIN
-    FOR i IN 1..8 LOOP
-        result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
+    FOR i IN 1..6 LOOP
+        result := result || substr(digits, floor(random() * length(digits) + 1)::integer, 1);
     END LOOP;
     RETURN result;
 END;

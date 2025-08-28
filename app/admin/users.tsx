@@ -17,7 +17,7 @@ import { supabase, adminAuth } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { notificationService } from '~/services/notificationService';
-import * as bcrypt from 'bcrypt';
+import * as Crypto from 'expo-crypto';
 
 // Interface para dados do morador
 interface ResidentData {
@@ -113,20 +113,25 @@ const showConfigurationAlert = (): void => {
   Alert.alert('Configuração', 'API de notificação está sendo usada.');
 };
 
-// Função para gerar senha temporária aleatória de 8 caracteres
+// Função para gerar senha temporária aleatória de 6 dígitos numéricos
 const generateTemporaryPassword = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const digits = '0123456789';
   let password = '';
-  for (let i = 0; i < 8; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 6; i++) {
+    password += digits.charAt(Math.floor(Math.random() * digits.length));
   }
   return password;
 };
 
-// Função para criar hash da senha usando bcrypt
+// Função para criar hash da senha usando expo-crypto
 const hashPassword = async (password: string): Promise<string> => {
-  const saltRounds = 10;
-  return await bcrypt.hash(password, saltRounds);
+  // Usar SHA-256 para criar hash da senha
+  const hash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    password,
+    { encoding: Crypto.CryptoEncoding.HEX }
+  );
+  return hash;
 };
 
 // Função para armazenar senha temporária no banco de dados
@@ -375,7 +380,7 @@ export default function UsersManagement() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -1200,6 +1205,7 @@ export default function UsersManagement() {
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
+            building_id: building.id, // Incluir UUID do prédio
             // Incluir senha temporária se disponível (apenas para moradores)
             temporary_password: userData.temporary_password || undefined,
           };
@@ -1936,7 +1942,7 @@ export default function UsersManagement() {
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>👥</Text>
         <Text style={styles.emptyStateTitle}>Não há usuários cadastrados ainda</Text>
-        <Text style={styles.emptyStateSubtitle}>Use o botão "Novo Usuário" para adicionar o primeiro usuário</Text>
+        <Text style={styles.emptyStateSubtitle}>Use o botão &quot;Novo Usuário&quot; para adicionar o primeiro usuário</Text>
         </View>
       ) : (
         <ScrollView style={styles.usersList}>
@@ -2617,26 +2623,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  photoButton: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 80,
-  },
-  photoButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  photoPreview: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   photoImage: {
     width: 60,
     height: 60,

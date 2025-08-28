@@ -56,7 +56,8 @@ const residentNotificationSchema = z.object({
   building: z.string().min(1, 'Prédio é obrigatório'),
   apartment: z.string().min(1, 'Apartamento é obrigatório'),
   registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/'),
-  registrationLink: z.string().url().optional() // Link completo com token (opcional)
+  registrationLink: z.string().url().optional(), // Link completo com token (opcional)
+  temporaryPassword: z.string().optional() // Senha temporária de 6 dígitos numéricos
 });
 
 function validateResidentNotification(data) {
