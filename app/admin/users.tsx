@@ -647,29 +647,69 @@ export default function UsersManagement() {
   };
 
   const validateMultipleResidents = () => {
+    const phoneNumbers = new Set();
+    const apartmentIds = new Set();
+    
     for (let i = 0; i < multipleResidents.length; i++) {
       const resident = multipleResidents[i];
+      
+      // Validação de nome
       if (!resident.name.trim()) {
         Alert.alert('Erro', `Nome é obrigatório para o morador ${i + 1}`);
         return false;
       }
+      
+      if (resident.name.trim().length < 2) {
+        Alert.alert('Erro', `Nome deve ter pelo menos 2 caracteres para o morador ${i + 1}`);
+        return false;
+      }
+      
+      // Validação de telefone
       if (!resident.phone.trim()) {
         Alert.alert('Erro', `Telefone é obrigatório para o morador ${i + 1}`);
         return false;
       }
+      
       if (!validateBrazilianPhone(resident.phone)) {
-        Alert.alert('Erro', `Telefone inválido para o morador ${i + 1}`);
+        Alert.alert('Erro', `Telefone inválido para o morador ${i + 1}. Use o formato (11) 99999-9999`);
         return false;
       }
+      
+      // Verificar telefones duplicados
+      const formattedPhone = formatBrazilianPhone(resident.phone);
+      if (phoneNumbers.has(formattedPhone)) {
+        Alert.alert('Erro', `Telefone duplicado encontrado no morador ${i + 1}. Cada morador deve ter um telefone único.`);
+        return false;
+      }
+      phoneNumbers.add(formattedPhone);
+      
+      // Validação de prédio
       if (!resident.selectedBuildingId) {
         Alert.alert('Erro', `Prédio é obrigatório para o morador ${i + 1}`);
         return false;
       }
+      
+      // Validação de apartamento
       if (!resident.selectedApartmentId) {
         Alert.alert('Erro', `Apartamento é obrigatório para o morador ${i + 1}`);
         return false;
       }
+      
+      // Verificar apartamentos duplicados
+      if (apartmentIds.has(resident.selectedApartmentId)) {
+        Alert.alert('Erro', `Apartamento duplicado encontrado no morador ${i + 1}. Cada morador deve ter um apartamento único.`);
+        return false;
+      }
+      apartmentIds.add(resident.selectedApartmentId);
+      
+      // Validar se o apartamento pertence ao prédio selecionado
+      const apartment = apartments.find(apt => apt.id === resident.selectedApartmentId);
+      if (apartment && apartment.building_id !== resident.selectedBuildingId) {
+        Alert.alert('Erro', `Apartamento selecionado não pertence ao prédio escolhido para o morador ${i + 1}`);
+        return false;
+      }
     }
+    
     return true;
   };
 
@@ -700,104 +740,322 @@ export default function UsersManagement() {
 
     try {
       setLoading(true);
+      setIsProcessing(true);
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
+      const processedPhones = new Set();
+      const successfulUsers: any[] = [];
 
+      // Primeira fase: Validação e preparação dos dados
+      setProcessingStatus('Validando dados e verificando duplicatas...');
+      const validatedResidents = [];
+      
       for (const resident of multipleResidents) {
         try {
-          console.log('🚀 [DEBUG] Processando morador:', resident.name);
+          const formattedPhone = formatBrazilianPhone(resident.phone);
           
-          // Criar perfil diretamente na tabela profiles (sem auth.users para moradores)
-          const userData = {
-            full_name: resident.name,
-            phone: resident.phone,
-            role: 'morador',
-            user_type: 'morador'
-          };
-
-          const { data: insertedUser, error: userError } = await supabase
-            .from('profiles')
-            .insert(userData)
-            .select()
-            .single();
-
-          if (userError) {
-            console.error('❌ [DEBUG] Erro ao inserir profile:', userError);
-            throw userError;
+          // Verificar duplicatas no lote
+          if (processedPhones.has(formattedPhone)) {
+            throw new Error('Telefone duplicado neste lote');
           }
+          processedPhones.add(formattedPhone);
+          
+          // Verificar se já existe no banco
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .eq('phone', formattedPhone)
+            .single();
+            
+          if (existingProfile) {
+            throw new Error(`Telefone já cadastrado para: ${existingProfile.full_name}`);
+          }
+          
+          validatedResidents.push({
+            ...resident,
+            formattedPhone,
+            userData: {
+              full_name: resident.name.trim(),
+              phone: formattedPhone,
+              role: 'morador',
+              user_type: 'morador'
+            }
+          });
+        } catch (error) {
+          errorCount++;
+          const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+          errors.push(`${resident.name}: ${errorMessage}`);
+        }
+      }
 
-          console.log('✅ [DEBUG] Profile criado:', insertedUser);
+      if (validatedResidents.length === 0) {
+        throw new Error('Nenhum morador válido para processar');
+      }
 
-          // Gerar e armazenar senha temporária para morador
+      // Segunda fase: Inserção em lote dos perfis
+      setProcessingStatus(`Criando ${validatedResidents.length} perfis em lote...`);
+      const usersToInsert = validatedResidents.map(r => r.userData);
+      
+      const { data: insertedUsers, error: batchError } = await supabase
+        .from('profiles')
+        .insert(usersToInsert)
+        .select();
+
+      if (batchError) {
+        console.error('❌ [DEBUG] Erro na inserção em lote:', batchError);
+        throw new Error(`Erro na criação em lote: ${batchError.message}`);
+      }
+
+      console.log('✅ [DEBUG] Perfis criados em lote:', insertedUsers?.length);
+
+      // Terceira fase: Processamento de senhas temporárias
+      setProcessingStatus('Gerando senhas temporárias...');
+      const usersWithPasswords = [];
+      
+      for (let i = 0; i < validatedResidents.length; i++) {
+        const resident = validatedResidents[i];
+        const insertedUser = insertedUsers?.[i];
+        
+        if (!insertedUser) {
+          errorCount++;
+          errors.push(`${resident.name}: Erro ao obter dados do usuário criado`);
+          continue;
+        }
+        
+        try {
+          console.log('🔐 [DEBUG] Gerando senha temporária para:', resident.name);
+          const temporaryPassword = generateTemporaryPassword();
+          const hashedPassword = await hashPassword(temporaryPassword);
+          
+          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.formattedPhone);
+          
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ temporary_password_used: false })
+            .eq('id', insertedUser.id);
+          
+          if (updateError) {
+            console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
+            throw updateError;
+          }
+          
+          insertedUser.temporary_password = temporaryPassword;
+          usersWithPasswords.push({ user: insertedUser, resident });
+          console.log('✅ [DEBUG] Senha temporária configurada para:', resident.name);
+          
+        } catch (passwordError) {
+          console.error('❌ [DEBUG] Erro ao gerar senha temporária:', passwordError);
+          errors.push(`${resident.name}: Problema ao gerar senha temporária`);
+          usersWithPasswords.push({ user: insertedUser, resident }); // Incluir mesmo com erro de senha
+        }
+      }
+
+      // Quarta fase: Verificação de apartamentos existentes
+      setProcessingStatus('Verificando apartamentos...');
+      const apartmentChecks = await Promise.allSettled(
+        usersWithPasswords.map(async ({ resident }) => {
+          const { data: existingResident } = await supabase
+            .from('apartment_residents')
+            .select('profile_id, profiles!inner(full_name)')
+            .eq('apartment_id', resident.selectedApartmentId)
+            .single();
+            
+          if (existingResident) {
+            console.warn('⚠️ [DEBUG] Apartamento já possui morador:', existingResident);
+          }
+          
+          return { apartmentId: resident.selectedApartmentId, existing: existingResident };
+        })
+      );
+
+      // Quinta fase: Inserção em lote das associações de apartamentos
+      setProcessingStatus('Associando apartamentos em lote...');
+      const apartmentAssociations = usersWithPasswords.map(({ user, resident }) => ({
+        profile_id: user.id,
+        apartment_id: resident.selectedApartmentId,
+        relationship: 'resident',
+        is_primary: false,
+      }));
+      
+      const { data: insertedAssociations, error: associationsError } = await supabase
+        .from('apartment_residents')
+        .insert(apartmentAssociations)
+        .select();
+
+      if (associationsError) {
+        console.error('❌ [DEBUG] Erro na inserção em lote de apartamentos:', associationsError);
+        // Se falhar em lote, tentar individualmente
+        for (let i = 0; i < usersWithPasswords.length; i++) {
+          const { user, resident } = usersWithPasswords[i];
           try {
-            console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
-            const temporaryPassword = generateTemporaryPassword();
-            const hashedPassword = await hashPassword(temporaryPassword);
-            
-            // Armazenar senha temporária na tabela temporary_passwords
-            await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.phone);
-            
-            // Atualizar campo temporary_password_used como false na tabela profiles
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ temporary_password_used: false })
-              .eq('id', insertedUser.id);
-            
-            if (updateError) {
-              console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
-              throw updateError;
+            const { error: individualError } = await supabase
+              .from('apartment_residents')
+              .insert({
+                profile_id: user.id,
+                apartment_id: resident.selectedApartmentId,
+                relationship: 'resident',
+                is_primary: false,
+              });
+              
+            if (individualError) {
+              throw individualError;
             }
             
-            console.log('✅ [DEBUG] Senha temporária gerada e armazenada com sucesso');
+            successfulUsers.push({ user, apartmentId: resident.selectedApartmentId });
+            successCount++;
+            console.log('✅ [DEBUG] Apartamento associado individualmente para:', resident.name);
             
-            // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
-            insertedUser.temporary_password = temporaryPassword;
-            
-          } catch (passwordError) {
-            console.error('❌ [DEBUG] Erro ao gerar/armazenar senha temporária:', passwordError);
-            // Não interromper o cadastro, mas registrar o erro
-            errors.push(`${resident.name}: Problema ao gerar senha temporária`);
+          } catch (error) {
+            console.error('Erro ao associar apartamento individualmente:', error);
+            errorCount++;
+            const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+            errors.push(`${resident.name}: ${errorMessage}`);
           }
-
-          // Associar ao apartamento
-          const { error: residentsError } = await supabase.from('apartment_residents').insert({
-            profile_id: insertedUser.id,
-            apartment_id: resident.selectedApartmentId,
-            relationship: 'resident',
-            is_primary: false,
-          });
-
-          if (residentsError) {
-            console.error('❌ [DEBUG] Erro ao associar apartamento:', residentsError);
-            throw residentsError;
-          }
-
-          console.log('✅ [DEBUG] Associação de apartamento criada');
-
-          // Enviar WhatsApp se habilitado
-          if (sendWhatsApp) {
-            console.log('📱 [DEBUG] Enviando WhatsApp para:', resident.name);
-            await handleSingleUserWhatsApp(insertedUser, [resident.selectedApartmentId]);
-          }
-
+        }
+      } else {
+        // Sucesso na inserção em lote
+        console.log('✅ [DEBUG] Apartamentos associados em lote:', insertedAssociations?.length);
+        usersWithPasswords.forEach(({ user, resident }) => {
+          successfulUsers.push({ user, apartmentId: resident.selectedApartmentId });
           successCount++;
-        } catch (error) {
-          console.error('Erro ao cadastrar morador:', error);
-          errorCount++;
-          errors.push(`${resident.name}: ${error instanceof Error ? error.message : 'Erro'}`);
+        });
+      }
+
+      // Quarta fase: Envio de WhatsApp em lote (se habilitado)
+      if (sendWhatsApp && successfulUsers.length > 0) {
+        setProcessingStatus('Preparando notificações WhatsApp em lote...');
+        
+        try {
+          // Importar funções de WhatsApp
+          const { sendBulkWhatsAppMessages, isApiAvailable } = await import('../../utils/whatsapp');
+          
+          // Verificar se a API está disponível
+          if (!isApiAvailable()) {
+            console.warn('⚠️ API WhatsApp não está disponível');
+            errors.push('API WhatsApp não está disponível');
+            return;
+          }
+          
+          // Preparar dados para envio em lote
+          const whatsappData = [];
+          
+          for (const { user, apartmentId } of successfulUsers) {
+            try {
+              // Buscar dados do apartamento e prédio
+              const { data: apartment } = await supabase
+                .from('apartments')
+                .select('number, building_id, buildings(name)')
+                .eq('id', apartmentId)
+                .single();
+
+              if (apartment && apartment.buildings) {
+                whatsappData.push({
+                  name: user.full_name,
+                  phone: user.phone,
+                  building: apartment.buildings.name,
+                  apartment: apartment.number,
+                });
+              }
+            } catch (dataError) {
+              console.error('❌ Erro ao buscar dados para WhatsApp:', dataError);
+              errors.push(`${user.full_name}: Erro ao preparar dados para WhatsApp`);
+            }
+          }
+
+          if (whatsappData.length > 0) {
+            setProcessingStatus(`Enviando ${whatsappData.length} notificações WhatsApp...`);
+            console.log('📱 [DEBUG] Enviando WhatsApp em lote para', whatsappData.length, 'usuários');
+            
+            const bulkResult = await sendBulkWhatsAppMessages(whatsappData);
+            
+            console.log('📱 [DEBUG] Resultado do envio em lote:', bulkResult);
+            
+            // Adicionar erros do envio em lote aos erros gerais
+            if (bulkResult.errors.length > 0) {
+              errors.push(...bulkResult.errors.map(error => `WhatsApp: ${error}`));
+            }
+            
+            setProcessingStatus(`WhatsApp: ${bulkResult.success} enviados, ${bulkResult.failed} falharam`);
+          }
+        } catch (whatsappError) {
+          console.error('❌ [DEBUG] Erro no envio em lote de WhatsApp:', whatsappError);
+          errors.push('Erro geral no envio de notificações WhatsApp');
         }
       }
 
-      // Mostrar resultado
-      let message = `Cadastro concluído!\n✅ Sucessos: ${successCount}\n❌ Erros: ${errorCount}`;
+      // Mostrar resultado detalhado
+      setProcessingStatus('Processamento concluído!');
+      
+      // Categorizar erros por tipo
+      const validationErrors = errors.filter(error => error.includes('Validação'));
+      const profileErrors = errors.filter(error => error.includes('perfil') || error.includes('Perfil'));
+      const apartmentErrors = errors.filter(error => error.includes('apartamento') || error.includes('Apartamento'));
+      const whatsappErrors = errors.filter(error => error.includes('WhatsApp'));
+      const otherErrors = errors.filter(error => 
+        !validationErrors.includes(error) && 
+        !profileErrors.includes(error) && 
+        !apartmentErrors.includes(error) && 
+        !whatsappErrors.includes(error)
+      );
+      
+      let message = `Processamento de ${multipleResidents.length} usuários concluído!\n\n`;
+      message += `✅ Sucessos: ${successCount}\n`;
+      message += `❌ Erros: ${errorCount}`;
+      
       if (errors.length > 0) {
-        message += `\n\nErros:\n${errors.slice(0, 5).join('\n')}`;
-        if (errors.length > 5) {
-          message += `\n... e mais ${errors.length - 5} erros`;
+        message += `\n\n📋 Detalhes dos erros:`;
+        
+        if (validationErrors.length > 0) {
+          message += `\n\n🔍 Validação (${validationErrors.length}):`;
+          message += `\n${validationErrors.slice(0, 3).join('\n')}`;
+          if (validationErrors.length > 3) {
+            message += `\n... e mais ${validationErrors.length - 3}`;
+          }
+        }
+        
+        if (profileErrors.length > 0) {
+          message += `\n\n👤 Criação de perfis (${profileErrors.length}):`;
+          message += `\n${profileErrors.slice(0, 2).join('\n')}`;
+          if (profileErrors.length > 2) {
+            message += `\n... e mais ${profileErrors.length - 2}`;
+          }
+        }
+        
+        if (apartmentErrors.length > 0) {
+          message += `\n\n🏠 Associação de apartamentos (${apartmentErrors.length}):`;
+          message += `\n${apartmentErrors.slice(0, 2).join('\n')}`;
+          if (apartmentErrors.length > 2) {
+            message += `\n... e mais ${apartmentErrors.length - 2}`;
+          }
+        }
+        
+        if (whatsappErrors.length > 0) {
+          message += `\n\n📱 Notificações WhatsApp (${whatsappErrors.length}):`;
+          message += `\n${whatsappErrors.slice(0, 2).join('\n')}`;
+          if (whatsappErrors.length > 2) {
+            message += `\n... e mais ${whatsappErrors.length - 2}`;
+          }
+        }
+        
+        if (otherErrors.length > 0) {
+          message += `\n\n⚠️ Outros erros (${otherErrors.length}):`;
+          message += `\n${otherErrors.slice(0, 2).join('\n')}`;
+          if (otherErrors.length > 2) {
+            message += `\n... e mais ${otherErrors.length - 2}`;
+          }
         }
       }
-      Alert.alert('Resultado', message);
+      
+      // Determinar título e estilo do alerta
+      let alertTitle = 'Processamento Concluído';
+      if (successCount === 0) {
+        alertTitle = 'Erro no Processamento';
+      } else if (errorCount > 0) {
+        alertTitle = 'Processamento Parcial';
+      }
+      
+      Alert.alert(alertTitle, message, [{ text: 'OK' }]);
 
       if (successCount > 0) {
         // Limpar formulário
@@ -809,9 +1067,11 @@ export default function UsersManagement() {
       }
     } catch (error) {
       console.error('Erro geral:', error);
-      Alert.alert('Erro', 'Erro ao processar cadastros');
+      Alert.alert('Erro', `Erro ao processar cadastros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
+      setIsProcessing(false);
+      setProcessingStatus('');
     }
   };
 
