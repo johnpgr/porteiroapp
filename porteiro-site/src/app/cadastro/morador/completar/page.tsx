@@ -5,6 +5,20 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/utils/useAuth';
+import {
+  UserIcon,
+  PhoneIcon,
+  MapPinIcon,
+  CalendarIcon,
+  CameraIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  LockClosedIcon,
+  DevicePhoneMobileIcon,
+} from '@heroicons/react/24/outline';
+import { toast } from 'sonner';
 
 interface ProfileData {
   birth_date: string;
@@ -25,6 +39,13 @@ export default function CompletarCadastroPage() {
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  
+  // Estados para autenticação
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authPhone, setAuthPhone] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
@@ -48,6 +69,108 @@ export default function CompletarCadastroPage() {
       setProfileId(urlProfileId);
     }
   }, []);
+
+  // Função para autenticar com celular e senha
+  const handleAuthentication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthenticating(true);
+    setAuthError(null);
+
+    if (!profileId) {
+      setAuthError('ID do perfil não fornecido');
+      setIsAuthenticating(false);
+      return;
+    }
+
+    try {
+      // Validar formato do celular (básico)
+      const phoneRegex = /^\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}$/;
+      if (!phoneRegex.test(authPhone)) {
+        throw new Error('Formato de celular inválido');
+      }
+
+      // Validar senha (6 dígitos)
+      if (!/^\d{6}$/.test(authPassword)) {
+        throw new Error('A senha deve conter exatamente 6 dígitos');
+      }
+
+      // Limpar formatação do telefone para comparação
+      const cleanPhone = authPhone.replace(/\D/g, '');
+      
+      // Buscar senha temporária na tabela
+      const { data: tempPassword, error: tempError } = await supabase
+        .from('temporary_passwords')
+        .select('*')
+        .eq('profile_id', profileId)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (tempError || !tempPassword) {
+        throw new Error('Senha temporária não encontrada ou expirada');
+      }
+
+      // Verificar se o telefone corresponde
+      const dbPhone = tempPassword.phone_number.replace(/\D/g, '');
+      if (cleanPhone !== dbPhone) {
+        throw new Error('Celular não corresponde ao cadastro');
+      }
+
+      // Verificar se a senha está correta
+      if (authPassword !== tempPassword.plain_password) {
+        throw new Error('Senha incorreta');
+      }
+
+      // Marcar senha como usada
+      const { error: updateError } = await supabase
+        .from('temporary_passwords')
+        .update({ 
+          used: true, 
+          used_at: new Date().toISOString() 
+        })
+        .eq('id', tempPassword.id);
+
+      if (updateError) {
+        console.error('Erro ao marcar senha como usada:', updateError);
+      }
+
+      // Buscar dados do perfil
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single();
+
+      if (profileError || !profile) {
+        throw new Error('Perfil não encontrado');
+      }
+
+      // Verificar se o perfil já foi completado
+      if (profile.profile_completed) {
+        throw new Error('Este perfil já foi completado');
+      }
+
+      // Fazer login automático
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: tempPassword.plain_password,
+      });
+
+      if (authError) {
+        throw new Error('Erro na autenticação: ' + authError.message);
+      }
+
+      setUser(authData.user);
+      setProfileData(profile);
+      setIsAuthenticated(true);
+      toast.success('Autenticação realizada com sucesso!');
+    } catch (error: any) {
+      console.error('Erro na autenticação:', error);
+      setAuthError(error.message || 'Erro desconhecido na autenticação');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
 
   // Auto-login effect when profile_id is provided
   useEffect(() => {
@@ -129,6 +252,15 @@ export default function CompletarCadastroPage() {
     return cleanValue
       .replace(/(\d{2})(\d)/, '($1) $2')
       .replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  // Função para formatar telefone na autenticação
+  const formatAuthPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    return value;
   };
 
   const handleEmergencyPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -291,10 +423,94 @@ export default function CompletarCadastroPage() {
   // Mostrar loading enquanto verifica autenticação
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando autenticação...</p>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar tela de autenticação se não estiver autenticado
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full mx-auto bg-white rounded-lg shadow-lg p-8">
+          <div className="text-center mb-8">
+            <LockClosedIcon className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Autenticação Necessária</h2>
+            <p className="text-gray-600">Digite seu celular e a senha de 6 dígitos enviada por WhatsApp</p>
+          </div>
+
+          <form onSubmit={handleAuthentication} className="space-y-6">
+            <div>
+              <label htmlFor="authPhone" className="block text-sm font-medium text-gray-700 mb-2">
+                Celular
+              </label>
+              <div className="relative">
+                <DevicePhoneMobileIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <input
+                  id="authPhone"
+                  type="tel"
+                  value={authPhone}
+                  onChange={(e) => setAuthPhone(formatAuthPhone(e.target.value))}
+                  placeholder="(11) 99999-9999"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="authPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                Senha (6 dígitos)
+              </label>
+              <div className="relative">
+                <LockClosedIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <input
+                  id="authPassword"
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg tracking-widest"
+                  maxLength={6}
+                  required
+                />
+              </div>
+            </div>
+
+            {authError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-2" />
+                  <p className="text-red-700 text-sm">{authError}</p>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isAuthenticating || !authPhone || !authPassword}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {isAuthenticating ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Verificando...
+                </div>
+              ) : (
+                'Entrar'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500">
+              Não recebeu a senha? Verifique seu WhatsApp ou entre em contato com a administração.
+            </p>
+          </div>
         </div>
       </div>
     );

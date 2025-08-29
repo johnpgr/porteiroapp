@@ -21,6 +21,8 @@ export interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
+  profile_id?: string;
+  temporaryPassword?: string;
 }
 
 // Interface para resposta da API
@@ -95,17 +97,22 @@ export const formatPhoneNumber = (phone: string): { clean: string; international
 };
 
 /**
- * Gera o link personalizado de cadastro com parâmetros
+ * Gera o link personalizado de cadastro com profile_id
  * @param residentData - Dados do morador
  * @param baseUrl - URL base do site de cadastro
- * @returns string - Link completo com parâmetros
+ * @returns string - Link completo com profile_id
  */
 export const generateRegistrationLink = (
   residentData: ResidentData,
-  baseUrl: string = 'https://cadastro.jamesconcierge.com/'
+  baseUrl: string = 'https://jamesavisa.jamesconcierge.com/cadastro/morador/completar'
 ): string => {
+  // Se o residentData contém profile_id, usar o formato correto
+  if (residentData.profile_id) {
+    return `${baseUrl}?profile_id=${residentData.profile_id}`;
+  }
+  
+  // Fallback para compatibilidade com formato antigo
   const cleanPhone = residentData.phone.replace(/\D/g, '');
-
   const params = new URLSearchParams({
     telefone: cleanPhone,
     nome: residentData.name,
@@ -127,7 +134,13 @@ export const generateWhatsAppMessage = (
   baseUrl?: string
 ): { message: string; registrationLink: string } => {
   const registrationLink = generateRegistrationLink(residentData, baseUrl);
-  const message = `Olá, ${residentData.name}! 👋\n\nComplete seu cadastro no JamesAvisa clicando no link abaixo:\n\n${registrationLink}\n\nSeus dados já estão pré-preenchidos para facilitar o processo.\n\nQualquer dúvida, entre em contato conosco! 📱`;
+  
+  // Incluir senha temporária na mensagem se disponível
+  const passwordInfo = residentData.temporaryPassword 
+    ? `\n\n🔐 SUAS CREDENCIAIS DE ACESSO:\n\n📱 Usuário (Celular): ${residentData.phone}\n🔑 Senha temporária: ${residentData.temporaryPassword}\n\n💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!`
+    : '';
+  
+  const message = `🏢 JamesAvisa - Cadastro de Morador\n\nOlá *${residentData.name}*!\n\nVocê foi convidado(a) para se cadastrar no JamesAvisa.\n\n📍 Dados do seu apartamento:\n🏢 Prédio: ${residentData.building}\n🚪 Apartamento: ${residentData.apartment}\n\nPara completar seu cadastro, clique no link abaixo:\n\`${registrationLink}\`${passwordInfo}\n\nCom o JamesAvisa você pode:\n✅ Receber visitantes com mais segurança\n✅ Autorizar entregas remotamente\n✅ Comunicar-se diretamente com a portaria\n✅ Acompanhar movimentações do seu apartamento\n\nMensagem enviada automaticamente pelo sistema JamesAvisa`;
   
   return { message, registrationLink };
 };
@@ -163,13 +176,15 @@ export const sendWhatsAppMessage = async (
       international: phoneNumber.international,
     });
 
-    // Prepara os dados para a API - apenas campos obrigatórios
+    // Prepara os dados para a API - incluindo profile_id e senha temporária
     const apiUrl = `${API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
     const apiData = {
       name: residentData.name,
       phone: phoneNumber.clean,
       building: residentData.building,
-      apartment: residentData.apartment
+      apartment: residentData.apartment,
+      profile_id: residentData.profile_id,
+      temporaryPassword: residentData.temporaryPassword
     };
 
     console.log('🌐 Fazendo chamada para API:', {

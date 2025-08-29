@@ -7,19 +7,24 @@
  * Gera um link de cadastro personalizado para o morador
  * Agora aceita tanto tokens únicos quanto dados do morador para compatibilidade
  * @param {Object|string} residentDataOrToken - Dados do morador ou token único
- * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/'] - URL base para cadastro
+ * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/cadastro/morador/completar'] - URL base para cadastro
  * @returns {string} Link de cadastro personalizado
  */
-function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
+function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesavisa.jamesconcierge.com/cadastro/morador/completar') {
   // Se o primeiro parâmetro é uma string, é um token
   if (typeof residentDataOrToken === 'string') {
     // Link com token: https://jamesavisa.jamesconcierge.com/cadastro/morador/{token}
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    return `${cleanBaseUrl}/cadastro/morador/${residentDataOrToken}`;
+    return `${cleanBaseUrl}/${residentDataOrToken}`;
+  }
+  
+  // Se os dados contêm profile_id, usar o formato correto
+  const residentData = residentDataOrToken;
+  if (residentData.profile_id) {
+    return `${baseUrl}?profile_id=${residentData.profile_id}`;
   }
   
   // Compatibilidade com o formato antigo (parâmetros de query string)
-  const residentData = residentDataOrToken;
   const params = new URLSearchParams({
     name: residentData.name,
     phone: residentData.phone,
@@ -42,6 +47,11 @@ function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesa
  * @returns {string} Mensagem formatada para WhatsApp
  */
 function generateWhatsAppMessage(residentData, registrationLink) {
+  // Garantir que a senha temporária seja sempre incluída
+  const passwordInfo = residentData.temporaryPassword 
+    ? `🔑 Senha temporária: ${residentData.temporaryPassword}`
+    : '🔑 Senha temporária: Não fornecida';
+    
   return `🏢 JamesAvisa - Cadastro de Morador\n\n` +
          `Olá *${residentData.name}*!\n\n` +
          `Você foi convidado(a) para se cadastrar no JamesAvisa.\n\n` +
@@ -52,7 +62,7 @@ function generateWhatsAppMessage(residentData, registrationLink) {
          `\`${registrationLink}\`\n\n` +
          `🔐 SUAS CREDENCIAIS DE ACESSO:\n\n` +
          `📱 Usuário (Celular): ${residentData.phone}\n` +
-         `🔑 Senha temporária: ${residentData.temporaryPassword || 'Será enviada em breve'}\n\n` +
+         `${passwordInfo}\n\n` +
          `💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!\n\n` +
          `Com o JamesAvisa você pode:\n` +
          `✅ Receber visitantes com mais segurança\n` +
