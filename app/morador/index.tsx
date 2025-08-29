@@ -20,6 +20,7 @@ import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
+import { TestNotificationButton } from '~/components/TestNotificationButton';
 
 
 // Interface para tipagem do histórico de visitantes
@@ -501,6 +502,7 @@ export default function MoradorDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
+      <TestNotificationButton />
       <SafeAreaView style={styles.container}>
         <View style={styles.container}>
           {renderHeader()}

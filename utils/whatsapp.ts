@@ -1,18 +1,17 @@
 import { Alert } from 'react-native';
 
 /**
- * Configuração da API local
- * API rodando no IP local da máquina na porta 3001
- * React Native não consegue acessar 127.0.0.1 diretamente
+ * Configuração da API de notificação
  * URL configurada via variável de ambiente
+ * Deve apontar para a API remota em produção
  */
-const LOCAL_API_CONFIG = {
-  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://192.168.0.2:3001',
+const API_CONFIG = {
+  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com',
 };
 
 // Logs de debug para configuração
-console.log('API Local Config:', {
-  baseUrl: LOCAL_API_CONFIG.baseUrl,
+console.log('API Config:', {
+  baseUrl: API_CONFIG.baseUrl,
   isAvailable: true,
 });
 
@@ -22,9 +21,6 @@ export interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
-  email?: string;
-  building_id: string; // UUID obrigatório do prédio
-  temporary_password?: string; // Senha temporária para moradores
 }
 
 // Interface para resposta da API
@@ -167,38 +163,16 @@ export const sendWhatsAppMessage = async (
       international: phoneNumber.international,
     });
 
-    // Validar se building_id está disponível
-    if (!residentData.building_id) {
-      console.error('❌ building_id não fornecido:', residentData);
-      return {
-        success: false,
-        error: 'ID do prédio é obrigatório para envio via WhatsApp',
-      };
-    }
-
-    // Validar se building_id é um UUID válido
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(residentData.building_id)) {
-      console.error('❌ building_id inválido (não é UUID):', residentData.building_id);
-      return {
-        success: false,
-        error: 'ID do prédio deve ser um UUID válido',
-      };
-    }
-
-    // Prepara os dados para a API local
-    const apiUrl = `${LOCAL_API_CONFIG.baseUrl}/api/register-resident`;
+    // Prepara os dados para a API - apenas campos obrigatórios
+    const apiUrl = `${API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
     const apiData = {
-      full_name: residentData.name,
-      email: residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`,
+      name: residentData.name,
       phone: phoneNumber.clean,
-      building_id: residentData.building_id,
-      apartment_number: residentData.apartment,
-      // Incluir senha temporária se disponível (apenas para moradores)
-      ...(residentData.temporary_password && { temporary_password: residentData.temporary_password })
+      building: residentData.building,
+      apartment: residentData.apartment
     };
 
-    console.log('🌐 Fazendo chamada para API local:', {
+    console.log('🌐 Fazendo chamada para API:', {
       url: apiUrl,
       phone: phoneNumber.clean,
       name: residentData.name,
@@ -308,15 +282,14 @@ export const sendBulkWhatsAppMessages = async (
 };
 
 /**
- * Verifica se a API local está disponível
- * Testa conectividade com 127.0.0.1:3001
+ * Verifica se a API está disponível
  * @returns boolean - true se disponível, false caso contrário
  */
-export const isLocalApiAvailable = (): boolean => {
-  // Para desenvolvimento, assumimos que a API local está sempre disponível
+export const isApiAvailable = (): boolean => {
+  // Para desenvolvimento, assumimos que a API está sempre disponível
   // Em produção, você pode implementar uma verificação real
-  console.log('🔧 Verificação de API local:', {
-    baseUrl: LOCAL_API_CONFIG.baseUrl,
+  console.log('🔧 Verificação de API:', {
+    baseUrl: API_CONFIG.baseUrl,
     isAvailable: true,
   });
   
@@ -324,19 +297,19 @@ export const isLocalApiAvailable = (): boolean => {
 };
 
 /**
- * Testa a conectividade com a API local
+ * Testa a conectividade com a API
  * Faz uma chamada de teste para verificar se a API está respondendo
  * @returns Promise<{success: boolean, message: string, details?: any}> - Resultado do teste
  */
-export const testLocalApiConnection = async (): Promise<{
+export const testApiConnection = async (): Promise<{
   success: boolean;
   message: string;
   details?: any;
 }> => {
-  console.log('🧪 Iniciando teste de conectividade API local...');
+  console.log('🧪 Iniciando teste de conectividade API...');
   
   try {
-    const testUrl = `${LOCAL_API_CONFIG.baseUrl}/health`;
+    const testUrl = `${API_CONFIG.baseUrl}/health`;
     console.log('🌐 Testando URL:', testUrl);
 
     const response = await fetch(testUrl, {
@@ -356,7 +329,7 @@ export const testLocalApiConnection = async (): Promise<{
       const data = await response.json().catch(() => ({}));
       return {
         success: true,
-        message: 'Conexão com API local estabelecida com sucesso!',
+        message: 'Conexão com API estabelecida com sucesso!',
         details: data,
       };
     } else {
@@ -377,11 +350,11 @@ export const testLocalApiConnection = async (): Promise<{
 };
 
 /**
- * Mostra alerta de configuração da API local
- * Exibe informações sobre a API local
+ * Mostra alerta de configuração da API
+ * Exibe informações sobre a API
  */
 export const showConfigurationAlert = (): void => {
-  const message = `API WhatsApp configurada para usar servidor local:\n\n• URL: ${LOCAL_API_CONFIG.baseUrl}\n• Endpoint: /api/register-resident\n\nCertifique-se de que o servidor local está rodando na porta 3001.`;
+  const message = `API WhatsApp configurada:\n\n• URL: ${API_CONFIG.baseUrl}\n• Endpoint: /api/register-resident\n\nCertifique-se de que a API está acessível.`;
 
   Alert.alert('Configuração API WhatsApp', message, [{ text: 'OK' }]);
 };

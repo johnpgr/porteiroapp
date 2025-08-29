@@ -443,8 +443,8 @@ class NotificationService {
     });
 
     try {
-      // Configuração da API local
-      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://192.168.0.2:3001'}/api/send-regularization-whatsapp`;
+      // Configuração da API
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-regularization-whatsapp`;
       
       // Preparar dados para a API
       const apiData = {

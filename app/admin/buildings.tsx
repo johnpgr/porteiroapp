@@ -149,6 +149,9 @@ export default function BuildingsManagement() {
     <ProtectedRoute requiredRole="admin">
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/admin')}>
+            <Text style={styles.backButtonText}>← Voltar</Text>
+          </TouchableOpacity>
           <Text style={styles.title}>Gerenciar Prédios</Text>
           <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
             <Text style={styles.addButtonText}>{showAddForm ? 'Cancelar' : '+ Novo'}</Text>
@@ -244,7 +247,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingBottom: 15,
+    paddingBottom: 20,
+    paddingTop: 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',

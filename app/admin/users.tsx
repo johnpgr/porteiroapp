@@ -764,7 +764,7 @@ export default function UsersManagement() {
           const { error: residentsError } = await supabase.from('apartment_residents').insert({
             profile_id: insertedUser.id,
             apartment_id: resident.selectedApartmentId,
-            relationship: 'morador',
+            relationship: 'resident',
             is_primary: false,
           });
 
@@ -951,7 +951,7 @@ export default function UsersManagement() {
             const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
               profile_id: insertedUser.id,
               apartment_id: apartmentId,
-              relationship: 'morador',
+              relationship: 'resident',
               is_primary: false,
             }));
 
@@ -1149,6 +1149,7 @@ export default function UsersManagement() {
           const { error: associationError } = await supabase.from('apartment_residents').insert({
             profile_id: insertedUser.id,
             apartment_id: apartment.id,
+            relationship: 'resident',
             is_owner: false,
           });
 
@@ -1237,9 +1238,6 @@ export default function UsersManagement() {
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
-            building_id: building.id, // Incluir UUID do prédio
-            // Incluir senha temporária se disponível (apenas para moradores)
-            temporary_password: userData.temporary_password || undefined,
           };
 
           console.log('📱 [DEBUG] residentData criado:', residentData);

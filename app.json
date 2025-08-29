@@ -15,7 +15,11 @@
       [
         "expo-notifications",
         {
-          "color": "#2563eb"
+          "color": "#4CAF50",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/notification.wav"
+          ]
         }
       ]
     ],
@@ -24,12 +28,29 @@
       "tsconfigPaths": true
     },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo-james-fundo.png",
     "userInterfaceStyle": "light",
+    "primaryColor": "#4CAF50",
+    "backgroundColor": "#F9FAFB",
+    "theme": {
+      "primary": "#4CAF50",
+      "secondary": "#2196F3",
+      "accent": "#FF9800",
+      "error": "#F44336",
+      "warning": "#FF9800",
+      "info": "#2196F3",
+      "success": "#4CAF50",
+      "surface": "#FFFFFF",
+      "background": "#F9FAFB",
+      "onPrimary": "#FFFFFF",
+      "onSecondary": "#FFFFFF",
+      "onSurface": "#333333",
+      "onBackground": "#333333"
+    },
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#4CAF50"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -37,20 +58,33 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
-      "buildNumber": "1.0.0"
+      "buildNumber": "1.0.0",
+      "statusBar": {
+        "barStyle": "light-content",
+        "backgroundColor": "#4CAF50"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#4CAF50"
       },
       "package": "com.porteiroapp.notifications",
       "googleServicesFile": "./google-services.json",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "statusBar": {
+        "backgroundColor": "#388E3C",
+        "barStyle": "light-content"
+      },
+      "navigationBar": {
+        "backgroundColor": "#4CAF50"
+      }
     },
     "notification": {
-      "color": "#2563eb",
-      "iosDisplayInForeground": true
+      "color": "#4CAF50",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "James Avisa"
     },
     "extra": {
       "router": {},

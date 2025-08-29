@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import TestNotificationButton from '~/components/TestNotificationButton';
 import { supabase, adminAuth } from '~/utils/supabase';
 
 
@@ -198,6 +199,7 @@ export default function AdminDashboard() {
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
       <SafeAreaView style={styles.container}>
+        <TestNotificationButton />
         {renderHeader()}
         {renderContent()}
         {renderBottomNavigation()}
