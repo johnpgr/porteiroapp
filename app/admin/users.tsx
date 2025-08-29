@@ -1235,6 +1235,11 @@ export default function UsersManagement() {
           // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
           insertedUser.temporary_password = temporaryPassword;
           
+          console.log('🔑 [DEBUG] Senha temporária atribuída ao insertedUser:', {
+            id: insertedUser.id,
+            temporary_password: insertedUser.temporary_password
+          });
+          
         } catch (error) {
           console.error('❌ [DEBUG] Erro ao criar morador:', error);
           // Deletar o perfil se tudo falhar
@@ -1495,6 +1500,31 @@ export default function UsersManagement() {
       console.log('📱 [DEBUG] Total de apartamentos disponíveis:', apartments.length);
       console.log('📱 [DEBUG] Total de prédios disponíveis:', buildings.length);
       
+      // NOVO: Buscar senha temporária no Supabase caso não esteja presente em userData
+      let recoveredTemporaryPassword: string | undefined = userData.temporary_password;
+      if (!recoveredTemporaryPassword) {
+        try {
+          console.log('🔎 [DEBUG] Buscando senha temporária no Supabase...');
+          const { data: tempPassRow, error: tempPassError } = await supabase
+            .from('temporary_passwords')
+            .select('plain_password')
+            .eq('profile_id', userData.id)
+            .eq('used', false)
+            .order('expires_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (tempPassError) {
+            console.log('⚠️ [DEBUG] Não foi possível recuperar a senha temporária:', tempPassError);
+          } else {
+            recoveredTemporaryPassword = (tempPassRow as any)?.plain_password as string | undefined;
+            console.log('🔑 [DEBUG] Senha temporária recuperada do Supabase:', recoveredTemporaryPassword);
+          }
+        } catch (e) {
+          console.log('⚠️ [DEBUG] Exceção ao recuperar senha temporária do Supabase:', e);
+        }
+      }
+      
       // Para cada apartamento selecionado, enviar WhatsApp
       for (const apartmentId of apartmentIds) {
         console.log('📱 [DEBUG] Processando apartmentId:', apartmentId);
@@ -1507,12 +1537,20 @@ export default function UsersManagement() {
 
         if (apartment && building) {
           const residentData: ResidentData = {
-            name: userData.full_name,
+            name: userData.full_name || userData.name,
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
-            temporary_password: userData.temporary_password, // Incluir senha temporária
+            temporary_password: recoveredTemporaryPassword, // Incluir senha temporária recuperada
           };
+          
+          console.log('🔑 [DEBUG] Dados do residente para WhatsApp:', {
+            name: residentData.name,
+            phone: residentData.phone,
+            building: residentData.building,
+            apartment: residentData.apartment,
+            temporary_password: residentData.temporary_password
+          });
 
           console.log('📱 [DEBUG] residentData criado:', residentData);
           console.log('📱 [DEBUG] Chamando notificationService.sendResidentWhatsApp...');
