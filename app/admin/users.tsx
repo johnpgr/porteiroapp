@@ -1391,6 +1391,10 @@ export default function UsersManagement() {
             continue;
           }
 
+          // Gerar senha temporária
+          const temporaryPassword = generateTemporaryPassword();
+          const hashedPassword = await hashPassword(temporaryPassword);
+
           // Criar usuário
           const userData = {
             full_name: resident.name,
@@ -1404,6 +1408,9 @@ export default function UsersManagement() {
             .single();
 
           if (error) throw error;
+
+          // Armazenar senha temporária
+          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.phone);
 
           // Associar ao apartamento
           const { error: associationError } = await supabase.from('apartment_residents').insert({
@@ -1420,7 +1427,13 @@ export default function UsersManagement() {
           // Enviar WhatsApp se habilitado
           if (sendWhatsApp) {
             setProcessingStatus(`Enviando WhatsApp para ${resident.name}...`);
-            const whatsappResult = await notificationService.sendResidentWhatsApp(resident, whatsappBaseUrl);
+            const residentDataWithPassword = {
+              ...resident,
+              temporary_password: temporaryPassword,
+              building: building.name,
+              apartment: apartment.number
+            };
+            const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword, whatsappBaseUrl);
             if (!whatsappResult.success) {
               errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
             }
@@ -1498,6 +1511,7 @@ export default function UsersManagement() {
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
+            temporary_password: userData.temporary_password, // Incluir senha temporária
           };
 
           console.log('📱 [DEBUG] residentData criado:', residentData);

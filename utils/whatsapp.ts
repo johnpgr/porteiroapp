@@ -184,7 +184,7 @@ export const sendWhatsAppMessage = async (
       building: residentData.building,
       apartment: residentData.apartment,
       profile_id: residentData.profile_id,
-      temporaryPassword: residentData.temporaryPassword
+      temporary_password: residentData.temporaryPassword || residentData.temporary_password
     };
 
     console.log('🌐 Fazendo chamada para API:', {

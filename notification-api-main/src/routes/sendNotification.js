@@ -7,83 +7,97 @@ const { generateRegistrationLink, generateWhatsAppMessage, generateRegularizatio
 
 // POST /api/send-resident-whatsapp - Endpoint específico para envio de mensagens WhatsApp para moradores
 router.post('/send-resident-whatsapp', async (req, res) => {
-  const startTime = Date.now();
-  console.log('🚀 Iniciando envio de mensagem WhatsApp para morador:', req.body);
-  
   try {
-    const data = req.body;
+    console.log('Enviando notificação WhatsApp para morador:', req.body);
 
-    // Validação dos dados do morador
-    const { success, parsed, errors: validationErrors } = validateResidentNotification(data);
-    if (!success) {
-      console.error('❌ Erro de validação:', validationErrors);
-      return res.status(400).json({ 
-        success: false, 
-        whatsappSent: false, 
-        errors: validationErrors,
-        timestamp: new Date().toISOString()
+    const { name, phone, building, apartment, building_id, temporary_password } = req.body;
+
+    if (!name || !phone || !building || !apartment) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: name, phone, building, apartment'
       });
     }
+    
+    // Generate fake profile_id for response (since we're not creating a real profile)
+    const fakeProfileId = require('crypto').randomUUID();
 
-    const residentData = parsed;
-    console.log('✅ Dados validados:', {
-      name: residentData.name,
-      phone: residentData.phone,
-      building: residentData.building,
-      apartment: residentData.apartment
-    });
+    console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
 
-    // Usar link de cadastro fornecido ou gerar um novo (compatibilidade)
-    let registrationLink;
-    if (residentData.registrationLink) {
-      // Se o link já vem pronto (com token), usar diretamente
-      registrationLink = residentData.registrationLink;
-      console.log('🔗 Link de cadastro recebido (com token):', registrationLink);
-    } else {
-      // Compatibilidade: gerar link com parâmetros de query string
-      registrationLink = generateRegistrationLink(residentData, residentData.registrationUrl);
-      console.log('🔗 Link de cadastro gerado (formato antigo):', registrationLink);
+    // Send WhatsApp notification with credentials (no user creation)
+    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${fakeProfileId}`;
+    const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
+
+Olá *${name}*!
+
+Você foi convidado(a) para se cadastrar no JamesAvisa.
+
+📍 Dados do seu apartamento:
+
+🏢 Prédio: ${building}
+
+🚪 Apartamento: ${apartment}
+
+Para completar seu cadastro, clique no link abaixo:
+
+${completarCadastroUrl}
+
+🔐 SUAS CREDENCIAIS DE ACESSO:
+
+📱 Usuário (Celular): ${phone}
+
+🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
+
+💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!
+
+Com o JamesAvisa você pode:
+
+✅ Receber visitantes com mais segurança
+
+✅ Autorizar entregas remotamente
+
+✅ Comunicar-se diretamente com a portaria
+
+✅ Acompanhar movimentações do seu apartamento
+
+Mensagem enviada automaticamente pelo sistema JamesAvisa`
+
+    try {
+      await sendWhatsApp({
+        to: phone,
+        message: whatsappMessage
+      });
+      console.log('WhatsApp enviado com sucesso para:', phone);
+    } catch (whatsappError) {
+      console.error('Erro ao enviar WhatsApp:', whatsappError.message);
+      // Don't fail the registration if WhatsApp fails
     }
-
-    // Gerar mensagem formatada
-    const whatsappMessage = generateWhatsAppMessage(residentData, registrationLink, residentData.temporaryPassword);
-    console.log('📝 Mensagem formatada:', whatsappMessage.substring(0, 100) + '...');
-
-    // Enviar mensagem via WhatsApp
-    const whatsappResult = await sendWhatsApp({
-      to: residentData.phone,
-      message: whatsappMessage
-    });
-
-    const duration = Date.now() - startTime;
-    console.log(`✅ Mensagem WhatsApp enviada com sucesso em ${duration}ms para:`, residentData.phone);
 
     res.json({
       success: true,
-      whatsappSent: true,
-      messageId: whatsappResult.messageId,
-      registrationLink,
-      recipient: {
-        name: residentData.name,
-        phone: residentData.phone,
-        building: residentData.building,
-        apartment: residentData.apartment
-      },
-      timestamp: new Date().toISOString(),
-      duration: `${duration}ms`
+      message: 'Cadastro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
+      data: {
+          profile_id: fakeProfileId,
+          building_name: building,
+          apartment_number: apartment
+        }
     });
 
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error('❌ Erro ao enviar mensagem WhatsApp:', error.message);
-    console.error('Stack trace:', error.stack);
+    console.error('Erro no cadastro de morador:', error);
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados inválidos',
+        details: error.errors
+      });
+    }
 
     res.status(500).json({
       success: false,
-      whatsappSent: false,
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      duration: `${duration}ms`
+      error: 'Erro interno do servidor'
     });
   }
 });
