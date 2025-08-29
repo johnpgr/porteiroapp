@@ -20,7 +20,7 @@ import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import ActivityLogs from './logs';
-import { TestNotificationButton } from '~/components/TestNotificationButton';
+import TestNotificationButton from '~/components/TestNotificationButton';
 
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 

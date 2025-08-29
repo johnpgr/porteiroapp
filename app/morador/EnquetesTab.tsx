@@ -46,11 +46,17 @@ export default function EnquetesTab() {
         .from('apartment_residents')
         .select('apartment_id, apartments!inner(building_id)')
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Erro ao buscar apartamento:', error);
         setError('Erro ao carregar dados do apartamento');
+        return;
+      }
+
+      if (!data) {
+        setUserApartment(null);
+        setError('Nenhum apartamento vinculado à sua conta.');
         return;
       }
 
@@ -138,9 +144,9 @@ export default function EnquetesTab() {
             .select('poll_option_id')
             .eq('user_id', user.id)
             .in('poll_option_id', optionsWithVotes.map(opt => opt.id))
-            .single();
+            .maybeSingle();
 
-          const userVoted = !userVoteError && userVoteData;
+          const userVoted = !!userVoteData;
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
 
           // Verificar se a enquete ainda está ativa (não expirou)

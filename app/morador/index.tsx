@@ -20,7 +20,7 @@ import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
-import { TestNotificationButton } from '~/components/TestNotificationButton';
+import TestNotificationButton from '~/components/TestNotificationButton';
 
 
 // Interface para tipagem do histórico de visitantes
@@ -97,7 +97,7 @@ export default function MoradorDashboard() {
         .from('apartment_residents')
         .select('apartment_id')
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da query apartment_residents:', {
         data: apartmentData,
@@ -116,8 +116,10 @@ export default function MoradorDashboard() {
       }
       
       if (!apartmentData?.apartment_id) {
-        console.error('❌ DEBUG: apartment_id não encontrado nos dados:', apartmentData);
-        throw new Error('Apartamento não encontrado para o usuário');
+        console.warn('⚠️ DEBUG: Usuário sem apartamento vinculado. Mostrando estado vazio.');
+        setVisitorsHistory([]);
+        setHistoryError('Nenhum apartamento vinculado à sua conta. Solicite ao síndico/administrador para vincular seu apartamento.');
+        return;
       }
       
       console.log('✅ DEBUG: Apartment ID encontrado:', apartmentData.apartment_id);

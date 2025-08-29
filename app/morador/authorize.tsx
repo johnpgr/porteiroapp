@@ -103,21 +103,21 @@ export default function AuthorizeScreen() {
         .from('apartments')
         .select('id, building_id')
         .eq('apartment_number', selectedVisitor.apartment_number)
-        .single();
+        .maybeSingle();
 
       if (apartmentData) {
-        await supabase.from('visitor_logs').insert({
-          visitor_id: selectedVisitor.id,
-          apartment_id: apartmentData.id,
-          building_id: apartmentData.building_id,
-          log_time: new Date().toISOString(),
-          tipo_log: actionType === 'approve' ? 'IN' : 'OUT',
-          visit_session_id: Crypto.randomUUID(),
-          purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
-          authorized_by: user.id,
-          status: newStatus
-        });
-      }
+         await supabase.from('visitor_logs').insert({
+           visitor_id: selectedVisitor.id,
+           apartment_id: apartmentData.id,
+           building_id: apartmentData.building_id,
+           log_time: new Date().toISOString(),
+           tipo_log: actionType === 'approve' ? 'IN' : 'OUT',
+           visit_session_id: Crypto.randomUUID(),
+           purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
+           authorized_by: user.id,
+           status: newStatus
+         });
+       }
 
       // Criar notificação para o porteiro
       await supabase.from('communications').insert({

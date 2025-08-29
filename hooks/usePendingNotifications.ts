@@ -61,10 +61,15 @@ export const usePendingNotifications = () => {
         .from('apartment_residents')
         .select('apartment_id')
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
-      setApartmentId(data.apartment_id);
+      if (data?.apartment_id) {
+        setApartmentId(data.apartment_id);
+      } else {
+        // Usuário sem apartamento vinculado: não é erro; apenas não há notificações a buscar
+        setApartmentId(null);
+      }
     } catch (err) {
       console.error('Erro ao buscar apartment_id:', err);
       setError('Erro ao identificar apartamento');

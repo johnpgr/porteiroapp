@@ -88,7 +88,7 @@ export default function MoradorProfile() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
       console.log('❌ DEBUG - Erro do perfil:', profileError);
@@ -105,6 +105,11 @@ export default function MoradorProfile() {
         return;
       }
 
+      if (!profileData) {
+        Alert.alert('Erro', 'Perfil não encontrado. Verifique se seu cadastro está completo.');
+        return;
+      }
+
       // Then get apartment info using apartment_residents table
       console.log('🏠 DEBUG - Buscando informações do apartamento para profile_id:', profileData.id);
       const { data: apartmentData, error: apartmentError } = await supabase
@@ -116,7 +121,7 @@ export default function MoradorProfile() {
           )
         `)
         .eq('profile_id', profileData.id)
-        .single();
+        .maybeSingle();
 
       console.log('🏠 DEBUG - Dados do apartamento retornados:', apartmentData);
       console.log('❌ DEBUG - Erro do apartamento:', apartmentError);
@@ -311,7 +316,7 @@ export default function MoradorProfile() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
       console.log('📊 LOG - Estado do banco ANTES da atualização:', {
         profile_found: !!currentProfile,
@@ -380,7 +385,7 @@ export default function MoradorProfile() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
       console.log('📊 LOG - Estado do banco APÓS a atualização:', {
         profile_found: !!updatedProfile,

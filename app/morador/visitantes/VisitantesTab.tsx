@@ -201,10 +201,15 @@ export default function VisitantesTab() {
         .from('profiles')
         .select('id')
         .eq('user_id', authUser.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profileData) {
+      if (profileError) {
         throw new Error('Erro ao buscar perfil do usuário');
+      }
+      if (!profileData) {
+        console.log('Perfil não encontrado para o usuário autenticado');
+        setApartmentId(null);
+        return null;
       }
 
       // Buscar apartment_id usando profile_id
@@ -212,10 +217,16 @@ export default function VisitantesTab() {
         .from('apartment_residents')
         .select('apartment_id')
         .eq('profile_id', profileData.id)
-        .single();
+        .maybeSingle();
 
-      if (apartmentError || !apartmentData?.apartment_id) {
+      if (apartmentError) {
         throw new Error('Erro ao buscar apartment_id');
+      }
+
+      if (!apartmentData?.apartment_id) {
+        console.log('Nenhum apartment_id associado ao perfil');
+        setApartmentId(null);
+        return null;
       }
 
       setApartmentId(apartmentData.apartment_id);
@@ -553,7 +564,7 @@ export default function VisitantesTab() {
               .from('visitors')
               .select('visit_start_time, visit_end_time')
               .eq('id', visit.id)
-              .single();
+              .maybeSingle();
               
             if (visitDetails) {
               const existingStartMinutes = timeToMinutes(visitDetails.visit_start_time);
@@ -736,7 +747,7 @@ export default function VisitantesTab() {
         .eq('name', sanitizedName)
         .eq('phone', sanitizedPhone.replace(/\D/g, ''))
         .eq('apartment_id', currentApartmentId)
-        .single();
+        .maybeSingle();
 
       if (existingVisitor) {
         Alert.alert('Aviso', 'Já existe um visitante cadastrado com este nome e telefone.');
@@ -788,7 +799,7 @@ export default function VisitantesTab() {
         .from('visitors')
         .insert(visitData)
         .select()
-        .single();
+        .maybeSingle();
 
       if (visitorError) {
         throw visitorError;

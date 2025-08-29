@@ -108,7 +108,7 @@ export default function CadastroTab() {
           )
         `)
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id do usuário:', {
         data: userApartmentData,
@@ -181,7 +181,7 @@ export default function CadastroTab() {
         .from('apartment_residents')
         .select('apartment_id, is_owner')
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (userResident) {
         // Definir se o usuário logado é proprietário
@@ -211,7 +211,7 @@ export default function CadastroTab() {
       .select('id')
       .eq('email', email)
       .neq('id', excludeId || '')
-      .single();
+      .maybeSingle();
     
     return !data; // Retorna true se não encontrou (email único)
   };
@@ -256,7 +256,7 @@ export default function CadastroTab() {
           )
         `)
         .eq('profile_id', user.id)
-        .single();
+        .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id para cadastro:', {
         data: userApartmentData,
@@ -342,7 +342,7 @@ export default function CadastroTab() {
           .from('profiles')
           .insert(profileData)
           .select('id')
-          .single();
+          .maybeSingle();
         
         if (profileError) throw profileError;
         profileId = newProfile.id;
@@ -357,7 +357,7 @@ export default function CadastroTab() {
           .from('apartment_residents')
           .select('apartment_id')
           .eq('profile_id', user.id)
-          .single();
+          .maybeSingle();
         
         console.log('🔍 DEBUG: Resultado da busca apartment_id:', { userResident, residentError });
         

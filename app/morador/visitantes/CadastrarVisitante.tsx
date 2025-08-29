@@ -424,7 +424,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           .from('apartment_residents')
           .select('apartment_id')
           .eq('profile_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (residentError) {
           console.error('❌ Erro ao buscar apartment_id:', residentError);
@@ -447,7 +447,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           .from('apartments')
           .select('id, building_id, number')
           .eq('id', userApartmentId)
-          .single();
+          .maybeSingle();
 
         console.log('🔍 DEBUG: Resultado da busca do apartamento:', { apartmentData, apartmentError });
         
@@ -482,7 +482,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           .from('visitors')
           .select('id')
           .eq('document', cpfVisitante)
-          .single();
+          .maybeSingle();
 
         console.log('🔍 DEBUG: Resultado da busca do visitante:', { existingVisitor, searchVisitorError });
 
@@ -511,7 +511,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
             .from('visitors')
             .insert(visitorData)
             .select('id')
-            .single();
+            .maybeSingle();
 
           console.log('🔍 DEBUG: Resultado da inserção do visitante:', { newVisitor, visitorError });
           

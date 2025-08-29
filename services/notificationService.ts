@@ -354,7 +354,7 @@ class NotificationService {
         visitor_id: record.visitor_id,
         apartment_id: record.apartment_id,
         building_id: record.building_id,
-        old_status: null, // Não temos histórico do status anterior
+        old_status: null,
         new_status: record.notification_status,
         log_time: record.log_time,
         tipo_log: record.tipo_log,
