@@ -51,7 +51,10 @@ interface Poll {
   poll_options: {
     id: string;
     option_text: string;
+    votes_count: number;
+    percentage: number;
   }[];
+  total_votes: number;
 }
 
 export default function Communications() {
@@ -184,14 +187,57 @@ export default function Communications() {
           description,
           expires_at,
           created_at,
-          building:buildings(name),
+          building_id,
           poll_options(id, option_text)
         `)
         .in('building_id', buildingIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPollsList(data || []);
+
+      // Para cada enquete, buscar contagem de votos
+      const pollsWithVotes = await Promise.all(
+        (data || []).map(async (poll: any) => {
+          // Buscar votos para cada opção da enquete
+          const optionsWithVotes = await Promise.all(
+            (poll.poll_options || []).map(async (option: any) => {
+              const { count, error: countError } = await supabase
+                .from('poll_votes')
+                .select('*', { count: 'exact', head: true })
+                .eq('poll_option_id', option.id);
+
+              if (countError) {
+                console.error('Erro ao contar votos:', countError);
+                return { ...option, votes_count: 0 };
+              }
+
+              return { ...option, votes_count: count || 0 };
+            })
+          );
+
+          // Calcular total de votos e porcentagens
+          const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
+          const optionsWithPercentages = optionsWithVotes.map(option => ({
+            ...option,
+            percentage: totalVotes > 0 ? Math.round((option.votes_count / totalVotes) * 100) : 0
+          }));
+
+          return {
+            ...poll,
+            poll_options: optionsWithPercentages,
+            total_votes: totalVotes
+          };
+        })
+      );
+
+      // Mapear nome do prédio manualmente para evitar dependência de relacionamento PostgREST
+      const buildingNameMap = Object.fromEntries((adminBuildings || []).map((b: any) => [b.id, (b as any).name]));
+      const normalized = pollsWithVotes.map((p: any) => ({
+        ...p,
+        building: { name: buildingNameMap[p.building_id] || '' },
+      }));
+
+      setPollsList(normalized);
     } catch (error) {
       console.error('Erro ao carregar enquetes:', error);
       Alert.alert('Erro', 'Falha ao carregar enquetes');
@@ -558,12 +604,33 @@ export default function Communications() {
                 <Text style={styles.pollDescription}>{item.description}</Text>
                 
                 <View style={styles.pollOptions}>
-                  <Text style={styles.pollOptionsTitle}>Opções:</Text>
+                  <Text style={styles.pollOptionsTitle}>Opções e Resultados:</Text>
                   {item.poll_options?.map((option, index) => (
-                    <Text key={option.id} style={styles.pollOption}>
-                      {index + 1}. {option.option_text}
-                    </Text>
+                    <View key={option.id} style={styles.pollOptionContainer}>
+                      <Text style={styles.pollOption}>
+                        {index + 1}. {option.option_text}
+                      </Text>
+                      <View style={styles.pollVoteInfo}>
+                        <Text style={styles.pollVoteCount}>
+                          {option.votes_count} votos ({option.percentage}%)
+                        </Text>
+                        <View style={styles.pollProgressBar}>
+                          <View 
+                            style={[
+                              styles.pollProgressFill, 
+                              { width: `${option.percentage}%` }
+                            ]} 
+                          />
+                        </View>
+                      </View>
+                    </View>
                   ))}
+                </View>
+                
+                <View style={styles.pollTotalVotes}>
+                  <Text style={styles.pollTotalVotesText}>
+                    📊 Total de votos: {item.total_votes}
+                  </Text>
                 </View>
                 
                 <View style={styles.pollFooter}>
@@ -1102,6 +1169,43 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 4,
     paddingLeft: 8,
+  },
+  pollOptionContainer: {
+    marginBottom: 8,
+  },
+  pollVoteInfo: {
+    marginTop: 4,
+    paddingLeft: 8,
+  },
+  pollVoteCount: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  pollProgressBar: {
+    height: 6,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  pollProgressFill: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 3,
+  },
+  pollTotalVotes: {
+    backgroundColor: '#f0f8ff',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  pollTotalVotesText: {
+    fontSize: 14,
+    color: '#1976D2',
+    fontWeight: '600',
   },
   pollFooter: {
     flexDirection: 'row',
