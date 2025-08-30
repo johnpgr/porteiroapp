@@ -1,26 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/utils/useAuth';
-import {
-  UserIcon,
-  PhoneIcon,
-  MapPinIcon,
-  CalendarIcon,
-  CameraIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  LockClosedIcon,
-  DevicePhoneMobileIcon,
-} from '@heroicons/react/24/outline';
+import { supabase } from '@/lib/supabase';
+
 import { toast } from 'sonner';
 
 interface ProfileData {
+  full_name: string;
+  email: string;
+  cpf: string;
   birth_date: string;
   address: string;
   emergency_contact_name: string;
@@ -30,14 +21,54 @@ interface ProfileData {
 }
 
 interface FormErrors {
-  [key: string]: string;
+  full_name?: string;
+  email?: string;
+  cpf?: string;
+  birth_date?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  password?: string;
+  confirmPassword?: string;
+  photo?: string;
+  submit?: string;
+  [key: string]: string | undefined;
+}
+
+interface Profile {
+  id: string;
+  user_id?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  cpf?: string | null;
+  birth_date?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  avatar_url?: string | null;
+  building_id?: string | null;
+  role?: string | null;
+  user_type?: string | null;
+  profile_complete?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+interface TemporaryPassword {
+  id: string;
+  profile_id: string;
+  password_hash: string;
+  plain_password: string;
+  used: boolean | null;
+  created_at: string | null;
+  used_at: string | null;
+  expires_at: string | null;
+  phone_number?: string;
 }
 
 export default function CompletarCadastroPage() {
   const router = useRouter();
-  const { user, profile, loading, requireAuth } = useAuth();
-  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
-  const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   
   // Estados para autenticação
@@ -46,8 +77,12 @@ export default function CompletarCadastroPage() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authenticatedProfile, setAuthenticatedProfile] = useState<Profile | null>(null);
   
-  const [profileData, setProfileData] = useState<ProfileData>({
+  const [formData, setFormData] = useState<ProfileData>({
+    full_name: '',
+    email: '',
+    cpf: '',
     birth_date: '',
     address: '',
     emergency_contact_name: '',
@@ -55,17 +90,27 @@ export default function CompletarCadastroPage() {
     password: '',
     confirmPassword: ''
   });
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 3;
   const [errors, setErrors] = useState<FormErrors>({});
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estados para controlar visibilidade das senhas
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Get profile_id from URL on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const urlProfileId = urlParams.get('profile_id');
+      console.log('Profile ID extraído da URL:', urlProfileId);
       setProfileId(urlProfileId);
     }
   }, []);
@@ -94,31 +139,56 @@ export default function CompletarCadastroPage() {
         throw new Error('A senha deve conter exatamente 6 dígitos');
       }
 
-      // Limpar formatação do telefone para comparação
-      const cleanPhone = authPhone.replace(/\D/g, '');
+
       
-      // Buscar senha temporária na tabela
-      const { data: tempPassword, error: tempError } = await supabase
+      // Buscar registros com filtros específicos
+      const { data: filteredData, error: filteredError } = await supabase
         .from('temporary_passwords')
         .select('*')
         .eq('profile_id', profileId)
         .eq('used', false)
-        .gt('expires_at', new Date().toISOString())
-        .single();
 
-      if (tempError || !tempPassword) {
+      if (filteredError) {
+        throw new Error('Erro ao verificar senha temporária');
+      }
+
+      if (!filteredData || filteredData.length === 0) {
         throw new Error('Senha temporária não encontrada ou expirada');
       }
 
-      // Verificar se o telefone corresponde
-      const dbPhone = tempPassword.phone_number.replace(/\D/g, '');
-      if (cleanPhone !== dbPhone) {
+      const tempPassword = filteredData[0] as TemporaryPassword;
+
+      // Verificar telefone e senha
+      const cleanPhoneFunc = (phone: string) => phone.replace(/\D/g, '');
+      const phoneFromDBOriginal = tempPassword.phone_number || '';
+      const phoneFromDBCleaned = cleanPhoneFunc(phoneFromDBOriginal);
+      const phoneEnteredCleaned = cleanPhoneFunc(authPhone);
+      
+      // Comparação robusta de telefones (últimos 11 dígitos)
+      const phoneMatch = phoneFromDBCleaned.slice(-11) === phoneEnteredCleaned.slice(-11);
+      
+      if (!phoneMatch) {
         throw new Error('Celular não corresponde ao cadastro');
       }
-
+      
       // Verificar se a senha está correta
       if (authPassword !== tempPassword.plain_password) {
         throw new Error('Senha incorreta');
+      }
+
+      // Validar se a senha temporária está ativa
+      if (tempPassword.used) {
+        throw new Error('Esta senha temporária já foi utilizada');
+      }
+
+      // Validar se a senha temporária não expirou
+      const now = new Date();
+      if (!tempPassword.expires_at) {
+        throw new Error('Data de expiração não definida');
+      }
+      const expiresAt = new Date(tempPassword.expires_at);
+      if (now > expiresAt) {
+        throw new Error('Esta senha temporária expirou');
       }
 
       // Marcar senha como usada
@@ -131,7 +201,7 @@ export default function CompletarCadastroPage() {
         .eq('id', tempPassword.id);
 
       if (updateError) {
-        console.error('Erro ao marcar senha como usada:', updateError);
+        throw new Error('Erro ao processar autenticação');
       }
 
       // Buscar dados do perfil
@@ -146,100 +216,54 @@ export default function CompletarCadastroPage() {
       }
 
       // Verificar se o perfil já foi completado
-      if (profile.profile_completed) {
+      if (profile.profile_complete) {
         throw new Error('Este perfil já foi completado');
       }
 
-      // Fazer login automático
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: profile.email,
-        password: tempPassword.plain_password,
-      });
-
-      if (authError) {
-        throw new Error('Erro na autenticação: ' + authError.message);
+      // Armazenar dados do perfil autenticado
+      setAuthenticatedProfile(profile);
+      
+      // Pré-preencher dados existentes do perfil
+      setFormData(prev => ({
+        ...prev,
+        full_name: profile.full_name || '',
+        email: profile.email || '',
+        cpf: profile.cpf || '',
+        birth_date: profile.birth_date || '',
+        address: profile.address || '',
+        emergency_contact_name: profile.emergency_contact_name || '',
+        emergency_contact_phone: profile.emergency_contact_phone || ''
+      }));
+      
+      // Se o perfil já tem uma foto, definir o previewUrl
+      if (profile.avatar_url) {
+        setPreviewUrl(profile.avatar_url);
       }
-
-      setUser(authData.user);
-      setProfileData(profile);
+      
       setIsAuthenticated(true);
       toast.success('Autenticação realizada com sucesso!');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro na autenticação:', error);
-      setAuthError(error.message || 'Erro desconhecido na autenticação');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido na autenticação';
+      setAuthError(errorMessage);
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  // Auto-login effect when profile_id is provided
-  useEffect(() => {
-    if (profileId && !user && !autoLoginAttempted) {
-      setAutoLoginAttempted(true);
-      performAutoLogin(profileId);
-    }
-  }, [profileId, user, autoLoginAttempted]);
-
-  // Main auth effect
-  useEffect(() => {
-    if (!loading && autoLoginAttempted) {
-      if (!user) {
-        // Se tentou auto-login mas falhou, mostrar erro
-        if (autoLoginError) {
-          return; // Mostrar erro na tela
-        }
-        requireAuth();
-        return;
-      }
-      
-      // Verificar se o perfil já está completo
-      if (profile?.profile_complete) {
-        router.push('/login'); // Redirecionar para dashboard se já completou
-        return;
-      }
-      
-      // Pré-preencher dados existentes do perfil
-      if (profile) {
-        setProfileData(prev => ({
-          ...prev,
-          birth_date: profile.birth_date || '',
-          address: profile.address || '',
-          emergency_contact_name: profile.emergency_contact_name || '',
-          emergency_contact_phone: profile.emergency_contact_phone || ''
-        }));
-      }
-    }
-  }, [loading, user, profile, requireAuth, router, autoLoginAttempted, autoLoginError]);
-
-  const performAutoLogin = async (profileId: string) => {
-    try {
-      const response = await fetch('/api/auto-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ profile_id: profileId }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setAutoLoginError(data.error || 'Erro ao fazer login automático');
-        return;
-      }
-
-      // Auto-login bem-sucedido, aguardar o useAuth detectar a mudança
-      console.log('Auto-login realizado com sucesso');
-      
-    } catch (error) {
-      console.error('Erro no auto-login:', error);
-      setAutoLoginError('Erro de conexão ao fazer login automático');
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     
     // Clear error when user starts typing
     if (errors[name]) {
@@ -265,7 +289,7 @@ export default function CompletarCadastroPage() {
 
   const handleEmergencyPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhone(e.target.value);
-    setProfileData(prev => ({ ...prev, emergency_contact_phone: formatted }));
+    setFormData(prev => ({ ...prev, emergency_contact_phone: formatted }));
     if (errors.emergency_contact_phone) {
       setErrors(prev => ({ ...prev, emergency_contact_phone: '' }));
     }
@@ -295,142 +319,411 @@ export default function CompletarCadastroPage() {
     }
   };
 
-  const uploadPhoto = async (): Promise<string | null> => {
-    if (!selectedFile || !profile?.id) return null;
-    
-    setUploadingPhoto(true);
-    const formData = new FormData();
-    formData.append('photo', selectedFile);
-    formData.append('profile_id', profile.id);
-    
+  const uploadPhoto = async (file: File): Promise<string | null> => {
     try {
-      const response = await fetch('/api/upload-profile-photo', {
-        method: 'POST',
-        body: formData,
-      });
+      setUploadingPhoto(true);
       
-      if (response.ok) {
-        const result = await response.json();
-        return result.avatar_url;
-      } else {
-        const errorData = await response.json();
-        setErrors(prev => ({ ...prev, photo: errorData.message || 'Erro ao fazer upload da foto' }));
-        return null;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `profiles/${fileName}`;
+      
+      const { error } = await supabase.storage
+        .from('profiles-fotos')
+        .upload(filePath, file);
+
+      if (error) {
+        throw error;
       }
-    } catch (error) {
-      setErrors(prev => ({ ...prev, photo: 'Erro de conexão ao fazer upload da foto' }));
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('profiles-fotos')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch {
+      setErrors(prev => ({ ...prev, photo: 'Erro ao fazer upload da foto' }));
       return null;
     } finally {
       setUploadingPhoto(false);
     }
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+  // Funções de navegação entre etapas
+  const nextStep = () => {
+    if (validateCurrentStep()) {
+      setCompletedSteps(prev => new Set([...prev, currentStep]));
+      setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+    }
+  };
 
-    if (!profileData.birth_date) {
-      newErrors.birth_date = 'Data de nascimento é obrigatória';
+  const prevStep = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1));
+  };
+
+  const goToStep = (step: number) => {
+    if (step <= currentStep || completedSteps.has(step - 1)) {
+      setCurrentStep(step);
+    }
+  };
+
+  // Validação por etapa
+  const validateCurrentStep = (): boolean => {
+    if (currentStep === 1) {
+      return validateStep1();
+    } else if (currentStep === 2) {
+      return validateStep2();
+    } else if (currentStep === 3) {
+      return validateStep3();
+    }
+    return true;
+  };
+
+  const validateForm = (): boolean => {
+    console.log('🔍 Iniciando validação completa do formulário...');
+    
+    // Valida todas as etapas para o submit final
+    const step1Valid = validateStep1();
+    console.log('📝 Validação Etapa 1 (Dados Pessoais):', step1Valid);
+    
+    const step2Valid = validateStep2();
+    console.log('📝 Validação Etapa 2 (Endereço e Contato):', step2Valid);
+    
+    const step3Valid = validateStep3();
+    console.log('📝 Validação Etapa 3 (Senha):', step3Valid);
+    
+    const newErrors: FormErrors = {};
+    // Verificar se há foto: arquivo selecionado, preview URL ou avatar existente no perfil
+    const hasPhoto = selectedFile || previewUrl || authenticatedProfile?.avatar_url;
+    console.log('📸 Validação da foto:', {
+      selectedFile: !!selectedFile,
+      previewUrl: !!previewUrl,
+      avatarUrl: !!authenticatedProfile?.avatar_url,
+      hasPhoto
+    });
+    
+    if (!hasPhoto) {
+      newErrors.photo = 'Foto de perfil é obrigatória';
+      console.log('❌ Erro: Foto de perfil é obrigatória');
+    }
+    
+    setErrors(prev => ({ ...prev, ...newErrors }));
+    const photoValid = Object.keys(newErrors).length === 0;
+    const isValid = step1Valid && step2Valid && step3Valid && photoValid;
+    
+    console.log('📊 Resultado final da validação:', {
+      step1Valid,
+      step2Valid,
+      step3Valid,
+      photoValid,
+      isValid
+    });
+    
+    return isValid;
+  };
+
+  const validateStep1 = (): boolean => {
+    console.log('🔍 Validando Etapa 1 - Dados Pessoais:', {
+      full_name: formData.full_name,
+      email: formData.email,
+      cpf: formData.cpf,
+      birth_date: formData.birth_date
+    });
+    
+    const newErrors: FormErrors = {};
+    
+    if (!formData.full_name.trim()) {
+      newErrors.full_name = 'Nome completo é obrigatório';
+      console.log('❌ Erro: Nome completo é obrigatório');
+    } else if (formData.full_name.trim().length < 2) {
+      newErrors.full_name = 'Nome deve ter pelo menos 2 caracteres';
+      console.log('❌ Erro: Nome deve ter pelo menos 2 caracteres');
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email é obrigatório';
+      console.log('❌ Erro: Email é obrigatório');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Formato de email inválido';
+      console.log('❌ Erro: Formato de email inválido');
+    }
+
+    if (!formData.cpf.trim()) {
+      newErrors.cpf = 'CPF é obrigatório';
+      console.log('❌ Erro: CPF é obrigatório');
     } else {
-      const birthDate = new Date(profileData.birth_date);
+      const cpfNumbers = formData.cpf.replace(/\D/g, '');
+      if (cpfNumbers.length !== 11) {
+        newErrors.cpf = 'CPF deve ter 11 dígitos';
+        console.log('❌ Erro: CPF deve ter 11 dígitos, atual:', cpfNumbers.length);
+      }
+    }
+
+    if (!formData.birth_date) {
+      newErrors.birth_date = 'Data de nascimento é obrigatória';
+      console.log('❌ Erro: Data de nascimento é obrigatória');
+    } else {
+      const birthDate = new Date(formData.birth_date);
       const today = new Date();
       const age = today.getFullYear() - birthDate.getFullYear();
       if (age < 16 || age > 120) {
         newErrors.birth_date = 'Idade deve estar entre 16 e 120 anos';
+        console.log('❌ Erro: Idade deve estar entre 16 e 120 anos, atual:', age);
       }
     }
+    
+    console.log('📝 Erros da Etapa 1:', newErrors);
+    setErrors(prev => ({ ...prev, ...newErrors }));
+    const isValid = Object.keys(newErrors).length === 0;
+    console.log('✅ Etapa 1 válida:', isValid);
+    return isValid;
+  };
 
-    if (!profileData.address.trim()) {
+  const validateStep2 = (): boolean => {
+    console.log('🔍 Validando Etapa 2 - Endereço e Contato:', {
+      address: formData.address,
+      emergency_contact_name: formData.emergency_contact_name,
+      emergency_contact_phone: formData.emergency_contact_phone
+    });
+    
+    const newErrors: FormErrors = {};
+    
+    if (!formData.address.trim()) {
       newErrors.address = 'Endereço é obrigatório';
+      console.log('❌ Erro: Endereço é obrigatório');
     }
 
-    if (!profileData.emergency_contact_name.trim()) {
+    if (!formData.emergency_contact_name.trim()) {
       newErrors.emergency_contact_name = 'Nome do contato de emergência é obrigatório';
+      console.log('❌ Erro: Nome do contato de emergência é obrigatório');
     }
 
-    if (!profileData.emergency_contact_phone.trim()) {
+    if (!formData.emergency_contact_phone.trim()) {
       newErrors.emergency_contact_phone = 'Telefone do contato de emergência é obrigatório';
-    } else if (!/^\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}$/.test(profileData.emergency_contact_phone.replace(/\D/g, ''))) {
+      console.log('❌ Erro: Telefone do contato de emergência é obrigatório');
+    } else if (!/^\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}$/.test(formData.emergency_contact_phone.replace(/\D/g, ''))) {
       newErrors.emergency_contact_phone = 'Telefone de emergência inválido';
+      console.log('❌ Erro: Telefone de emergência inválido, valor:', formData.emergency_contact_phone);
     }
+    
+    console.log('📝 Erros da Etapa 2:', newErrors);
+    setErrors(prev => ({ ...prev, ...newErrors }));
+    const isValid = Object.keys(newErrors).length === 0;
+    console.log('✅ Etapa 2 válida:', isValid);
+    return isValid;
+  };
 
-    if (!profileData.password) {
+  const validateStep3 = (): boolean => {
+    console.log('🔍 Validando Etapa 3 - Senhas:', {
+      password: formData.password ? `[${formData.password.length} caracteres]` : 'vazio',
+      confirmPassword: formData.confirmPassword ? `[${formData.confirmPassword.length} caracteres]` : 'vazio',
+      passwordsMatch: formData.password === formData.confirmPassword
+    });
+    
+    const newErrors: FormErrors = {};
+    
+    // Validação da senha
+    if (!formData.password) {
       newErrors.password = 'Senha é obrigatória';
-    } else if (profileData.password.length < 6) {
+      console.log('❌ Erro: Senha é obrigatória');
+    } else if (formData.password.length < 6) {
       newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
+      console.log('❌ Erro: Senha deve ter pelo menos 6 caracteres, atual:', formData.password.length);
+    } else if (formData.password.length > 50) {
+      newErrors.password = 'Senha deve ter no máximo 50 caracteres';
+      console.log('❌ Erro: Senha deve ter no máximo 50 caracteres, atual:', formData.password.length);
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número';
+      console.log('❌ Erro: Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número');
     }
 
-    if (!profileData.confirmPassword) {
+    // Validação da confirmação de senha
+    if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Confirmação de senha é obrigatória';
-    } else if (profileData.password !== profileData.confirmPassword) {
+      console.log('❌ Erro: Confirmação de senha é obrigatória');
+    } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Senhas não coincidem';
+      console.log('❌ Erro: Senhas não coincidem');
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    console.log('📝 Erros da Etapa 3:', newErrors);
+    setErrors(prev => ({ ...prev, ...newErrors }));
+    const isValid = Object.keys(newErrors).length === 0;
+    console.log('✅ Etapa 3 válida:', isValid);
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🚀 handleSubmit chamado!');
     e.preventDefault();
     
-    if (!validateForm() || !profile?.id) {
+    // Limpar erros anteriores
+    setErrors({});
+    
+    console.log('📋 Dados do formulário:', formData);
+    console.log('👤 Perfil autenticado:', authenticatedProfile);
+    
+    // Validação completa do formulário
+    if (!validateForm()) {
+      console.log('❌ Validação falhou');
+      toast.error('Por favor, corrija os erros no formulário antes de continuar.');
+      return;
+    }
+    
+    if (!authenticatedProfile?.id) {
+      console.log('❌ Perfil não encontrado');
+      setErrors({ submit: 'Erro de autenticação. Tente fazer login novamente.' });
       return;
     }
 
     setIsSubmitting(true);
+    toast.loading('Finalizando seu cadastro...', { id: 'submit-toast' });
 
     try {
-      // Upload photo first if selected
-      let avatarUrl = null;
-      if (selectedFile) {
-        avatarUrl = await uploadPhoto();
-        if (selectedFile && !avatarUrl) {
-          // Photo upload failed, don't continue
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      // Complete profile
-      const response = await fetch('/api/complete-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profile_id: profile.id,
-          birth_date: profileData.birth_date,
-          address: profileData.address,
-          emergency_contact_name: profileData.emergency_contact_name,
-          emergency_contact_phone: profileData.emergency_contact_phone.replace(/\D/g, ''),
-          password: profileData.password,
-          avatar_url: avatarUrl
-        }),
+      // Log do status da autenticação
+      console.log('🔐 Status da autenticação:', {
+        isAuthenticated,
+        authenticatedProfile: authenticatedProfile,
+        profileId: authenticatedProfile?.id
       });
 
-      if (response.ok) {
-        router.push('/cadastro/morador/sucesso');
-      } else {
-        const errorData = await response.json();
-        setErrors({ submit: errorData.message || 'Erro ao completar cadastro' });
+      let avatarUrl = null;
+      if (selectedFile) {
+        console.log('📸 Fazendo upload da foto:', selectedFile.name);
+        avatarUrl = await uploadPhoto(selectedFile);
+        if (selectedFile && !avatarUrl) {
+          const uploadErrorMessage = 'Erro ao fazer upload da foto. Tente novamente.';
+          toast.error(uploadErrorMessage, { id: 'submit-toast' });
+          setErrors({ submit: uploadErrorMessage });
+          return;
+        }
+        console.log('✅ Upload da foto concluído:', avatarUrl);
       }
+
+      // Preparar dados para atualização
+        const updateData = {
+          full_name: formData.full_name,
+          email: formData.email,
+          cpf: formData.cpf,
+          birth_date: formData.birth_date,
+          address: formData.address,
+          emergency_contact_name: formData.emergency_contact_name,
+          emergency_contact_phone: formData.emergency_contact_phone.replace(/\D/g, ''),
+          avatar_url: avatarUrl,
+          profile_complete: true,
+          updated_at: new Date().toISOString()
+        };
+
+      // Log dos dados que serão enviados
+      console.log('📝 Dados para atualização do perfil:', {
+        profileId: authenticatedProfile.id,
+        updateData: updateData,
+        originalProfileData: formData
+      });
+
+      // Log da estrutura dos dados antes do envio
+      console.log('🔍 Verificação dos campos:', {
+        email: { value: updateData.email, type: typeof updateData.email, valid: !!updateData.email },
+        birth_date: { value: updateData.birth_date, type: typeof updateData.birth_date, valid: !!updateData.birth_date },
+        address: { value: updateData.address, type: typeof updateData.address, valid: !!updateData.address },
+        emergency_contact_name: { value: updateData.emergency_contact_name, type: typeof updateData.emergency_contact_name, valid: !!updateData.emergency_contact_name },
+        emergency_contact_phone: { value: updateData.emergency_contact_phone, type: typeof updateData.emergency_contact_phone, valid: !!updateData.emergency_contact_phone },
+        avatar_url: { value: updateData.avatar_url, type: typeof updateData.avatar_url },
+        profile_complete: { value: updateData.profile_complete, type: typeof updateData.profile_complete },
+        updated_at: { value: updateData.updated_at, type: typeof updateData.updated_at }
+      });
+
+      const { data: profileUpdateData, error: profileError } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', authenticatedProfile.id)
+        .select();
+
+      // Log da resposta completa
+      console.log('📤 Resposta da atualização do perfil:', {
+        data: profileUpdateData,
+        error: profileError,
+        hasError: !!profileError
+      });
+
+      if (profileError) {
+        console.error('❌ Erro detalhado na atualização do perfil:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code,
+          fullError: profileError
+        });
+        const profileErrorMessage = `Erro ao completar cadastro: ${profileError.message}`;
+        toast.error(profileErrorMessage, { id: 'submit-toast' });
+        setErrors({ submit: profileErrorMessage });
+        return;
+      }
+
+      // Preparar dados para criação do usuário
+      const signUpData = {
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            phone: authenticatedProfile.phone,
+            profile_id: authenticatedProfile.id
+          }
+        }
+      };
+
+      console.log('👤 Dados para criação do usuário:', {
+        email: signUpData.email,
+        hasPassword: !!signUpData.password,
+        passwordLength: signUpData.password?.length,
+        metadata: signUpData.options.data
+      });
+
+      const { data: signUpData_result, error: signUpError } = await supabase.auth.signUp(signUpData);
+
+      console.log('📤 Resposta da criação do usuário:', {
+        data: signUpData_result,
+        error: signUpError,
+        hasError: !!signUpError
+      });
+
+      if (signUpError) {
+        console.error('❌ Erro detalhado na criação do usuário:', {
+          message: signUpError.message,
+          status: signUpError.status,
+          fullError: signUpError
+        });
+        toast.error(`Erro ao criar conta: ${signUpError.message}`, { id: 'submit-toast' });
+        setErrors({ submit: `Erro ao criar conta: ${signUpError.message}` });
+        return;
+      }
+
+      console.log('✅ Cadastro completado com sucesso!');
+      toast.success('Cadastro finalizado com sucesso! Redirecionando...', { id: 'submit-toast' });
+      
+      // Aguardar um pouco para mostrar a mensagem de sucesso
+      setTimeout(() => {
+        router.push('/cadastro/morador/sucesso');
+      }, 1500);
     } catch (error) {
-      setErrors({ submit: 'Erro de conexão. Tente novamente.' });
+      console.error('💥 Erro não tratado no handleSubmit:', {
+        error: error,
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      const userFriendlyMessage = errorMessage.includes('network') || errorMessage.includes('fetch') 
+        ? 'Erro de conexão. Verifique sua internet e tente novamente.'
+        : 'Erro interno do sistema. Tente novamente em alguns instantes.';
+      
+      toast.error(userFriendlyMessage, { id: 'submit-toast' });
+      setErrors({ submit: userFriendlyMessage });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Mostrar loading enquanto verifica autenticação
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
+
 
   // Mostrar tela de autenticação se não estiver autenticado
   if (!isAuthenticated) {
@@ -438,7 +731,9 @@ export default function CompletarCadastroPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full mx-auto bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
-            <LockClosedIcon className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+            <svg className="h-12 w-12 text-blue-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Autenticação Necessária</h2>
             <p className="text-gray-600">Digite seu celular e a senha de 6 dígitos enviada por WhatsApp</p>
           </div>
@@ -449,14 +744,16 @@ export default function CompletarCadastroPage() {
                 Celular
               </label>
               <div className="relative">
-                <DevicePhoneMobileIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <svg className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
                 <input
                   id="authPhone"
                   type="tel"
                   value={authPhone}
                   onChange={(e) => setAuthPhone(formatAuthPhone(e.target.value))}
                   placeholder="(11) 99999-9999"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500"
                   required
                 />
               </div>
@@ -467,14 +764,16 @@ export default function CompletarCadastroPage() {
                 Senha (6 dígitos)
               </label>
               <div className="relative">
-                <LockClosedIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <svg className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
                 <input
                   id="authPassword"
                   type="password"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="123456"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg tracking-widest"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500 text-center text-lg tracking-widest"
                   maxLength={6}
                   required
                 />
@@ -484,7 +783,9 @@ export default function CompletarCadastroPage() {
             {authError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-2" />
+                  <svg className="h-5 w-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
                   <p className="text-red-700 text-sm">{authError}</p>
                 </div>
               </div>
@@ -516,10 +817,7 @@ export default function CompletarCadastroPage() {
     );
   }
   
-  // Se não está autenticado, não renderizar nada (será redirecionado)
-  if (!user || !profile) {
-    return null;
-  }
+  // Renderizar o formulário principal após autenticação
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -537,12 +835,9 @@ export default function CompletarCadastroPage() {
               />
               <h1 className="text-2xl font-bold text-gray-900">JAMES AVISA</h1>
             </Link>
-            <Link 
-              href="/login" 
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              Fazer Login
-            </Link>
+            <div className="text-sm text-gray-600">
+              Complete seu cadastro
+            </div>
           </div>
         </div>
       </header>
@@ -571,230 +866,443 @@ export default function CompletarCadastroPage() {
               </p>
             </div>
 
-            {/* Auto-login Error */}
-            {autoLoginError && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="flex items-center">
-                  <div className="text-red-400 mr-3">
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-red-800">Link Inválido</h3>
-                    <p className="text-sm text-red-700 mt-1">{autoLoginError}</p>
-                    <p className="text-sm text-red-600 mt-2">
-                      Verifique se o link foi copiado corretamente ou solicite um novo link.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex space-x-3">
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Tentar Novamente
-                  </button>
-                  <Link
-                    href="/login"
-                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Voltar ao Início
-                  </Link>
-                </div>
-              </div>
-            )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Photo Upload */}
-              <div className="text-center">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Foto do Perfil (Opcional)
-                </label>
-                <div className="flex flex-col items-center">
-                  <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center mb-4 overflow-hidden">
-                    {previewUrl ? (
-                      <img 
-                        src={previewUrl} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    id="photo"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="photo"
-                    className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+
+            {/* Progress Steps */}
+            <div className="flex items-center justify-center mb-8">
+              {[1, 2, 3].map((step) => (
+                <div key={step} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => goToStep(step)}
+                    disabled={step > currentStep && !completedSteps.has(step - 1)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all duration-200 ${
+                      step === currentStep
+                        ? 'bg-blue-600 text-white shadow-lg'
+                        : step < currentStep || completedSteps.has(step)
+                        ? 'bg-green-500 text-white hover:bg-green-600 cursor-pointer'
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
                   >
-                    {selectedFile ? 'Alterar Foto' : 'Selecionar Foto'}
-                  </label>
-                  {errors.photo && (
-                    <p className="mt-2 text-sm text-red-600">{errors.photo}</p>
+                    {step < currentStep || completedSteps.has(step) ? (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      step
+                    )}
+                  </button>
+                  {step < totalSteps && (
+                    <div className={`w-16 h-1 mx-2 rounded-full transition-all duration-200 ${
+                      step < currentStep || completedSteps.has(step) ? 'bg-green-500' : 'bg-gray-200'
+                    }`} />
                   )}
                 </div>
-              </div>
+              ))}
+            </div>
 
-              {/* Data de Nascimento */}
-              <div>
-                <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data de Nascimento *
-                </label>
-                <input
-                  type="date"
-                  id="birth_date"
-                  name="birth_date"
-                  value={profileData.birth_date}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.birth_date ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                />
-                {errors.birth_date && (
-                  <p className="mt-1 text-sm text-red-600">{errors.birth_date}</p>
-                )}
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Step 1: Dados Pessoais */}
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Dados Pessoais</h2>
+                    <p className="text-gray-600">Vamos começar com suas informações básicas</p>
+                  </div>
 
-              {/* Endereço */}
-              <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                  Endereço Completo *
-                </label>
-                <input
-                  type="text"
-                  id="address"
-                  name="address"
-                  value={profileData.address}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.address ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Rua, número, bairro, cidade - UF"
-                />
-                {errors.address && (
-                  <p className="mt-1 text-sm text-red-600">{errors.address}</p>
-                )}
-              </div>
+                  {/* Foto de Perfil */}
+                  <div className="flex flex-col items-center space-y-4 mb-8">
+                    <div className="relative">
+                      {previewUrl ? (
+                        <div className="relative">
+                          <Image
+                            src={previewUrl}
+                            alt="Preview"
+                            width={120}
+                            height={120}
+                            className="rounded-full object-cover border-4 border-blue-100 shadow-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewUrl(null);
+                              setSelectedFile(null);
+                            }}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm hover:bg-red-600 transition-all duration-200 shadow-lg"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                          <div className="text-center">
+                            <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <p className="text-xs text-gray-500">Clique para adicionar</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
+                    >
+                      {previewUrl ? 'Alterar Foto' : 'Adicionar Foto'}
+                    </button>
+                    {errors.photo && (
+                      <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.photo}</p>
+                    )}
+                  </div>
 
-              {/* Contato de Emergência - Nome */}
-              <div>
-                <label htmlFor="emergency_contact_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome do Contato de Emergência *
-                </label>
-                <input
-                  type="text"
-                  id="emergency_contact_name"
-                  name="emergency_contact_name"
-                  value={profileData.emergency_contact_name}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.emergency_contact_name ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Nome completo do contato"
-                />
-                {errors.emergency_contact_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergency_contact_name}</p>
-                )}
-              </div>
+                  {/* Campos de Dados Pessoais */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label htmlFor="full_name" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Nome Completo *
+                      </label>
+                      <input
+                        type="text"
+                        id="full_name"
+                        name="full_name"
+                          value={formData.full_name}
+                          onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          errors.full_name ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        placeholder="Digite seu nome completo"
+                      />
+                      {errors.full_name && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.full_name}</p>
+                      )}
+                    </div>
 
-              {/* Contato de Emergência - Telefone */}
-              <div>
-                <label htmlFor="emergency_contact_phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone do Contato de Emergência *
-                </label>
-                <input
-                  type="tel"
-                  id="emergency_contact_phone"
-                  name="emergency_contact_phone"
-                  value={profileData.emergency_contact_phone}
-                  onChange={handleEmergencyPhoneChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.emergency_contact_phone ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="(11) 99999-9999"
-                  maxLength={15}
-                />
-                {errors.emergency_contact_phone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergency_contact_phone}</p>
-                )}
-              </div>
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        placeholder="seu@email.com"
+                      />
+                      {errors.email && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.email}</p>
+                      )}
+                    </div>
 
-              {/* Nova Senha */}
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nova Senha *
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={profileData.password}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.password ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Mínimo 6 caracteres"
-                />
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                )}
-              </div>
+                    <div>
+                      <label htmlFor="cpf" className="block text-sm font-semibold text-gray-700 mb-2">
+                        CPF *
+                      </label>
+                      <input
+                        type="text"
+                        id="cpf"
+                        name="cpf"
+                        value={formData.cpf}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        placeholder="000.000.000-00"
+                      />
+                      {errors.cpf && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.cpf}</p>
+                      )}
+                    </div>
 
-              {/* Confirmar Senha */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirmar Nova Senha *
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={profileData.confirmPassword}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.confirmPassword ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Digite a senha novamente"
-                />
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
-
-              {/* Submit Error */}
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-sm text-red-600">{errors.submit}</p>
+                    <div>
+                      <label htmlFor="birth_date" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Data de Nascimento *
+                      </label>
+                      <input
+                        type="date"
+                        id="birth_date"
+                        name="birth_date"
+                        value={formData.birth_date}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          errors.birth_date ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      />
+                      {errors.birth_date && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.birth_date}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isSubmitting || uploadingPhoto}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-3 px-4 rounded-md transition-colors duration-200 flex items-center justify-center"
-              >
-                {isSubmitting || uploadingPhoto ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              {/* Step 2: Endereço e Contatos */}
+              {currentStep === 2 && (
+                <div className="space-y-6">
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Endereço &amp; Contatos</h2>
+                    <p className="text-gray-600">Informações de localização e emergência</p>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <label htmlFor="address" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Endereço Completo *
+                      </label>
+                      <textarea
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleTextareaChange}
+                        rows={3}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 resize-none ${
+                          errors.address ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        placeholder="Rua, número, complemento, bairro, cidade - UF"
+                      />
+                      {errors.address && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.address}</p>
+                      )}
+                    </div>
+
+                    <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                      <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        Contato de Emergência
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="emergency_contact_name" className="block text-sm font-semibold text-gray-700 mb-2">
+                            Nome do Contato *
+                          </label>
+                          <input
+                            type="text"
+                            id="emergency_contact_name"
+                            name="emergency_contact_name"
+                            value={formData.emergency_contact_name}
+                            onChange={handleInputChange}
+                            className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                              errors.emergency_contact_name ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            placeholder="Nome completo"
+                          />
+                          {errors.emergency_contact_name && (
+                            <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.emergency_contact_name}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label htmlFor="emergency_contact_phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                            Telefone do Contato *
+                          </label>
+                          <input
+                            type="tel"
+                            id="emergency_contact_phone"
+                            name="emergency_contact_phone"
+                            value={formData.emergency_contact_phone}
+                            onChange={handleEmergencyPhoneChange}
+                            className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                              errors.emergency_contact_phone ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            placeholder="(00) 00000-0000"
+                          />
+                          {errors.emergency_contact_phone && (
+                            <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.emergency_contact_phone}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Senha */}
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Definir Senha</h2>
+                    <p className="text-gray-600">Crie uma senha segura para sua conta</p>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Nova Senha *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          id="password"
+                          name="password"
+                          value={formData.password}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                            errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          placeholder="Digite sua nova senha"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                        >
+                          {showPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                      {errors.password && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.password}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Confirmar Nova Senha *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          id="confirmPassword"
+                          name="confirmPassword"
+                          value={formData.confirmPassword}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                            errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          placeholder="Confirme sua nova senha"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                        >
+                          {showConfirmPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                      {errors.confirmPassword && (
+                        <p className="mt-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.confirmPassword}</p>
+                      )}
+                    </div>
+
+                    <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                          <h4 className="text-sm font-semibold text-green-900 mb-2">Quase pronto!</h4>
+                          <p className="text-sm text-green-800">
+                            Após definir sua senha, você terá acesso completo ao sistema e poderá gerenciar todas as funcionalidades disponíveis.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Submit Error */}
+              {errors.submit && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
-                    {uploadingPhoto ? 'Enviando foto...' : 'Finalizando cadastro...'}
-                  </>
+                    <p className="text-sm text-red-600">{errors.submit}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between pt-8 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={prevStep}
+                  disabled={currentStep === 1}
+                  className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                    currentStep === 1
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-md hover:shadow-lg'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Anterior
+                  </div>
+                </button>
+
+                {currentStep < totalSteps ? (
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                  >
+                    <div className="flex items-center">
+                      Próximo
+                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
                 ) : (
-                  'Finalizar Cadastro'
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || uploadingPhoto}
+                    className="px-8 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                  >
+                    {isSubmitting || uploadingPhoto ? (
+                      <div className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {uploadingPhoto ? 'Enviando foto...' : 'Finalizando...'}
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        Finalizar Cadastro
+                        <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
             </form>
 
             {/* Info Box */}

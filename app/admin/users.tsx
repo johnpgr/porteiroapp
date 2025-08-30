@@ -955,6 +955,7 @@ export default function UsersManagement() {
                   phone: user.phone,
                   building: apartment.buildings.name,
                   apartment: apartment.number,
+                  profile_id: user.id,
                 });
               }
             } catch (dataError) {
@@ -1433,10 +1434,12 @@ export default function UsersManagement() {
           if (sendWhatsApp) {
             setProcessingStatus(`Enviando WhatsApp para ${resident.name}...`);
             const residentDataWithPassword = {
-              ...resident,
-              temporary_password: temporaryPassword,
+              name: resident.name,
+              phone: resident.phone,
               building: building.name,
-              apartment: apartment.number
+              apartment: apartment.number,
+              profile_id: insertedUser.id, // Incluir profile_id obrigatório
+              temporaryPassword: temporaryPassword // Incluir senha temporária
             };
             const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword, whatsappBaseUrl);
             if (!whatsappResult.success) {
@@ -1541,7 +1544,8 @@ export default function UsersManagement() {
             phone: userData.phone,
             building: building.name,
             apartment: apartment.number,
-            temporary_password: recoveredTemporaryPassword, // Incluir senha temporária recuperada
+            profile_id: userData.id, // Incluir profile_id obrigatório
+            temporaryPassword: recoveredTemporaryPassword, // Incluir senha temporária recuperada
           };
           
           console.log('🔑 [DEBUG] Dados do residente para WhatsApp:', {

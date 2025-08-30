@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 export default function SucessoCadastroPage() {
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [, setShowConfetti] = useState(false);
 
   useEffect(() => {
     // Show confetti animation on page load

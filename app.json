@@ -2,12 +2,12 @@
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logo.png"
     },
     "plugins": [
       "expo-router",
@@ -15,11 +15,8 @@
       [
         "expo-notifications",
         {
-          "color": "#4CAF50",
-          "defaultChannel": "default",
-          "sounds": [
-            "./assets/notification.wav"
-          ]
+          "color": "#ffffff",
+          "defaultChannel": "default"
         }
       ]
     ],
@@ -28,18 +25,18 @@
       "tsconfigPaths": true
     },
     "orientation": "portrait",
-    "icon": "./assets/logo-james-fundo.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "primaryColor": "#4CAF50",
+    "primaryColor": "#ffffff",
     "backgroundColor": "#F9FAFB",
     "theme": {
-      "primary": "#4CAF50",
+      "primary": "#ffffff",
       "secondary": "#2196F3",
       "accent": "#FF9800",
       "error": "#F44336",
       "warning": "#FF9800",
       "info": "#2196F3",
-      "success": "#4CAF50",
+      "success": "#ffffff",
       "surface": "#FFFFFF",
       "background": "#F9FAFB",
       "onPrimary": "#FFFFFF",
@@ -48,9 +45,9 @@
       "onBackground": "#333333"
     },
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#4CAF50"
+      "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -58,16 +55,16 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
-      "buildNumber": "1.0.0",
+      "buildNumber": "1.0.1",
       "statusBar": {
         "barStyle": "light-content",
-        "backgroundColor": "#4CAF50"
+        "backgroundColor": "#ffffff"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4CAF50"
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#ffffff"
       },
       "package": "com.porteiroapp.notifications",
       "googleServicesFile": "./google-services.json",
@@ -77,11 +74,11 @@
         "barStyle": "light-content"
       },
       "navigationBar": {
-        "backgroundColor": "#4CAF50"
+        "backgroundColor": "#ffffff"
       }
     },
     "notification": {
-      "color": "#4CAF50",
+      "color": "#ffffff",
       "iosDisplayInForeground": true,
       "androidMode": "default",
       "androidCollapsedTitle": "James Avisa"

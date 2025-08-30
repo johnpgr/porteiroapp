@@ -1,32 +1,60 @@
 const express = require('express');
 const router = express.Router();
+const { createClient } = require('@supabase/supabase-js');
 
 const { validateResidentNotification, validateRegularizationNotification, validateVisitorAuthorization } = require('../validators/notificationValidator');
 const { sendWhatsApp } = require('../services/whatsappService');
 const { generateRegistrationLink, generateWhatsAppMessage, generateRegularizationLink, generateRegularizationMessage, generateVisitorAuthorizationLink, generateVisitorAuthorizationMessage } = require('../utils/messageFormatter');
+
+// Supabase configuration
+const supabaseUrl = process.env.SUPABASE_URL || 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // POST /api/send-resident-whatsapp - Endpoint específico para envio de mensagens WhatsApp para moradores
 router.post('/send-resident-whatsapp', async (req, res) => {
   try {
     console.log('Enviando notificação WhatsApp para morador:', req.body);
 
-    const { name, phone, building, apartment, building_id, temporary_password } = req.body;
+    const { name, phone, building, apartment, building_id, profile_id } = req.body;
 
-    if (!name || !phone || !building || !apartment) {
+    if (!name || !phone || !building || !apartment || !profile_id) {
       return res.status(400).json({
         success: false,
-        error: 'Campos obrigatórios: name, phone, building, apartment'
+        error: 'Campos obrigatórios: name, phone, building, apartment, profile_id'
       });
     }
-    
-    // Generate fake profile_id for response (since we're not creating a real profile)
-    const fakeProfileId = require('crypto').randomUUID();
 
+    // Buscar senha temporária no Supabase
+    let temporary_password = 'Senha será enviada em breve';
+    try {
+      const { data: passwordData, error: passwordError } = await supabase
+        .from('temporary_passwords')
+        .select('plain_password')
+        .eq('profile_id', profile_id)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (passwordError) {
+        console.log('Nenhuma senha temporária encontrada para profile_id:', profile_id);
+      } else if (passwordData) {
+        temporary_password = passwordData.plain_password;
+        console.log('Senha temporária encontrada para profile_id:', profile_id);
+      }
+    } catch (supabaseError) {
+      console.error('Erro ao buscar senha temporária:', supabaseError.message);
+      // Continua com a mensagem padrão
+    }
+    
     console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
 
     // Send WhatsApp notification with credentials (no user creation)
     const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
-    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${fakeProfileId}`;
+    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${profile_id}`;
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!
@@ -78,7 +106,7 @@ Mensagem enviada automaticamente pelo sistema JamesAvisa`
       success: true,
       message: 'Cadastro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
       data: {
-          profile_id: fakeProfileId,
+          profile_id: profile_id,
           building_name: building,
           apartment_number: apartment
         }
