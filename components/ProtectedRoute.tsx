@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
@@ -11,16 +11,22 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, redirectTo, userType }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      // Se não estiver autenticado, redirecionar para a tela de login
+    if (loading || hasRedirectedRef.current) return;
+
+    if (!user) {
+      hasRedirectedRef.current = true;
       router.replace(redirectTo);
-    } else if (!loading && user && userType && user.user_type !== userType) {
-      // Se estiver autenticado mas não for do tipo correto, redirecionar para home
+      return;
+    }
+
+    if (userType && user.user_type !== userType) {
+      hasRedirectedRef.current = true;
       router.replace('/');
     }
-  }, [user, loading, redirectTo, userType]);
+  }, [loading, user, userType, redirectTo]);
 
   // Mostrar loading enquanto verifica autenticação
   if (loading) {

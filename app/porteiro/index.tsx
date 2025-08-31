@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,9 @@ export default function PorteiroDashboard() {
   } | null>(null);
   const [loadingPorteiro, setLoadingPorteiro] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
+  // Guard para evitar recarregar dados do mesmo usuário repetidamente
+  const hasLoadedPorteiroDataRef = useRef<string | null>(null);
+  const buildingIdRef = useRef<string | null>(null);
 
   // Estados para a aba Consulta
   const [searchType, setSearchType] = useState<'cpf' | 'placa'>('cpf');
@@ -154,11 +157,11 @@ export default function PorteiroDashboard() {
     } finally {
       setLoadingCommunications(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Função para carregar autorizações (visitantes aprovados)
   const loadAutorizacoes = useCallback(async () => {
-    if (!user) return;
+    if (!user?.id) return;
     
     try {
       setLoadingAutorizacoes(true);
@@ -236,7 +239,7 @@ export default function PorteiroDashboard() {
     } finally {
       setLoadingAutorizacoes(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Função para filtrar autorizações por nome ou CPF
   const filterAutorizacoes = useCallback((query: string) => {
@@ -265,7 +268,13 @@ export default function PorteiroDashboard() {
   // Carregar dados do porteiro
   useEffect(() => {
     const loadPorteiroData = async () => {
-      if (!user || authLoading) return;
+      if (!user?.id || authLoading) return;
+      
+      // Guard para evitar execuções repetidas para o mesmo usuário
+      if (hasLoadedPorteiroDataRef.current === user.id) {
+        return;
+      }
+      hasLoadedPorteiroDataRef.current = user.id;
       
       try {
         setLoadingPorteiro(true);
@@ -280,6 +289,8 @@ export default function PorteiroDashboard() {
         if (connectionError) {
           console.error('Erro de conexão:', connectionError);
           setConnectionError(true);
+          // permitir nova tentativa em caso de erro de conexão
+          hasLoadedPorteiroDataRef.current = null;
           return;
         }
         
@@ -331,27 +342,37 @@ export default function PorteiroDashboard() {
       } catch (error) {
         console.error('Erro ao carregar dados do porteiro:', error);
         setConnectionError(true);
+        // permitir nova tentativa em caso de erro
+        hasLoadedPorteiroDataRef.current = null;
       } finally {
         setLoadingPorteiro(false);
       }
     };
     
-    loadPorteiroData();
-  }, [user, authLoading]);
+    // Só executar quando user estiver carregado e não estiver em loading
+    if (!authLoading && user?.id) {
+      // Debounce para evitar chamadas excessivas
+      const timeoutId = setTimeout(() => {
+        loadPorteiroData();
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [user?.id, authLoading]);
   
   // Carregar comunicados quando a aba avisos for ativada
   useEffect(() => {
-    if (activeTab === 'avisos' && user) {
+    if (activeTab === 'avisos' && user?.id) {
       loadCommunications();
     }
-  }, [activeTab, user, loadCommunications]);
+  }, [activeTab, user?.id, loadCommunications]);
 
   // Carregar autorizações quando a aba autorizações for ativada
   useEffect(() => {
-    if (activeTab === 'autorizacoes' && user) {
+    if (activeTab === 'autorizacoes' && user?.id) {
       loadAutorizacoes();
     }
-  }, [activeTab, user, loadAutorizacoes]);
+  }, [activeTab, user?.id, loadAutorizacoes]);
 
   const handlePanicButton = () => {
     router.push('/porteiro/emergency');

@@ -1,9 +1,38 @@
-import { Link } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Link } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../hooks/useAuth';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
 
 export default function Home() {
+  const { checkAndRedirectUser, loading } = useAuth();
+  const hasCheckedRef = useRef(false);
+
+  // Verifica sessão ativa e redireciona automaticamente quando a autenticação estiver pronta
+  useEffect(() => {
+    if (hasCheckedRef.current) return;
+    if (!loading) {
+      hasCheckedRef.current = true;
+      checkAndRedirectUser();
+    }
+  }, [loading, checkAndRedirectUser]);
+
+  // Mostra loading enquanto verifica a sessão
+  if (loading) {
+    return (
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Verificando sessão...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
     <Container>
       <View style={styles.container}>
@@ -70,6 +99,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '500',
   },
   title: {
     fontSize: 32,

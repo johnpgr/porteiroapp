@@ -13,11 +13,27 @@ export interface StoredUserData {
 }
 
 export class TokenStorage {
+  // Variável estática para armazenar o último token salvo
+  private static lastSavedToken: string | null = null;
+  private static lastSaveTime: number = 0;
+  private static readonly SAVE_DEBOUNCE_MS = 1000; // 1 segundo de debounce
+
   /**
    * Salva o JWT token no AsyncStorage
    */
   static async saveToken(token: string, expiresIn?: number): Promise<void> {
     try {
+      // Verifica se é o mesmo token que foi salvo recentemente
+      if (this.lastSavedToken === token) {
+        return; // Evita salvar o mesmo token múltiplas vezes
+      }
+
+      // Implementa debounce para evitar múltiplas gravações rápidas
+      const now = Date.now();
+      if (now - this.lastSaveTime < this.SAVE_DEBOUNCE_MS) {
+        return;
+      }
+
       const promises = [AsyncStorage.setItem(TOKEN_KEY, token)];
 
       // Se fornecido tempo de expiração, calcula e salva a data de expiração
@@ -28,9 +44,10 @@ export class TokenStorage {
 
       await Promise.all(promises);
       
-      if (__DEV__) {
-        console.log('[TokenStorage] Token salvo com sucesso');
-      }
+      // Atualiza o controle de token salvo
+      this.lastSavedToken = token;
+      this.lastSaveTime = now;
+      
     } catch (error) {
       console.error('[TokenStorage] Erro ao salvar token:', error);
       throw error;
@@ -40,13 +57,9 @@ export class TokenStorage {
   /**
    * Salva os dados do usuário no AsyncStorage
    */
-  static async saveUserData(userData: StoredUserData): Promise<void> {
+  static async saveUserData(userData: any): Promise<void> {
     try {
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
-      
-      if (__DEV__) {
-        console.log('[TokenStorage] Dados do usuário salvos com sucesso');
-      }
     } catch (error) {
       console.error('[TokenStorage] Erro ao salvar dados do usuário:', error);
       throw error;
@@ -54,23 +67,11 @@ export class TokenStorage {
   }
 
   /**
-   * Recupera o JWT token salvo
+   * Recupera o JWT token do AsyncStorage
    */
   static async getToken(): Promise<string | null> {
     try {
       const token = await AsyncStorage.getItem(TOKEN_KEY);
-      
-      if (!token) {
-        return null;
-      }
-
-      // Verifica se o token expirou
-      const isExpired = await this.isTokenExpired();
-      if (isExpired) {
-        await this.clearAll();
-        return null;
-      }
-
       return token;
     } catch (error) {
       console.error('[TokenStorage] Erro ao recuperar token:', error);
@@ -79,17 +80,13 @@ export class TokenStorage {
   }
 
   /**
-   * Recupera os dados do usuário salvos
+   * Recupera os dados do usuário do AsyncStorage
    */
-  static async getUserData(): Promise<StoredUserData | null> {
+  static async getUserData(): Promise<any | null> {
     try {
       const userData = await AsyncStorage.getItem(USER_DATA_KEY);
-      
-      if (!userData) {
-        return null;
-      }
-
-      return JSON.parse(userData) as StoredUserData;
+      const parsedData = userData ? JSON.parse(userData) : null;
+      return parsedData;
     } catch (error) {
       console.error('[TokenStorage] Erro ao recuperar dados do usuário:', error);
       return null;
@@ -150,15 +147,14 @@ export class TokenStorage {
   }
 
   /**
-   * Remove o token e dados do usuário
+   * Remove o token do AsyncStorage
    */
   static async clearToken(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(TOKEN_KEY);
-      
-      if (__DEV__) {
-        console.log('[TokenStorage] Token removido com sucesso');
-      }
+      await AsyncStorage.multiRemove([TOKEN_KEY, EXPIRY_KEY]);
+      // Limpa também o controle de token salvo
+      this.lastSavedToken = null;
+      this.lastSaveTime = 0;
     } catch (error) {
       console.error('[TokenStorage] Erro ao remover token:', error);
       throw error;
@@ -166,35 +162,28 @@ export class TokenStorage {
   }
 
   /**
-   * Remove todos os dados salvos (token, dados do usuário e expiração)
+   * Remove todos os dados salvos
    */
   static async clearAll(): Promise<void> {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem(TOKEN_KEY),
-        AsyncStorage.removeItem(USER_DATA_KEY),
-        AsyncStorage.removeItem(EXPIRY_KEY)
-      ]);
-      
-      if (__DEV__) {
-        console.log('[TokenStorage] Todos os dados removidos com sucesso');
-      }
+      await AsyncStorage.multiRemove([TOKEN_KEY, EXPIRY_KEY, USER_DATA_KEY]);
+      // Limpa também o controle de token salvo
+      this.lastSavedToken = null;
+      this.lastSaveTime = 0;
     } catch (error) {
-      console.error('[TokenStorage] Erro ao remover dados:', error);
+      console.error('[TokenStorage] Erro ao remover todos os dados:', error);
       throw error;
     }
   }
 
   /**
-   * Atualiza apenas os dados do usuário (mantém o token)
+   * Atualiza apenas os dados do usuário
    */
-  static async updateUserData(userData: StoredUserData): Promise<void> {
+  static async updateUserData(userData: any): Promise<void> {
     try {
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
-      
-      if (__DEV__) {
-        console.log('[TokenStorage] Dados do usuário atualizados com sucesso');
-      }
+      const currentData = await this.getUserData();
+      const updatedData = { ...currentData, ...userData };
+      await this.saveUserData(updatedData);
     } catch (error) {
       console.error('[TokenStorage] Erro ao atualizar dados do usuário:', error);
       throw error;

@@ -545,7 +545,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           const { data: residentData, error: residentError } = await supabase
             .from('apartments')
             .select(`
-              residents!inner(
+              apartment_residents!inner(
                 name,
                 phone,
                 is_owner
@@ -555,11 +555,11 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               )
             `)
             .eq('id', selectedApartment.id)
-            .eq('residents.is_owner', true)
+            .eq('apartment_residents.is_owner', true)
             .single();
 
-          if (residentData && residentData.residents && residentData.residents.length > 0) {
-            const resident = residentData.residents[0];
+          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+            const resident = residentData.apartment_residents[0];
             const building = residentData.buildings;
             
             if (resident.phone && building) {

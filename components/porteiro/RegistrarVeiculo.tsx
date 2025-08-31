@@ -729,7 +729,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               .select(`
                 id,
                 number,
-                residents!residents_apartment_id_fkey (
+                apartment_residents!apartment_residents_apartment_id_fkey (
                   full_name,
                   phone
                 ),
@@ -738,15 +738,15 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
                 )
               `)
               .eq('id', apartmentData.id)
-              .eq('residents.is_owner', true)
+              .eq('apartment_residents.is_owner', true)
               .single();
 
-            if (residentData?.residents?.phone) {
+            if (residentData?.apartment_residents?.phone) {
               await notificationApi.sendVisitorNotification({
                 visitorLogId: visitorLogData.id,
                 visitorName: nomeConvidado,
-                residentPhone: residentData.residents.phone,
-                residentName: residentData.residents.full_name || 'Morador',
+                residentPhone: residentData.apartment_residents.phone,
+                residentName: residentData.apartment_residents.full_name || 'Morador',
                 building: residentData.buildings?.name || 'Prédio',
                 apartment: residentData.number,
                 vehicleInfo: {

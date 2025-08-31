@@ -69,15 +69,9 @@ export default function MoradorDashboard() {
     }
   }, [activeTab]);
 
-  // Carregar histórico de visitantes ao montar o componente
-  useEffect(() => {
-    fetchVisitorsHistory();
-  }, [fetchVisitorsHistory]);
-
   // Função para buscar o histórico de visitantes
   const fetchVisitorsHistory = useCallback(async () => {
     if (!user?.id) {
-      console.log('❌ Usuário não encontrado, cancelando busca do histórico');
       return;
     }
     
@@ -85,47 +79,25 @@ export default function MoradorDashboard() {
       setLoadingHistory(true);
       setHistoryError(null);
       
-      console.log('🔍 DEBUG: Iniciando fetchVisitorsHistory');
-      console.log('🔍 DEBUG: User ID:', user.id);
-      console.log('🔍 DEBUG: User object completo:', JSON.stringify(user, null, 2));
-      
-      console.log('🔍 DEBUG: Buscando apartment_id para o usuário:', user.id);
-      
       // Primeiro, buscar o apartment_id do usuário
-      console.log('🔍 DEBUG: Query apartment_residents - profile_id:', user.id);
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
         .eq('profile_id', user.id)
         .maybeSingle();
       
-      console.log('🔍 DEBUG: Resultado da query apartment_residents:', {
-        data: apartmentData,
-        error: apartmentError,
-        query: 'apartment_residents.select(apartment_id).eq(profile_id, ' + user.id + ')'
-      });
-      
       if (apartmentError) {
-        console.error('❌ DEBUG: Erro detalhado ao buscar apartamento:', {
-          code: apartmentError.code,
-          message: apartmentError.message,
-          details: apartmentError.details,
-          hint: apartmentError.hint
-        });
+        console.error('Erro ao buscar apartamento do usuário:', apartmentError.message);
         throw new Error('Erro ao buscar apartamento do usuário: ' + apartmentError.message);
       }
       
       if (!apartmentData?.apartment_id) {
-        console.warn('⚠️ DEBUG: Usuário sem apartamento vinculado. Mostrando estado vazio.');
         setVisitorsHistory([]);
         setHistoryError('Nenhum apartamento vinculado à sua conta. Solicite ao síndico/administrador para vincular seu apartamento.');
         return;
       }
       
-      console.log('✅ DEBUG: Apartment ID encontrado:', apartmentData.apartment_id);
-      
       // Buscar histórico de visitantes (apenas aprovadas)
-      console.log('🔍 DEBUG: Iniciando busca de visitor_logs para apartment_id:', apartmentData.apartment_id);
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitor_logs')
         .select(`
@@ -147,37 +119,13 @@ export default function MoradorDashboard() {
         .order('log_time', { ascending: false })
         .limit(20);
       
-      console.log('🔍 DEBUG: Resultado da query visitor_logs:', {
-        data: visitorsData,
-        error: visitorsError,
-        dataLength: visitorsData?.length || 0,
-        query: 'visitor_logs.select(...).eq(apartment_id, ' + apartmentData.apartment_id + ')'
-      });
-      
       if (visitorsError) {
-        console.error('❌ DEBUG: Erro detalhado ao buscar visitantes:', {
-          code: visitorsError.code,
-          message: visitorsError.message,
-          details: visitorsError.details,
-          hint: visitorsError.hint
-        });
+        console.error('Erro ao buscar histórico de visitantes:', visitorsError.message);
         throw new Error('Erro ao buscar histórico de visitantes: ' + visitorsError.message);
       }
       
-      console.log('✅ DEBUG: Visitantes encontrados:', visitorsData?.length || 0);
-      console.log('🔍 DEBUG: Dados brutos dos visitantes:', JSON.stringify(visitorsData, null, 2));
-      
       // Mapear dados para o formato esperado
-      console.log('🔍 DEBUG: Iniciando mapeamento dos dados...');
-      const mappedVisitors = visitorsData?.map((log, index) => {
-        console.log(`🔍 DEBUG: Mapeando visitante ${index + 1}:`, {
-          logId: log.id,
-          visitorName: log.visitors?.name,
-          purpose: log.purpose,
-          logTime: log.log_time,
-          notification_status: log.notification_status
-        });
-        
+      const mappedVisitors = visitorsData?.map((log) => {
         return {
           id: log.id,
           visitor_name: log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
@@ -188,22 +136,20 @@ export default function MoradorDashboard() {
         };
       }) || [];
       
-      console.log('✅ DEBUG: Dados mapeados com sucesso:', mappedVisitors.length, 'visitantes');
-      console.log('🔍 DEBUG: Dados finais mapeados:', JSON.stringify(mappedVisitors, null, 2));
-      
       setVisitorsHistory(mappedVisitors);
-      console.log('✅ DEBUG: Estado visitorsHistory atualizado com sucesso');
       
     } catch (error) {
-      console.error('❌ DEBUG: Erro geral no fetchVisitorsHistory:', {
-        error: error,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('Erro ao carregar histórico de visitantes:', error.message);
       setHistoryError('Erro ao carregar histórico de visitantes: ' + error.message);
     } finally {
       setLoadingHistory(false);
-      console.log('🔍 DEBUG: fetchVisitorsHistory finalizado');
+    }
+  }, [user?.id]);
+
+  // Carregar histórico de visitantes ao montar o componente
+  useEffect(() => {
+    if (user?.id) {
+      fetchVisitorsHistory();
     }
   }, [user?.id]);
 

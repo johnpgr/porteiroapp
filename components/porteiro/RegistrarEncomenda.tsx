@@ -476,15 +476,15 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         try {
           // Buscar dados do morador proprietário
           const { data: residentData, error: residentError } = await supabase
-            .from('residents')
-            .select('name, whatsapp_number')
+            .from('apartment_residents')
+            .select('profiles!inner(full_name, phone)')
             .eq('apartment_id', selectedApartment.id)
             .eq('is_owner', true)
             .single();
 
           if (residentError) {
             console.error('Erro ao buscar dados do morador:', residentError);
-          } else if (residentData && residentData.whatsapp_number) {
+          } else if (residentData && residentData.profiles.phone) {
             // Buscar dados do prédio
             const { data: buildingData, error: buildingError } = await supabase
               .from('buildings')
@@ -497,8 +497,8 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             } else {
               // Enviar notificação via API
               await notificationApi.sendVisitorNotification({
-                residentName: residentData.name,
-                residentPhone: residentData.whatsapp_number,
+                residentName: residentData.profiles.full_name,
+                residentPhone: residentData.profiles.phone,
                 buildingName: buildingData?.name || 'Seu prédio',
                 apartmentNumber: selectedApartment.number,
                 visitorName: empresaSelecionada.nome,
