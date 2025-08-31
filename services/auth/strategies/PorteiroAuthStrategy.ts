@@ -9,7 +9,7 @@ export class PorteiroAuthStrategy extends AuthStrategy {
 
   constructor() {
     super('porteiro');
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
   }
 
   /**

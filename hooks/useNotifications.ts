@@ -56,7 +56,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
   // Callback para processar novas notificações
   const handleNewNotification = useCallback((notification: NotificationData) => {
-    console.log('🔔 Nova notificação recebida:', notification);
+
     
     setNotifications(prev => {
       // Evitar duplicatas
@@ -76,7 +76,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   // Iniciar serviço de notificações
   const startListening = useCallback(async () => {
     if (isConnected) {
-      console.log('🔔 Serviço já está conectado');
+
       return;
     }
 
@@ -97,7 +97,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         await loadRecentNotifications();
       }
       
-      console.log('✅ Serviço de notificações iniciado com sucesso');
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
@@ -122,7 +122,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       
       await notificationService.stopListening();
       setIsConnected(false);
-      console.log('🔔 Serviço de notificações parado');
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
@@ -138,7 +138,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     try {
       const recentNotifications = await notificationService.getRecentNotifications(maxNotifications);
       setNotifications(recentNotifications);
-      console.log(`✅ ${recentNotifications.length} notificações recentes carregadas`);
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar notificações';
       setError(errorMessage);

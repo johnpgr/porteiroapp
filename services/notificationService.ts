@@ -36,7 +36,7 @@ class NotificationService {
    */
   async startListening(): Promise<void> {
     if (this.isConnected) {
-      console.log('🔔 Serviço de notificações já está ativo');
+
       return;
     }
 
@@ -53,16 +53,16 @@ class NotificationService {
             filter: 'notification_status=neq.null'
           },
           async (payload) => {
-            console.log('🔔 Mudança detectada no notification_status:', payload);
+
             await this.handleNotificationChange(payload);
           }
         )
         .subscribe((status) => {
-          console.log('🔔 Status da conexão:', status);
+
           this.isConnected = status === 'SUBSCRIBED';
         });
 
-      console.log('🔔 Serviço de notificações iniciado com sucesso');
+
     } catch (error) {
       console.error('❌ Erro ao iniciar serviço de notificações:', error);
       throw error;
@@ -77,7 +77,7 @@ class NotificationService {
       await supabase.removeChannel(this.channel);
       this.channel = null;
       this.isConnected = false;
-      console.log('🔔 Serviço de notificações parado');
+
     }
 
     // Remover listeners de notificações push se existirem
@@ -128,7 +128,7 @@ class NotificationService {
    */
   async setupNotificationListeners(): Promise<void> {
     try {
-      console.log('🔔 Configurando listeners de notificações push...');
+
 
       // Configurar como as notificações devem ser tratadas quando recebidas
       Notifications.setNotificationHandler({
@@ -168,14 +168,12 @@ class NotificationService {
 
       // Listener para notificações recebidas enquanto o app está em primeiro plano
       const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-        console.log('🔔 Notificação recebida:', notification);
         // Aqui você pode processar a notificação recebida
         this.handlePushNotification(notification);
       });
 
       // Listener para quando o usuário toca na notificação
       const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-        console.log('👆 Usuário tocou na notificação:', response);
         // Aqui você pode navegar para uma tela específica ou executar uma ação
         this.handleNotificationResponse(response);
       });
@@ -183,7 +181,7 @@ class NotificationService {
       // Iniciar o serviço de escuta em tempo real do Supabase
       await this.startListening();
 
-      console.log('✅ Listeners de notificações configurados com sucesso');
+
 
       // Armazenar referências dos listeners para cleanup posterior se necessário
       this.notificationListener = notificationListener;
@@ -200,7 +198,7 @@ class NotificationService {
    */
   private handlePushNotification(notification: any): void {
     try {
-      console.log('🔔 Processando notificação push:', notification.request.content);
+
       
       // Extrair dados da notificação
       const { title, body, data } = notification.request.content;
@@ -240,7 +238,7 @@ class NotificationService {
    */
   private handleNotificationResponse(response: any): void {
     try {
-      console.log('👆 Processando resposta à notificação:', response);
+
       
       const { notification } = response;
       const { data } = notification.request.content;
@@ -249,19 +247,19 @@ class NotificationService {
       if (data && data.action) {
         switch (data.action) {
           case 'view_visitor':
-            console.log('📱 Navegar para detalhes do visitante:', data.visitor_id);
+
             // Implementar navegação para tela de detalhes do visitante
             break;
           case 'approve_visit':
-            console.log('✅ Ação de aprovação rápida:', data.visitor_log_id);
+
             // Implementar aprovação rápida
             break;
           case 'view_notifications':
-            console.log('🔔 Navegar para lista de notificações');
+
             // Implementar navegação para tela de notificações
             break;
           default:
-            console.log('📱 Abrir app na tela principal');
+
             break;
         }
       }
@@ -388,7 +386,7 @@ class NotificationService {
         return false;
       }
 
-      console.log('✅ Notificação confirmada com sucesso:', visitorLogId);
+
       return true;
 
     } catch (error) {
@@ -435,13 +433,7 @@ class NotificationService {
     message?: string;
     error?: string;
   }> {
-    console.log('🚀 Iniciando envio de mensagem WhatsApp para visitante:', {
-      name: visitorData.name,
-      phone: visitorData.phone,
-      apartment: visitorData.apartment,
-      building: visitorData.building,
-      url: visitorData.url
-    });
+
 
     try {
       // Configuração da API - usando endpoint de visitantes
@@ -456,13 +448,7 @@ class NotificationService {
         profile_id: 'visitor-temp-' + Date.now() // ID temporário para visitantes
       };
 
-      console.log('🌐 Chamada para API de visitante realizada com os seguintes parâmetros:', {
-        apartment: apiData.apartment,
-        building: apiData.building,
-        name: apiData.name,
-        phone: apiData.phone,
-        url: `"${apiUrl}"`
-      });
+
 
       // Fazer chamada para a API
       const response = await fetch(apiUrl, {
@@ -473,11 +459,7 @@ class NotificationService {
         body: JSON.stringify(apiData),
       });
 
-      console.log('📡 Resposta da API de visitante:', {
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText || ''
-      });
+
 
       if (!response.ok) {
         let errorData: any = {};
@@ -498,12 +480,12 @@ class NotificationService {
       let responseData: any = {};
       try {
         responseData = await response.json();
-        console.log('✅ Resposta de sucesso da API de visitante:', responseData);
+
       } catch (parseError) {
         console.warn('⚠️ Não foi possível parsear resposta de sucesso:', parseError);
       }
 
-      console.log('🎉 Mensagem para visitante enviada com sucesso!');
+
       return {
         success: true,
         message: 'Mensagem para visitante enviada com sucesso!',
@@ -532,15 +514,7 @@ class NotificationService {
     message?: string;
     error?: string;
   }> {
-    console.log('🚀 Iniciando envio de mensagem de regularização WhatsApp:', {
-      name: residentData.name,
-      phone: residentData.phone,
-      apartment: residentData.apartment,
-      building: residentData.building,
-      situationType,
-      description,
-      regularizationUrl
-    });
+
 
     try {
       // Configuração da API
@@ -557,12 +531,7 @@ class NotificationService {
         regularizationUrl: regularizationUrl || 'https://regularizacao.JamesAvisa.com'
       };
 
-      console.log('🌐 Fazendo chamada para API de regularização:', {
-        url: apiUrl,
-        phone: apiData.phone,
-        name: apiData.name,
-        situationType: apiData.situationType
-      });
+
 
       // Fazer chamada para a API
       const response = await fetch(apiUrl, {
@@ -573,11 +542,7 @@ class NotificationService {
         body: JSON.stringify(apiData),
       });
 
-      console.log('📡 Resposta da API de regularização:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
+
 
       if (!response.ok) {
         let errorData: any = {};
@@ -598,12 +563,12 @@ class NotificationService {
       let responseData: any = {};
       try {
         responseData = await response.json();
-        console.log('✅ Resposta de sucesso da API de regularização:', responseData);
+
       } catch (parseError) {
         console.warn('⚠️ Não foi possível parsear resposta de sucesso:', parseError);
       }
 
-      console.log('🎉 Mensagem de regularização enviada com sucesso!');
+
       return {
         success: true,
         message: 'Mensagem de regularização enviada com sucesso!',

@@ -106,7 +106,7 @@ export class NotificationService {
         return false;
       }
 
-      console.log('Token registered successfully');
+
       return true;
     } catch (error) {
       console.error('Error in registerToken:', error);
@@ -132,7 +132,6 @@ export class NotificationService {
     // Listener para notificações recebidas em foreground
     const foregroundSubscription = Notifications.addNotificationReceivedListener(
       (notification) => {
-        console.log('Notification received in foreground:', notification);
         this.handleNotificationReceived(notification);
       }
     );
@@ -140,7 +139,6 @@ export class NotificationService {
     // Listener para quando usuário toca na notificação
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
-        console.log('Notification response:', response);
         this.handleNotificationResponse(response);
       }
     );
@@ -170,7 +168,6 @@ export class NotificationService {
     // Navegar para tela apropriada baseado no tipo
     if (data?.type === 'visitor_approval') {
       // Navegar para tela de aprovação de visitante
-      console.log('Navigate to visitor approval:', data);
     }
   }
 

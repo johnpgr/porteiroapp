@@ -22,7 +22,7 @@ class OptimizedSupabaseClient {
   private networkStatus: 'online' | 'offline' | 'slow' = 'online';
   
   private constructor() {
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
     this.initializeClient();
     this.setupNetworkMonitoring();
   }

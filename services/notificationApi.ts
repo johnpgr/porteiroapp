@@ -209,6 +209,34 @@ class NotificationApiService {
       );
     }
   }
+
+  async sendVisitorWaitingNotification(data: {
+    visitor_name: string;
+    resident_phone: string;
+    resident_name: string;
+    building: string;
+    apartment: string;
+    visitor_log_id: string;
+  }): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const response = await this.makeRequest<{ success: boolean; message?: string; error?: string }>(
+        '/send-visitor-waiting-notification',
+        {
+          method: 'POST',
+          body: JSON.stringify(data),
+        }
+      );
+
+      return response;
+    } catch (error) {
+      console.error('Erro ao enviar notificação de visitante aguardando:', error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : 'Falha ao enviar notificação WhatsApp para o morador'
+      );
+    }
+  }
 }
 
 export const notificationApi = new NotificationApiService();

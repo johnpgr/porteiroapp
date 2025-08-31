@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '~/utils/supabase';
+import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
+import { notificationApi } from '../services/notificationApi';
+import * as Notifications from 'expo-notifications';
 
 interface PendingNotification {
   id: string;
@@ -134,6 +136,95 @@ export const usePendingNotifications = () => {
     }
   }, [apartmentId]);
 
+  // Função para disparar notificações automáticas
+  const triggerAutomaticNotifications = useCallback(async (newLog: any) => {
+    try {
+      // Buscar dados completos do visitante e morador
+      const { data: logData, error: logError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          guest_name,
+          apartment_id,
+          building_id,
+          visitors (
+            name,
+            phone
+          ),
+          apartments (
+            number,
+            buildings (
+              name
+            ),
+            apartment_residents!inner (
+              profiles (
+                full_name,
+                phone
+              )
+            )
+          )
+        `)
+        .eq('id', newLog.id)
+        .single();
+
+      if (logError || !logData) {
+        console.error('Erro ao buscar dados para notificação automática:', logError);
+        return;
+      }
+
+      const resident = logData.apartments?.apartment_residents?.[0]?.profiles;
+      const building = logData.apartments?.buildings;
+      const visitorName = logData.guest_name || logData.visitors?.name || 'Visitante';
+      const residentName = resident?.full_name || 'Morador';
+      const residentPhone = resident?.phone;
+      const buildingName = building?.name || 'Edifício';
+      const apartmentNumber = logData.apartments?.number || 'N/A';
+
+      // 1. Disparar Push Notification
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '📢 Visitante na Portaria',
+            body: `${visitorName} está aguardando autorização para subir ao apartamento ${apartmentNumber}.`,
+            data: {
+              type: 'visitor_waiting',
+              visitor_log_id: newLog.id,
+              visitor_name: visitorName,
+              apartment: apartmentNumber,
+              building: buildingName
+            },
+          },
+          trigger: null, // Imediato
+        });
+
+      } catch (pushError) {
+        console.error('❌ Erro ao enviar push notification:', pushError);
+      }
+
+      // 2. Enviar WhatsApp se tiver telefone do morador
+      if (residentPhone) {
+        try {
+          await notificationApi.sendVisitorWaitingNotification({
+            visitor_name: visitorName,
+            resident_phone: residentPhone,
+            resident_name: residentName,
+            building: buildingName,
+            apartment: apartmentNumber,
+            visitor_log_id: newLog.id
+          });
+
+        } catch (whatsappError) {
+          console.error('❌ Erro ao enviar WhatsApp:', whatsappError);
+        }
+      } else {
+        console.warn('⚠️ Telefone do morador não encontrado - WhatsApp não enviado');
+      }
+
+    } catch (error) {
+      console.error('❌ Erro geral ao disparar notificações automáticas:', error);
+    }
+  }, []);
+
   // Configurar Realtime subscription
   useEffect(() => {
     if (!apartmentId) return;
@@ -149,13 +240,15 @@ export const usePendingNotifications = () => {
           filter: `apartment_id=eq.${apartmentId}`
         },
         (payload) => {
-          console.log('Realtime notification:', payload);
+
           
           if (payload.eventType === 'INSERT') {
             const newLog = payload.new as any;
             if (newLog.notification_status === 'pending' && 
                 newLog.requires_resident_approval) {
-              // Adicionar nova notificação
+              // Disparar notificações automáticas
+              triggerAutomaticNotifications(newLog);
+              // Adicionar nova notificação à lista
               fetchPendingNotifications();
             }
           } else if (payload.eventType === 'UPDATE') {
@@ -174,7 +267,7 @@ export const usePendingNotifications = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [apartmentId, fetchPendingNotifications]);
+  }, [apartmentId, fetchPendingNotifications, triggerAutomaticNotifications]);
 
   // Responder à notificação
   const respondToNotification = useCallback(async (

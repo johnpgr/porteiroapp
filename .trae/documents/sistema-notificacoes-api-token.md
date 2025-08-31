@@ -142,7 +142,7 @@ GET /api/validate-token/:token
     "visitor_name": "João Silva",
     "visitor_type": "visitor",
     "visitor_document": "123.456.789-00",
-    "visitor_phone": "+5511999999999",
+    "visitor_phone": "+5591981941219",
     "building_name": "Edifício Central",
     "apartment": "101",
     "created_at": "2024-01-15T15:00:00Z",
@@ -183,7 +183,7 @@ POST /api/process-authorization
 ```json
 {
   "visitor_log_id": "uuid-do-registro",
-  "resident_phone": "+5511999999999",
+  "resident_phone": "+5591981941219",
   "visitor_name": "João Silva",
   "visitor_type": "visitor",
   "building_id": "uuid-do-predio",
@@ -420,7 +420,7 @@ const logEvent = {
   event_type: 'token_generated|token_validated|authorization_processed',
   visitor_log_id: 'uuid',
   token_id: 'uuid',
-  resident_phone: '+5511999999999',
+  resident_phone: '+5591981941219',
   success: true,
   error_message: null,
   response_time_ms: 150

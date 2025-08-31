@@ -106,7 +106,7 @@ Content-Type: application/json
 ```json
 {
   "name": "João Silva",
-  "phone": "11999887766",
+  "phone": "91981941219",
   "building": "Edifício Central",
   "apartment": "101",
   "registrationUrl": "https://jamesavisa.jamesconcierge.com/" // opcional
@@ -130,10 +130,10 @@ Content-Type: application/json
   "message": "Mensagem WhatsApp enviada com sucesso",
   "data": {
     "name": "João Silva",
-    "phone": "5511999887766",
+    "phone": "5591981941219",
     "building": "Edifício Central",
     "apartment": "101",
-    "registrationLink": "https://jamesavisa.jamesconcierge.com/?name=Jo%C3%A3o+Silva&phone=11999887766&building=Edif%C3%ADcio+Central&apartment=101"
+    "registrationLink": "https://jamesavisa.jamesconcierge.com/?name=Jo%C3%A3o+Silva&phone=91981941219&building=Edif%C3%ADcio+Central&apartment=101"
   },
   "timestamp": "2025-08-22T14:30:00.000Z",
   "duration": "1.2s"
@@ -182,7 +182,7 @@ Você foi convidado(a) para se cadastrar no JamesAvisa.
 🚪 Apartamento: 101
 
 Para completar seu cadastro, clique no link abaixo:
-https://jamesavisa.jamesconcierge.com/?name=João+Silva&phone=11999887766&building=Edifício+Central&apartment=101
+https://jamesavisa.jamesconcierge.com/?name=João+Silva&phone=91981941219&building=Edifício+Central&apartment=101
 
 Com o JamesAvisa você pode:
 ✅ Receber visitantes com mais segurança
@@ -205,7 +205,7 @@ curl -X POST http://127.0.0.1:3001/api/send-resident-whatsapp \
   -H "Content-Type: application/json" \
   -d '{
     "name": "João Silva",
-    "phone": "11999887766",
+    "phone": "91981941219",
     "building": "Edifício Central",
     "apartment": "101"
   }'
@@ -222,7 +222,7 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3001/api/send-resident-whatsapp" `
   -Headers @{"Content-Type"="application/json"} `
   -Body '{
     "name": "João Silva",
-    "phone": "11999887766",
+    "phone": "91981941219",
     "building": "Edifício Central",
     "apartment": "101"
   }'

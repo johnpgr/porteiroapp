@@ -149,7 +149,7 @@ Example Request:
   "token": "550e8400-e29b-41d4-a716-446655440000",
   "name": "João Silva",
   "email": "joao@email.com",
-  "phone": "+5511999999999",
+  "phone": "+5591981941219",
   "document": "12345678901"
 }
 ```

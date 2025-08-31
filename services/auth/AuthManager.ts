@@ -48,7 +48,7 @@ export class AuthManager {
   private isInitialized: boolean = false;
 
   private constructor() {
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
     this.metrics = new AuthMetrics();
     this.stateManager = new AuthStateManager();
     this.iOSHandler = new iOSNetworkHandler();

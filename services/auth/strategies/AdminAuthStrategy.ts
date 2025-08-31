@@ -9,7 +9,7 @@ export class AdminAuthStrategy extends AuthStrategy {
 
   constructor() {
     super('admin');
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
   }
 
   /**

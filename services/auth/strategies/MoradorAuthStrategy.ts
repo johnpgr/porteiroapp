@@ -9,7 +9,7 @@ export class MoradorAuthStrategy extends AuthStrategy {
 
   constructor() {
     super('morador');
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
   }
 
   /**

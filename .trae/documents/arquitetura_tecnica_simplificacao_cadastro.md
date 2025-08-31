@@ -78,7 +78,7 @@ Exemplo:
 {
   "full_name": "João Silva",
   "email": "joao@email.com",
-  "phone": "11999999999",
+  "phone": "91981941219",
   "building_id": "uuid-building",
   "apartment_number": "101"
 }

@@ -95,7 +95,7 @@ export const useNotifications = (): UseNotificationsReturn => {
       // Adicionar à lista de notificações
       setNotifications(prev => [enrichedNotification, ...prev.slice(0, 49)]); // Manter apenas 50 notificações
       
-      console.log('Nova notificação recebida:', enrichedNotification);
+
     } catch (error) {
       console.error('Erro ao processar notificação:', error);
     }
@@ -123,7 +123,7 @@ export const useNotifications = (): UseNotificationsReturn => {
             handleNewNotification
           )
           .subscribe((status) => {
-            console.log('Status da conexão de notificações:', status);
+
             setIsConnected(status === 'SUBSCRIBED');
           });
 

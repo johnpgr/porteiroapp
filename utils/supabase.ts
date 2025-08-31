@@ -32,7 +32,7 @@ const authConfig =
         // Configurações específicas para iOS
         ...(Platform.OS === 'ios' && {
           flowType: 'pkce',
-          debug: __DEV__,
+          debug: false, // Desabilitar logs de debug do GoTrueClient
         }),
       };
 

@@ -199,7 +199,7 @@ async function testDataSizeLimits() {
     {
       data: {
         name: '', // Nome vazio
-        phone: '11987654321',
+        phone: '91981941219',
         building: 'Edifício Teste',
         apartment: '101'
       },

@@ -39,7 +39,7 @@ export class AuthStateManager {
   private isProcessingQueue = false;
 
   constructor() {
-    this.logger = new AuthLogger();
+    this.logger = new AuthLogger('error');
     
     // Estado inicial
     this.state = {

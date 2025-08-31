@@ -60,7 +60,7 @@ export function useUnifiedAuth(options: UseUnifiedAuthOptions = {}): UseUnifiedA
   // Instâncias dos serviços
   const authManager = useRef(AuthManager.getInstance());
   const stateManager = useRef(AuthStateManager.getInstance());
-  const logger = useRef(new AuthLogger());
+  const logger = useRef(new AuthLogger('error'));
   const metrics = useRef(new AuthMetrics());
   
   // Estados locais

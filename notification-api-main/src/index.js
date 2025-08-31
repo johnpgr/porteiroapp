@@ -8,6 +8,8 @@ const sendNotificationRouter = require('./routes/sendNotification');
 const completeRegistrationRouter = require('./routes/completeRegistration');
 const visitorAuthorizationRouter = require('./routes/visitorAuthorization');
 const residentRegistrationRouter = require('./routes/residentRegistration');
+const sendVisitorNotificationRouter = require('./routes/sendVisitorNotification');
+const sendVisitorWaitingNotificationRouter = require('./routes/sendVisitorWaitingNotification');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -25,6 +27,8 @@ app.use('/api', sendNotificationRouter);
 app.use('/api', completeRegistrationRouter);
 app.use('/api', visitorAuthorizationRouter);
 app.use('/api', residentRegistrationRouter);
+app.use('/api', sendVisitorNotificationRouter);
+app.use('/api', sendVisitorWaitingNotificationRouter);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));

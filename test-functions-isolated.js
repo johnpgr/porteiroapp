@@ -136,7 +136,7 @@ function testMultipleRegistration() {
     const residentsData = [
         {
             name: 'Maria Santos',
-            phone: '11987654321',
+            phone: '91981941219',
             building: 'Edifício Aurora',
             apartment: '201'
         },
@@ -212,11 +212,11 @@ function testBulkRegistration() {
     
     // Simulação de dados vindos de planilha/CSV
     const bulkData = [
-        { name: 'Carlos Ferreira', phone: '11999887766', buildingId: 1, apartmentId: 101 },
-        { name: 'Lucia Mendes', phone: '11999887767', buildingId: 1, apartmentId: 102 },
-        { name: 'Roberto Lima', phone: '11999887768', buildingId: 2, apartmentId: 201 },
-        { name: 'Fernanda Rocha', phone: '11999887769', buildingId: 2, apartmentId: 202 },
-        { name: 'Marcos Alves', phone: '11999887770', buildingId: 3, apartmentId: 301 }
+        { name: 'Carlos Ferreira', phone: '91981941219', buildingId: 1, apartmentId: 101 },
+    { name: 'Lucia Mendes', phone: '91981941219', buildingId: 1, apartmentId: 102 },
+    { name: 'Roberto Lima', phone: '91981941219', buildingId: 2, apartmentId: 201 },
+    { name: 'Fernanda Rocha', phone: '91981941219', buildingId: 2, apartmentId: 202 },
+    { name: 'Marcos Alves', phone: '91981941219', buildingId: 3, apartmentId: 301 }
     ];
     
     // Simulação de dados de prédios e apartamentos
@@ -294,8 +294,8 @@ function testDataValidation() {
     console.log('\n\n=== TESTE DE VALIDAÇÃO DE DADOS ===');
     
     const testCases = [
-        { phone: '11999887766', expected: true, description: 'Telefone válido (11 dígitos)' },
-        { phone: '1199988776', expected: true, description: 'Telefone válido (10 dígitos)' },
+        { phone: '91981941219', expected: true, description: 'Telefone válido (11 dígitos)' },
+      { phone: '919819412', expected: true, description: 'Telefone válido (9 dígitos)' },
         { phone: '(11) 99988-7766', expected: true, description: 'Telefone com formatação' },
         { phone: '11 99988-7766', expected: true, description: 'Telefone com espaços' },
         { phone: '119998877', expected: false, description: 'Telefone muito curto' },
