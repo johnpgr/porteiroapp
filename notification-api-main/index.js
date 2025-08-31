@@ -1,3 +1,6 @@
+// Carregar variáveis de ambiente
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -5,6 +8,7 @@ const path = require('path');
 
 // Importar rotas
 const sendNotificationRoutes = require('./src/routes/sendNotification');
+const sendVisitorNotificationRoutes = require('./src/routes/sendVisitorNotification');
 const residentRegistrationRoutes = require('./src/routes/residentRegistration');
 const completeRegistrationRoutes = require('./src/routes/completeRegistration');
 const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
@@ -55,6 +59,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: 'GET /health',
       sendWhatsApp: 'POST /api/send-resident-whatsapp',
+      sendVisitorWhatsApp: 'POST /api/send-visitor-whatsapp',
       registerResident: 'POST /api/register-resident',
       completeProfile: 'POST /api/complete-profile'
     },
@@ -64,6 +69,7 @@ app.get('/', (req, res) => {
 
 // Usar rotas de notificação
 app.use('/api', sendNotificationRoutes);
+app.use('/api', sendVisitorNotificationRoutes);
 app.use('/api', residentRegistrationRoutes);
 app.use('/api', completeRegistrationRoutes);
 app.use('/api', visitorAuthorizationRoutes);
@@ -86,6 +92,7 @@ app.use('*', (req, res) => {
     availableEndpoints: {
       health: 'GET /health',
       sendWhatsApp: 'POST /api/send-resident-whatsapp',
+      sendVisitorWhatsApp: 'POST /api/send-visitor-whatsapp',
       registerResident: 'POST /api/register-resident',
       completeProfile: 'POST /api/complete-profile'
     }

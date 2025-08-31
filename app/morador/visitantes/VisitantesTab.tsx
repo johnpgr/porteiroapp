@@ -13,16 +13,18 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import DateTimePickerAndroid from '@react-native-community/datetimepicker';
+
 import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { 
   sendWhatsAppMessage, 
   validateBrazilianPhone, 
   formatBrazilianPhone,
+  generateWhatsAppMessage,
   type ResidentData 
 } from '../../../utils/whatsapp';
+import { notificationService } from '../../../services/notificationService';
+import * as Crypto from 'expo-crypto';
 
 // Funções de formatação
 const formatDate = (value: string): string => {
@@ -96,6 +98,55 @@ const validateTimeRange = (startTime: string, endTime: string): boolean => {
   return endTotalMinutes > startTotalMinutes;
 };
 
+// Função para gerar senha temporária aleatória de 6 dígitos numéricos
+const generateTemporaryPassword = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Função para criar hash da senha usando expo-crypto
+const hashPassword = async (password: string): Promise<string> => {
+  // Usar SHA-256 para criar hash da senha
+  const hash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    password,
+    { encoding: Crypto.CryptoEncoding.HEX }
+  );
+  return hash;
+};
+
+// Função para armazenar senha temporária no banco de dados para visitantes
+const storeTemporaryPassword = async (visitorName: string, visitorPhone: string, plainPassword: string, hashedPassword: string, visitorId: string): Promise<void> => {
+  try {
+    const insertData = {
+      visitor_name: visitorName,
+      visitor_phone: visitorPhone,
+      plain_password: plainPassword,
+      hashed_password: hashedPassword,
+      visitor_id: visitorId,
+      used: false,
+      status: 'active',
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
+    };
+
+    console.log('🔑 Armazenando senha temporária para visitante:', visitorName, visitorPhone);
+
+    const { error } = await supabase
+      .from('visitor_temporary_passwords')
+      .insert(insertData);
+    
+    if (error) {
+      console.error('Erro ao armazenar senha temporária:', error);
+      throw error;
+    }
+    
+    console.log('✅ Senha temporária armazenada com sucesso na tabela visitor_temporary_passwords');
+  } catch (error) {
+    console.error('❌ Erro ao armazenar senha temporária:', error);
+    throw error;
+  }
+};
+
 interface Visitor {
   id: string;
   name: string;
@@ -151,30 +202,9 @@ export default function VisitantesTab() {
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
   const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
   
-  // Estados para o DatePicker modal
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Função para mostrar o DatePicker com tratamento específico para iOS
-  const showDatePickerModal = () => {
-    if (Platform.OS === 'ios') {
-      setShowDatePicker(true);
-    } else {
-      // Para Android, usar o DateTimePickerAndroid
-      DateTimePickerAndroid.open({
-        value: selectedDate,
-        onChange: (event, date) => {
-          if (date) {
-            setSelectedDate(date);
-            const formattedDate = date.toLocaleDateString('pt-BR');
-            setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
-          }
-        },
-        mode: 'date',
-        is24Hour: true,
-      });
-    }
-  };
+
+
 
   // Função para carregar apartment_id uma única vez
   const loadApartmentId = useCallback(async (): Promise<string | null> => {
@@ -323,7 +353,7 @@ export default function VisitantesTab() {
     fetchVisitors();
   }, [fetchVisitors]);
 
-  const formatDate = (dateString: string) => {
+  const formatDisplayDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('pt-BR', {
@@ -795,35 +825,73 @@ export default function VisitantesTab() {
       }
 
       // Inserir visitante na base de dados
-      const { error: visitorError } = await supabase
+      const { data: insertedVisitor, error: visitorError } = await supabase
         .from('visitors')
         .insert(visitData)
         .select()
-        .maybeSingle();
+        .single();
 
       if (visitorError) {
+        console.error('Erro ao inserir visitante:', visitorError);
         throw visitorError;
       }
 
-      // Gerar link de completação do cadastro
-      const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
-      const completionLink = `${baseRegistrationUrl}/complete?token=${registrationToken}`;
+      console.log('Visitante inserido com sucesso:', insertedVisitor);
 
-      // Preparar dados para WhatsApp
-      const residentData: ResidentData = {
-        name: preRegistrationData.name,
-        phone: preRegistrationData.phone,
+      // Gerar senha temporária usando a função auxiliar
+      const temporaryPassword = generateTemporaryPassword();
+      const hashedPassword = await hashPassword(temporaryPassword);
+      console.log('Senha temporária gerada para visitante:', sanitizedPhone.replace(/\D/g, ''));
+
+      // Armazenar senha temporária usando a função auxiliar
+      await storeTemporaryPassword(
+        sanitizedName, // nome do visitante
+        sanitizedPhone.replace(/\D/g, ''), // telefone do visitante
+        temporaryPassword,
+        hashedPassword,
+        insertedVisitor.id // visitor_id do visitante inserido
+      );
+
+      // Gerar link de completação do cadastro para visitantes
+      const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+      const completionLink = `${baseRegistrationUrl}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
+
+      // Preparar dados para WhatsApp seguindo o mesmo formato dos moradores
+      const visitorData: ResidentData = {
+        name: sanitizedName,
+        phone: sanitizedPhone,
         building: 'Edifício', // Pode ser obtido dos dados do apartamento se necessário
-        apartment: 'Apt' // Pode ser obtido dos dados do apartamento se necessário
+        apartment: 'Visitante' // Identificar como visitante
       };
 
-      // Enviar mensagem via WhatsApp
-      const whatsappResult = await sendWhatsAppMessage(residentData, completionLink);
+      // Gerar mensagem personalizada para visitante
+      const whatsappData = generateWhatsAppMessage(visitorData, completionLink);
+      
+      // Personalizar mensagem para visitante
+      const visitorMessage = whatsappData.message.replace(
+        'Olá! Você foi cadastrado como morador',
+        `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante`
+      ).replace(
+        'complete seu cadastro de morador',
+        'complete seu cadastro de visitante'
+      ).replace(
+        'Sua senha temporária é:',
+        `Sua senha temporária para acesso é: ${temporaryPassword}\n\nEsta senha expira em 7 dias.\n\nSua senha temporária é:`
+      );
+
+      // Enviar mensagem via WhatsApp usando o novo serviço para visitantes
+      const whatsappResult = await notificationService.sendVisitorWhatsApp({
+        name: sanitizedName,
+        phone: sanitizedPhone,
+        building: 'Edifício',
+        apartment: 'Visitante',
+        url: completionLink
+      });
 
       if (whatsappResult.success) {
         Alert.alert(
           'Sucesso!', 
-          `Pré-cadastro realizado com sucesso!\n\nUm link foi enviado via WhatsApp para ${formatBrazilianPhone(preRegistrationData.phone)} para completar o cadastro.\n\nO link expira em 10 minutos.`,
+          `Pré-cadastro realizado com sucesso!\n\nUm link foi enviado via WhatsApp para ${formatBrazilianPhone(sanitizedPhone)} para completar o cadastro.\n\nSenha temporária: ${temporaryPassword}\n\nO link e a senha expiram em 7 dias.`,
           [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
             setPreRegistrationData({ 
@@ -942,7 +1010,7 @@ export default function VisitantesTab() {
                 <Text style={styles.visitorTypeText}>{getVisitorTypeText(visitor.visitor_type)}</Text>
               </View>
               <Text style={styles.visitorDate}>
-                Cadastrado: {formatDate(visitor.created_at)}
+                Cadastrado: {formatDisplayDate(visitor.created_at)}
               </Text>
               <View style={styles.cardActions}>
                 <TouchableOpacity style={styles.editButton}>
@@ -1068,18 +1136,18 @@ export default function VisitantesTab() {
                 <>
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Data da Visita *</Text>
-                    <TouchableOpacity
-                      style={styles.datePickerButton}
-                      onPress={showDatePickerModal}
-                    >
-                      <Text style={[
-                        styles.datePickerButtonText,
-                        !preRegistrationData.visit_date && styles.datePickerPlaceholder
-                      ]}>
-                        {preRegistrationData.visit_date || 'DD/MM/AAAA'}
-                      </Text>
-                      <Ionicons name="calendar-outline" size={20} color="#666" />
-                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.visit_date}
+                      onChangeText={(text) => {
+                        const formattedDate = formatDate(text);
+                        setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
+                      }}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
                   </View>
 
                   <View style={styles.timeInputRow}>
@@ -1238,27 +1306,7 @@ export default function VisitantesTab() {
         </View>
       </Modal>
 
-      {/* Modal do DatePicker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode="date"
-          display="default"
-          onChange={(event, date) => {
-            if (Platform.OS === 'ios') {
-              setShowDatePicker(false);
-            }
-            if (date) {
-              setSelectedDate(date);
-              const formattedDate = date.toLocaleDateString('pt-BR');
-              setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
-            }
-            if (Platform.OS === 'android' && event.type === 'dismissed') {
-              setShowDatePicker(false);
-            }
-          }}
-        />
-      )}
+
     </ScrollView>
   );
 }
@@ -1624,22 +1672,5 @@ const styles = StyleSheet.create({
   dayButtonTextActive: {
     color: '#fff',
   },
-  // Estilos para o botão do DatePicker
-  datePickerButton: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  datePickerButtonText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  datePickerPlaceholder: {
-    color: '#999',
-  },
+
 });

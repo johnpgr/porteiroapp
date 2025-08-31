@@ -420,6 +420,106 @@ class NotificationService {
   }
 
   /**
+   * Envia mensagem WhatsApp para visitante usando a API específica para visitantes
+   */
+  async sendVisitorWhatsApp(
+    visitorData: {
+      name: string;
+      phone: string;
+      building: string;
+      apartment: string;
+      url?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    console.log('🚀 Iniciando envio de mensagem WhatsApp para visitante:', {
+      name: visitorData.name,
+      phone: visitorData.phone,
+      apartment: visitorData.apartment,
+      building: visitorData.building,
+      url: visitorData.url
+    });
+
+    try {
+      // Configuração da API
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-visitor-whatsapp`;
+      
+      // Preparar dados para a API
+      const apiData = {
+        name: visitorData.name,
+        phone: visitorData.phone.replace(/\D/g, ''), // Remove caracteres não numéricos
+        building: visitorData.building,
+        apartment: visitorData.apartment,
+        url: visitorData.url
+      };
+
+      console.log('🌐 Fazendo chamada para API de visitante:', {
+        url: apiUrl,
+        phone: apiData.phone,
+        name: apiData.name,
+        apartment: apiData.apartment,
+        building: apiData.building
+      });
+
+      // Fazer chamada para a API
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      console.log('📡 Resposta da API de visitante:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      });
+
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+          console.error('❌ Erro detalhado da API de visitante:', errorData);
+        } catch (parseError) {
+          console.error('❌ Erro ao parsear resposta de erro:', parseError);
+        }
+        
+        const errorMessage = errorData.message || errorData.error || `Erro HTTP ${response.status}: ${response.statusText}`;
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+        console.log('✅ Resposta de sucesso da API de visitante:', responseData);
+      } catch (parseError) {
+        console.warn('⚠️ Não foi possível parsear resposta de sucesso:', parseError);
+      }
+
+      console.log('🎉 Mensagem para visitante enviada com sucesso!');
+      return {
+        success: true,
+        message: 'Mensagem para visitante enviada com sucesso!',
+      };
+
+    } catch (error) {
+      console.error('💥 Erro inesperado ao enviar mensagem para visitante:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      return {
+        success: false,
+        error: `Erro de conexão: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
    * Envia mensagem WhatsApp de regularização para morador
    */
   async sendRegularizationWhatsApp(
