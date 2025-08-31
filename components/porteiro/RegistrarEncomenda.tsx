@@ -497,13 +497,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             } else {
               // Enviar notificação via API
               await notificationApi.sendVisitorNotification({
-                residentName: residentData.profiles.full_name,
-                residentPhone: residentData.profiles.phone,
-                buildingName: buildingData?.name || 'Seu prédio',
-                apartmentNumber: selectedApartment.number,
+                visitorLogId: '', // Será preenchido pela API se necessário
                 visitorName: empresaSelecionada.nome,
-                visitorType: 'entrega',
-                description: descricaoEncomenda || 'Entrega'
+                residentPhone: residentData.profiles.phone,
+                residentName: residentData.profiles.full_name,
+                building: buildingData?.name || 'Seu prédio',
+                apartment: selectedApartment.number
               });
             }
           }

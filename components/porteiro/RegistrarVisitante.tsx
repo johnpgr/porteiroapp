@@ -546,8 +546,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             .from('apartments')
             .select(`
               apartment_residents!inner(
-                name,
-                phone,
+                profiles!inner(
+                  full_name,
+                  phone
+                ),
                 is_owner
               ),
               buildings!inner(
@@ -562,11 +564,11 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             const resident = residentData.apartment_residents[0];
             const building = residentData.buildings;
             
-            if (resident.phone && building) {
+            if (resident.profiles.phone && building) {
               await notificationApi.sendVisitorAuthorization({
                 visitorName: nomeVisitante,
-                residentName: resident.name,
-                residentPhone: resident.phone,
+                residentName: resident.profiles.full_name,
+                residentPhone: resident.profiles.phone,
                 building: building.name,
                 apartment: selectedApartment.number
               });

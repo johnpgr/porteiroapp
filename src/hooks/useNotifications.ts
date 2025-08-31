@@ -68,10 +68,78 @@ export const useNotifications = (): UseNotificationsReturn => {
     }
   };
 
+  // Função para parsing seguro de JSON
+  const safeJsonParse = (jsonString: string): NotificationData | null => {
+    try {
+      if (!jsonString || typeof jsonString !== 'string') {
+        console.warn('🔍 [NOTIFICATION_PARSING] Payload inválido para parsing JSON:', {
+          payload: jsonString,
+          type: typeof jsonString,
+          timestamp: new Date().toISOString()
+        });
+        return null;
+      }
+      
+      // Verificar se já é um objeto
+      if (typeof jsonString === 'object') {
+        console.log('✅ [NOTIFICATION_PARSING] Payload já é um objeto, usando diretamente');
+        return jsonString as NotificationData;
+      }
+      
+      // Tentar fazer o parse
+      const parsed = JSON.parse(jsonString);
+      
+      // Validar se tem as propriedades essenciais
+      if (!parsed.visitor_log_id || !parsed.building_id) {
+        console.warn('⚠️ [NOTIFICATION_PARSING] Dados de notificação incompletos:', {
+          parsed,
+          missingFields: {
+            visitor_log_id: !parsed.visitor_log_id,
+            building_id: !parsed.building_id
+          },
+          timestamp: new Date().toISOString()
+        });
+        return null;
+      }
+      
+      console.log('✅ [NOTIFICATION_PARSING] Parsing JSON bem-sucedido:', {
+        visitor_log_id: parsed.visitor_log_id,
+        building_id: parsed.building_id,
+        timestamp: new Date().toISOString()
+      });
+      
+      return parsed as NotificationData;
+    } catch (error) {
+      console.error('❌ [NOTIFICATION_PARSING] Erro no parsing JSON da notificação:', {
+        error: error instanceof Error ? error.message : error,
+        payload: jsonString,
+        payloadLength: jsonString?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+      return null;
+    }
+  };
+
   // Função para processar nova notificação
   const handleNewNotification = useCallback(async (payload: any) => {
     try {
-      const notificationData: NotificationData = JSON.parse(payload.new.payload || payload.payload);
+      console.log('🔔 [NOTIFICATION_HANDLER] Nova notificação recebida:', {
+        hasNew: !!payload.new,
+        hasPayload: !!payload.payload,
+        timestamp: new Date().toISOString()
+      });
+      
+      const payloadString = payload.new?.payload || payload.payload;
+      const notificationData = safeJsonParse(payloadString);
+      
+      if (!notificationData) {
+        console.warn('⚠️ [NOTIFICATION_HANDLER] Notificação ignorada devido a payload inválido:', {
+          originalPayload: payload,
+          payloadString,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
       
       // Verificar se é uma notificação relevante para o porteiro
       if (!user) return;

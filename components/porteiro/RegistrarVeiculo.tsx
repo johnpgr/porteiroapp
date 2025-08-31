@@ -730,8 +730,10 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
                 id,
                 number,
                 apartment_residents!apartment_residents_apartment_id_fkey (
-                  full_name,
-                  phone
+                  profiles!inner(
+                    full_name,
+                    phone
+                  )
                 ),
                 buildings (
                   name
@@ -741,20 +743,14 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
               .eq('apartment_residents.is_owner', true)
               .single();
 
-            if (residentData?.apartment_residents?.phone) {
+            if (residentData?.apartment_residents?.profiles?.phone) {
               await notificationApi.sendVisitorNotification({
                 visitorLogId: visitorLogData.id,
                 visitorName: nomeConvidado,
-                residentPhone: residentData.apartment_residents.phone,
-                residentName: residentData.apartment_residents.full_name || 'Morador',
+                residentPhone: residentData.apartment_residents.profiles.phone,
+                residentName: residentData.apartment_residents.profiles.full_name || 'Morador',
                 building: residentData.buildings?.name || 'Prédio',
-                apartment: residentData.number,
-                vehicleInfo: {
-                  licensePlate: placa,
-                  brand: marcaSelecionada?.nome || vehicleInfo?.brand,
-                  model: modelo || vehicleInfo?.model,
-                  color: corSelecionada?.nome || vehicleInfo?.color
-                }
+                apartment: residentData.number
               });
             }
           } catch (apiError) {

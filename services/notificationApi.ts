@@ -72,7 +72,16 @@ class NotificationApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      console.log(`🚀 [NOTIFICATION_API] Iniciando requisição [${requestId}]:`, {
+        endpoint,
+        url: `${API_BASE_URL}${endpoint}`,
+        options,
+        timestamp: new Date().toISOString()
+      });
+      
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
@@ -81,14 +90,45 @@ class NotificationApiService {
         ...options,
       });
 
+      console.log(`📡 [NOTIFICATION_API] Resposta recebida [${requestId}]:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
+      });
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ [NOTIFICATION_API] Erro HTTP [${requestId}]:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          endpoint,
+          timestamp: new Date().toISOString()
+        });
         throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.json();
+      const responseData = await response.json();
+      console.log(`✅ [NOTIFICATION_API] Requisição bem-sucedida [${requestId}]:`, {
+        responseData,
+        timestamp: new Date().toISOString()
+      });
+      
+      return responseData;
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
+      console.error(`❌ [NOTIFICATION_API] Erro na requisição [${requestId}]:`, {
+        endpoint,
+        url: `${API_BASE_URL}${endpoint}`,
+        options,
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : error,
+        timestamp: new Date().toISOString()
+      });
       throw error;
     }
   }
@@ -96,6 +136,15 @@ class NotificationApiService {
   async sendVisitorNotification(
     data: SendVisitorNotificationRequest
   ): Promise<SendVisitorNotificationResponse> {
+    console.log('📱 [WHATSAPP_VISITOR] Enviando notificação de visitante:', {
+      visitorLogId: data.visitorLogId,
+      visitorName: data.visitorName,
+      residentPhone: data.residentPhone ? `${data.residentPhone.substring(0, 4)}****` : 'N/A',
+      building: data.building,
+      apartment: data.apartment,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       const response = await this.makeRequest<SendVisitorNotificationResponse>(
         '/send-visitor-notification',
@@ -105,9 +154,14 @@ class NotificationApiService {
         }
       );
 
+      console.log('✅ [WHATSAPP_VISITOR] Notificação de visitante enviada com sucesso');
       return response;
     } catch (error) {
-      console.error('Erro ao enviar notificação de visitante:', error);
+      console.error('❌ [WHATSAPP_VISITOR] Falha ao enviar notificação de visitante:', {
+        data,
+        error: error instanceof Error ? error.message : error,
+        timestamp: new Date().toISOString()
+      });
       throw new Error(
         error instanceof Error 
           ? error.message 
@@ -190,6 +244,14 @@ class NotificationApiService {
   async sendVisitorAuthorization(
     data: SendVisitorAuthorizationRequest
   ): Promise<SendVisitorAuthorizationResponse> {
+    console.log('🔐 [WHATSAPP_AUTH] Enviando autorização de visitante:', {
+      visitorName: data.visitorName,
+      residentPhone: data.residentPhone ? `${data.residentPhone.substring(0, 4)}****` : 'N/A',
+      building: data.building,
+      apartment: data.apartment,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       const response = await this.makeRequest<SendVisitorAuthorizationResponse>(
         '/send-visitor-authorization-whatsapp',
@@ -199,9 +261,17 @@ class NotificationApiService {
         }
       );
 
+      console.log('✅ [WHATSAPP_AUTH] Autorização de visitante enviada com sucesso:', {
+        response,
+        timestamp: new Date().toISOString()
+      });
       return response;
     } catch (error) {
-      console.error('Erro ao enviar autorização de visitante:', error);
+      console.error('❌ [WHATSAPP_AUTH] Falha ao enviar autorização de visitante:', {
+        data,
+        error: error instanceof Error ? error.message : error,
+        timestamp: new Date().toISOString()
+      });
       throw new Error(
         error instanceof Error 
           ? error.message 
