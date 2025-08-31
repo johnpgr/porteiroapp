@@ -437,7 +437,14 @@ async function checkWhatsAppNumber(number) {
 
 // Função para gerar mensagem de autorização de visitante
 function generateVisitorAuthorizationMessage(visitorName, residentName, building, apartment, authorizationLink) {
-  return `Olá ${residentName}, o visitante ${visitorName} está querendo entrar, entre no link abaixo para aceitar ou recusar sem acessar o app: ${authorizationLink}`;
+  return `📢 James Avisa\nPrezado(a) ${residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+    `👤 *Visitante:* ${visitorName}\n` +
+    `🏠 *Apartamento:* ${apartment}${building ? ` - ${building}` : ''}\n\n` +
+    `*RESPONDA RAPIDAMENTE:*\n` +
+    `• Digite *1* para AUTORIZAR\n` +
+    `• Digite *2* para RECUSAR\n\n` +
+    `Ou acesse: ${authorizationLink}\n\n` +
+    `⏰ Esta autorização expira em 30 minutos.`;
 }
 
 // Função específica para enviar autorização de visitante
@@ -448,7 +455,7 @@ async function sendVisitorAuthorization(residentPhone, visitorName, residentName
   console.log(`Visitante: ${visitorName}`);
   console.log(`Destino: ${building ? `${building} - ` : ''}Apto ${apartment}`);
   
-  return await sendWhatsApp(residentPhone, message);
+  return await sendWhatsApp({ to: residentPhone, message });
 }
 
 module.exports = {

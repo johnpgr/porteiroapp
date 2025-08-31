@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { supabase } = require('../services/supabaseClient');
 
 const { sendVisitorAuthorization } = require('../services/whatsappService');
 const { validateVisitorNotification } = require('../validators/notificationValidator');
@@ -50,6 +51,27 @@ router.post('/send-visitor-notification', async (req, res) => {
     // Gerar link de autorização
     const authorizationLink = generateAuthorizationLink(tokenData.token);
     console.log('🔗 Link de autorização gerado:', authorizationLink);
+
+    // Salvar token na tabela visitor_authorization_tokens
+    const { error: tokenSaveError } = await supabase
+      .from('visitor_authorization_tokens')
+      .insert({
+        token: tokenData.token,
+        visitor_name: visitorData.visitorName,
+        visitor_phone: visitorData.visitorPhone || 'N/A',
+        apartment_number: visitorData.apartment,
+        building_id: visitorData.buildingId || null,
+        resident_phone: visitorData.residentPhone,
+        resident_name: visitorData.residentName,
+        expires_at: new Date(tokenData.expiresAt).toISOString()
+      });
+
+    if (tokenSaveError) {
+      console.error('❌ Erro ao salvar token:', tokenSaveError);
+      // Continua mesmo com erro, pois o WhatsApp ainda pode ser enviado
+    } else {
+      console.log('✅ Token salvo na base de dados');
+    }
 
     // Gerar mensagem WhatsApp personalizada
     const whatsappMessage = `🏢 *JamesAvisa - Autorização de Visitante*\n\n` +

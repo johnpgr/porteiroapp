@@ -81,14 +81,13 @@ function validateAuthorizationToken(token) {
 }
 
 /**
- * Gera um link de autorização com o token
- * @param {string} token - Token JWT
- * @param {string} baseUrl - URL base para autorização
- * @returns {string} Link completo de autorização
+ * Gera um link de autorização (agora retorna apenas o link do site principal)
+ * @param {string} token - Token JWT (ignorado)
+ * @param {string} baseUrl - URL base para autorização (ignorado)
+ * @returns {string} Link fixo do site principal
  */
 function generateAuthorizationLink(token, baseUrl = null) {
-  const base = baseUrl || process.env.AUTHORIZATION_BASE_URL || 'https://your-domain.com';
-  return `${base}/autorizar/${token}`;
+  return 'https://jamesavisa.jamesconcierge.com/login';
 }
 
 /**

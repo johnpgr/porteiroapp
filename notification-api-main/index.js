@@ -13,6 +13,7 @@ const sendVisitorWaitingNotificationRoutes = require('./src/routes/sendVisitorWa
 const residentRegistrationRoutes = require('./src/routes/residentRegistration');
 const completeRegistrationRoutes = require('./src/routes/completeRegistration');
 const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
+const whatsappWebhookRoutes = require('./src/routes/whatsappWebhook');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -76,6 +77,7 @@ app.use('/api', sendVisitorWaitingNotificationRoutes);
 app.use('/api', residentRegistrationRoutes);
 app.use('/api', completeRegistrationRoutes);
 app.use('/api', visitorAuthorizationRoutes);
+app.use('/api', whatsappWebhookRoutes);
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
