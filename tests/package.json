@@ -1,0 +1,21 @@
+{
+  "name": "porteiroapp-tests",
+  "version": "1.0.0",
+  "description": "Testes automatizados para a API do PorteiroApp",
+  "main": "register-resident.test.js",
+  "scripts": {
+    "test": "node register-resident.test.js",
+    "test:advanced": "node register-resident-advanced.test.js",
+    "test:persistence": "node database-persistence.test.js",
+    "test:all": "node register-resident.test.js && node register-resident-advanced.test.js && node database-persistence.test.js",
+    "install-deps": "npm install axios @supabase/supabase-js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "devDependencies": {},
+  "keywords": ["test", "api", "automation", "porteiroapp"],
+  "author": "PorteiroApp Team",
+  "license": "MIT"
+}

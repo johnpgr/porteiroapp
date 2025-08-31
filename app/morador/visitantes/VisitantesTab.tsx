@@ -202,6 +202,31 @@ export default function VisitantesTab() {
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
   const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
   
+  // Estados para modal de edição
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
+  const [editData, setEditData] = useState<PreRegistrationData>({
+    name: '',
+    phone: '',
+    visitor_type: 'comum',
+    visit_type: 'pontual',
+    visit_date: '',
+    visit_start_time: '',
+    visit_end_time: '',
+    allowed_days: [],
+    max_simultaneous_visits: 1
+  });
+  
+  // Estado para controlar expansão dos cards
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  
+  // Função para alternar expansão do card
+  const toggleCardExpansion = (visitorId: string) => {
+    setExpandedCardId(expandedCardId === visitorId ? null : visitorId);
+  };
+  
+
+
 
 
 
@@ -937,7 +962,204 @@ export default function VisitantesTab() {
     }
   };
 
+  // Função para abrir modal de edição com dados do visitante
+  const handleEditVisitor = (visitor: Visitor) => {
+    setEditingVisitor(visitor);
+    setEditData({
+      name: visitor.name,
+      phone: visitor.phone || '',
+      visitor_type: visitor.visitor_type as 'comum' | 'frequente',
+      visit_type: 'pontual', // Valor padrão, pode ser ajustado conforme necessário
+      visit_date: '',
+      visit_start_time: '',
+      visit_end_time: '',
+      allowed_days: [],
+      max_simultaneous_visits: 1
+    });
+    setShowEditModal(true);
+  };
 
+  // Função para salvar alterações do visitante editado
+  const handleSaveEditedVisitor = async () => {
+    if (!editingVisitor) return;
+
+    try {
+      const sanitizedName = sanitizeInput(editData.name);
+      const sanitizedPhone = sanitizeInput(editData.phone);
+
+      // Validar campos obrigatórios
+      if (!sanitizedName || !sanitizedPhone) {
+        Alert.alert('Erro', 'Nome completo e telefone são obrigatórios.');
+        return;
+      }
+
+      // Validar nome
+      if (!validateName(sanitizedName)) {
+        Alert.alert('Erro', 'Nome deve conter apenas letras e espaços (2-50 caracteres).');
+        return;
+      }
+
+      // Validar telefone
+      if (!validatePhoneNumber(sanitizedPhone)) {
+        Alert.alert('Erro', 'Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX');
+        return;
+      }
+
+      // Atualizar visitante no banco de dados
+      const { error: updateError } = await supabase
+        .from('visitors')
+        .update({
+          name: sanitizedName,
+          phone: sanitizedPhone.replace(/\D/g, ''),
+          visitor_type: editData.visitor_type,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingVisitor.id);
+
+      if (updateError) {
+        console.error('Erro ao atualizar visitante:', updateError);
+        throw updateError;
+      }
+
+      Alert.alert(
+        'Sucesso!',
+        'Visitante atualizado com sucesso!',
+        [{
+          text: 'OK',
+          onPress: () => {
+            setShowEditModal(false);
+            setEditingVisitor(null);
+            setEditData({
+              name: '',
+              phone: '',
+              visitor_type: 'comum',
+              visit_type: 'pontual',
+              visit_date: '',
+              visit_start_time: '',
+              visit_end_time: '',
+              allowed_days: [],
+              max_simultaneous_visits: 1
+            });
+            fetchVisitors(); // Atualizar lista
+          }
+        }]
+      );
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error);
+      Alert.alert('Erro', 'Erro ao salvar alterações. Tente novamente.');
+    }
+  };
+
+  // Função para excluir visitante com confirmação
+  const handleDeleteVisitor = (visitor: Visitor) => {
+    Alert.alert(
+      'Confirmar Exclusão',
+      `Tem certeza que deseja excluir o visitante "${visitor.name}"?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Primeiro, excluir senhas temporárias relacionadas
+              const { error: passwordError } = await supabase
+                .from('visitor_temporary_passwords')
+                .delete()
+                .eq('visitor_id', visitor.id);
+
+              if (passwordError) {
+                console.error('Erro ao excluir senhas temporárias:', passwordError);
+                // Continuar mesmo se não houver senhas para excluir
+              }
+
+              // Depois, excluir o visitante
+              const { error } = await supabase
+                .from('visitors')
+                .delete()
+                .eq('id', visitor.id);
+
+              if (error) {
+                console.error('Erro ao excluir visitante:', error);
+                Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
+                return;
+              }
+
+              Alert.alert('Sucesso', 'Visitante excluído com sucesso!');
+              fetchVisitors(); // Atualizar lista
+            } catch (error) {
+              console.error('Erro ao excluir visitante:', error);
+              Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Função para aprovar visitante
+  const handleApproveVisitor = async (visitor: Visitor) => {
+    try {
+      // Validar se CPF e nome estão completos
+      if (!visitor.document || visitor.document.trim() === '') {
+        Alert.alert('Validação', 'O CPF do visitante deve estar preenchido para aprovação.');
+        return;
+      }
+
+      if (!visitor.name || visitor.name.trim() === '' || visitor.name.trim().split(' ').length < 2) {
+        Alert.alert('Validação', 'O nome completo do visitante deve estar preenchido para aprovação.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('visitors')
+        .update({
+          status: 'aprovado',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', visitor.id);
+
+      if (error) {
+        console.error('Erro ao aprovar visitante:', error);
+        Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
+        return;
+      }
+
+      Alert.alert('Sucesso', 'Visitante aprovado com sucesso!');
+      fetchVisitors(); // Atualizar lista
+    } catch (error) {
+      console.error('Erro ao aprovar visitante:', error);
+      Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
+    }
+  };
+
+  // Função para desaprovar visitante
+  const handleDisapproveVisitor = async (visitor: Visitor) => {
+    try {
+      const { error } = await supabase
+        .from('visitors')
+        .update({
+          status: 'negado',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', visitor.id);
+
+      if (error) {
+        console.error('Erro ao desaprovar visitante:', error);
+        Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
+        return;
+      }
+
+      Alert.alert('Sucesso', 'Visitante desaprovado com sucesso!');
+      fetchVisitors(); // Atualizar lista
+    } catch (error) {
+      console.error('Erro ao desaprovar visitante:', error);
+      Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
+    }
+  };
 
   return (
     <ScrollView style={styles.content}>
@@ -998,29 +1220,70 @@ export default function VisitantesTab() {
         ) : (
           visitors.map((visitor) => (
             <View key={visitor.id} style={styles.visitorCard}>
-              <Text style={styles.visitorName}>{visitor.name}</Text>
-              {visitor.document && (
-                <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
-              )}
-              {visitor.phone && (
-                <Text style={styles.visitorPhone}>📞 {visitor.phone}</Text>
-              )}
-              <View style={styles.visitorTypeContainer}>
-                <Text style={styles.visitorTypeIcon}>{getVisitorTypeIcon(visitor.visitor_type)}</Text>
-                <Text style={styles.visitorTypeText}>{getVisitorTypeText(visitor.visitor_type)}</Text>
-              </View>
-              <Text style={styles.visitorDate}>
-                Cadastrado: {formatDisplayDate(visitor.created_at)}
-              </Text>
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.editButton}>
-                  <Text style={styles.editButtonText}>✏️ Editar</Text>
-                </TouchableOpacity>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusIcon}>{getStatusIcon(visitor.status)}</Text>
-                  <Text style={styles.statusText}>{getStatusText(visitor.status)}</Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardMainInfo}>
+                  <Text style={styles.visitorName}>{visitor.name}</Text>
+                  {visitor.document && (
+                    <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
+                  )}
+                  {visitor.phone && (
+                    <Text style={styles.visitorPhone}>📞 {visitor.phone}</Text>
+                  )}
+                  <View style={styles.visitorTypeContainer}>
+                    <Text style={styles.visitorTypeIcon}>{getVisitorTypeIcon(visitor.visitor_type)}</Text>
+                    <Text style={styles.visitorTypeText}>{getVisitorTypeText(visitor.visitor_type)}</Text>
+                  </View>
+                  <Text style={styles.visitorDate}>
+                    Cadastrado: {formatDisplayDate(visitor.created_at)}
+                  </Text>
+                </View>
+                
+                <View style={styles.cardHeaderActions}>
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusIcon}>{getStatusIcon(visitor.status)}</Text>
+                    <Text style={styles.statusText}>{getStatusText(visitor.status)}</Text>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={styles.menuButton}
+                    onPress={() => toggleCardExpansion(visitor.id)}
+                  >
+                    <Text style={styles.menuButtonText}>⋮</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
+              
+              {expandedCardId === visitor.id && (
+                <View style={styles.expandedActions}>
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => handleEditVisitor(visitor)}
+                  >
+                    <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => handleApproveVisitor(visitor)}
+                  >
+                    <Text style={styles.actionButtonText}>✅ Aprovar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => handleDisapproveVisitor(visitor)}
+                  >
+                    <Text style={styles.actionButtonText}>❌ Desaprovar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    onPress={() => handleDeleteVisitor(visitor)}
+                  >
+                    <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>🗑️ Excluir</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ))
         )}
@@ -1299,6 +1562,262 @@ export default function VisitantesTab() {
               >
                 <Text style={styles.submitButtonText}>
                   {isSubmittingPreRegistration ? 'Enviando...' : 'Enviar Link WhatsApp'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Edição */}
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Visitante</Text>
+              <TouchableOpacity
+                onPress={() => setShowEditModal(false)}
+                style={styles.closeButton}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Nome Completo *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editData.name}
+                  onChangeText={(text) => setEditData(prev => ({ ...prev, name: text }))}
+                  placeholder="Digite o nome completo do visitante"
+                  placeholderTextColor="#999"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Telefone *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editData.phone}
+                  onChangeText={(text) => setEditData(prev => ({ ...prev, phone: text }))}
+                  placeholder="(XX) 9XXXX-XXXX"
+                  placeholderTextColor="#999"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Visitante *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.visitor_type === 'comum' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, visitor_type: 'comum' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.visitor_type === 'comum' && styles.visitorTypeButtonTextActive
+                    ]}>Comum</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.visitor_type === 'frequente' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, visitor_type: 'frequente' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.visitor_type === 'frequente' && styles.visitorTypeButtonTextActive
+                    ]}>Frequente</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Visita *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.visit_type === 'pontual' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, visit_type: 'pontual' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.visit_type === 'pontual' && styles.visitorTypeButtonTextActive
+                    ]}>Pontual</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.visit_type === 'frequente' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, visit_type: 'frequente' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive
+                    ]}>Frequente</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Campos condicionais para visita pontual */}
+              {editData.visit_type === 'pontual' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Data da Visita *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={editData.visit_date}
+                      onChangeText={(text) => {
+                        const formattedDate = formatDate(text);
+                        setEditData(prev => ({ ...prev, visit_date: formattedDate }));
+                      }}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+
+                  <View style={styles.timeInputRow}>
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={editData.visit_start_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setEditData(prev => ({ ...prev, visit_start_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 15:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={editData.visit_end_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setEditData(prev => ({ ...prev, visit_end_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 18:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* Campos condicionais para visita frequente */}
+              {editData.visit_type === 'frequente' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Dias da Semana Permitidos *</Text>
+                    <View style={styles.daysSelector}>
+                      {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((day, index) => {
+                        const dayValue = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][index];
+                        const isSelected = editData.allowed_days?.includes(dayValue);
+                        return (
+                          <TouchableOpacity
+                            key={dayValue}
+                            style={[
+                              styles.dayButton,
+                              isSelected && styles.dayButtonActive
+                            ]}
+                            onPress={() => {
+                              const currentDays = editData.allowed_days || [];
+                              const newDays = isSelected
+                                ? currentDays.filter(d => d !== dayValue)
+                                : [...currentDays, dayValue];
+                              setEditData(prev => ({ ...prev, allowed_days: newDays }));
+                            }}
+                          >
+                            <Text style={[
+                              styles.dayButtonText,
+                              isSelected && styles.dayButtonTextActive
+                            ]}>{day}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.timeInputRow}>
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Início *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={editData.visit_start_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setEditData(prev => ({ ...prev, visit_start_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 08:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Fim *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={editData.visit_end_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setEditData(prev => ({ ...prev, visit_end_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 18:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  isSubmittingPreRegistration && styles.submitButtonDisabled
+                ]}
+                onPress={handleSaveEditedVisitor}
+                disabled={isSubmittingPreRegistration}
+              >
+                <Text style={styles.submitButtonText}>
+                  {isSubmittingPreRegistration ? 'Salvando...' : 'Salvar Alterações'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1671,6 +2190,75 @@ const styles = StyleSheet.create({
   },
   dayButtonTextActive: {
     color: '#fff',
+  },
+  // Estilos para o layout do card
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  cardMainInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  cardHeaderActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  menuButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  menuButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  expandedActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  // Estilos para os botões de ação
+  actionButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    flex: 1,
+  },
+  actionButton: {
+    backgroundColor: '#f0f8ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    minWidth: 70,
+    alignItems: 'center',
+    flex: 1,
+  },
+  actionButtonDanger: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#ffcdd2',
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+  },
+  actionButtonTextDanger: {
+    color: '#f44336',
   },
 
 });

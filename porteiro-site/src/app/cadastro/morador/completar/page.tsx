@@ -327,6 +327,7 @@ export default function CompletarCadastroPage() {
       const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `profiles/${fileName}`;
       
+
       const { error } = await supabase.storage
         .from('profiles-fotos')
         .upload(filePath, file);

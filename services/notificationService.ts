@@ -420,7 +420,7 @@ class NotificationService {
   }
 
   /**
-   * Envia mensagem WhatsApp para visitante usando a API específica para visitantes
+   * Envia mensagem WhatsApp para visitante usando a API de residentes (temporário)
    */
   async sendVisitorWhatsApp(
     visitorData: {
@@ -444,24 +444,24 @@ class NotificationService {
     });
 
     try {
-      // Configuração da API
+      // Configuração da API - usando endpoint de visitantes
       const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-visitor-whatsapp`;
       
-      // Preparar dados para a API
+      // Preparar dados para a API - usando endpoint de visitantes
       const apiData = {
         name: visitorData.name,
         phone: visitorData.phone.replace(/\D/g, ''), // Remove caracteres não numéricos
         building: visitorData.building,
         apartment: visitorData.apartment,
-        url: visitorData.url
+        profile_id: 'visitor-temp-' + Date.now() // ID temporário para visitantes
       };
 
-      console.log('🌐 Fazendo chamada para API de visitante:', {
-        url: apiUrl,
-        phone: apiData.phone,
-        name: apiData.name,
+      console.log('🌐 Chamada para API de visitante realizada com os seguintes parâmetros:', {
         apartment: apiData.apartment,
-        building: apiData.building
+        building: apiData.building,
+        name: apiData.name,
+        phone: apiData.phone,
+        url: `"${apiUrl}"`
       });
 
       // Fazer chamada para a API
@@ -474,16 +474,16 @@ class NotificationService {
       });
 
       console.log('📡 Resposta da API de visitante:', {
-        status: response.status,
-        statusText: response.statusText,
         ok: response.ok,
+        status: response.status,
+        statusText: response.statusText || ''
       });
 
       if (!response.ok) {
         let errorData: any = {};
         try {
           errorData = await response.json();
-          console.error('❌ Erro detalhado da API de visitante:', errorData);
+          console.error('❌ Detalhes do erro na API de visitante:', errorData);
         } catch (parseError) {
           console.error('❌ Erro ao parsear resposta de erro:', parseError);
         }
