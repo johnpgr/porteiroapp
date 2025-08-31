@@ -269,12 +269,126 @@ export const usePendingNotifications = () => {
     };
   }, [apartmentId, fetchPendingNotifications, triggerAutomaticNotifications]);
 
+  // Função para notificar porteiros sobre resposta do morador
+  const notifyDoorkeepers = useCallback(async (
+    notificationId: string,
+    response: NotificationResponse,
+    buildingId: string
+  ) => {
+    try {
+      // Buscar dados da notificação para criar mensagem personalizada
+      const { data: logData, error: logError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          guest_name,
+          entry_type,
+          delivery_destination,
+          visitors (name),
+          apartments (
+            number,
+            buildings (name)
+          )
+        `)
+        .eq('id', notificationId)
+        .single();
+
+      if (logError || !logData) {
+        console.error('Erro ao buscar dados da notificação:', logError);
+        return;
+      }
+
+      // Buscar porteiros do prédio
+      const { data: doorkeepers, error: doorkeepersError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('building_id', buildingId)
+        .eq('user_type', 'porteiro')
+        .eq('is_active', true);
+
+      if (doorkeepersError || !doorkeepers || doorkeepers.length === 0) {
+        console.warn('Nenhum porteiro encontrado para notificar:', doorkeepersError);
+        return;
+      }
+
+      // Preparar dados da mensagem
+      const visitorName = logData.guest_name || logData.visitors?.name || 'Visitante';
+      const apartmentNumber = logData.apartments?.number || 'N/A';
+      const buildingName = logData.apartments?.buildings?.name || 'Edifício';
+      const isDelivery = logData.entry_type === 'delivery';
+      
+      let title = '';
+      let body = '';
+      
+      if (response.action === 'approve') {
+        if (isDelivery && response.delivery_destination) {
+          const destinationText = {
+            'portaria': 'na portaria',
+            'elevador': 'no elevador',
+            'apartamento': 'no apartamento'
+          }[response.delivery_destination] || response.delivery_destination;
+          
+          title = '✅ Entrega Autorizada';
+          body = `Morador do apt. ${apartmentNumber} autorizou deixar entrega de ${visitorName} ${destinationText}.`;
+        } else {
+          title = '✅ Visitante Autorizado';
+          body = `Morador do apt. ${apartmentNumber} autorizou entrada de ${visitorName}.`;
+        }
+      } else {
+        const reasonText = response.reason ? ` Motivo: ${response.reason}` : '';
+        title = isDelivery ? '❌ Entrega Recusada' : '❌ Visitante Recusado';
+        body = `Morador do apt. ${apartmentNumber} recusou ${isDelivery ? 'entrega de' : 'entrada de'} ${visitorName}.${reasonText}`;
+      }
+
+      // Enviar notificação push para cada porteiro
+      for (const doorkeeper of doorkeepers) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title,
+              body,
+              data: {
+                type: 'resident_response',
+                visitor_log_id: notificationId,
+                response_action: response.action,
+                visitor_name: visitorName,
+                apartment: apartmentNumber,
+                building: buildingName,
+                delivery_destination: response.delivery_destination,
+                doorkeeper_id: doorkeeper.id
+              },
+            },
+            trigger: null, // Imediato
+          });
+          
+          console.log(`📱 Notificação enviada para porteiro ${doorkeeper.full_name || doorkeeper.id}`);
+        } catch (pushError) {
+          console.error(`❌ Erro ao enviar push para porteiro ${doorkeeper.id}:`, pushError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro geral ao notificar porteiros:', error);
+    }
+  }, []);
+
   // Responder à notificação
   const respondToNotification = useCallback(async (
     notificationId: string, 
     response: NotificationResponse
   ) => {
     try {
+      // Buscar building_id antes de atualizar
+      const { data: logData, error: logError } = await supabase
+        .from('visitor_logs')
+        .select('building_id')
+        .eq('id', notificationId)
+        .single();
+
+      if (logError || !logData?.building_id) {
+        console.error('Erro ao buscar building_id:', logError);
+        throw new Error('Não foi possível identificar o prédio');
+      }
+
       const updateData: any = {
         notification_status: response.action === 'approve' ? 'approved' : 'rejected',
         resident_response_at: new Date().toISOString(),
@@ -295,6 +409,9 @@ export const usePendingNotifications = () => {
         .eq('id', notificationId);
       
       if (error) throw error;
+
+      // Notificar porteiros sobre a resposta do morador
+      await notifyDoorkeepers(notificationId, response, logData.building_id);
       
       // Remover da lista local
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
@@ -304,7 +421,7 @@ export const usePendingNotifications = () => {
       console.error('Erro ao responder notificação:', err);
       return { success: false, error: err.message };
     }
-  }, [user?.id]);
+  }, [user?.id, notifyDoorkeepers]);
 
   // Inicializar
   useEffect(() => {

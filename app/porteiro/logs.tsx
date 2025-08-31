@@ -6,6 +6,8 @@ import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { useNotifications } from '~/src/hooks/useNotifications';
+import * as Notifications from 'expo-notifications';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface VisitorLog {
   id: string;
@@ -73,10 +75,199 @@ export default function ActivityLogs() {
   // Estados específicos para histórico de visitantes (transferidos do index.tsx)
   const [visitorLogs, setVisitorLogs] = useState<HistoricoVisitorLog[]>([]);
   const [loadingVisitorLogs, setLoadingVisitorLogs] = useState(false);
+  
+  // Estados para sistema de notificações em tempo real
+  const [realtimeChannels, setRealtimeChannels] = useState<RealtimeChannel[]>([]);
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+
+  // Função para enviar notificação push aos porteiros
+  const notifyPorteiros = async (message: string, data: any) => {
+    try {
+      if (!buildingId) return;
+
+      // Buscar todos os porteiros do prédio
+      const { data: porteiros, error } = await supabase
+        .from('profiles')
+        .select('id, expo_push_token')
+        .eq('user_type', 'porteiro')
+        .eq('building_id', buildingId)
+        .not('expo_push_token', 'is', null);
+
+      if (error) {
+        console.error('Erro ao buscar porteiros:', error);
+        return;
+      }
+
+      // Enviar notificação para cada porteiro
+      for (const porteiro of porteiros || []) {
+        if (porteiro.expo_push_token) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Atualização nos Logs',
+              body: message,
+              data: {
+                ...data,
+                building_id: buildingId,
+                timestamp: new Date().toISOString()
+              }
+            },
+            trigger: null
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao enviar notificação aos porteiros:', error);
+    }
+  };
+
+  // Função para configurar listeners em tempo real
+  const setupRealtimeListeners = useCallback(() => {
+    if (!buildingId) return;
+
+    const channels: RealtimeChannel[] = [];
+
+    // Listener para visitor_logs
+    const visitorLogsChannel = supabase
+      .channel('visitor_logs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'visitor_logs',
+          filter: `building_id=eq.${buildingId}`
+        },
+        async (payload) => {
+          console.log('Mudança em visitor_logs:', payload);
+          
+          const { eventType, new: newRecord, old: oldRecord } = payload;
+          let message = '';
+          
+          if (eventType === 'INSERT') {
+            message = `Novo log de visitante registrado - ${newRecord.visitor_name || 'Visitante'}`;
+          } else if (eventType === 'UPDATE') {
+            if (oldRecord?.status !== newRecord?.status) {
+              message = `Status do visitante ${newRecord.visitor_name || 'Visitante'} alterado para: ${newRecord.status}`;
+            } else {
+              message = `Log do visitante ${newRecord.visitor_name || 'Visitante'} foi atualizado`;
+            }
+          } else if (eventType === 'DELETE') {
+            message = `Log de visitante foi removido`;
+          }
+          
+          if (message) {
+            await notifyPorteiros(message, {
+              type: 'visitor_log',
+              visitor_log_id: newRecord?.id || oldRecord?.id,
+              event_type: eventType
+            });
+          }
+          
+          // Recarregar dados
+          fetchVisitorLogs();
+        }
+      )
+      .subscribe();
+
+    // Listener para deliveries
+    const deliveriesChannel = supabase
+      .channel('deliveries_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'deliveries',
+          filter: `building_id=eq.${buildingId}`
+        },
+        async (payload) => {
+          console.log('Mudança em deliveries:', payload);
+          
+          const { eventType, new: newRecord, old: oldRecord } = payload;
+          let message = '';
+          
+          if (eventType === 'INSERT') {
+            message = `Nova entrega registrada - ${newRecord.recipient_name || 'Destinatário'} (Apt. ${newRecord.apartment_number || 'N/A'})`;
+          } else if (eventType === 'UPDATE') {
+            if (oldRecord?.status !== newRecord?.status) {
+              message = `Status da entrega para ${newRecord.recipient_name || 'Destinatário'} alterado para: ${newRecord.status}`;
+            } else {
+              message = `Entrega para ${newRecord.recipient_name || 'Destinatário'} foi atualizada`;
+            }
+          } else if (eventType === 'DELETE') {
+            message = `Registro de entrega foi removido`;
+          }
+          
+          if (message) {
+            await notifyPorteiros(message, {
+              type: 'delivery',
+              delivery_id: newRecord?.id || oldRecord?.id,
+              event_type: eventType
+            });
+          }
+          
+          // Recarregar dados
+          fetchDeliveryLogs();
+        }
+      )
+      .subscribe();
+
+    channels.push(visitorLogsChannel, deliveriesChannel);
+    setRealtimeChannels(channels);
+
+    console.log('✅ Listeners em tempo real configurados para o prédio:', buildingId);
+  }, [buildingId]);
+
+  // Função para limpar listeners
+  const cleanupRealtimeListeners = useCallback(() => {
+    realtimeChannels.forEach(channel => {
+      supabase.removeChannel(channel);
+    });
+    setRealtimeChannels([]);
+    console.log('🧹 Listeners em tempo real removidos');
+  }, [realtimeChannels]);
 
   useEffect(() => {
     fetchLogs();
-  }, [filter, timeFilter, fetchLogs]);
+  }, [filter, timeFilter]);
+
+  // Effect para obter o building_id do porteiro logado
+  useEffect(() => {
+    const getBuildingId = async () => {
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('building_id')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile?.building_id) {
+          setBuildingId(profile.building_id);
+        }
+      }
+    };
+    
+    getBuildingId();
+  }, [user?.id]);
+
+  // Effect para configurar listeners em tempo real
+  useEffect(() => {
+    if (buildingId) {
+      setupRealtimeListeners();
+    }
+    
+    // Cleanup ao desmontar o componente
+    return () => {
+      cleanupRealtimeListeners();
+    };
+  }, [buildingId, setupRealtimeListeners]);
+
+  // Effect para limpar listeners quando buildingId mudar
+    useEffect(() => {
+      return () => {
+        cleanupRealtimeListeners();
+      };
+    }, [cleanupRealtimeListeners]);
 
   // Atualizar logs quando as notificações mudarem (tempo real)
   useEffect(() => {
