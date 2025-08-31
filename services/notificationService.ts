@@ -286,7 +286,7 @@ class NotificationService {
         .from('visitor_logs')
         .select(`
           *,
-          visitors!inner(name),
+          visitors(name),
           apartments!inner(number)
         `)
         .eq('id', newRecord.id)
@@ -335,7 +335,7 @@ class NotificationService {
         .from('visitor_logs')
         .select(`
           *,
-          visitors!inner(name),
+          visitors(name),
           apartments!inner(number)
         `)
         .not('notification_status', 'is', null)

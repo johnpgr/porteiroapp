@@ -255,8 +255,8 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
     setResponding(false);
   };
 
-  // Verificar se é uma entrega baseado no purpose
-  const isDelivery = notification.purpose && notification.purpose.toLowerCase().includes('entrega');
+  // Verificar se é uma entrega baseado no entry_type
+  const isDelivery = notification.entry_type === 'delivery';
 
   return (
     <View style={[styles.notificationCard, isDelivery && styles.deliveryCard]}>

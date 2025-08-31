@@ -546,6 +546,14 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
         console.log('🔍 DEBUG: Propósito da visita:', purpose);
         console.log('🔍 DEBUG: Observações:', observacoes);
 
+        // Determinar entry_type baseado no tipo de visita
+        let entryType = 'visitor'; // padrão
+        if (tipoVisita === 'entrega') {
+          entryType = 'delivery';
+        } else if (tipoVisita === 'prestador') {
+          entryType = 'service';
+        }
+
         // Preparar dados do log
         const logData = {
           visitor_id: visitorId,
@@ -555,6 +563,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           tipo_log: 'IN', // Entry log type
           visit_session_id: visitSessionId,
           purpose: observacoes || purpose,
+          entry_type: entryType,
           authorized_by: user.id,
           notification_status: 'approved' // Automatically approved for residents
         };

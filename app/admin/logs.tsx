@@ -154,7 +154,7 @@ export default function SystemLogs() {
           purpose,
           notification_status,
           created_at,
-          visitors!inner(
+          visitors(
             name,
             document
           ),

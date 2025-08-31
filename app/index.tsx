@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,16 +8,18 @@ import { flattenStyles } from '~/utils/styles';
 
 export default function Home() {
   const { checkAndRedirectUser, loading } = useAuth();
-  const hasCheckedRef = useRef(false);
 
-  // Verifica sessão ativa e redireciona automaticamente quando a autenticação estiver pronta
+  // Verifica sessão ativa e redireciona automaticamente na inicialização
   useEffect(() => {
-    if (hasCheckedRef.current) return;
-    if (!loading) {
-      hasCheckedRef.current = true;
-      checkAndRedirectUser();
-    }
-  }, [loading, checkAndRedirectUser]);
+    const handleAutoRedirect = async () => {
+      // Aguarda um pouco para garantir que o AuthProvider foi inicializado
+      setTimeout(async () => {
+        await checkAndRedirectUser();
+      }, 1000);
+    };
+
+    handleAutoRedirect();
+  }, [checkAndRedirectUser]);
 
   // Mostra loading enquanto verifica a sessão
   if (loading) {

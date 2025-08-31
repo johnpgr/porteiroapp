@@ -448,8 +448,8 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
         console.log('Entrega inserida com sucesso');
 
-        // Inserir dados na tabela visitor_logs (sem criar visitante)
-        const { error: logError } = await supabase
+        // Inserir dados na tabela visitor_logs (sem criar visitante) e capturar o ID
+        const { data: visitorLogData, error: logError } = await supabase
           .from('visitor_logs')
           .insert({
             visitor_id: null,
@@ -460,8 +460,18 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             tipo_log: 'IN',
             visit_session_id: null,
             purpose: `Entrega: ${descricaoEncomenda}`,
-            notification_status: 'approved'
-          });
+            entry_type: 'delivery',
+            notification_status: 'pending',
+            requires_resident_approval: true,
+            notification_sent_at: currentTime,
+            expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
+            delivery_sender: empresaSelecionada.nome,
+            delivery_description: descricaoEncomenda,
+            guest_name: `Entrega de ${empresaSelecionada.nome}`,
+            created_at: currentTime
+          })
+          .select('id')
+          .single();
 
         if (logError) {
           console.error('Erro ao salvar log de visitante:', logError);
@@ -470,9 +480,9 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           return;
         }
 
-        console.log('Log de visitante inserido com sucesso');
+        console.log('Log de visitante inserido com sucesso:', visitorLogData);
 
-        // Enviar notificação WhatsApp para o morador
+        // Enviar notificação WhatsApp para o morador sobre entrega aguardando
         try {
           // Buscar dados do morador proprietário
           const { data: residentData, error: residentError } = await supabase
@@ -495,14 +505,14 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             if (buildingError) {
               console.error('Erro ao buscar dados do prédio:', buildingError);
             } else {
-              // Enviar notificação via API
-              await notificationApi.sendVisitorNotification({
-                visitorLogId: '', // Será preenchido pela API se necessário
-                visitorName: empresaSelecionada.nome,
-                residentPhone: residentData.profiles.phone,
-                residentName: residentData.profiles.full_name,
+              // Enviar notificação de entrega aguardando aprovação
+              await notificationApi.sendVisitorWaitingNotification({
+                visitor_name: `Entrega de ${empresaSelecionada.nome}`,
+                resident_phone: residentData.profiles.phone,
+                resident_name: residentData.profiles.full_name,
                 building: buildingData?.name || 'Seu prédio',
-                apartment: selectedApartment.number
+                apartment: selectedApartment.number,
+                visitor_log_id: visitorLogData?.id || ''
               });
             }
           }
@@ -511,7 +521,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           // Não bloquear o fluxo principal se a notificação falhar
         }
 
-        const message = `Encomenda registrada com sucesso para o apartamento ${selectedApartment.number}.`;
+        const message = `Encomenda registrada com sucesso para o apartamento ${selectedApartment.number}. O morador foi notificado e deve escolher o destino da entrega.`;
 
         if (onConfirm) {
           onConfirm(message);

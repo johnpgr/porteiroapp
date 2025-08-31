@@ -19,7 +19,7 @@ const notificationSchema = z.object({
   subject: z.string().optional(),
   type: z.enum(['client', 'professional']),
   channels: channelsSchema,
-  registrationUrl: z.string().url().optional().default('https://jamesavisa.jamesconcierge.com/'),
+  registrationUrl: z.string().url().optional().default('https://jamesavisa.jamesconcierge.com/login'),
 }).refine((data) => data.channels.email || data.channels.whatsapp, {
   message: 'Pelo menos um canal deve estar ativo (email ou whatsapp)'
 }).refine((data) => {
@@ -55,7 +55,7 @@ const residentNotificationSchema = z.object({
   phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
   building: z.string().min(1, 'Prédio é obrigatório'),
   apartment: z.string().min(1, 'Apartamento é obrigatório'),
-  registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/'),
+  registrationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/login'),
   registrationLink: z.string().url().optional(), // Link completo com token (opcional)
   temporaryPassword: z.string().optional() // Senha temporária de 6 dígitos numéricos
 });
@@ -115,7 +115,7 @@ const regularizationNotificationSchema = z.object({
     errorMap: () => ({ message: 'Tipo de problema deve ser: visitor, vehicle, package ou other' })
   }),
   description: z.string().optional(),
-  regularizationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/regularizacao')
+  regularizationUrl: z.string().url().default('https://jamesavisa.jamesconcierge.com/login')
 });
 
 function validateVisitorAuthorization(data) {

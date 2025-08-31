@@ -52,8 +52,8 @@ router.post('/test-whatsapp-message', async (req, res) => {
     const temporaryPassword = 'Test123!';
 
     // Create the WhatsApp message format
-    const siteUrl = 'https://jamesavisa.jamesconcierge.com';
-    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=test-id`;
+    const siteUrl = 'https://jamesavisa.jamesconcierge.com/login';
+  const completarCadastroUrl = 'https://jamesavisa.jamesconcierge.com/login';
 
     const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
 
@@ -136,8 +136,8 @@ router.post('/register-resident', async (req, res) => {
     console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
 
     // Send WhatsApp notification with credentials (no user creation)
-    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
-    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${fakeProfileId}`;
+    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com/login';
+  const completarCadastroUrl = 'https://jamesavisa.jamesconcierge.com/login';
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!

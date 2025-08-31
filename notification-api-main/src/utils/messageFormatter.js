@@ -161,16 +161,9 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
  * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/morador/'] - URL base para autorização
  * @returns {string} Link de autorização personalizado
  */
-function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/morador/') {
-  const params = new URLSearchParams({
-    name: authorizationData.residentName,
-    phone: authorizationData.residentPhone,
-    building: authorizationData.building,
-    apartment: authorizationData.apartment,
-    issue: 'visitor'
-  });
-  
-  return `${baseUrl}?${params.toString()}`;
+function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/login') {
+  // Sempre retorna o link padronizado de login
+  return baseUrl;
 }
 
 /**
@@ -186,7 +179,7 @@ function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://
 function generateVisitorAuthorizationMessage(authorizationData, authorizationLink) {
   return `📢 James Avisa\n` +
          `Prezado(a), informamos que há um visitante aguardando na portaria.\n\n` +
-         `👉 Acesse ${authorizationLink} para verificar os detalhes e autorizar ou recusar a entrada.`;
+         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 
 /**

@@ -81,7 +81,7 @@ function validateBrazilianPhone(phone) {
  * @param {string} baseUrl - URL base do site de cadastro
  * @returns {string} - Link completo com parâmetros
  */
-function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/') {
+function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/login') {
   const cleanPhone = residentData.phone.replace(/\D/g, '');
   
   const params = new URLSearchParams({

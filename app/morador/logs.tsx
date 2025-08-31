@@ -41,7 +41,7 @@ export default function LogsScreen() {
           .select(
             `
             *,
-            visitors!inner(
+            visitors(
               name,
               document,
               apartment_number

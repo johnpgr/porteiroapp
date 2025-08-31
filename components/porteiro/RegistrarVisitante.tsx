@@ -515,6 +515,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           purpose = `entrega - ${empresaEntrega.replace('_', ' ')}`;
         }
 
+        // Determinar entry_type baseado no tipo de visita
+        let entryType = 'visitor'; // padrão
+        if (tipoVisita === 'entrega') {
+          entryType = 'delivery';
+        } else if (tipoVisita === 'prestador') {
+          entryType = 'service';
+        }
+
         // Inserir log de entrada na tabela visitor_logs
         const { data: logData, error: logError } = await supabase
           .from('visitor_logs')
@@ -526,6 +534,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             tipo_log: 'IN',
             visit_session_id: visitSessionId,
             purpose: observacoes || purpose,
+            entry_type: entryType,
             authorized_by: user.id
           })
           .select('id')

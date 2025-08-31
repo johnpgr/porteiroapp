@@ -53,8 +53,8 @@ router.post('/send-resident-whatsapp', async (req, res) => {
     console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
 
     // Send WhatsApp notification with credentials (no user creation)
-    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com';
-    const completarCadastroUrl = `${siteUrl}/cadastro/morador/completar?profile_id=${profile_id}`;
+    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com/login';
+  const completarCadastroUrl = 'https://jamesavisa.jamesconcierge.com/login';
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!
