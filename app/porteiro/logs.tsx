@@ -225,7 +225,7 @@ export default function ActivityLogs() {
     });
     setRealtimeChannels([]);
     console.log('🧹 Listeners em tempo real removidos');
-  }, [realtimeChannels]);
+  }, []);
 
   useEffect(() => {
     fetchLogs();
@@ -260,21 +260,14 @@ export default function ActivityLogs() {
     return () => {
       cleanupRealtimeListeners();
     };
-  }, [buildingId, setupRealtimeListeners]);
-
-  // Effect para limpar listeners quando buildingId mudar
-    useEffect(() => {
-      return () => {
-        cleanupRealtimeListeners();
-      };
-    }, [cleanupRealtimeListeners]);
+  }, [buildingId, setupRealtimeListeners, cleanupRealtimeListeners]);
 
   // Atualizar logs quando as notificações mudarem (tempo real)
   useEffect(() => {
     if (notifications.length > 0) {
       fetchLogs();
     }
-  }, [notifications, fetchLogs]);
+  }, [notifications]);
 
   // Função transferida do index.tsx para carregar logs de visitantes do histórico
   const loadVisitorLogs = useCallback(async () => {

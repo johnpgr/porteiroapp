@@ -328,10 +328,10 @@ export const usePendingNotifications = () => {
           }[response.delivery_destination] || response.delivery_destination;
           
           title = '✅ Entrega Autorizada';
-          body = `Morador do apt. ${apartmentNumber} autorizou deixar entrega de ${visitorName} ${destinationText}.`;
+          body = `Você ${apartmentNumber} autorizou deixar entrega de ${visitorName} ${destinationText}.`;
         } else {
           title = '✅ Visitante Autorizado';
-          body = `Morador do apt. ${apartmentNumber} autorizou entrada de ${visitorName}.`;
+          body = `Você ${apartmentNumber} autorizou entrada de ${visitorName}.`;
         }
       } else {
         const reasonText = response.reason ? ` Motivo: ${response.reason}` : '';

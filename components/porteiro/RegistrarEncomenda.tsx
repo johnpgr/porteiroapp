@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,13 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
 import { notificationApi } from '../../services/notificationApi';
+import { uploadDeliveryPhoto } from '../../services/photoUploadService';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
@@ -55,8 +57,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   const [descricaoEncomenda, setDescricaoEncomenda] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
 
   // Obter building_id do porteiro
   useEffect(() => {
@@ -345,7 +351,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} facing="back">
+            <CameraView ref={cameraRef} style={styles.camera} facing="back">
               <View style={styles.cameraOverlay}>
                 <View style={styles.cameraFrame}>
                   <Text style={styles.cameraInstructions}>Posicione a encomenda dentro do quadro</Text>
@@ -354,10 +360,68 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                 <View style={styles.cameraControls}>
                   <TouchableOpacity
                     style={styles.captureButton}
-                    onPress={() => {
-                      setFotoTirada(true);
-                    }}>
-                    <View style={styles.captureButtonInner} />
+                    onPress={async () => {
+                      try {
+                        if (cameraRef.current) {
+                          setIsUploadingPhoto(true);
+                          console.log('🎯 TESTE: Iniciando captura de foto...');
+                          const photo = await cameraRef.current.takePictureAsync({
+                            quality: 0.8,
+                            base64: true,
+                          });
+                          
+                          if (photo?.uri) {
+                            console.log('🎯 TESTE: Foto capturada:', {
+                              uri: photo.uri,
+                              width: photo.width,
+                              height: photo.height
+                            });
+                            setPhotoUri(photo.uri);
+                            setFotoTirada(true);
+                            
+                            // Teste simples primeiro
+                            console.log('🎯 TESTE: Verificando se a função uploadDeliveryPhoto existe:', typeof uploadDeliveryPhoto);
+                            
+                            // Upload photo immediately after capture
+                            console.log('🎯 TESTE: Iniciando upload da foto da encomenda...');
+                            console.log('🎯 TESTE: URI da foto:', photo.uri);
+                            console.log('🎯 TESTE: Tamanho da foto:', photo.width, 'x', photo.height);
+                            
+                            try {
+                              const uploadResult = await uploadDeliveryPhoto(photo.uri);
+                              console.log('🎯 TESTE: Resultado completo do upload:', JSON.stringify(uploadResult, null, 2));
+                              
+                              if (uploadResult.success && uploadResult.url) {
+                                setPhotoUrl(uploadResult.url);
+                                console.log('🎯 TESTE: Upload realizado com sucesso! URL:', uploadResult.url);
+                                console.log('🎯 TESTE: PhotoUrl state atualizado para:', uploadResult.url);
+                              } else {
+                                console.error('🎯 TESTE: Erro no upload:', uploadResult.error);
+                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                                setFotoTirada(false);
+                                setPhotoUri(null);
+                              }
+                            } catch (uploadError) {
+                              console.error('🎯 TESTE: Exceção durante upload:', uploadError);
+                              Alert.alert('Erro', 'Exceção durante upload da foto');
+                              setFotoTirada(false);
+                              setPhotoUri(null);
+                            }
+                          }
+                        }
+                      } catch (error) {
+                        console.error('🎯 TESTE: Erro ao tirar foto:', error);
+                        Alert.alert('Erro', 'Falha ao capturar foto');
+                      } finally {
+                        setIsUploadingPhoto(false);
+                      }
+                    }}
+                    disabled={isUploadingPhoto}>
+                    {isUploadingPhoto ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <View style={styles.captureButtonInner} />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -365,16 +429,28 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           </View>
         ) : (
           <View style={styles.photoSuccessContainer}>
+            {photoUri && (
+              <View style={styles.photoPreviewContainer}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              </View>
+            )}
+            
             <View style={styles.photoSuccessIcon}>
               <Text style={styles.photoSuccessEmoji}>✅</Text>
             </View>
             <Text style={styles.photoSuccessTitle}>Foto Capturada!</Text>
-            <Text style={styles.photoSuccessText}>A foto da encomenda foi registrada com sucesso.</Text>
+            <Text style={styles.photoSuccessText}>
+              {photoUrl ? 'A foto foi enviada com sucesso.' : 'A foto da encomenda foi registrada com sucesso.'}
+            </Text>
             
             <View style={styles.photoActionsContainer}>
               <TouchableOpacity
                 style={styles.retakePhotoButton}
-                onPress={() => setFotoTirada(false)}>
+                onPress={() => {
+                  setFotoTirada(false);
+                  setPhotoUri(null);
+                  setPhotoUrl(null);
+                }}>
                 <Text style={styles.retakePhotoButtonText}>📸 Tirar Nova Foto</Text>
               </TouchableOpacity>
               
@@ -420,8 +496,25 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           recipient_name: nomeDestinatario,
           delivery_company: empresaSelecionada.nome,
           description: descricaoEncomenda,
-          notes: observacoes || null
+          notes: observacoes || null,
+          photo_url: photoUrl
         });
+        
+        console.log('🖼️ Estado atual do photoUrl:', photoUrl);
+        console.log('📸 Estado atual do fotoTirada:', fotoTirada);
+
+        console.log('💾 Dados da encomenda a serem salvos:', {
+          apartment_id: selectedApartment.id,
+          building_id: doormanBuildingId,
+          recipient_name: nomeDestinatario,
+          delivery_company: empresaSelecionada.nome,
+          description: descricaoEncomenda,
+          notification_status: 'delivered',
+          received_at: currentTime,
+          notes: observacoes || null,
+          photo_url: photoUrl
+        });
+        console.log('💾 PhotoUrl no momento do salvamento:', photoUrl);
 
         // Inserir dados na tabela deliveries
         const { data: deliveryData, error: deliveryError } = await supabase
@@ -431,10 +524,11 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             building_id: doormanBuildingId,
             recipient_name: nomeDestinatario,
             delivery_company: empresaSelecionada.nome,
-            description: descricaoEncomenda,
-            notification_status: 'delivered',
-            received_at: currentTime,
-            notes: observacoes || null
+          description: descricaoEncomenda,
+          notification_status: 'delivered',
+          received_at: currentTime,
+          notes: observacoes || null,
+          photo_url: photoUrl
           })
           .select('id')
           .single();
@@ -617,6 +711,10 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     setDescricaoEncomenda('');
     setObservacoes('');
     setFotoTirada(false);
+    setPhotoUri(null);
+    setPhotoUrl(null);
+    setIsUploadingPhoto(false);
+    setIsLoading(false);
   };
 
   return (
@@ -1121,18 +1219,22 @@ const styles = StyleSheet.create({
     color: '#FF9800',
     fontWeight: 'bold',
   },
-  photoPreview: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+  photoPreviewContainer: {
+    width: '100%',
+    height: 200,
     borderRadius: 12,
+    overflow: 'hidden',
     marginBottom: 20,
-    padding: 40,
-    minHeight: 400,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   photoPreviewText: {
     fontSize: 18,

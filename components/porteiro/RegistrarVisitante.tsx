@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
@@ -17,6 +18,7 @@ import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 // Removido import incorreto do notificationService
 import { notificationApi } from '../../services/notificationApi';
+import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
 // Funções utilitárias para formatação e validação de CPF
 const formatCPF = (value: string): string => {
@@ -101,8 +103,12 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [cpfVisitante, setCpfVisitante] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [cameraPermission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef(null);
 
   // Obter building_id do porteiro
   useEffect(() => {
@@ -457,27 +463,104 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} facing="back">
+            <CameraView style={styles.camera} facing="back" ref={cameraRef}>
               <View style={styles.cameraOverlay}>
                 <TouchableOpacity
                   style={styles.captureButton}
-                  onPress={() => {
-                    setFotoTirada(true);
-                    setCurrentStep('confirmacao');
-                  }}>
-                  <Text style={styles.captureButtonText}>📸</Text>
+                  onPress={async () => {
+                    if (cameraRef.current) {
+                      try {
+                        setIsUploadingPhoto(true);
+                        console.log('🎯 TESTE VISITANTE: Iniciando captura de foto...');
+                        const photo = await cameraRef.current.takePictureAsync({
+                          quality: 0.8,
+                          base64: true,
+                        });
+                        
+                        if (photo?.uri) {
+                          console.log('🎯 TESTE VISITANTE: Foto capturada:', {
+                            uri: photo.uri,
+                            width: photo.width,
+                            height: photo.height
+                          });
+                          setPhotoUri(photo.uri);
+                          setFotoTirada(true);
+                          
+                          // Teste simples primeiro
+                          console.log('🎯 TESTE VISITANTE: Verificando se a função uploadVisitorPhoto existe:', typeof uploadVisitorPhoto);
+                          
+                          // Upload photo immediately after capture
+                          console.log('🎯 TESTE VISITANTE: Iniciando upload da foto do visitante...');
+                          console.log('🎯 TESTE VISITANTE: URI da foto:', photo.uri);
+                          console.log('🎯 TESTE VISITANTE: Tamanho da foto:', photo.width, 'x', photo.height);
+                          
+                          try {
+                            const uploadResult = await uploadVisitorPhoto(photo.uri);
+                            console.log('🎯 TESTE VISITANTE: Resultado completo do upload:', JSON.stringify(uploadResult, null, 2));
+                            
+                            if (uploadResult.success && uploadResult.url) {
+                              setPhotoUrl(uploadResult.url);
+                              console.log('🎯 TESTE VISITANTE: Upload realizado com sucesso! URL:', uploadResult.url);
+                              console.log('🎯 TESTE VISITANTE: PhotoUrl state atualizado para:', uploadResult.url);
+                              Alert.alert('Sucesso', 'Foto enviada com sucesso!');
+                            } else {
+                              console.error('🎯 TESTE VISITANTE: Erro no upload:', uploadResult.error);
+                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                              setFotoTirada(false);
+                              setPhotoUri(null);
+                            }
+                          } catch (uploadError) {
+                            console.error('🎯 TESTE VISITANTE: Exceção durante upload:', uploadError);
+                            Alert.alert('Erro', 'Exceção durante upload da foto');
+                            setFotoTirada(false);
+                            setPhotoUri(null);
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Erro ao capturar foto:', error);
+                        Alert.alert('Erro', 'Falha ao capturar foto.');
+                      } finally {
+                        setIsUploadingPhoto(false);
+                      }
+                    }
+                  }}
+                  disabled={isUploadingPhoto}>
+                  <Text style={styles.captureButtonText}>
+                    {isUploadingPhoto ? '⏳' : '📸'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </CameraView>
           </View>
         ) : (
           <View style={styles.photoTakenContainer}>
-            <Text style={styles.photoTakenText}>✅ Foto capturada com sucesso!</Text>
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={() => setCurrentStep('confirmacao')}>
-              <Text style={styles.nextButtonText}>Continuar →</Text>
-            </TouchableOpacity>
+            {photoUri && (
+              <View style={styles.photoPreviewContainer}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              </View>
+            )}
+            <Text style={styles.photoTakenText}>
+              {isUploadingPhoto ? '⏳ Enviando foto...' : '✅ Foto capturada com sucesso!'}
+            </Text>
+            {isUploadingPhoto && <ActivityIndicator size="small" color="#4CAF50" />}
+            <View style={styles.photoButtonsContainer}>
+              <TouchableOpacity
+                style={styles.retakeButton}
+                onPress={() => {
+                  setFotoTirada(false);
+                  setPhotoUri(null);
+                  setPhotoUrl(null);
+                  setIsUploadingPhoto(false);
+                }}>
+                <Text style={styles.retakeButtonText}>📸 Tirar Nova Foto</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.nextButton}
+                onPress={() => setCurrentStep('confirmacao')}
+                disabled={isUploadingPhoto}>
+                <Text style={styles.nextButtonText}>Continuar →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -558,20 +641,30 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           entryType = 'service';
         }
 
+        console.log('🖼️ Estado atual do photoUrl no RegistrarVisitante:', photoUrl);
+        console.log('📸 Estado atual do fotoTirada no RegistrarVisitante:', fotoTirada);
+        
         // Inserir log de entrada na tabela visitor_logs
+        const visitorLogData = {
+          visitor_id: visitorId,
+          apartment_id: selectedApartment.id,
+          building_id: user.building_id,
+          log_time: new Date().toISOString(),
+          tipo_log: 'IN',
+          visit_session_id: visitSessionId,
+          purpose: observacoes || purpose,
+          entry_type: entryType,
+          authorized_by: user.id,
+          photo_url: photoUrl
+        };
+        
+        console.log('💾 Dados do log de visitante a serem salvos:', JSON.stringify(visitorLogData, null, 2));
+        console.log('💾 PhotoUrl no momento do salvamento:', photoUrl);
+        console.log('📋 Dados do visitor_log preparados:', visitorLogData);
+        
         const { data: logData, error: logError } = await supabase
           .from('visitor_logs')
-          .insert({
-            visitor_id: visitorId,
-            apartment_id: selectedApartment.id,
-            building_id: user.building_id,
-            log_time: new Date().toISOString(),
-            tipo_log: 'IN',
-            visit_session_id: visitSessionId,
-            purpose: observacoes || purpose,
-            entry_type: entryType,
-            authorized_by: user.id
-          })
+          .insert(visitorLogData)
           .select('id')
           .single();
 
@@ -628,6 +721,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         }
 
         const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
+
+        // Reset form after successful registration
+        resetForm();
 
         if (onConfirm) {
           onConfirm(message);
@@ -710,6 +806,22 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </TouchableOpacity>
       </View>
     );
+  };
+
+  const resetForm = () => {
+    setCurrentStep('apartamento');
+    setApartamento('');
+    setSelectedApartment(null);
+    setTipoVisita('');
+    setEmpresaPrestador('');
+    setEmpresaEntrega('');
+    setNomeVisitante('');
+    setCpfVisitante('');
+    setObservacoes('');
+    setFotoTirada(false);
+    setPhotoUri(null);
+    setPhotoUrl(null);
+    setIsUploadingPhoto(false);
   };
 
   const renderCurrentStep = () => {
@@ -972,6 +1084,35 @@ const styles = StyleSheet.create({
   photoTakenText: {
     fontSize: 18,
     color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  photoPreviewContainer: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  photoButtonsContainer: {
+    flexDirection: 'row',
+    gap: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  retakeButton: {
+    backgroundColor: '#ff9800',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retakeButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: 'bold',
   },
   summaryContainer: {
