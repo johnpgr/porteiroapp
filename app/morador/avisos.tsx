@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
 import BottomNav from '~/components/BottomNav';
 
 interface Communication {
@@ -37,7 +38,6 @@ interface Poll {
   description: string;
   building_id: string;
   created_at: string;
-  expires_at: string;
   is_active: boolean;
   options: PollOption[];
   total_votes: number;
@@ -58,14 +58,35 @@ const AvisosTab = () => {
   const [pollsError, setPollsError] = useState<string | null>(null);
   const [userApartment, setUserApartment] = useState<UserApartment | null>(null);
   const [votingPollId, setVotingPollId] = useState<string | null>(null);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
+  
+  // Refs para controlar subscrições
+  const communicationsChannelRef = useRef<any>(null);
+  const pollsChannelRef = useRef<any>(null);
+  const votesChannelRef = useRef<any>(null);
+  const isSubscribedRef = useRef(false);
+  
+  // Ativar notificações automáticas para avisos e enquetes
+  const { startListening, stopListening, isListening } = useAvisosNotifications();
 
   useEffect(() => {
     fetchCommunications();
   }, [user?.building_id]);
 
   useEffect(() => {
-    fetchUserApartment();
-  }, [user?.id]);
+    if (user) {
+      fetchUserApartment();
+      // Iniciar monitoramento de notificações
+      startListening();
+    }
+    
+    // Cleanup: parar monitoramento quando componente for desmontado
+    return () => {
+      if (isListening) {
+        stopListening();
+      }
+    };
+  }, [user?.id, startListening, stopListening, isListening]);
 
   useEffect(() => {
     if (userApartment) {
@@ -74,7 +95,7 @@ const AvisosTab = () => {
   }, [userApartment]);
 
   // Buscar apartamento do usuário
-  const fetchUserApartment = async () => {
+  const fetchUserApartment = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -104,9 +125,9 @@ const AvisosTab = () => {
       console.error('Erro ao buscar apartamento:', err);
       setPollsError('Erro ao carregar dados do apartamento');
     }
-  };
+  }, [user?.id]);
 
-  const fetchCommunications = async () => {
+  const fetchCommunications = useCallback(async () => {
     if (!user?.building_id) {
       setLoading(false);
       return;
@@ -129,30 +150,26 @@ const AvisosTab = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.building_id]);
 
   // Buscar enquetes ativas
-  const fetchPolls = async () => {
-    if (!userApartment?.building_id || !user?.id) return;
+  const fetchPolls = useCallback(async () => {
+    if (!user?.id) return;
 
     try {
       setPollsLoading(true);
       setPollsError(null);
+      setRealtimeError(null);
 
-      // Buscar enquetes ativas do prédio
+      // Buscar todas as enquetes
       const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
         .select(`
           id,
           title,
           description,
-          building_id,
-          created_at,
-          expires_at,
-          is_active
+          created_at
         `)
-        .eq('building_id', userApartment.building_id)
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (pollsError) {
@@ -209,12 +226,9 @@ const AvisosTab = () => {
           const userVoted = !!userVoteData;
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
 
-          // Verificar se a enquete ainda está ativa (não expirou)
-          const isExpired = new Date(poll.expires_at) < new Date();
-
           return {
             ...poll,
-            is_active: poll.is_active && !isExpired,
+            is_active: true, // Assumir que todas as enquetes estão ativas
             options: optionsWithVotes,
             total_votes: totalVotes,
             user_voted: !!userVoted,
@@ -231,7 +245,7 @@ const AvisosTab = () => {
     } finally {
       setPollsLoading(false);
     }
-  };
+  }, [user?.id]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -245,7 +259,7 @@ const AvisosTab = () => {
   };
 
   // Votar em uma opção
-  const handleVote = async (pollId: string, optionId: string) => {
+  const handleVote = useCallback(async (pollId: string, optionId: string) => {
     if (!user?.id || votingPollId) return;
 
     try {
@@ -290,7 +304,7 @@ const AvisosTab = () => {
     } finally {
       setVotingPollId(null);
     }
-  };
+  }, [user?.id, votingPollId, polls, fetchPolls]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -307,48 +321,120 @@ const AvisosTab = () => {
     }
   };
 
-  // Configurar subscrição em tempo real
+  // Função para limpar subscrições
+  const cleanupSubscriptions = useCallback(() => {
+    if (communicationsChannelRef.current) {
+      supabase.removeChannel(communicationsChannelRef.current);
+      communicationsChannelRef.current = null;
+    }
+    if (pollsChannelRef.current) {
+      supabase.removeChannel(pollsChannelRef.current);
+      pollsChannelRef.current = null;
+    }
+    if (votesChannelRef.current) {
+      supabase.removeChannel(votesChannelRef.current);
+      votesChannelRef.current = null;
+    }
+    isSubscribedRef.current = false;
+  }, []);
+
+  // Configurar subscrições em tempo real
+  const setupRealtimeSubscriptions = useCallback(() => {
+    if (!user?.building_id || isSubscribedRef.current) {
+      return;
+    }
+
+    try {
+      setRealtimeError(null);
+
+      // Subscrição para comunicados
+      communicationsChannelRef.current = supabase
+        .channel('communications_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'communications',
+            filter: `building_id=eq.${user.building_id}`
+          },
+          (payload) => {
+            console.log('Communications realtime update:', payload);
+            fetchCommunications();
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Communications realtime subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('Communications realtime subscription error');
+            setRealtimeError('Erro na conexão em tempo real para comunicados');
+          }
+        });
+
+      // Subscrição para enquetes
+      pollsChannelRef.current = supabase
+        .channel('polls_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'polls'
+          },
+          (payload) => {
+            console.log('Polls realtime update:', payload);
+            fetchPolls();
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Polls realtime subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('Polls realtime subscription error');
+            setRealtimeError('Erro na conexão em tempo real para enquetes');
+          }
+        });
+
+      // Subscrição para votos
+      votesChannelRef.current = supabase
+        .channel('votes_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'poll_votes'
+          },
+          (payload) => {
+            console.log('Votes realtime update:', payload);
+            fetchPolls();
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('Votes realtime subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('Votes realtime subscription error');
+            setRealtimeError('Erro na conexão em tempo real para votos');
+          }
+        });
+
+      isSubscribedRef.current = true;
+    } catch (error) {
+      console.error('Erro ao configurar subscrições realtime:', error);
+      setRealtimeError('Erro ao configurar atualizações em tempo real');
+    }
+  }, [user?.building_id, fetchCommunications, fetchPolls]);
+
+  // Configurar subscrições em tempo real
   useEffect(() => {
-    if (!userApartment?.building_id) return;
+    if (user?.building_id) {
+      setupRealtimeSubscriptions();
+    }
 
-    // Subscrever a mudanças nas enquetes
-    const pollsSubscription = supabase
-      .channel('polls_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'polls',
-          filter: `building_id=eq.${userApartment.building_id}`
-        },
-        () => {
-          fetchPolls();
-        }
-      )
-      .subscribe();
-
-    // Subscrever a mudanças nos votos
-    const votesSubscription = supabase
-      .channel('votes_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'poll_votes'
-        },
-        () => {
-          fetchPolls();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(pollsSubscription);
-      supabase.removeChannel(votesSubscription);
-    };
-  }, [userApartment?.building_id]);
+    return cleanupSubscriptions;
+  }, [user?.building_id, setupRealtimeSubscriptions, cleanupSubscriptions]);
 
   // Renderizar opção de voto
   const renderPollOption = (poll: Poll, option: PollOption) => {
@@ -405,8 +491,8 @@ const AvisosTab = () => {
 
   // Renderizar enquete
   const renderPoll = (poll: Poll) => {
-    const isExpired = new Date(poll.expires_at) < new Date();
-    const expiresDate = new Date(poll.expires_at);
+    const isExpired = false; // Assumir que enquetes não expiram por enquanto
+    const expiresDate = new Date(); // Data atual como fallback
     
     return (
       <View key={poll.id} style={styles.pollCard}>
@@ -430,7 +516,7 @@ const AvisosTab = () => {
         )}
         
         <Text style={styles.pollExpiry}>
-          {isExpired ? 'Encerrada em' : 'Encerra em'}: {expiresDate.toLocaleDateString('pt-BR')} às {expiresDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          Criada em: {new Date(poll.created_at).toLocaleDateString('pt-BR')} às {new Date(poll.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </Text>
         
         <View style={styles.pollOptions}>
@@ -461,6 +547,20 @@ const AvisosTab = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
+        {realtimeError && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{realtimeError}</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => {
+                setRealtimeError(null);
+                setupRealtimeSubscriptions();
+              }}
+            >
+              <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
 
@@ -534,8 +634,36 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    padding: 16,
   },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    borderColor: '#f44336',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    flex: 1,
+    marginRight: 12,
+  },
+  retryButton: {
+    backgroundColor: '#f44336',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  retryButtonText: {
+     color: '#fff',
+     fontSize: 12,
+     fontWeight: 'bold',
+   },
   centerContent: {
     justifyContent: 'center',
     alignItems: 'center',

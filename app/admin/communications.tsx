@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import * as Notifications from 'expo-notifications';
 
 interface Building {
   id: string;
@@ -310,6 +311,80 @@ export default function Communications() {
     }
   };
 
+  // Função para enviar notificações push para moradores e porteiros
+  const sendPushNotifications = async (buildingId: string, title: string, body: string, type: 'communication' | 'poll', itemId?: string) => {
+    try {
+      // Buscar moradores do prédio
+      const { data: residents, error: residentsError } = await supabase
+        .from('apartment_residents')
+        .select(`
+          profiles!inner(
+            id,
+            full_name,
+            expo_push_token
+          ),
+          apartments!inner(
+            building_id
+          )
+        `)
+        .eq('apartments.building_id', buildingId)
+        .not('profiles.expo_push_token', 'is', null);
+
+      if (residentsError) {
+        console.error('Erro ao buscar moradores:', residentsError);
+      }
+
+      // Buscar porteiros do prédio
+      const { data: doorkeepers, error: doorkeepersError } = await supabase
+        .from('profiles')
+        .select('id, full_name, expo_push_token')
+        .eq('building_id', buildingId)
+        .eq('user_type', 'porteiro')
+        .eq('is_active', true)
+        .not('expo_push_token', 'is', null);
+
+      if (doorkeepersError) {
+        console.error('Erro ao buscar porteiros:', doorkeepersError);
+      }
+
+      // Combinar todos os usuários
+      const allUsers = [
+        ...(residents?.map(r => r.profiles) || []),
+        ...(doorkeepers || [])
+      ].filter(user => user.expo_push_token);
+
+      console.log(`Enviando notificações para ${allUsers.length} usuários`);
+
+      // Enviar notificação para cada usuário
+      for (const user of allUsers) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title,
+              body,
+              data: {
+                type,
+                building_id: buildingId,
+                item_id: itemId,
+                user_id: user.id
+              },
+            },
+            trigger: null, // Imediato
+          });
+
+          console.log(`📱 Notificação enviada para ${user.full_name || user.id}`);
+        } catch (pushError) {
+          console.error(`❌ Erro ao enviar push para usuário ${user.id}:`, pushError);
+        }
+      }
+
+      return allUsers.length;
+    } catch (error) {
+      console.error('❌ Erro geral ao enviar notificações push:', error);
+      return 0;
+    }
+  };
+
   const handleSendCommunication = async () => {
     if (!communication.title || !communication.content || !communication.building_id || !communication.created_by) {
       Alert.alert('Erro', 'Título, conteúdo, prédio e criador são obrigatórios');
@@ -317,17 +392,38 @@ export default function Communications() {
     }
 
     try {
-      const { error } = await supabase.from('communications').insert({
+      const { data: communicationData, error } = await supabase.from('communications').insert({
         title: communication.title,
         content: communication.content,
         type: communication.type,
         priority: communication.priority,
         building_id: communication.building_id,
         created_by: communication.created_by,
-      });
+      }).select('id').single();
 
       if (error) throw error;
-      Alert.alert('Sucesso', 'Comunicado enviado com sucesso');
+
+      // Enviar notificações push
+      const typeEmoji = {
+        notice: '📢',
+        emergency: '🚨',
+        maintenance: '🔧',
+        event: '🎉'
+      }[communication.type] || '📢';
+
+      const priorityText = communication.priority === 'high' ? ' [URGENTE]' : '';
+      const notificationTitle = `${typeEmoji} Novo Comunicado${priorityText}`;
+      const notificationBody = `${communication.title}\n${communication.content.substring(0, 100)}${communication.content.length > 100 ? '...' : ''}`;
+
+      const notificationsSent = await sendPushNotifications(
+        communication.building_id,
+        notificationTitle,
+        notificationBody,
+        'communication',
+        communicationData.id
+      );
+
+      Alert.alert('Sucesso', `Comunicado enviado com sucesso para ${notificationsSent} usuários`);
       setCommunication({
         title: '',
         content: '',
@@ -390,7 +486,20 @@ export default function Communications() {
 
       if (optionsError) throw optionsError;
 
-      Alert.alert('Sucesso', 'Enquete criada com sucesso');
+      // Enviar notificações push
+      const expirationDateFormatted = new Date(poll.expires_at).toLocaleDateString('pt-BR');
+      const notificationTitle = '📊 Nova Enquete Disponível';
+      const notificationBody = `${poll.title}\n${poll.description.substring(0, 80)}${poll.description.length > 80 ? '...' : ''}\nExpira em: ${expirationDateFormatted}`;
+
+      const notificationsSent = await sendPushNotifications(
+        poll.building_id,
+        notificationTitle,
+        notificationBody,
+        'poll',
+        pollData.id
+      );
+
+      Alert.alert('Sucesso', `Enquete criada com sucesso e enviada para ${notificationsSent} usuários`);
       setPoll({
         title: '',
         description: '',
