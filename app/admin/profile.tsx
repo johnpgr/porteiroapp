@@ -83,7 +83,7 @@ export default function AdminProfilePage() {
         return;
       }
       
-      console.log('✅ [AdminProfile] Perfil encontrado:', data);
+      // Perfil encontrado
       setProfile(data);
       
       setFormData({

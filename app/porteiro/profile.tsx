@@ -75,7 +75,7 @@ export default function PorteiroProfile() {
         return;
       }
 
-      console.log('✅ Perfil encontrado:', data);
+      // Perfil encontrado
 
       if (!data) {
         Alert.alert('Perfil não encontrado', 'Nenhum perfil de porteiro foi encontrado.');

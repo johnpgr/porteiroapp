@@ -264,7 +264,6 @@ export default function VisitorManagement() {
           apartments!inner(number)
         `)
         .eq('document', newVisitor.document.trim())
-        .eq('is_active', true)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -341,7 +340,6 @@ export default function VisitorManagement() {
             photo_url: photoUrl,
             visitor_type: newVisitor.visitor_type,
             notification_status: 'approved', // Porteiro pode aprovar diretamente
-            is_active: true,
           })
           .eq('id', existingVisitor.id);
 
@@ -356,7 +354,6 @@ export default function VisitorManagement() {
           photo_url: photoUrl,
           visitor_type: newVisitor.visitor_type,
           notification_status: 'approved', // Porteiro pode aprovar diretamente
-          is_active: true,
         });
 
         if (insertError) throw insertError;

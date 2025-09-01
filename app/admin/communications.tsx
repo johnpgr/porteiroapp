@@ -334,23 +334,9 @@ export default function Communications() {
         console.error('Erro ao buscar moradores:', residentsError);
       }
 
-      // Buscar porteiros do prédio
-      const { data: doorkeepers, error: doorkeepersError } = await supabase
-        .from('profiles')
-        .select('id, full_name, expo_push_token')
-        .eq('building_id', buildingId)
-        .eq('user_type', 'porteiro')
-        .eq('is_active', true)
-        .not('expo_push_token', 'is', null);
-
-      if (doorkeepersError) {
-        console.error('Erro ao buscar porteiros:', doorkeepersError);
-      }
-
-      // Combinar todos os usuários
+      // Apenas moradores recebem comunicados - porteiros removidos conforme solicitado
       const allUsers = [
-        ...(residents?.map(r => r.profiles) || []),
-        ...(doorkeepers || [])
+        ...(residents?.map(r => r.profiles) || [])
       ].filter(user => user.expo_push_token);
 
       console.log(`Enviando notificações para ${allUsers.length} usuários`);

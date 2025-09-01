@@ -129,7 +129,7 @@ export const useAvisosNotifications = () => {
         }
       });
       
-      console.log('✅ Serviço integrado inicializado com sucesso');
+      // Serviço integrado inicializado com sucesso
     } catch (err) {
       console.error('❌ Erro ao inicializar serviço integrado:', err);
       setError('Erro ao inicializar notificações');
@@ -329,7 +329,7 @@ export const useAvisosNotifications = () => {
       await integratedNotificationService.startListening();
       setIsListening(true);
       
-      console.log('✅ Monitoramento integrado iniciado com sucesso');
+      // Monitoramento integrado iniciado com sucesso
       
     } catch (err) {
       console.error('❌ Erro ao iniciar monitoramento:', err);
@@ -460,7 +460,7 @@ export const useAvisosNotifications = () => {
       setNotifications(allNotifications.slice(0, limit));
       setUnreadCount(unreadCounter);
       
-      console.log(`✅ ${allNotifications.length} notificações carregadas (${unreadCounter} não lidas)`);
+      // Notificações carregadas
       
     } catch (err) {
       console.error('❌ Erro ao buscar notificações recentes:', err);

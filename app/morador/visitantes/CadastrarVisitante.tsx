@@ -501,8 +501,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
             name: nomeVisitante,
             document: cleanCPF(cpfVisitante), // Salva apenas números no banco
             phone: null,
-            photo_url: fotoTirada || null,
-            is_active: true
+            photo_url: fotoTirada || null
           };
           console.log('🔍 DEBUG: Dados do novo visitante:', visitorData);
           

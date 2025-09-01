@@ -157,7 +157,6 @@ interface Visitor {
   visitor_type: string;
   created_at: string;
   updated_at: string;
-  is_active: boolean;
   apartment_id: string;
   registration_token?: string;
   token_expires_at?: string;
@@ -334,11 +333,9 @@ export default function VisitantesTab() {
           visitor_type,
           created_at,
           updated_at,
-          is_active,
           apartment_id
         `)
         .eq('apartment_id', currentApartmentId)
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (visitorsError) {
@@ -360,7 +357,6 @@ export default function VisitantesTab() {
         visitor_type: visitor.visitor_type || 'comum',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
-        is_active: visitor.is_active,
         apartment_id: visitor.apartment_id
       }));
 
@@ -818,7 +814,6 @@ export default function VisitantesTab() {
         apartment_id: currentApartmentId,
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
-        is_active: true,
         visit_type: preRegistrationData.visit_type,
         visit_start_time: preRegistrationData.visit_start_time,
         visit_end_time: preRegistrationData.visit_end_time,

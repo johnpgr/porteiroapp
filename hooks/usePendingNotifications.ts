@@ -303,8 +303,7 @@ export const usePendingNotifications = () => {
         .from('profiles')
         .select('id, full_name')
         .eq('building_id', buildingId)
-        .eq('user_type', 'porteiro')
-        .eq('is_active', true);
+        .eq('user_type', 'porteiro');
 
       if (doorkeepersError || !doorkeepers || doorkeepers.length === 0) {
         console.warn('Nenhum porteiro encontrado para notificar:', doorkeepersError);

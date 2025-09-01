@@ -371,7 +371,7 @@ export const adminAuth = {
   // Obter perfil do administrador com melhorias para iOS
   async getAdminProfile(userId: string): Promise<AdminProfile | null> {
     try {
-      console.log('📋 Buscando perfil do administrador:', { userId, platform: Platform.OS });
+      // Buscando perfil do administrador
 
       // Timeout maior para iOS
       const timeoutMs = Platform.OS === 'ios' ? 12000 : 8000;
@@ -391,19 +391,12 @@ export const adminAuth = {
 
       // Verifica se há dados retornados
       if (!data || data.length === 0) {
-        console.log('⚠️ Nenhum perfil de administrador encontrado para o usuário:', { 
-          userId, 
-          platform: Platform.OS 
-        });
+        // Nenhum perfil de administrador encontrado
         return null;
       }
 
       const adminProfile = data[0];
-      console.log('✅ Perfil encontrado:', { 
-        adminId: adminProfile?.id, 
-        role: adminProfile?.role,
-        platform: Platform.OS 
-      });
+      // Perfil encontrado
       return adminProfile;
     } catch (error) {
       console.error('💥 Erro ao buscar perfil do administrador:', { 
@@ -447,7 +440,7 @@ export const adminAuth = {
   // Verificar se o usuário atual é administrador com melhorias para iOS
   async getCurrentAdmin(): Promise<AdminProfile | null> {
     try {
-      console.log('🔍 Verificando administrador atual...', { platform: Platform.OS });
+      // Verificando administrador atual
 
       // Timeout maior para iOS
       const userTimeoutMs = Platform.OS === 'ios' ? 8000 : 5000;
@@ -462,20 +455,14 @@ export const adminAuth = {
         return null;
       }
 
-      console.log('👤 Usuário encontrado, buscando perfil admin:', { 
-        userId: user.id, 
-        platform: Platform.OS 
-      });
+      // Usuário encontrado, buscando perfil admin
 
       // Timeout maior para iOS na busca do perfil
       const profileTimeoutMs = Platform.OS === 'ios' ? 8000 : 5000;
       const adminProfile = await withTimeout(this.getAdminProfile(user.id), profileTimeoutMs);
 
       if (adminProfile) {
-        console.log('✅ Perfil de administrador encontrado:', { 
-          adminId: adminProfile.id,
-          platform: Platform.OS 
-        });
+        // Perfil de administrador encontrado
       } else {
         console.log('❌ Perfil de administrador não encontrado', { platform: Platform.OS });
       }

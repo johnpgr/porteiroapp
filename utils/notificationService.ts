@@ -96,7 +96,6 @@ export class NotificationService {
           device_type: tokenData.deviceType,
           notification_token: tokenData.token,
           device_info: tokenData.deviceInfo,
-          is_active: true,
         }, {
           onConflict: 'user_id,notification_token'
         });
@@ -118,11 +117,8 @@ export class NotificationService {
     if (!this.currentToken) return;
 
     try {
-      await supabase
-        .from('user_notification_tokens')
-        .update({ is_active: isActive })
-        .eq('user_id', userId)
-        .eq('notification_token', this.currentToken);
+      // Token status management removed - tokens are managed by presence
+      console.log('Token status update requested but not implemented');
     } catch (error) {
       console.error('Error updating token status:', error);
     }

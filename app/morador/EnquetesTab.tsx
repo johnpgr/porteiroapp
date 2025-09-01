@@ -85,14 +85,14 @@ export default function EnquetesTab() {
         .select(`
           id,
           title,
+          question,
           description,
           building_id,
+          created_by,
           created_at,
-          expires_at,
-          is_active
+          expires_at
         `)
         .eq('building_id', userApartment.building_id)
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (pollsError) {
@@ -154,7 +154,7 @@ export default function EnquetesTab() {
 
           return {
             ...poll,
-            is_active: poll.is_active && !isExpired,
+            is_active: !isExpired, // Apenas baseado na data de expiração
             options: optionsWithVotes,
             total_votes: totalVotes,
             user_voted: !!userVoted,

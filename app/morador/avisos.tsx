@@ -226,9 +226,11 @@ const AvisosTab = () => {
           const userVoted = !!userVoteData;
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
 
+          const isExpired = new Date(poll.expires_at) < new Date();
+          
           return {
             ...poll,
-            is_active: true, // Assumir que todas as enquetes estão ativas
+            is_active: !isExpired, // Baseado apenas na data de expiração
             options: optionsWithVotes,
             total_votes: totalVotes,
             user_voted: !!userVoted,
@@ -383,7 +385,7 @@ const AvisosTab = () => {
             table: 'polls'
           },
           (payload) => {
-            console.log('Polls realtime update:', payload);
+            // Polls realtime update
             fetchPolls();
           }
         )

@@ -107,7 +107,6 @@ export default function PreregisterScreen() {
         document: formData.document.trim(),
         phone: formData.phone.trim() || null,
         photo_url: formData.photo_url || null,
-        is_active: true,
       });
 
       if (error) throw error;

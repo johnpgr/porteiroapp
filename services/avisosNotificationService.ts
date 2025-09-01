@@ -297,8 +297,9 @@ class AvisosNotificationService {
     try {
       console.log('🗳️ Nova enquete detectada:', poll);
 
-      // Verificar se a enquete está ativa
-      if (!poll.is_active) {
+      // Verificar se a enquete não expirou
+      const isExpired = poll.expires_at && new Date(poll.expires_at) < new Date();
+      if (isExpired) {
         return;
       }
 
