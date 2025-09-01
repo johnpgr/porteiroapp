@@ -1093,6 +1093,8 @@ export default function UsersManagement() {
       // Se for porteiro, criar usuário no Supabase Auth primeiro
       if (newUser.type === 'porteiro') {
         console.log('🔐 [DEBUG] Criando login para porteiro...');
+        console.log('🔐 [DEBUG] Email:', newUser.email);
+        console.log('🔐 [DEBUG] Nome:', newUser.name);
         
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: newUser.email,
@@ -1107,15 +1109,19 @@ export default function UsersManagement() {
 
         if (authError) {
           console.error('❌ [DEBUG] Erro ao criar login:', authError);
+          console.error('❌ [DEBUG] Detalhes do erro:', JSON.stringify(authError, null, 2));
           throw new Error(`Erro ao criar login: ${authError.message}`);
         }
 
         if (!authData.user) {
+          console.error('❌ [DEBUG] authData.user é null ou undefined');
+          console.error('❌ [DEBUG] authData completo:', JSON.stringify(authData, null, 2));
           throw new Error('Falha ao criar usuário de autenticação');
         }
 
         authUserId = authData.user.id;
         console.log('✅ [DEBUG] Login criado com sucesso. User ID:', authUserId);
+        console.log('✅ [DEBUG] authData.user completo:', JSON.stringify(authData.user, null, 2));
       }
       
       // Preparar dados base do usuário
@@ -1126,7 +1132,7 @@ export default function UsersManagement() {
 
       // Se for porteiro, usar o ID do auth.users
       if (newUser.type === 'porteiro' && authUserId) {
-        userData.id = authUserId;
+        userData.user_id = authUserId;
         userData.cpf = newUser.cpf;
         userData.email = newUser.email;
         userData.birth_date = newUser.birthDate;
@@ -1176,7 +1182,8 @@ export default function UsersManagement() {
         userData.user_type = 'morador';
       }
 
-      console.log('🚀 [DEBUG] userData criado:', userData);
+      console.log('🚀 [DEBUG] userData criado:', JSON.stringify(userData, null, 2));
+      console.log('🚀 [DEBUG] Inserindo na tabela profiles...');
 
       const { data: insertedUser, error } = await supabase
         .from('profiles')
@@ -1185,6 +1192,10 @@ export default function UsersManagement() {
         .single();
 
       if (error) {
+        console.error('❌ [DEBUG] Erro ao inserir na tabela profiles:', error);
+        console.error('❌ [DEBUG] Detalhes do erro:', JSON.stringify(error, null, 2));
+        console.error('❌ [DEBUG] userData que causou erro:', JSON.stringify(userData, null, 2));
+        
         // Se houve erro ao inserir o profile e foi criado um usuário auth, fazer rollback
         if (authUserId) {
           console.log('🔄 [DEBUG] Fazendo rollback do usuário auth...');
@@ -1194,7 +1205,10 @@ export default function UsersManagement() {
         throw error;
       }
 
-      console.log('🚀 [DEBUG] usuário inserido:', insertedUser);
+      console.log('✅ [DEBUG] Usuário inserido com sucesso na tabela profiles');
+      console.log('✅ [DEBUG] insertedUser:', JSON.stringify(insertedUser, null, 2));
+      console.log('✅ [DEBUG] Verificando vinculação - user_id no profile:', insertedUser?.user_id);
+      console.log('✅ [DEBUG] Verificando vinculação - authUserId original:', authUserId);
 
       // Se for morador, associar aos apartamentos selecionados e gerar senha temporária
       if (newUser.type === 'morador') {

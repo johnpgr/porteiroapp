@@ -173,6 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearInterval(sessionCheckIntervalRef.current);
         sessionCheckIntervalRef.current = null;
       }
+      if (authStateChangeTimeoutRef.current) {
+        clearTimeout(authStateChangeTimeoutRef.current);
+        authStateChangeTimeoutRef.current = null;
+      }
       
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -183,8 +187,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await TokenStorage.clearAll();
       
       setUser(null);
+      
+      // Limpa refs de controle
+      lastLoadedRef.current = null;
+      loadingProfileRef.current = false;
+      lastAuthEventRef.current = null;
+      
     } catch (error) {
       logError('Erro no logout:', error);
+      // Mesmo com erro, limpa o estado local
+      setUser(null);
+      
+      // Força limpeza dos dados mesmo com erro
+      try {
+        await TokenStorage.clearAll();
+      } catch (clearError) {
+        logError('Erro ao limpar storage durante logout:', clearError);
+      }
     } finally {
       setLoading(false);
     }
