@@ -120,8 +120,33 @@ export default function ActivityLogs() {
     }
   };
 
-  // Função para configurar listeners em tempo real
-  const setupRealtimeListeners = useCallback(() => {
+
+
+  useEffect(() => {
+    fetchLogs();
+  }, [filter, timeFilter]);
+
+  // Effect para obter o building_id do porteiro logado
+  useEffect(() => {
+    const getBuildingId = async () => {
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('building_id')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile?.building_id) {
+          setBuildingId(profile.building_id);
+        }
+      }
+    };
+    
+    getBuildingId();
+  }, [user?.id]);
+
+  // Effect para configurar listeners em tempo real
+  useEffect(() => {
     if (!buildingId) return;
 
     const channels: RealtimeChannel[] = [];
@@ -164,7 +189,7 @@ export default function ActivityLogs() {
           }
           
           // Recarregar dados
-          fetchVisitorLogs();
+          fetchLogs();
         }
       )
       .subscribe();
@@ -207,7 +232,7 @@ export default function ActivityLogs() {
           }
           
           // Recarregar dados
-          fetchDeliveryLogs();
+          fetchLogs();
         }
       )
       .subscribe();
@@ -216,51 +241,16 @@ export default function ActivityLogs() {
     setRealtimeChannels(channels);
 
     console.log('✅ Listeners em tempo real configurados para o prédio:', buildingId);
-  }, [buildingId]);
-
-  // Função para limpar listeners
-  const cleanupRealtimeListeners = useCallback(() => {
-    realtimeChannels.forEach(channel => {
-      supabase.removeChannel(channel);
-    });
-    setRealtimeChannels([]);
-    console.log('🧹 Listeners em tempo real removidos');
-  }, []);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [filter, timeFilter]);
-
-  // Effect para obter o building_id do porteiro logado
-  useEffect(() => {
-    const getBuildingId = async () => {
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('building_id')
-          .eq('id', user.id)
-          .single();
-        
-        if (profile?.building_id) {
-          setBuildingId(profile.building_id);
-        }
-      }
-    };
-    
-    getBuildingId();
-  }, [user?.id]);
-
-  // Effect para configurar listeners em tempo real
-  useEffect(() => {
-    if (buildingId) {
-      setupRealtimeListeners();
-    }
     
     // Cleanup ao desmontar o componente
     return () => {
-      cleanupRealtimeListeners();
+      channels.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      setRealtimeChannels([]);
+      console.log('🧹 Listeners em tempo real removidos');
     };
-  }, [buildingId, setupRealtimeListeners, cleanupRealtimeListeners]);
+  }, [buildingId]);
 
   // Atualizar logs quando as notificações mudarem (tempo real)
   useEffect(() => {
