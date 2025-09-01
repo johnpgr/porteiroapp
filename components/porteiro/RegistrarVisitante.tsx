@@ -18,6 +18,34 @@ import { useAuth } from '../../hooks/useAuth';
 // Removido import incorreto do notificationService
 import { notificationApi } from '../../services/notificationApi';
 
+// Funções utilitárias para formatação e validação de CPF
+const formatCPF = (value: string): string => {
+  // Remove todos os caracteres não numéricos
+  const numericOnly = value.replace(/\D/g, '');
+  
+  // Limita a 11 dígitos
+  const limited = numericOnly.slice(0, 11);
+  
+  // Aplica a máscara XXX.XXX.XXX-XX
+  if (limited.length <= 3) {
+    return limited;
+  } else if (limited.length <= 6) {
+    return `${limited.slice(0, 3)}.${limited.slice(3)}`;
+  } else if (limited.length <= 9) {
+    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6)}`;
+  } else {
+    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6, 9)}-${limited.slice(9)}`;
+  }
+};
+
+const isValidCPF = (cpf: string): boolean => {
+  // Remove caracteres não numéricos
+  const numericOnly = cpf.replace(/\D/g, '');
+  
+  // Verifica se tem exatamente 11 dígitos
+  return numericOnly.length === 11;
+};
+
 type FlowStep =
   | 'apartamento'
   | 'tipo'
@@ -73,6 +101,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [cpfVisitante, setCpfVisitante] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   // Obter building_id do porteiro
@@ -357,7 +386,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <TextInput
           style={styles.textInput}
           value={cpfVisitante}
-          onChangeText={setCpfVisitante}
+          onChangeText={(text) => {
+            const formattedCPF = formatCPF(text);
+            setCpfVisitante(formattedCPF);
+          }}
           placeholder="000.000.000-00"
           keyboardType="numeric"
           autoFocus
@@ -365,13 +397,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         />
 
         <TouchableOpacity
-          style={flattenStyles([styles.nextButton, !cpfVisitante && styles.nextButtonDisabled])}
+          style={flattenStyles([styles.nextButton, !isValidCPF(cpfVisitante) && styles.nextButtonDisabled])}
           onPress={() => {
-            if (cpfVisitante.trim()) {
+            if (isValidCPF(cpfVisitante)) {
               setCurrentStep('observacoes');
             }
           }}
-          disabled={!cpfVisitante.trim()}>
+          disabled={!isValidCPF(cpfVisitante)}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
       </View>
@@ -454,6 +486,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
+      if (isSubmitting) return; // Evitar múltiplos cliques
+      
+      setIsSubmitting(true);
       try {
         // Verificar se o porteiro está logado e tem building_id
         if (!user || !user.building_id) {
@@ -603,6 +638,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       } catch (error) {
         console.error('Erro geral ao registrar visitante:', error);
         Alert.alert('Erro', 'Falha inesperada ao registrar visitante. Verifique sua conexão e tente novamente.');
+      } finally {
+        setIsSubmitting(false);
       }
     };
 
@@ -657,8 +694,19 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           )}
         </View>
 
-        <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
-          <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
+        <TouchableOpacity 
+          style={[styles.confirmFinalButton, isSubmitting && styles.confirmFinalButtonDisabled]} 
+          onPress={handleConfirm}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.confirmFinalButtonText}>Registrando...</Text>
+            </View>
+          ) : (
+            <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -955,6 +1003,10 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  confirmFinalButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.7,
   },
   confirmFinalButtonText: {
     color: '#fff',
