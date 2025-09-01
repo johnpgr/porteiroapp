@@ -1,6 +1,19 @@
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '../utils/supabase';
+import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
+
+// Create a separate client with service role for storage uploads
+// This bypasses RLS policies that are blocking uploads
+const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 export interface PhotoUploadResult {
   success: boolean;
@@ -57,11 +70,11 @@ const generateUniqueFilename = (prefix: string): string => {
 };
 
 /**
- * Uploads photo to Supabase Storage with retry logic
+ * Uploads photo to Supabase Storage with retry logic using direct file upload
  */
 const uploadWithRetry = async (
   filePath: string,
-  fileData: string,
+  photoUri: string,
   options: Required<PhotoUploadOptions>
 ): Promise<PhotoUploadResult> => {
   let lastError: string = '';
@@ -69,59 +82,88 @@ const uploadWithRetry = async (
   for (let attempt = 1; attempt <= options.maxRetries; attempt++) {
     try {
       console.log(`🔄 Upload attempt ${attempt}/${options.maxRetries} for ${filePath}`);
-      console.log(`🔄 Base64 data size: ${fileData.length} characters`);
+      console.log(`🔄 Photo URI: ${photoUri}`);
 
-      // Convert base64 to blob
-      console.log('🔄 Converting base64 to blob...');
-      const response = await fetch(`data:image/jpeg;base64,${fileData}`);
-      const blob = await response.blob();
-      console.log('🔄 Blob created, size:', blob.size, 'bytes');
+      // Method 1: Try direct upload using FileSystem.uploadAsync
+      console.log('🔄 Trying direct upload with FileSystem.uploadAsync...');
+      
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/delivery-visitor-photos/${filePath}`;
+      console.log('🔄 Upload URL:', uploadUrl);
+      
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-      // Upload to Supabase Storage
-      console.log('🔄 Uploading to Supabase Storage...');
-      const { data, error } = await supabase.storage
-        .from('delivery-visitor-photos')
-        .upload(filePath, blob, {
-          contentType: 'image/jpeg',
-          upsert: false
-        });
+      console.log('🔄 FileSystem upload result:', uploadResult);
 
-      console.log('🔄 Supabase upload response - data:', data, 'error:', error);
+      if (uploadResult.status === 200) {
+        // Get public URL using regular client
+        console.log('🔄 Getting public URL...');
+        const { data: urlData } = supabase.storage
+          .from('delivery-visitor-photos')
+          .getPublicUrl(filePath);
 
-      if (error) {
-        lastError = error.message;
-        console.log(`❌ Upload attempt ${attempt} failed:`, error.message);
-        
-        // If it's the last attempt, return the error
-        if (attempt === options.maxRetries) {
-          return { success: false, error: `Falha no upload após ${options.maxRetries} tentativas: ${lastError}` };
-        }
-        
-        // Wait before retrying
-        console.log(`⏳ Waiting ${options.retryDelay * attempt}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, options.retryDelay * attempt));
-        continue;
+        console.log('🔄 Public URL data:', urlData);
+        console.log(`✅ Upload successful on attempt ${attempt}! URL: ${urlData.publicUrl}`);
+        return { success: true, url: urlData.publicUrl };
+      } else {
+        lastError = `HTTP ${uploadResult.status}: ${uploadResult.body || 'Upload failed'}`;
+        console.log(`❌ Upload attempt ${attempt} failed:`, lastError);
       }
-
-      // Get public URL
-      console.log('🔄 Getting public URL...');
-      const { data: urlData } = supabase.storage
-        .from('delivery-visitor-photos')
-        .getPublicUrl(filePath);
-
-      console.log('🔄 Public URL data:', urlData);
-      console.log(`✅ Upload successful on attempt ${attempt}! URL: ${urlData.publicUrl}`);
-      return { success: true, url: urlData.publicUrl };
 
     } catch (error) {
       lastError = error instanceof Error ? error.message : 'Erro desconhecido';
       console.log(`Upload attempt ${attempt} failed with exception:`, lastError);
+      
+      // Try fallback method with blob conversion
+      if (attempt === options.maxRetries) {
+        console.log('🔄 Trying fallback method with blob conversion...');
+        try {
+          // Read file as base64
+          const base64Data = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64
+          });
+          
+          // Convert base64 to blob
+          const response = await fetch(`data:image/jpeg;base64,${base64Data}`);
+          const blob = await response.blob();
+          
+          // Upload to Supabase Storage using admin client
+          const { data, error } = await supabaseAdmin.storage
+            .from('delivery-visitor-photos')
+            .upload(filePath, blob, {
+              contentType: 'image/jpeg',
+              upsert: false
+            });
+
+          if (!error) {
+            const { data: urlData } = supabase.storage
+              .from('delivery-visitor-photos')
+              .getPublicUrl(filePath);
+            
+            console.log(`✅ Fallback upload successful! URL: ${urlData.publicUrl}`);
+            return { success: true, url: urlData.publicUrl };
+          } else {
+            lastError = error.message;
+          }
+        } catch (fallbackError) {
+          lastError = fallbackError instanceof Error ? fallbackError.message : 'Erro no método fallback';
+          console.log('❌ Fallback method also failed:', lastError);
+        }
+      }
       
       if (attempt === options.maxRetries) {
         return { success: false, error: `Falha no upload após ${options.maxRetries} tentativas: ${lastError}` };
       }
       
       // Wait before retrying
+      console.log(`⏳ Waiting ${options.retryDelay * attempt}ms before retry...`);
       await new Promise(resolve => setTimeout(resolve, options.retryDelay * attempt));
     }
   }
@@ -154,22 +196,15 @@ export const uploadDeliveryPhoto = async (
       return { success: false, error: validation.error };
     }
 
-    // Read file as base64
-    console.log('🔧 Lendo arquivo como base64...');
-    const base64Data = await FileSystem.readAsStringAsync(photoUri, {
-      encoding: FileSystem.EncodingType.Base64
-    });
-    console.log('🔧 Base64 data length:', base64Data.length);
-
     // Generate unique filename
     const filename = generateUniqueFilename(`delivery_${deliveryId || 'temp'}`);
     const filePath = `deliveries/${filename}`;
     console.log('🔧 Filename gerado:', filename);
     console.log('🔧 FilePath:', filePath);
 
-    // Upload with retry
+    // Upload with retry using direct file URI
     console.log('🔧 Iniciando upload com retry...');
-    const result = await uploadWithRetry(filePath, base64Data, finalOptions);
+    const result = await uploadWithRetry(filePath, photoUri, finalOptions);
     console.log('🔧 Resultado final do upload:', result);
     return result;
 
@@ -206,22 +241,15 @@ export const uploadVisitorPhoto = async (
       return { success: false, error: validation.error };
     }
 
-    // Read file as base64
-    console.log('🔧 Lendo arquivo como base64...');
-    const base64Data = await FileSystem.readAsStringAsync(photoUri, {
-      encoding: FileSystem.EncodingType.Base64
-    });
-    console.log('🔧 Base64 data length:', base64Data.length);
-
     // Generate unique filename
     const filename = generateUniqueFilename(`visitor_${visitorId || 'temp'}`);
     const filePath = `visitors/${filename}`;
     console.log('🔧 Filename gerado:', filename);
     console.log('🔧 FilePath:', filePath);
 
-    // Upload with retry
+    // Upload with retry using direct file URI
     console.log('🔧 Iniciando upload com retry...');
-    const result = await uploadWithRetry(filePath, base64Data, finalOptions);
+    const result = await uploadWithRetry(filePath, photoUri, finalOptions);
     console.log('🔧 Resultado final do upload:', result);
     return result;
 

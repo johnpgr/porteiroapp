@@ -555,10 +555,15 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 <Text style={styles.retakeButtonText}>📸 Tirar Nova Foto</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.nextButton}
+                style={[
+                  styles.nextButton,
+                  (isUploadingPhoto || !photoUrl) && styles.nextButtonDisabled
+                ]}
                 onPress={() => setCurrentStep('confirmacao')}
-                disabled={isUploadingPhoto}>
-                <Text style={styles.nextButtonText}>Continuar →</Text>
+                disabled={isUploadingPhoto || !photoUrl}>
+                <Text style={styles.nextButtonText}>
+                  {isUploadingPhoto ? 'Enviando...' : !photoUrl ? 'Aguardando upload...' : 'Continuar →'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
