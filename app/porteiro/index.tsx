@@ -21,6 +21,51 @@ import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import ActivityLogs from './logs';
 
+// Interfaces para integração com logs
+interface VisitorLog {
+  id: string;
+  visitor_name: string;
+  document: string;
+  apartment_id: string;
+  action: 'entrada' | 'saida' | 'negado';
+  authorized_by?: string;
+  photo_url?: string;
+  notes?: string;
+  created_at: string;
+  apartments?: {
+    number: string;
+  };
+}
+
+interface DeliveryLog {
+  id: string;
+  recipient_name: string;
+  apartment_id: string;
+  sender: string;
+  description?: string;
+  status: 'recebida' | 'entregue';
+  received_by?: string;
+  delivered_by?: string;
+  delivered_at?: string;
+  created_at: string;
+  apartments?: {
+    number: string;
+  };
+}
+
+type LogEntry = {
+  id: string;
+  type: 'visitor' | 'delivery';
+  title: string;
+  subtitle: string;
+  status: string;
+  time: string;
+  icon: string;
+  color: string;
+  photo_url?: string;
+  details: string[];
+};
+
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 
 export default function PorteiroDashboard() {
@@ -60,6 +105,12 @@ export default function PorteiroDashboard() {
   const [loadingAutorizacoes, setLoadingAutorizacoes] = useState(false);
   const [authSearchQuery, setAuthSearchQuery] = useState('');
   const [filteredAutorizacoes, setFilteredAutorizacoes] = useState<any[]>([]);
+  
+  // Estados para dados dos logs na aba Autorizações
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [pendingDeliveries, setPendingDeliveries] = useState<LogEntry[]>([]);
+  const [scheduledVisits, setScheduledVisits] = useState<LogEntry[]>([]);
 
   // Estados para modal de confirmação
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -264,6 +315,166 @@ export default function PorteiroDashboard() {
     filterAutorizacoes(authSearchQuery);
   }, [authSearchQuery, filterAutorizacoes]);
 
+  // Função para formatar data (importada do logs.tsx)
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInHours * 60);
+      return `${diffInMinutes} min atrás`;
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h atrás`;
+    } else {
+      // Manual date formatting to avoid Hermes locale issues
+      const day = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+      const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      return `${day} ${time}`;
+    }
+  };
+
+  // Função para buscar dados dos logs (similar ao logs.tsx)
+  const fetchLogsData = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingLogs(true);
+      
+      // Buscar o building_id do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+        
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar building_id do porteiro:', profileError);
+        return;
+      }
+      
+      const promises = [];
+
+      // Buscar logs de visitantes
+      const visitorQuery = supabase
+        .from('visitor_logs')
+        .select(`
+          *,
+          apartments!inner(number),
+          visitors(name, document, photo_url)
+        `)
+        .eq('building_id', profile.building_id)
+        .order('log_time', { ascending: false })
+        .limit(20);
+
+      promises.push(visitorQuery);
+
+      // Buscar logs de encomendas
+      const deliveryQuery = supabase
+        .from('deliveries')
+        .select(`
+          *,
+          apartments!inner(number)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      promises.push(deliveryQuery);
+
+      const [visitorResult, deliveryResult] = await Promise.all(promises);
+
+      if (visitorResult.error) throw visitorResult.error;
+      if (deliveryResult.error) throw deliveryResult.error;
+
+      // Processar logs de visitantes
+      const visitorLogs: LogEntry[] = (visitorResult.data || []).map((log: any) => {
+        const getVisitorStatus = (tipoLog: string, notificationStatus: string) => {
+          if (notificationStatus === 'approved') {
+            return tipoLog === 'IN' 
+              ? { status: 'Entrada autorizada', icon: '✅', color: '#4CAF50' }
+              : { status: 'Saída registrada', icon: '🚪', color: '#2196F3' };
+          } else if (notificationStatus === 'rejected') {
+            return { status: 'Acesso negado', icon: '❌', color: '#F44336' };
+          } else if (notificationStatus === 'pending') {
+            return { status: 'Aguardando aprovação', icon: '⏳', color: '#FF9800' };
+          } else {
+            return { status: 'Expirado', icon: '⏰', color: '#666' };
+          }
+        };
+
+        const statusInfo = getVisitorStatus(log.tipo_log, log.notification_status);
+        const visitorName = log.visitors?.name || log.guest_name || 'Visitante';
+        const visitorDocument = log.visitors?.document || 'N/A';
+        const visitorPhoto = log.visitors?.photo_url;
+
+        return {
+          id: log.id,
+          type: 'visitor',
+          title: visitorName,
+          subtitle: `Apto ${log.apartments?.number || 'N/A'} • ${log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}`,
+          status: statusInfo.status,
+          time: formatDate(log.log_time),
+          icon: statusInfo.icon,
+          color: statusInfo.color,
+          photo_url: visitorPhoto,
+          details: [
+            `Documento: ${visitorDocument}`,
+            `Tipo: ${log.entry_type || 'visitor'}`,
+            `Status: ${log.notification_status}`,
+            ...(log.purpose ? [`Motivo: ${log.purpose}`] : []),
+          ],
+        };
+      });
+
+      // Processar logs de encomendas
+      const deliveryLogs: LogEntry[] = (deliveryResult.data || []).map((delivery: DeliveryLog) => {
+        const isDelivered = delivery.status === 'entregue';
+
+        return {
+          id: delivery.id,
+          type: 'delivery',
+          title: `Encomenda - ${delivery.recipient_name}`,
+          subtitle: `Apto ${delivery.apartments?.number || 'N/A'} • ${delivery.sender}`,
+          status: isDelivered ? 'Entregue' : 'Recebida',
+          time: formatDate(
+            isDelivered && delivery.delivered_at ? delivery.delivered_at : delivery.created_at
+          ),
+          icon: isDelivered ? '✅' : '📦',
+          color: isDelivered ? '#4CAF50' : '#FF9800',
+          details: [
+            `Remetente: ${delivery.sender}`,
+            ...(delivery.description ? [`Descrição: ${delivery.description}`] : []),
+            `Recebida por: ${delivery.received_by || 'N/A'}`,
+            ...(isDelivered ? [`Entregue por: ${delivery.delivered_by || 'N/A'}`] : []),
+          ],
+        };
+      });
+
+      // Combinar e ordenar todos os logs por data
+      const allLogs = [...visitorLogs, ...deliveryLogs].sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+      );
+
+      setLogs(allLogs);
+      
+      // Filtrar entregas pendentes (status 'recebida')
+      const pending = deliveryLogs.filter(log => log.status === 'Recebida');
+      setPendingDeliveries(pending);
+      
+      // Filtrar visitas agendadas (status 'pending' ou 'approved')
+      const scheduled = visitorLogs.filter(log => 
+        log.status === 'Aguardando aprovação' || log.status === 'Entrada autorizada'
+      );
+      setScheduledVisits(scheduled);
+      
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, [user]);
+
   // Carregar dados do porteiro
   useEffect(() => {
     const loadPorteiroData = async () => {
@@ -370,8 +581,9 @@ export default function PorteiroDashboard() {
   useEffect(() => {
     if (activeTab === 'autorizacoes' && user?.id) {
       loadAutorizacoes();
+      fetchLogsData(); // Carregar também os dados dos logs
     }
-  }, [activeTab, user?.id, loadAutorizacoes]);
+  }, [activeTab, user?.id, loadAutorizacoes, fetchLogsData]);
 
   const handlePanicButton = () => {
     router.push('/porteiro/emergency');
@@ -711,6 +923,94 @@ export default function PorteiroDashboard() {
             <Text style={styles.headerTitle}>✅ Autorizações</Text>
             <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
           </View>
+
+          {/* Seção de Logs - Cards Visuais */}
+          {loadingLogs ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Carregando dados...</Text>
+            </View>
+          ) : (
+            <>
+              {/* Entregas Pendentes */}
+              {pendingDeliveries.length > 0 && (
+                <View style={styles.logSection}>
+                  <Text style={styles.logSectionTitle}>📦 Entregas Pendentes ({pendingDeliveries.length})</Text>
+                  {pendingDeliveries.slice(0, 3).map((delivery) => (
+                    <View key={delivery.id} style={styles.logCard}>
+                      <View style={styles.logHeader}>
+                        <Text style={styles.logIcon}>{delivery.icon}</Text>
+                        <View style={styles.logInfo}>
+                          <Text style={styles.logTitle} numberOfLines={1}>{delivery.title}</Text>
+                          <Text style={styles.logSubtitle} numberOfLines={1}>{delivery.subtitle}</Text>
+                        </View>
+                        <View style={styles.logMeta}>
+                          <Text style={[styles.logStatus, { color: delivery.color }]}>{delivery.status}</Text>
+                          <Text style={styles.logTime}>{delivery.time}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Visitas Agendadas */}
+              {scheduledVisits.length > 0 && (
+                <View style={styles.logSection}>
+                  <Text style={styles.logSectionTitle}>👥 Visitas Agendadas ({scheduledVisits.length})</Text>
+                  {scheduledVisits.slice(0, 3).map((visit) => (
+                    <View key={visit.id} style={styles.logCard}>
+                      <View style={styles.logHeader}>
+                        <Text style={styles.logIcon}>{visit.icon}</Text>
+                        <View style={styles.logInfo}>
+                          <Text style={styles.logTitle} numberOfLines={1}>{visit.title}</Text>
+                          <Text style={styles.logSubtitle} numberOfLines={1}>{visit.subtitle}</Text>
+                        </View>
+                        <View style={styles.logMeta}>
+                          <Text style={[styles.logStatus, { color: visit.color }]}>{visit.status}</Text>
+                          <Text style={styles.logTime}>{visit.time}</Text>
+                        </View>
+                      </View>
+                      {visit.photo_url && (
+                        <View style={styles.photoContainer}>
+                          <Image source={{ uri: visit.photo_url }} style={styles.logPhoto} />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Outros Registros Recentes */}
+              {logs.length > 0 && (
+                <View style={styles.logSection}>
+                  <Text style={styles.logSectionTitle}>📋 Registros Recentes</Text>
+                  {logs.slice(0, 2).map((log) => (
+                    <View key={log.id} style={styles.logCard}>
+                      <View style={styles.logHeader}>
+                        <Text style={styles.logIcon}>{log.icon}</Text>
+                        <View style={styles.logInfo}>
+                          <Text style={styles.logTitle} numberOfLines={1}>{log.title}</Text>
+                          <Text style={styles.logSubtitle} numberOfLines={1}>{log.subtitle}</Text>
+                        </View>
+                        <View style={styles.logMeta}>
+                          <Text style={[styles.logStatus, { color: log.color }]}>{log.status}</Text>
+                          <Text style={styles.logTime}>{log.time}</Text>
+                        </View>
+                      </View>
+                      {log.photo_url && (
+                        <View style={styles.photoContainer}>
+                          <Image source={{ uri: log.photo_url }} style={styles.logPhoto} />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Separador */}
+          <View style={styles.sectionSeparator} />
 
           {/* Campo de pesquisa */}
           <View style={styles.searchContainer}>
@@ -2674,6 +2974,80 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // Estilos para os cards de logs
+  logSection: {
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  logSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  logCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#e0e0e0',
+  },
+  logHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    width: 32,
+    textAlign: 'center',
+  },
+  logInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  logTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  logSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 18,
+  },
+  logMeta: {
+    alignItems: 'flex-end',
+  },
+  logStatus: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  logTime: {
+    fontSize: 11,
+    color: '#999',
+  },
+  logPhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  sectionSeparator: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 20,
+    marginVertical: 20,
   },
 
 });
