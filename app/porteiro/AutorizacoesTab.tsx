@@ -66,7 +66,6 @@ interface AutorizacoesTabProps {
   setSelectedAuth: (auth: any) => void;
   
   // Funções
-  openImageModal: (imageUrl: string) => void;
   loadAutorizacoes: () => void;
   showConfirmationModal: (message: string) => void;
   
@@ -91,7 +90,6 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   countdown,
   selectedAuth,
   setSelectedAuth,
-  openImageModal,
   loadAutorizacoes,
   showConfirmationModal,
   user,
@@ -106,6 +104,8 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   const [realtimeChannels, setRealtimeChannels] = useState<RealtimeChannel[]>([]);
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   // Effect para obter o building_id do porteiro logado
   useEffect(() => {
@@ -130,28 +130,47 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 1) {
-      const diffInMinutes = Math.floor(diffInHours * 60);
-      // Corrigir minutos negativos
-      if (diffInMinutes < 0) {
-        const absDiffInHours = Math.abs(diffInHours);
-        if (absDiffInHours < 24) {
-          return `Há ${Math.ceil(absDiffInHours)}h`;
-        } else {
-          const days = Math.floor(absDiffInHours / 24);
-          const hours = Math.floor(absDiffInHours % 24);
-          return days > 0 ? `Há ${days}d ${hours}h` : `Há ${hours}h`;
-        }
+    const diffInMs = date.getTime() - now.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const absDiffInMinutes = Math.abs(diffInMinutes);
+    
+    // Se é futuro (diffInMinutes > 0)
+    if (diffInMinutes > 0) {
+      if (absDiffInMinutes < 60) {
+        return `daqui a ${absDiffInMinutes} min`;
+      } else if (absDiffInMinutes < 1440) {
+        const hours = Math.floor(absDiffInMinutes / 60);
+        return `daqui a ${hours}h`;
+      } else if (absDiffInMinutes < 10080) { // 7 dias
+        const days = Math.floor(absDiffInMinutes / 1440);
+        return `daqui a ${days} dia${days > 1 ? 's' : ''}`;
+      } else if (absDiffInMinutes < 43200) { // 30 dias
+        const weeks = Math.floor(absDiffInMinutes / 10080);
+        return `daqui a ${weeks} semana${weeks > 1 ? 's' : ''}`;
+      } else {
+        const months = Math.floor(absDiffInMinutes / 43200);
+        return `daqui a ${months} ${months === 1 ? 'mês' : 'meses'}`;
       }
-      return `${diffInMinutes} min atrás`;
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h atrás`;
-    } else {
-      const day = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-      return `${day} ${time}`;
+    }
+    // Se é passado (diffInMinutes <= 0)
+    else {
+      if (absDiffInMinutes < 1) {
+        return 'Agora';
+      } else if (absDiffInMinutes < 60) {
+        return `há ${absDiffInMinutes} min`;
+      } else if (absDiffInMinutes < 1440) {
+        const hours = Math.floor(absDiffInMinutes / 60);
+        return `há ${hours}h`;
+      } else if (absDiffInMinutes < 10080) { // 7 dias
+        const days = Math.floor(absDiffInMinutes / 1440);
+        return `há ${days} dia${days > 1 ? 's' : ''}`;  
+      } else if (absDiffInMinutes < 43200) { // 30 dias
+        const weeks = Math.floor(absDiffInMinutes / 10080);
+        return `há ${weeks} semana${weeks > 1 ? 's' : ''}`;
+      } else {
+        const months = Math.floor(absDiffInMinutes / 43200);
+        return `há ${months} ${months === 1 ? 'mês' : 'meses'}`;
+      }
     }
   };
 
@@ -470,22 +489,37 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         if (timeFilter !== 'all') {
           const now = new Date();
           let startDate: Date;
-
+          let endDate: Date;
+          
           switch (timeFilter) {
             case 'today':
+              // Para hoje: apenas eventos do dia atual
               startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
               break;
             case 'week':
-              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              // Para semana: eventos da semana atual (domingo a sábado)
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - now.getDay());
+              weekStart.setHours(0, 0, 0, 0);
+              startDate = weekStart;
+              endDate = new Date(weekStart);
+              endDate.setDate(weekStart.getDate() + 7);
               break;
             case 'month':
+              // Para mês: eventos do mês atual
               startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
               break;
             default:
               startDate = new Date(0);
+              endDate = new Date();
           }
 
-          deliveryQuery = deliveryQuery.gte('created_at', startDate.toISOString());
+          // Aplicar filtro de data rigoroso
+          deliveryQuery = deliveryQuery
+            .gte('created_at', startDate.toISOString())
+            .lt('created_at', endDate.toISOString());
         }
 
         promises.push(deliveryQuery);
@@ -504,26 +538,46 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           .eq('apartments.building_id', buildingId)
           .order('created_at', { ascending: false });
 
-        // Aplicar filtro de tempo
+        // Aplicar filtro de tempo para visitas
         if (timeFilter !== 'all') {
           const now = new Date();
           let startDate: Date;
-
+          let endDate: Date;
+          
           switch (timeFilter) {
             case 'today':
+              // Para hoje: apenas visitas do dia atual
               startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
               break;
             case 'week':
-              startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              // Para semana: visitas da semana atual (domingo a sábado)
+              const weekStart = new Date(now);
+              weekStart.setDate(now.getDate() - now.getDay());
+              weekStart.setHours(0, 0, 0, 0);
+              startDate = weekStart;
+              endDate = new Date(weekStart);
+              endDate.setDate(weekStart.getDate() + 7);
               break;
             case 'month':
+              // Para mês: visitas do mês atual
               startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+              endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
               break;
             default:
               startDate = new Date(0);
+              endDate = new Date();
           }
 
-          visitQuery = visitQuery.gte('visit_date', startDate.toISOString().split('T')[0]);
+          const startDateStr = startDate.toISOString().split('T')[0];
+          const endDateStr = endDate.toISOString().split('T')[0];
+          const startDateTimeStr = startDate.toISOString();
+          const endDateTimeStr = endDate.toISOString();
+          
+          // Filtrar por visit_date (data agendada) ou created_at (data de criação) de forma rigorosa
+          visitQuery = visitQuery.or(
+            `visit_date.gte.${startDateStr},visit_date.lt.${endDateStr},created_at.gte.${startDateTimeStr},created_at.lt.${endDateTimeStr}`
+          );
         }
 
         promises.push(visitQuery);
@@ -657,6 +711,16 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     setExpandedCards(newExpanded);
   };
 
+  const openImageModal = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setShowImageModal(true);
+  };
+
+  const closeImageModal = () => {
+    setShowImageModal(false);
+    setSelectedImage(null);
+  };
+
   const getStatusTag = (autorizacao: any) => {
     return (
       <View
@@ -745,18 +809,18 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
               {/* Detalhes expandidos */}
               {expandedCards.has(activity.id) && (
                 <View style={styles.activityDetails}>
-                  {activity.photo_url && (
-                    <TouchableOpacity
-                      style={styles.photoContainer}
-                      onPress={() => openImageModal(activity.photo_url!)}>
-                      <Image source={{ uri: activity.photo_url }} style={styles.visitorPhoto} />
-                      <Text style={styles.photoLabel}>📷 Foto do visitante</Text>
-                    </TouchableOpacity>
-                  )}
-                  
                   {activity.details.map((detail, index) => (
                     <Text key={index} style={styles.activityDetail}>{detail}</Text>
                   ))}
+                  
+                  {/* Botão Ver Foto */}
+                  <TouchableOpacity 
+                    style={styles.viewPhotoActionButton}
+                    onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
+                    <Text style={styles.viewPhotoActionButtonText}>
+                      📷 Ver Foto
+                    </Text>
+                  </TouchableOpacity>
                   
                   {/* Botões de ação */}
                   {activity.actions && (
@@ -810,6 +874,35 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           </View>
         </View>
       )}
+
+      {/* Modal de Imagem */}
+      <Modal
+        visible={showImageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageModal}>
+        <View style={styles.imageModalOverlay}>
+          <TouchableOpacity 
+            style={styles.imageModalBackground}
+            activeOpacity={1}
+            onPress={closeImageModal}>
+            <View style={styles.imageModalContent}>
+              <TouchableOpacity 
+                style={styles.closeImageButton}
+                onPress={closeImageModal}>
+                <Text style={styles.closeImageButtonText}>✕</Text>
+              </TouchableOpacity>
+              {selectedImage && (
+                <Image 
+                  source={{ uri: selectedImage }} 
+                  style={styles.fullScreenImage}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -966,22 +1059,80 @@ const styles = StyleSheet.create({
   activityDetails: {
     paddingHorizontal: 16,
     paddingBottom: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
-  photoContainer: {
+  photoSection: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 8,
+    paddingLeft: 8,
   },
-  visitorPhoto: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginBottom: 4,
+  visitorPhotoSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    marginRight: 12,
   },
-  photoLabel: {
+  viewPhotoButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  viewPhotoButtonText: {
     fontSize: 12,
     color: '#666',
+    fontWeight: '500',
+  },
+  placeholderPhoto: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#999',
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalBackground: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    width: '90%',
+    height: '80%',
+    position: 'relative',
+  },
+  closeImageButton: {
+    position: 'absolute',
+    top: -40,
+    right: 0,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeImageButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
   },
   activityDetail: {
     fontSize: 13,
@@ -1012,6 +1163,19 @@ const styles = StyleSheet.create({
   },
   actionButtonTextSecondary: {
     color: '#666',
+  },
+  viewPhotoActionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    marginTop: 14,
+  },
+  viewPhotoActionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
   },
   statusTag: {
     paddingHorizontal: 8,

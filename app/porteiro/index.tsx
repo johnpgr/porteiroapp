@@ -123,12 +123,6 @@ export default function PorteiroDashboard() {
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
 
-  // Função para abrir modal de imagem
-  const openImageModal = (imageUrl: string) => {
-    setSelectedImageUrl(imageUrl);
-    setShowImageModal(true);
-  };
-
   // Função para fechar modal de imagem
   const closeImageModal = () => {
     setShowImageModal(false);
@@ -1578,7 +1572,6 @@ export default function PorteiroDashboard() {
             setShowConfirmModal={setShowConfirmModal}
             selectedAuth={selectedAuth}
             countdown={countdown}
-            openImageModal={openImageModal}
             supabase={supabase}
             user={user}
             buildingIdRef={buildingIdRef}

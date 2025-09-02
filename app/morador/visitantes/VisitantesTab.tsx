@@ -178,6 +178,7 @@ interface PreRegistrationData {
 
 export default function VisitantesTab() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1293,8 +1294,8 @@ export default function VisitantesTab() {
         transparent={true}
         onRequestClose={() => setShowPreRegistrationModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pré-cadastro de Visitante</Text>
               <TouchableOpacity
@@ -1563,7 +1564,7 @@ export default function VisitantesTab() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Modal de Edição */}
@@ -1573,8 +1574,8 @@ export default function VisitantesTab() {
         transparent={true}
         onRequestClose={() => setShowEditModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Editar Visitante</Text>
               <TouchableOpacity
@@ -1819,7 +1820,7 @@ export default function VisitantesTab() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
 
@@ -2022,15 +2023,13 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 0,
   },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 0,
     width: '100%',
-    height: '100%',
+    flex: 1,
+    marginTop: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2059,8 +2058,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   modalBody: {
-    marginTop: 15,
-    paddingHorizontal: 20
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 15,
   },
   inputGroup: {
     marginBottom: 16,
@@ -2119,7 +2119,9 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     gap: 12,
