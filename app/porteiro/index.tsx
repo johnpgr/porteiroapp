@@ -514,11 +514,11 @@ export default function PorteiroDashboard() {
           return;
         }
         
-        // Buscar dados do perfil do porteiro incluindo work_schedule
+        // Buscar dados do perfil do porteiro incluindo work_schedule e building_id
         console.log('🔍 Buscando dados do perfil para usuário:', user.id);
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('full_name, email, work_schedule')
+          .select('full_name, email, work_schedule, building_id')
           .eq('id', user.id)
           .eq('user_type', 'porteiro')
           .single();
@@ -545,10 +545,16 @@ export default function PorteiroDashboard() {
           });
         } else {
           // Usar dados do perfil
-          console.log('✅ Perfil encontrado - work_schedule:', profile.work_schedule);
+          console.log('✅ Perfil encontrado - work_schedule:', profile.work_schedule, 'building_id:', profile.building_id);
           const nameParts = (profile.full_name || profile.email.split('@')[0]).split(' ');
           const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('').slice(0, 2);
           const schedule = parseWorkSchedule(profile.work_schedule);
+          
+          // Atualizar buildingIdRef com o building_id do porteiro
+          if (profile.building_id) {
+            buildingIdRef.current = profile.building_id;
+            console.log('🏢 Building ID atualizado:', profile.building_id);
+          }
           
           console.log('🕐 Schedule processado:', schedule);
           

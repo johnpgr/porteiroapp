@@ -9,13 +9,16 @@ import {
   Alert,
   Modal,
   Image,
+  Platform,
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { v4 as uuidv4 } from 'uuid';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { usePorteiroNotifications } from '~/hooks/usePorteiroNotifications';
 import * as Notifications from 'expo-notifications';
+
+console.log('🚀 AUTORIZACOES TAB LOADED');
 
 // Interface para logs de atividades otimizada
 type ActivityEntry = {
@@ -95,36 +98,70 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   user,
   porteiroData,
 }) => {
-  
-  // Estados para a nova estrutura otimizada
+  // Estados
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
+  const [visitorLogs, setVisitorLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'delivery' | 'visit'>('all');
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
-  const [realtimeChannels, setRealtimeChannels] = useState<RealtimeChannel[]>([]);
-  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [buildingId, setBuildingId] = useState<string | null>('03406637-506c-4bfe-938d-9de46806aa19');
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [visitorLogsSubscription, setVisitorLogsSubscription] = useState<any>(null);
   
+  console.log('🚀 [AutorizacoesTab] Iniciando hook usePorteiroNotifications com buildingId:', buildingId);
+  
+  // Hook de notificações em tempo real
+  const {
+    notifications,
+    unreadCount,
+    isListening,
+    startListening,
+    stopListening,
+    error: notificationsError,
+    refreshNotifications
+  } = usePorteiroNotifications(buildingId);
+  
+  console.log('🔍 [AutorizacoesTab] Hook carregado - isListening:', isListening, 'notifications:', notifications.length, 'unreadCount:', unreadCount, 'error:', notificationsError);
+  
+
+
   // Effect para obter o building_id do porteiro logado
   useEffect(() => {
     const getBuildingId = async () => {
       if (user?.id) {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('building_id')
           .eq('id', user.id)
           .single();
         
+        if (error) {
+          console.error('Erro ao buscar building_id:', error);
+          // Usar o buildingId padrão em caso de erro
+          setBuildingId('03406637-506c-4bfe-938d-9de46806aa19');
+          return;
+        }
+        
         if (profile?.building_id) {
           setBuildingId(profile.building_id);
+        } else {
+          // Usar o buildingId padrão se não encontrar no perfil
+          setBuildingId('03406637-506c-4bfe-938d-9de46806aa19');
+          console.log('Building ID padrão aplicado: 03406637-506c-4bfe-938d-9de46806aa19');
         }
+      } else {
+        // Usar o buildingId padrão se não houver usuário
+        setBuildingId('03406637-506c-4bfe-938d-9de46806aa19');
       }
     };
     
     getBuildingId();
   }, [user?.id]);
+  
+  // Effect para recarregar atividades quando houver mudanças nas notificações
+  // Movido para depois da definição de fetchActivities
 
   // Função para formatar data de forma otimizada
   const formatDate = (dateString: string) => {
@@ -171,6 +208,276 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         const months = Math.floor(absDiffInMinutes / 43200);
         return `há ${months} ${months === 1 ? 'mês' : 'meses'}`;
       }
+    }
+  };
+
+  // Função para buscar visitor_logs do Supabase
+  const fetchVisitorLogs = async () => {
+    if (!buildingId) {
+      console.warn('⚠️ BuildingId não disponível para buscar visitor_logs');
+      return;
+    }
+
+    try {
+      console.log('🔄 Buscando visitor_logs para buildingId:', buildingId);
+      
+      let visitorLogsQuery = supabase
+        .from('visitor_logs')
+        .select(`
+          *,
+          apartments!inner(number),
+          visitors(name)
+        `)
+        .eq('building_id', buildingId)
+        .order('created_at', { ascending: false });
+
+      // Aplicar filtro de tempo baseado no timeFilter
+      if (timeFilter !== 'all') {
+        const now = new Date();
+        let startDate: Date;
+        let endDate: Date;
+        
+        switch (timeFilter) {
+          case 'today':
+            // Para hoje: apenas logs do dia atual até o momento presente
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(); // Usar o momento atual como limite superior
+            break;
+          case 'week':
+            // Para semana: logs da semana atual (domingo a sábado)
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            startDate = weekStart;
+            endDate = new Date(weekStart);
+            endDate.setDate(weekStart.getDate() + 7);
+            break;
+          case 'month':
+            // Para mês: logs do mês atual
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            break;
+          default:
+            // Para 'all': últimos 30 dias
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            endDate = new Date();
+        }
+
+        // Aplicar filtro de data rigoroso
+        visitorLogsQuery = visitorLogsQuery
+          .gte('created_at', startDate.toISOString())
+          .lt('created_at', endDate.toISOString());
+      } else {
+        // Para 'all': últimos 30 dias
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        visitorLogsQuery = visitorLogsQuery.gte('created_at', thirtyDaysAgo.toISOString());
+      }
+
+      const { data, error } = await visitorLogsQuery;
+
+      if (error) {
+        console.error('❌ Erro ao buscar visitor_logs:', error);
+        // Não interromper o fluxo, apenas logar o erro
+        return;
+      }
+
+      // Processar dados para incluir número do apartamento e nome do visitante
+      const processedLogs = (data || []).map(log => ({
+        ...log,
+        apartment_number: log.apartments?.number || 'N/A',
+        visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante'
+      }));
+
+      setVisitorLogs(processedLogs);
+      console.log('✅ Visitor logs carregados:', processedLogs?.length || 0, `registros (filtro: ${timeFilter})`);
+      
+      // Manter funcionalidade de horários de trabalho (08:00-18:00)
+      const currentHour = new Date().getHours();
+      const isWorkingHours = currentHour >= 8 && currentHour <= 18;
+      console.log('🕐 Horário atual:', currentHour, 'Horário de trabalho (08:00-18:00):', isWorkingHours);
+      
+    } catch (error) {
+      console.error('❌ Erro crítico ao buscar visitor_logs:', error);
+      // Em caso de erro crítico, não quebrar a aplicação
+      setVisitorLogs([]);
+    }
+  };
+
+  // Função para enviar notificação push
+  const sendPushNotification = async (logData: any, eventType: string) => {
+    try {
+      // Verificar se as notificações estão habilitadas
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('⚠️ Permissões de notificação não concedidas');
+        return;
+      }
+
+      // Verificar horário de trabalho antes de enviar notificação
+      const currentHour = new Date().getHours();
+      const isWorkingHours = currentHour >= 8 && currentHour <= 18;
+      
+      if (!isWorkingHours) {
+        console.log('🕐 Fora do horário de trabalho (08:00-18:00), notificação não enviada');
+        return;
+      }
+
+      // Buscar informações completas do visitante se necessário
+      let visitorName = logData?.visitor_name || logData?.guest_name || 'Visitante';
+      let apartmentNumber = logData?.apartment_number;
+      
+      // Se não temos o nome do visitante e temos visitor_id, buscar no Supabase
+      if ((!visitorName || visitorName === 'Visitante') && logData?.visitor_id) {
+        try {
+          const { data: visitorData } = await supabase
+            .from('visitors')
+            .select('name')
+            .eq('id', logData.visitor_id)
+            .single();
+          
+          visitorName = visitorData?.name || logData?.guest_name || 'Visitante';
+        } catch (error) {
+          console.warn('⚠️ Erro ao buscar nome do visitante:', error);
+        }
+      }
+      
+      // Se não temos o número do apartamento, buscar no Supabase
+      if (!apartmentNumber || apartmentNumber === 'N/A') {
+        try {
+          const { data: apartmentData } = await supabase
+            .from('apartments')
+            .select('number')
+            .eq('id', logData?.apartment_id)
+            .single();
+          
+          apartmentNumber = apartmentData?.number || 'N/A';
+        } catch (error) {
+          console.warn('⚠️ Erro ao buscar número do apartamento:', error);
+          apartmentNumber = 'N/A';
+        }
+      }
+      
+      // Formatar número do apartamento para exibição
+      const displayApartment = apartmentNumber && apartmentNumber !== 'N/A' 
+        ? `apartamento ${apartmentNumber}` 
+        : 'apartamento não identificado';
+
+      // Criar mensagens personalizadas e amigáveis
+      let title = '';
+      let body = '';
+      
+      if (eventType === 'INSERT') {
+        // Nova entrada de visitante
+        title = '🔔 Novo Visitante Registrado';
+        body = `${visitorName} foi registrado para visita ao ${displayApartment}.`;
+      } else if (eventType === 'UPDATE') {
+        // Atualização do status do visitante
+        const status = logData?.notification_status;
+        
+        if (status === 'approved') {
+          title = '✅ Visitante Autorizado';
+          body = `O visitante ${visitorName} foi autorizado a entrar no ${displayApartment}.`;
+        } else if (status === 'rejected') {
+          title = '❌ Visitante Não Autorizado';
+          body = `A entrada do visitante ${visitorName} no ${displayApartment} foi negada.`;
+        } else {
+          title = '🔄 Status do Visitante Atualizado';
+          body = `O status do visitante ${visitorName} para o ${displayApartment} foi atualizado.`;
+        }
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: {
+            logId: logData?.id || 'unknown',
+            buildingId: buildingId,
+            eventType,
+            visitorName: logData?.visitor_name,
+            apartmentNumber: logData?.apartment_number,
+            notificationStatus: logData?.notification_status,
+            timestamp: new Date().toISOString(),
+            workingHours: '08:00-18:00'
+          },
+        },
+        trigger: null, // Enviar imediatamente
+      });
+      
+      console.log('📱 Push notification enviada:', { title, body, eventType, workingHours: isWorkingHours });
+    } catch (error) {
+      console.error('❌ Erro ao enviar push notification:', error);
+      // Não interromper o fluxo em caso de erro de notificação
+    }
+  };
+
+  // Função para configurar subscription em tempo real para visitor_logs
+  const setupVisitorLogsSubscription = () => {
+    if (!buildingId) {
+      console.warn('⚠️ BuildingId não disponível para configurar subscription');
+      return;
+    }
+
+    try {
+      // Remove subscription anterior se existir
+      if (visitorLogsSubscription) {
+        console.log('🔄 Removendo subscription anterior');
+        visitorLogsSubscription.unsubscribe();
+      }
+
+      console.log('🔗 Configurando subscription para visitor_logs, buildingId:', buildingId);
+      
+      const subscription = supabase
+        .channel(`visitor_logs_changes_${buildingId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'visitor_logs',
+            filter: `building_id=eq.${buildingId}`
+          },
+          async (payload) => {
+            try {
+              console.log('📡 Mudança em visitor_logs:', payload.eventType, payload);
+              
+              // Recarregar dados quando houver mudanças
+              await fetchVisitorLogs();
+              
+              // Enviar notificação push automática
+              if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                console.log('🔔 Nova atualização em visitor_logs - disparando notificação');
+                await sendPushNotification(payload.new || payload.old, payload.eventType);
+                
+                // Log de building ID e schedule para auditoria
+                console.log('📋 Log de auditoria:', {
+                  buildingId,
+                  eventType: payload.eventType,
+                  timestamp: new Date().toISOString(),
+                  workSchedule: '08:00-18:00'
+                });
+              }
+            } catch (error) {
+              console.error('❌ Erro ao processar mudança em visitor_logs:', error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('📡 Status da subscription:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Subscription para visitor_logs ativa');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Erro na subscription de visitor_logs');
+          }
+        });
+
+      setVisitorLogsSubscription(subscription);
+      console.log('✅ Subscription para visitor_logs configurada com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao configurar subscription para visitor_logs:', error);
     }
   };
 
@@ -466,6 +773,45 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     }
   };
 
+  // Inicializar visitor_logs e subscription
+  useEffect(() => {
+    if (buildingId) {
+      console.log('🔄 Inicializando visitor_logs para buildingId:', buildingId);
+      fetchVisitorLogs();
+      setupVisitorLogsSubscription();
+    }
+
+    return () => {
+      if (visitorLogsSubscription) {
+        console.log('🔕 Removendo subscription de visitor_logs');
+        visitorLogsSubscription.unsubscribe();
+      }
+    };
+  }, [buildingId]);
+
+  // Inicializar notificações quando o building_id estiver disponível
+  useEffect(() => {
+    console.log('🔄 [AutorizacoesTab] useEffect notificações - buildingId:', buildingId, 'user.id:', user?.id, 'isListening:', isListening);
+    
+    // Só iniciar se não estiver já escutando e tiver os dados necessários
+    if (buildingId && user?.id && !isListening) {
+      console.log('✅ [AutorizacoesTab] Iniciando listeners de notificação...');
+      startListening();
+    } else if (!buildingId || !user?.id) {
+      console.log('❌ [AutorizacoesTab] Não pode iniciar listeners - buildingId:', buildingId, 'user.id:', user?.id);
+    } else if (isListening) {
+      console.log('ℹ️ [AutorizacoesTab] Listeners já estão ativos');
+    }
+    
+    // Cleanup apenas quando o componente for desmontado ou buildingId/user mudar
+    return () => {
+      if (isListening) {
+        console.log('🛑 [AutorizacoesTab] Parando listeners de notificação...');
+        stopListening();
+      }
+    };
+  }, [buildingId, user?.id]); // Removidas as funções das dependências para evitar recursão
+
   // Função principal para buscar atividades otimizada
   const fetchActivities = useCallback(async () => {
     if (!user || !buildingId) return;
@@ -694,6 +1040,25 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     fetchActivities();
   }, [fetchActivities]);
 
+  // Effect para carregar visitor_logs quando timeFilter mudar
+  useEffect(() => {
+    if (buildingId) {
+      console.log('🔄 [AutorizacoesTab] TimeFilter mudou para:', timeFilter, '- recarregando visitor_logs');
+      fetchVisitorLogs();
+    }
+  }, [timeFilter, buildingId]);
+
+  // Effect para recarregar atividades quando houver mudanças nas notificações
+  useEffect(() => {
+    console.log('🔄 [AutorizacoesTab] useEffect notificações mudaram - count:', notifications.length);
+    
+    if (notifications.length > 0) {
+      console.log('✅ [AutorizacoesTab] Recarregando atividades devido a novas notificações...');
+      // Recarregar atividades quando houver novas notificações
+      fetchActivities();
+    }
+  }, [notifications.length, fetchActivities]);
+
   // Função para obter contagem de filtros
   const getFilterCount = (filterType: 'all' | 'delivery' | 'visit') => {
     if (filterType === 'all') return activities.length;
@@ -719,6 +1084,174 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   const closeImageModal = () => {
     setShowImageModal(false);
     setSelectedImage(null);
+  };
+
+  // Funções auxiliares para LogCard
+  const formatLogTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatLogDate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'autorizado':
+      case 'approved':
+        return '#4CAF50';
+      case 'negado':
+      case 'denied':
+      case 'rejected':
+        return '#f44336';
+      case 'pendente':
+      case 'pending':
+        return '#FF9800';
+      default:
+        return '#2196F3';
+    }
+  };
+
+  // Função para obter status baseado no notification_status
+  const getVisitorLogStatus = (notificationStatus: string, tipoLog: string) => {
+    switch (notificationStatus?.toLowerCase()) {
+      case 'approved':
+        return {
+          text: 'Aprovado',
+          color: '#4CAF50',
+          icon: '✅'
+        };
+      case 'rejected':
+        return {
+          text: 'Rejeitado', 
+          color: '#F44336',
+          icon: '❌'
+        };
+      case 'pending':
+        return {
+          text: 'Pendente',
+          color: '#FF9800', 
+          icon: '⏳'
+        };
+      default:
+        return {
+          text: 'Registrado',
+          color: '#2196F3',
+          icon: '📝'
+        };
+    }
+  };
+
+  const getLogIcon = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case 'visitor':
+      case 'visitante':
+        return '👤';
+      case 'delivery':
+      case 'entrega':
+        return '📦';
+      default:
+        return '🏠';
+    }
+  };
+
+  const getDisplayType = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case 'visitor':
+        return 'visitante';
+      case 'delivery':
+        return 'entrega';
+      default:
+        return type || 'visitante';
+    }
+  };
+
+  // Componente LogCard
+  const LogCard = ({ log }: { log: any }) => {
+    const isExpanded = expandedCards.has(log.id);
+    const statusInfo = getVisitorLogStatus(log.notification_status, log.tipo_log);
+    const logIcon = getLogIcon(log.entry_type);
+    
+    return (
+      <TouchableOpacity
+        style={styles.logCard}
+        onPress={() => toggleCardExpansion(log.id)}
+      >
+        <View style={styles.logHeader}>
+          <View style={styles.logIcon}>
+            <Text style={styles.iconText}>{statusInfo.icon}</Text>
+          </View>
+          <View style={styles.logInfo}>
+            <Text style={styles.logTitle} numberOfLines={1}>
+              {log.guest_name || log.visitor_name || log.delivery_recipient || 'Visitante'}
+            </Text>
+            <Text style={styles.logSubtitle} numberOfLines={1}>
+              {log.apartment_number ? `Apto ${log.apartment_number}` : 'Apartamento N/A'}
+              {log.tipo_log && ` • ${log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}`}
+            </Text>
+            <View style={styles.logMeta}>
+              <Text style={[styles.logStatus, { color: statusInfo.color }]}>
+                {statusInfo.text}
+              </Text>
+              <Text style={styles.logTime}>
+                {formatLogTime(log.log_time || log.created_at)} • {formatLogDate(log.log_time || log.created_at)}
+              </Text>
+            </View>
+          </View>
+          {log.photo_url && (
+            <View style={styles.photoContainer}>
+              <TouchableOpacity onPress={() => openImageModal(log.photo_url)}>
+                <Image
+                  source={{ uri: log.photo_url }}
+                  style={styles.logPhoto}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        
+        {isExpanded && (
+          <View style={styles.logDetails}>
+            {log.visitor_document && (
+              <Text style={styles.detailText}>📄 Documento: {log.visitor_document}</Text>
+            )}
+            {log.visitor_phone && (
+              <Text style={styles.detailText}>📞 Telefone: {log.visitor_phone}</Text>
+            )}
+            {log.entry_type && (
+              <Text style={styles.detailText}>🏷️ Tipo: {getDisplayType(log.entry_type)}</Text>
+            )}
+            {log.purpose && (
+              <Text style={styles.detailText}>📝 Propósito: {log.purpose}</Text>
+            )}
+            {log.delivery_destination && (
+              <Text style={styles.detailText}>📍 Destino: {log.delivery_destination}</Text>
+            )}
+            {/* Exibir "Autorizado por" apenas quando status for aprovado */}
+            {log.notification_status === 'approved' && log.authorized_by && (
+              <Text style={styles.detailText}>✅ Autorizado por: {log.authorized_by}</Text>
+            )}
+            <Text style={styles.detailText}>🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às {formatLogTime(log.log_time || log.created_at)}</Text>
+          </View>
+        )}
+        
+        <TouchableOpacity style={styles.expandIndicator}>
+          <Text style={styles.expandText}>
+            {isExpanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}
+          </Text>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
   };
 
   const getStatusTag = (autorizacao: any) => {
@@ -848,6 +1381,23 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             </TouchableOpacity>
           ))
         )}
+
+        {/* Lista de Visitor Logs */}
+        <View style={styles.logsList}>
+          {visitorLogs.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📝</Text>
+              <Text style={styles.emptyTitle}>Nenhum log encontrado</Text>
+              <Text style={styles.emptySubtitle}>
+                Não há registros de visitantes para exibir
+              </Text>
+            </View>
+          ) : (
+            visitorLogs.map((log) => (
+              <LogCard key={log.id} log={log} />
+            ))
+          )}
+        </View>
 
 
       </ScrollView>
@@ -1240,6 +1790,99 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // Estilos para LogCard
+  logsList: {
+    paddingHorizontal: 16,
+  },
+  logCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  logHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  logIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  iconText: {
+    fontSize: 18,
+  },
+  logInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  logTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  logSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  logMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  logTime: {
+    fontSize: 12,
+    color: '#999',
+  },
+  photoContainer: {
+    width: 60,
+    height: 60,
+  },
+  logPhoto: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  logDetails: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  expandIndicator: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  expandText: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '500',
   },
 });
 
