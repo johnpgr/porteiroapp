@@ -330,14 +330,18 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
       return (
         <View style={styles.stepContainer}>
           <Text style={styles.stepTitle}>📸 Permissão da Câmera</Text>
-          <Text style={styles.stepSubtitle}>Precisamos de acesso à câmera para tirar a foto da encomenda</Text>
+          <Text style={styles.stepSubtitle}>Tire uma foto da encomenda como comprovante (opcional)</Text>
           
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionIcon}>🔒</Text>
-            <Text style={styles.permissionText}>Para registrar a encomenda, é necessário tirar uma foto como comprovante.</Text>
+            <Text style={styles.permissionText}>A foto da encomenda é opcional, mas recomendada como comprovante.</Text>
             
             <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
               <Text style={styles.permissionButtonText}>📸 Permitir Acesso à Câmera</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
+              <Text style={styles.skipButtonText}>Pular Foto</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -347,7 +351,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>📸 Foto da Encomenda</Text>
-        <Text style={styles.stepSubtitle}>Tire uma foto da encomenda ou do entregador como comprovante</Text>
+        <Text style={styles.stepSubtitle}>Tire uma foto da encomenda ou do entregador como comprovante (opcional)</Text>
 
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
@@ -358,6 +362,10 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                 </View>
                 
                 <View style={styles.cameraControls}>
+                  <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
+                    <Text style={styles.skipButtonText}>Pular Foto</Text>
+                  </TouchableOpacity>
+                  
                   <TouchableOpacity
                     style={styles.captureButton}
                     onPress={async () => {
@@ -1367,5 +1375,20 @@ const styles = StyleSheet.create({
   },
   loadingSpinner: {
     marginRight: 8,
+  },
+  skipButton: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  skipButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

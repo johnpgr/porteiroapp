@@ -5,11 +5,12 @@ import { useAuth } from '../hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  redirectTo: string;
+  redirectTo?: string;
   userType?: 'admin' | 'porteiro' | 'morador';
+  requiredRole?: 'admin' | 'porteiro' | 'morador';
 }
 
-export default function ProtectedRoute({ children, redirectTo, userType }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, redirectTo = '/login', userType, requiredRole }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const hasRedirectedRef = useRef(false);
 
@@ -22,11 +23,12 @@ export default function ProtectedRoute({ children, redirectTo, userType }: Prote
       return;
     }
 
-    if (userType && user.user_type !== userType) {
+    const requiredUserType = userType || requiredRole;
+    if (requiredUserType && user.user_type !== requiredUserType) {
       hasRedirectedRef.current = true;
       router.replace('/');
     }
-  }, [loading, user, userType, redirectTo]);
+  }, [loading, user, userType, requiredRole, redirectTo]);
 
   // Mostrar loading enquanto verifica autenticação
   if (loading) {
@@ -44,7 +46,8 @@ export default function ProtectedRoute({ children, redirectTo, userType }: Prote
   }
 
   // Se estiver autenticado mas não for do tipo correto, não renderizar
-  if (userType && user.user_type !== userType) {
+  const requiredUserType = userType || requiredRole;
+  if (requiredUserType && user.user_type !== requiredUserType) {
     return null;
   }
 

@@ -15,6 +15,7 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
+import AutorizacoesTab from './AutorizacoesTab';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
@@ -119,6 +120,20 @@ export default function PorteiroDashboard() {
 
   // Estados para modal de foto
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+
+  // Função para abrir modal de imagem
+  const openImageModal = (imageUrl: string) => {
+    setSelectedImageUrl(imageUrl);
+    setShowImageModal(true);
+  };
+
+  // Função para fechar modal de imagem
+  const closeImageModal = () => {
+    setShowImageModal(false);
+    setSelectedImageUrl(null);
+  };
 
   // Função para processar work_schedule
   const parseWorkSchedule = (workSchedule: string | null) => {
@@ -279,7 +294,8 @@ export default function PorteiroDashboard() {
         isEncomenda: visitor.visitor_type === 'delivery',
         cpf: visitor.document || '',
         phone: visitor.phone || '',
-        visitor_type: visitor.visitor_type || 'comum'
+        visitor_type: visitor.visitor_type || 'comum',
+        delivery_destination: visitor.delivery_destination || 'PENDENTE'
       }));
       
       setAutorizacoes(autorizacoesFormatadas);
@@ -743,6 +759,43 @@ export default function PorteiroDashboard() {
     </ScrollView>
   );
 
+  const removerEncomenda = async (autorizacao: any) => {
+    Alert.alert(
+      'Confirmar Remoção',
+      `Tem certeza que deseja remover a encomenda de ${autorizacao.nomeConvidado}?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('visitors')
+                .delete()
+                .eq('id', autorizacao.id);
+
+              if (error) {
+                console.error('Erro ao remover encomenda:', error);
+                Alert.alert('Erro', 'Não foi possível remover a encomenda.');
+                return;
+              }
+
+              Alert.alert('Sucesso', 'Encomenda removida com sucesso!');
+              loadAutorizacoes();
+            } catch (error) {
+              console.error('Erro ao remover encomenda:', error);
+              Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const confirmarChegada = async (autorizacao: any) => {
     try {
       // Validar horários permitidos
@@ -905,273 +958,7 @@ export default function PorteiroDashboard() {
     }
   };
 
-  const renderAutorizacoesTab = () => {
 
-    const getStatusTag = (autorizacao: any) => {
-      return (
-        <View
-          style={flattenStyles([styles.statusTag, { backgroundColor: autorizacao.statusColor }])}>
-          <Text style={styles.statusTagText}>{autorizacao.statusLabel}</Text>
-        </View>
-      );
-    };
-
-    return (
-      <>
-        <ScrollView style={styles.tabContent}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>✅ Autorizações</Text>
-            <Text style={styles.headerSubtitle}>Convidados pré-aprovados e encomendas</Text>
-          </View>
-
-          {/* Seção de Logs - Cards Visuais */}
-          {loadingLogs ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Carregando dados...</Text>
-            </View>
-          ) : (
-            <>
-              {/* Entregas Pendentes */}
-              {pendingDeliveries.length > 0 && (
-                <View style={styles.logSection}>
-                  <Text style={styles.logSectionTitle}>📦 Entregas Pendentes ({pendingDeliveries.length})</Text>
-                  {pendingDeliveries.slice(0, 3).map((delivery) => (
-                    <View key={delivery.id} style={styles.logCard}>
-                      <View style={styles.logHeader}>
-                        <Text style={styles.logIcon}>{delivery.icon}</Text>
-                        <View style={styles.logInfo}>
-                          <Text style={styles.logTitle} numberOfLines={1}>{delivery.title}</Text>
-                          <Text style={styles.logSubtitle} numberOfLines={1}>{delivery.subtitle}</Text>
-                        </View>
-                        <View style={styles.logMeta}>
-                          <Text style={[styles.logStatus, { color: delivery.color }]}>{delivery.status}</Text>
-                          <Text style={styles.logTime}>{delivery.time}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Visitas Agendadas */}
-              {scheduledVisits.length > 0 && (
-                <View style={styles.logSection}>
-                  <Text style={styles.logSectionTitle}>👥 Visitas Agendadas ({scheduledVisits.length})</Text>
-                  {scheduledVisits.slice(0, 3).map((visit) => (
-                    <View key={visit.id} style={styles.logCard}>
-                      <View style={styles.logHeader}>
-                        <Text style={styles.logIcon}>{visit.icon}</Text>
-                        <View style={styles.logInfo}>
-                          <Text style={styles.logTitle} numberOfLines={1}>{visit.title}</Text>
-                          <Text style={styles.logSubtitle} numberOfLines={1}>{visit.subtitle}</Text>
-                        </View>
-                        <View style={styles.logMeta}>
-                          <Text style={[styles.logStatus, { color: visit.color }]}>{visit.status}</Text>
-                          <Text style={styles.logTime}>{visit.time}</Text>
-                        </View>
-                      </View>
-                      {visit.photo_url && (
-                        <View style={styles.photoContainer}>
-                          <Image source={{ uri: visit.photo_url }} style={styles.logPhoto} />
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Outros Registros Recentes */}
-              {logs.length > 0 && (
-                <View style={styles.logSection}>
-                  <Text style={styles.logSectionTitle}>📋 Registros Recentes</Text>
-                  {logs.slice(0, 2).map((log) => (
-                    <View key={log.id} style={styles.logCard}>
-                      <View style={styles.logHeader}>
-                        <Text style={styles.logIcon}>{log.icon}</Text>
-                        <View style={styles.logInfo}>
-                          <Text style={styles.logTitle} numberOfLines={1}>{log.title}</Text>
-                          <Text style={styles.logSubtitle} numberOfLines={1}>{log.subtitle}</Text>
-                        </View>
-                        <View style={styles.logMeta}>
-                          <Text style={[styles.logStatus, { color: log.color }]}>{log.status}</Text>
-                          <Text style={styles.logTime}>{log.time}</Text>
-                        </View>
-                      </View>
-                      {log.photo_url && (
-                        <View style={styles.photoContainer}>
-                          <Image source={{ uri: log.photo_url }} style={styles.logPhoto} />
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-
-          {/* Separador */}
-          <View style={styles.sectionSeparator} />
-
-          {/* Campo de pesquisa */}
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Pesquisar por nome ou CPF..."
-              value={authSearchQuery}
-              onChangeText={setAuthSearchQuery}
-              placeholderTextColor="#999"
-            />
-            {authSearchQuery.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setAuthSearchQuery('')}>
-                <Text style={styles.clearSearchText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {loadingAutorizacoes ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Carregando autorizações...</Text>
-            </View>
-          ) : (
-            <View style={styles.buttonsContainer}>
-              {filteredAutorizacoes.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyIcon}>📋</Text>
-                  <Text style={styles.emptyTitle}>
-                    {authSearchQuery ? 'Nenhum resultado encontrado' : 'Nenhuma autorização pendente'}
-                  </Text>
-                  <Text style={styles.emptySubtitle}>
-                    {authSearchQuery 
-                      ? 'Tente pesquisar com outros termos' 
-                      : 'Não há visitantes aprovados aguardando check-in'}
-                  </Text>
-                </View>
-              ) : (
-                filteredAutorizacoes.map((autorizacao) => (
-              <View key={autorizacao.id} style={styles.authorizationCard}>
-                <View style={styles.authCardHeader}>
-                  <Text style={styles.authCardIcon}>
-                    {autorizacao.tipo === 'Visitante'
-                      ? '👤'
-                      : autorizacao.tipo === 'Prestador de Serviço'
-                        ? '🔧'
-                        : autorizacao.tipo === 'Convidado'
-                          ? '🎉'
-                          : autorizacao.tipo === 'Encomenda'
-                            ? '📦'
-                            : '👤'}
-                  </Text>
-                  <View style={styles.authCardInfo}>
-                    <View style={styles.authCardTitleRow}>
-                      <Text style={styles.authCardTitle} numberOfLines={2} ellipsizeMode='tail'>
-                        {autorizacao.isEncomenda ? 'Encomenda' : 'Convidado'}{' '}
-                        {autorizacao.nomeConvidado}
-                      </Text>
-                      {getStatusTag(autorizacao)}
-                    </View>
-                    <Text style={styles.authCardSubtitle}>
-                      {autorizacao.isEncomenda
-                        ? `Solicitado por ${autorizacao.moradorAprovador} - Apt. ${autorizacao.apartamento}`
-                        : `Aprovado por ${autorizacao.moradorAprovador} do Apartamento ${autorizacao.apartamento}`}
-                    </Text>
-                    <Text style={styles.authCardTime}>
-                      {autorizacao.dataAprovacao} às {autorizacao.horaAprovacao}
-                    </Text>
-                    
-                    {/* Informações de horários e restrições */}
-                    {autorizacao.visit_start_time && autorizacao.visit_end_time && (
-                      <Text style={styles.authCardSchedule}>
-                        🕐 Horário permitido: {autorizacao.visit_start_time} às {autorizacao.visit_end_time}
-                      </Text>
-                    )}
-                    
-                    {autorizacao.visit_type === 'pontual' && autorizacao.visit_date && (
-                      <Text style={styles.authCardDate}>
-                        📅 Data específica: {(() => {
-                  const date = new Date(autorizacao.visit_date);
-                  return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-                })()}
-                      </Text>
-                    )}
-                    
-                    {autorizacao.visit_type === 'frequente' && autorizacao.allowed_days && autorizacao.allowed_days.length > 0 && (
-                      <Text style={styles.authCardDays}>
-                        📆 Dias permitidos: {autorizacao.allowed_days.map((day: string) => {
-                          const dayMap: { [key: string]: string } = {
-                            'monday': 'Seg',
-                            'tuesday': 'Ter',
-                            'wednesday': 'Qua',
-                            'thursday': 'Qui',
-                            'friday': 'Sex',
-                            'saturday': 'Sáb',
-                            'sunday': 'Dom'
-                          };
-                          return dayMap[day] || day;
-                        }).join(', ')}
-                      </Text>
-                    )}
-                    
-                    {autorizacao.visitor_type === 'frequente' && (
-                      <Text style={styles.authCardFrequent}>
-                        🔄 Visitante frequente - Acesso permanente
-                      </Text>
-                    )}
-                    
-                    {autorizacao.jaAutorizado && (
-                      <Text style={styles.authCardStatus}>✅ Morador já autorizou a subida</Text>
-                    )}
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.confirmButton,
-                    autorizacao.isEncomenda && styles.encomendaButton,
-                    autorizacao.jaAutorizado && styles.autorizedButton,
-                  ]}
-                  onPress={() => confirmarChegada(autorizacao)}>
-                  <Text style={styles.confirmButtonText}>
-                    {autorizacao.isEncomenda
-                      ? '📦 Receber Encomenda'
-                      : autorizacao.jaAutorizado
-                        ? '✅ Liberar Subida'
-                        : '✓ Confirmar Chegada'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-                ))
-              )}
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Modal de Confirmação */}
-        {showConfirmModal && selectedAuth && (
-          <View style={styles.modalOverlay}>
-            <View style={styles.confirmModal}>
-              <Text style={styles.confirmModalIcon}>✅</Text>
-              <Text style={styles.confirmModalTitle}>Morador Notificado!</Text>
-              <Text style={styles.confirmModalMessage}>
-                {selectedAuth.isEncomenda
-                  ? `A encomenda de ${selectedAuth.nomeConvidado} foi registrada na portaria.`
-                  : selectedAuth.jaAutorizado
-                    ? `${selectedAuth.nomeConvidado} foi liberado para subir ao apartamento ${selectedAuth.apartamento}.`
-                    : `O morador do apartamento ${selectedAuth.apartamento} foi notificado sobre a chegada de ${selectedAuth.nomeConvidado}.`}
-              </Text>
-              <Text style={styles.countdownText}>Fechando em {countdown} segundos...</Text>
-              <TouchableOpacity
-                style={styles.closeModalButton}
-                onPress={() => setShowConfirmModal(false)}>
-                <Text style={styles.closeModalButtonText}>Fechar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </>
-    );
-  };
 
   const renderConsultaTab = () => {
 
@@ -1256,6 +1043,8 @@ export default function PorteiroDashboard() {
       return `${cleanPlate.slice(0, 3)}-${cleanPlate.slice(3)}`;
     };
 
+
+
     // Função para buscar morador por CPF
     const searchByCPF = async (cpf: string) => {
       try {
@@ -1320,7 +1109,8 @@ export default function PorteiroDashboard() {
           building: residentData?.apartments?.buildings ? {
             name: residentData.apartments.buildings.name,
             id: residentData.apartments.buildings.id
-          } : null
+          } : null,
+          type: 'morador'
         };
 
         console.log('Resultado da busca CPF:', result);
@@ -1398,6 +1188,8 @@ export default function PorteiroDashboard() {
         throw error;
       }
     };
+
+
 
     // Função para lidar com mudança no input
     const handleInputChange = (text: string) => {
@@ -1546,21 +1338,34 @@ export default function PorteiroDashboard() {
 
           {/* Resultado CPF */}
           {profileResult && (
-            <View style={styles.moradorCard}>
+            <View style={[
+              styles.moradorCard,
+              profileResult.type === 'visitante_aprovado' && styles.visitanteAprovadoCard
+            ]}>
               {/* Header do Card */}
               <View style={styles.moradorCardHeader}>
                 <View style={styles.moradorHeaderLeft}>
-                  <Text style={styles.moradorIcon}>👤</Text>
-                  <Text style={styles.moradorHeaderTitle}>Morador Encontrado</Text>
+                  <Text style={styles.moradorIcon}>
+                    {profileResult.type === 'visitante_aprovado' ? '👥' : '👤'}
+                  </Text>
+                  <Text style={styles.moradorHeaderTitle}>
+                    {profileResult.type === 'visitante_aprovado' ? 'Visitante Pré-Aprovado' : 'Morador Encontrado'}
+                  </Text>
                 </View>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>✓ Ativo</Text>
+                <View style={[
+                  styles.statusBadge,
+                  profileResult.type === 'visitante_aprovado' && styles.visitanteStatusBadge
+                ]}>
+                  <Text style={[
+                    styles.statusBadgeText,
+                    profileResult.type === 'visitante_aprovado' && styles.visitanteStatusText
+                  ]}>✓ {profileResult.type === 'visitante_aprovado' ? 'Aprovado' : 'Ativo'}</Text>
                 </View>
               </View>
 
               {/* Informações Principais */}
               <View style={styles.moradorMainInfo}>
-                <Text style={styles.moradorName}>{profileResult.full_name}</Text>
+                <Text style={styles.moradorName}>{profileResult.full_name || profileResult.name}</Text>
                 <Text style={styles.moradorLocation}>
                   🏠 Apartamento {profileResult.apartment?.number || 'N/A'} - {profileResult.building?.name || 'N/A'}
                 </Text>
@@ -1581,14 +1386,18 @@ export default function PorteiroDashboard() {
                   )}
                 </View>
                 
-                {/* Botão Ver Foto */}
-                <TouchableOpacity 
-                  style={styles.photoButton}
-                  onPress={() => setShowPhotoModal(true)}
-                >
-                  <Text style={styles.photoButtonIcon}>📷</Text>
-                  <Text style={styles.photoButtonText}>Ver Foto</Text>
-                </TouchableOpacity>
+                {/* Botões de Ação */}
+                <View style={styles.actionButtonsContainer}>
+                  <TouchableOpacity 
+                    style={styles.photoButton}
+                    onPress={() => setShowPhotoModal(true)}
+                  >
+                    <Text style={styles.photoButtonIcon}>📷</Text>
+                    <Text style={styles.photoButtonText}>Ver Foto</Text>
+                  </TouchableOpacity>
+                  
+
+                </View>
               </View>
             </View>
           )}
@@ -1630,12 +1439,7 @@ export default function PorteiroDashboard() {
                     <Text style={styles.infoLabel}>Tipo</Text>
                     <Text style={styles.infoValue}>{vehicleResult.type || 'Carro'}</Text>
                   </View>
-                  {vehicleResult.owner?.full_name && (
-                    <View style={styles.infoItem}>
-                      <Text style={styles.infoLabel}>Proprietário</Text>
-                      <Text style={styles.infoValue}>{vehicleResult.owner.full_name}</Text>
-                    </View>
-                  )}
+
                 </View>
               </View>
             </View>
@@ -1759,7 +1563,28 @@ export default function PorteiroDashboard() {
       case 'chegada':
         return renderChegadaTab();
       case 'autorizacoes':
-        return renderAutorizacoesTab();
+        return (
+          <AutorizacoesTab
+            autorizacoes={autorizacoes}
+            loadingAutorizacoes={loadingAutorizacoes}
+            authSearchQuery={authSearchQuery}
+            setAuthSearchQuery={setAuthSearchQuery}
+            filteredAutorizacoes={filteredAutorizacoes}
+            logs={logs}
+            loadingLogs={loadingLogs}
+            pendingDeliveries={pendingDeliveries}
+            scheduledVisits={scheduledVisits}
+            showConfirmModal={showConfirmModal}
+            setShowConfirmModal={setShowConfirmModal}
+            selectedAuth={selectedAuth}
+            countdown={countdown}
+            openImageModal={openImageModal}
+            supabase={supabase}
+            user={user}
+            buildingIdRef={buildingIdRef}
+            showConfirmationModal={showConfirmationModal}
+          />
+        );
       case 'consulta':
         return renderConsultaTab();
       case 'avisos':
@@ -1963,6 +1788,47 @@ export default function PorteiroDashboard() {
             <TouchableOpacity 
               style={styles.photoModalButton}
               onPress={() => setShowPhotoModal(false)}>
+              <Text style={styles.photoModalButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Imagem */}
+      <Modal
+        visible={showImageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageModal}>
+        <View style={styles.photoModalOverlay}>
+          <View style={styles.photoModalContainer}>
+            <View style={styles.photoModalHeader}>
+              <Text style={styles.photoModalTitle}>Imagem</Text>
+              <TouchableOpacity 
+                style={styles.photoModalCloseButton}
+                onPress={closeImageModal}>
+                <Text style={styles.photoModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.photoContainer}>
+              {selectedImageUrl ? (
+                <Image 
+                  source={{ uri: selectedImageUrl }}
+                  style={styles.photoModalImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoPlaceholderIcon}>🖼️</Text>
+                  <Text style={styles.photoPlaceholderText}>Imagem não disponível</Text>
+                </View>
+              )}
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.photoModalButton}
+              onPress={closeImageModal}>
               <Text style={styles.photoModalButtonText}>Fechar</Text>
             </TouchableOpacity>
           </View>
@@ -2185,6 +2051,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   confirmButton: {
+    flex: 2,
     backgroundColor: '#4CAF50',
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -2195,6 +2062,219 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // Estilos para status do destino
+  destinationStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  destinationStatusLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+    marginRight: 8,
+  },
+  destinationStatusValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+    textTransform: 'uppercase',
+  },
+  destinationPending: {
+    color: '#FF9800',
+    fontStyle: 'italic',
+  },
+  // Estilos para container de botões
+  authCardActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  removeButton: {
+    flex: 1,
+    backgroundColor: '#f44336',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  // Estilos para filtros da nova interface
+  filtersContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#2196F3',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  filterCount: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  // Estilos para cartões de atividades
+  activityCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+  },
+  deliveryCard: {
+    borderLeftColor: '#FF9800',
+  },
+  visitCard: {
+    borderLeftColor: '#4CAF50',
+  },
+  activityCardContent: {
+    padding: 16,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activityIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    width: 32,
+    textAlign: 'center',
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  activitySubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: '#999',
+  },
+  activityStatus: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  statusPending: {
+    color: '#FF9800',
+  },
+  statusApproved: {
+    color: '#4CAF50',
+  },
+  statusRejected: {
+    color: '#f44336',
+  },
+  // Estilos para conteúdo expandido e ações
+  expandedContent: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  visitorPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  activityDetails: {
+    marginBottom: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: '#666',
+    width: 80,
+  },
+  detailValue: {
+    fontSize: 12,
+    color: '#333',
+    flex: 1,
+    fontWeight: '500',
+  },
+  activityActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  primaryAction: {
+    backgroundColor: '#4CAF50',
+  },
+  secondaryAction: {
+    backgroundColor: '#f44336',
+  },
+  noActivitiesContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  noActivitiesIcon: {
+    fontSize: 48,
+    color: '#ccc',
+    marginBottom: 16,
+  },
+  noActivitiesText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
   searchContainer: {
     marginHorizontal: 20,
@@ -3048,6 +3128,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     marginHorizontal: 20,
     marginVertical: 20,
+  },
+  // Estilos para visitante pré-aprovado
+  visitanteAprovadoCard: {
+    backgroundColor: '#e8f5e8',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  visitanteStatusBadge: {
+    backgroundColor: '#4CAF50',
+  },
+  visitanteStatusText: {
+    color: '#fff',
+  },
+  // Estilos para botões de ação
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  checkinButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  checkinButtonIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  checkinButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 
 });

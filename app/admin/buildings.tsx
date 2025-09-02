@@ -111,30 +111,72 @@ export default function BuildingsManagement() {
   };
 
   const handleDeleteBuilding = async (buildingId: string, buildingName: string) => {
-    Alert.alert(
-      'Confirmar Exclusão',
-      `Tem certeza que deseja excluir o prédio "${buildingName}"?\n\nEsta ação não pode ser desfeita.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { error } = await supabase.from('buildings').delete().eq('id', buildingId);
+    try {
+      // Verificar se existem apartamentos vinculados ao prédio
+      const { data: apartments, error: apartmentsError } = await supabase
+        .from('apartments')
+        .select('id')
+        .eq('building_id', buildingId)
+        .limit(1);
 
-              if (error) throw error;
+      if (apartmentsError) {
+        console.error('Erro ao verificar apartamentos:', apartmentsError);
+        Alert.alert('Erro', 'Não foi possível verificar as dependências do prédio');
+        return;
+      }
 
-              Alert.alert('Sucesso', 'Prédio excluído com sucesso');
-              fetchBuildings();
-            } catch (error) {
-              console.error('Erro ao excluir prédio:', error);
-              Alert.alert('Erro', 'Falha ao excluir prédio');
-            }
+      // Verificar se existem moradores vinculados ao prédio
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('building_id', buildingId)
+        .limit(1);
+
+      if (profilesError) {
+        console.error('Erro ao verificar moradores:', profilesError);
+        Alert.alert('Erro', 'Não foi possível verificar as dependências do prédio');
+        return;
+      }
+
+      // Se existem dependências, mostrar mensagem de erro
+      if (apartments && apartments.length > 0 || profiles && profiles.length > 0) {
+        Alert.alert(
+          'Erro ao excluir prédio',
+          'Não foi possível completar a ação porque existem registros vinculados a este prédio na tabela "profiles". Para prosseguir com a exclusão, é necessário primeiro remover todos os apartamentos e moradores associados a este prédio. Verifique e resolva essas dependências antes de tentar excluir novamente.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        return;
+      }
+
+      // Se não há dependências, prosseguir com a exclusão
+      Alert.alert(
+        'Confirmar Exclusão',
+        `Tem certeza que deseja excluir o prédio "${buildingName}"?\n\nEsta ação não pode ser desfeita.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Excluir',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const { error } = await supabase.from('buildings').delete().eq('id', buildingId);
+
+                if (error) throw error;
+
+                Alert.alert('Sucesso', 'Prédio excluído com sucesso');
+                fetchBuildings();
+              } catch (error) {
+                console.error('Erro ao excluir prédio:', error);
+                Alert.alert('Erro', 'Falha ao excluir prédio');
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      console.error('Erro ao verificar dependências:', error);
+      Alert.alert('Erro', 'Não foi possível verificar as dependências do prédio');
+    }
   };
 
   if (loading) {

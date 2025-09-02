@@ -11,8 +11,10 @@ import {
   Modal,
   Alert,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '../../../utils/supabase';
 import { useAuth } from '../../../hooks/useAuth';

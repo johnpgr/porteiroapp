@@ -386,7 +386,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const renderCpfStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🆔 CPF</Text>
-      <Text style={styles.stepSubtitle}>Digite o CPF do visitante</Text>
+      <Text style={styles.stepSubtitle}>Digite o CPF do visitante (opcional)</Text>
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -396,22 +396,21 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             const formattedCPF = formatCPF(text);
             setCpfVisitante(formattedCPF);
           }}
-          placeholder="000.000.000-00"
+          placeholder="000.000.000-00 (opcional)"
           keyboardType="numeric"
           autoFocus
           maxLength={14}
         />
 
         <TouchableOpacity
-          style={flattenStyles([styles.nextButton, !isValidCPF(cpfVisitante) && styles.nextButtonDisabled])}
-          onPress={() => {
-            if (isValidCPF(cpfVisitante)) {
-              setCurrentStep('observacoes');
-            }
-          }}
-          disabled={!isValidCPF(cpfVisitante)}>
+          style={styles.nextButton}
+          onPress={() => setCurrentStep('observacoes')}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
+        
+        {cpfVisitante && !isValidCPF(cpfVisitante) && (
+          <Text style={styles.validationWarning}>CPF inválido - será salvo em branco se não corrigido</Text>
+        )}
       </View>
     </View>
   );
@@ -447,10 +446,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     if (!cameraPermission.granted) {
       return (
         <View style={styles.stepContainer}>
-          <Text style={styles.stepTitle}>📸 Permissão da Câmera</Text>
-          <Text style={styles.stepSubtitle}>Precisamos de acesso à câmera para tirar a foto</Text>
+          <Text style={styles.stepTitle}>📸 Foto do Visitante</Text>
+          <Text style={styles.stepSubtitle}>Foto opcional - você pode pular esta etapa</Text>
           <TouchableOpacity style={styles.nextButton} onPress={requestCameraPermission}>
             <Text style={styles.nextButtonText}>Permitir Câmera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
+            <Text style={styles.skipButtonText}>Pular Foto →</Text>
           </TouchableOpacity>
         </View>
       );
@@ -459,7 +461,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>📸 Foto do Visitante</Text>
-        <Text style={styles.stepSubtitle}>Tire uma foto do visitante</Text>
+        <Text style={styles.stepSubtitle}>Tire uma foto do visitante (opcional)</Text>
 
         {!fotoTirada ? (
           <View style={styles.cameraContainer}>
@@ -557,16 +559,22 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               <TouchableOpacity
                 style={[
                   styles.nextButton,
-                  (isUploadingPhoto || !photoUrl) && styles.nextButtonDisabled
+                  isUploadingPhoto && styles.nextButtonDisabled
                 ]}
                 onPress={() => setCurrentStep('confirmacao')}
-                disabled={isUploadingPhoto || !photoUrl}>
+                disabled={isUploadingPhoto}>
                 <Text style={styles.nextButtonText}>
-                  {isUploadingPhoto ? 'Enviando...' : !photoUrl ? 'Aguardando upload...' : 'Continuar →'}
+                  {isUploadingPhoto ? 'Enviando...' : 'Continuar →'}
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
+        )}
+        
+        {!fotoTirada && (
+          <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
+            <Text style={styles.skipButtonText}>Pular Foto →</Text>
+          </TouchableOpacity>
         )}
       </View>
     );
@@ -591,18 +599,30 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         }
 
         // Validar campos obrigatórios
-        if (!nomeVisitante || !cpfVisitante) {
-          Alert.alert('Erro', 'Nome e CPF são obrigatórios.');
+        if (!nomeVisitante) {
+          Alert.alert('Erro', 'Nome é obrigatório.');
+          return;
+        }
+        
+        // Validar CPF se fornecido
+        if (cpfVisitante && !isValidCPF(cpfVisitante)) {
+          Alert.alert('Erro', 'CPF fornecido é inválido. Deixe em branco ou corrija.');
           return;
         }
 
         // Primeiro, inserir ou buscar o visitante
         let visitorId;
-        const { data: existingVisitor } = await supabase
-          .from('visitors')
-          .select('id')
-          .eq('document', cpfVisitante)
-          .single();
+        let existingVisitor = null;
+        
+        // Só buscar por CPF se foi fornecido e é válido
+        if (cpfVisitante && isValidCPF(cpfVisitante)) {
+          const { data } = await supabase
+            .from('visitors')
+            .select('id')
+            .eq('document', cpfVisitante)
+            .single();
+          existingVisitor = data;
+        }
 
         if (existingVisitor) {
           visitorId = existingVisitor.id;
@@ -612,9 +632,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             .from('visitors')
             .insert({
               name: nomeVisitante,
-              document: cpfVisitante,
+              document: (cpfVisitante && isValidCPF(cpfVisitante)) ? cpfVisitante : null,
               phone: null, // Campo phone da estrutura correta
-              photo_url: fotoTirada || null
+              photo_url: photoUrl || null
             })
             .select('id')
             .single();
@@ -784,7 +804,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>CPF:</Text>
-            <Text style={styles.summaryValue}>{cpfVisitante}</Text>
+            <Text style={styles.summaryValue}>{cpfVisitante || 'Não informado'}</Text>
           </View>
 
           {observacoes && (
@@ -1234,5 +1254,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     textAlign: 'center',
+  },
+  skipButton: {
+    backgroundColor: '#9E9E9E',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  skipButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  validationWarning: {
+    color: '#FF9800',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

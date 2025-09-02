@@ -114,7 +114,7 @@ export default function NotificationDashboard() {
           type
         ),
         profiles!inner (
-          name,
+          full_name,
           apartment_number
         )
       `)
@@ -139,7 +139,7 @@ export default function NotificationDashboard() {
         type: log.notifications.type
       },
       user: {
-        name: log.profiles.name,
+        name: log.profiles.full_name,
         apartment_number: log.profiles.apartment_number
       }
     })) || [];
