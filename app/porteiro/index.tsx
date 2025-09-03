@@ -21,6 +21,7 @@ import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
+import { useShiftControl } from '~/hooks/useShiftControl';
 import ActivityLogs from './logs';
 
 // Interfaces para integração com logs
@@ -72,10 +73,69 @@ type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 
 export default function PorteiroDashboard() {
   const { user, loading: authLoading } = useAuth();
+
+  // Funções para controle de turno
+  const handleStartShift = async () => {
+    Alert.alert(
+      'Iniciar Turno',
+      'Deseja iniciar seu turno de trabalho agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Iniciar',
+          onPress: async () => {
+            try {
+              await startShift();
+              Alert.alert('Sucesso', 'Turno iniciado com sucesso!');
+            } catch (error) {
+              console.error('Erro ao iniciar turno:', error);
+              Alert.alert('Erro', 'Falha ao iniciar turno. Tente novamente.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEndShift = async () => {
+    if (!currentShift) {
+      Alert.alert('Erro', 'Nenhum turno ativo encontrado.');
+      return;
+    }
+
+    Alert.alert(
+      'Finalizar Turno',
+      'Deseja finalizar seu turno de trabalho agora?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Finalizar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await endShift();
+              Alert.alert('Sucesso', 'Turno finalizado com sucesso!');
+            } catch (error) {
+              console.error('Erro ao finalizar turno:', error);
+              Alert.alert('Erro', 'Falha ao finalizar turno. Tente novamente.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const formatDuration = (durationMs: number) => {
+    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
+
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedAuth, setSelectedAuth] = useState<any>(null);
+  const [showShiftModal, setShowShiftModal] = useState(false);
 
   // Estados para dados do porteiro
   const [porteiroData, setPorteiroData] = useState<{
@@ -83,12 +143,40 @@ export default function PorteiroDashboard() {
     initials: string;
     shift_start?: string;
     shift_end?: string;
+    building_id?: string;
   } | null>(null);
   const [loadingPorteiro, setLoadingPorteiro] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
   // Guard para evitar recarregar dados do mesmo usuário repetidamente
   const hasLoadedPorteiroDataRef = useRef<string | null>(null);
   const buildingIdRef = useRef<string | null>(null);
+
+  // Use shift control only when we have the required data
+  const shiftControlEnabled = !!(user?.id && porteiroData?.building_id);
+  const shiftControlResult = useShiftControl({
+    porteiroId: user?.id || '',
+    buildingId: porteiroData?.building_id || '',
+    onShiftChange: (shift) => {
+      console.log('🔄 Shift changed:', shift);
+    }
+  });
+  
+  // Only use shift control results when enabled
+  const {
+    currentShift,
+    isLoading: shiftLoading,
+    error: shiftError,
+    startShift,
+    endShift,
+    refreshShiftStatus: refreshShift
+  } = shiftControlEnabled ? shiftControlResult : {
+    currentShift: null,
+    isLoading: false,
+    error: null,
+    startShift: async () => {},
+    endShift: async () => {},
+    refreshShiftStatus: async () => {}
+  };
 
   // Estados para a aba Consulta
   const [searchType, setSearchType] = useState<'cpf' | 'placa'>('cpf');
@@ -542,7 +630,8 @@ export default function PorteiroDashboard() {
             name,
             initials,
             shift_start: schedule.start,
-            shift_end: schedule.end
+            shift_end: schedule.end,
+            building_id: undefined // No building_id available for default data
           });
         } else {
           // Usar dados do perfil
@@ -563,7 +652,8 @@ export default function PorteiroDashboard() {
             name: profile.full_name || profile.email.split('@')[0],
             initials,
             shift_start: schedule.start,
-            shift_end: schedule.end
+            shift_end: schedule.end,
+            building_id: profile.building_id
           });
         }
       } catch (error) {
@@ -695,6 +785,11 @@ export default function PorteiroDashboard() {
             <Text style={styles.panicButtonText}>🚨</Text>
           </TouchableOpacity>
 
+          {/* Botão Circular de Controle de Turno */}
+          <TouchableOpacity style={styles.shiftControlButton} onPress={() => setShowShiftModal(true)}>
+            <Text style={styles.shiftControlIcon}>⏰</Text>
+          </TouchableOpacity>
+
           {/* Avatar do Usuário */}
           <TouchableOpacity style={styles.userAvatar} onPress={handleUserMenuToggle}>
             <Text style={styles.avatarText}>{porteiroData.initials}</Text>
@@ -731,11 +826,6 @@ export default function PorteiroDashboard() {
         <Text style={styles.headerTitle}>🏠 Chegadas</Text>
         <Text style={styles.headerSubtitle}>Registre visitantes, encomendas e veículos</Text>
       </View> */}
-
-      {/* Shift Control Component - Header Style */}
-      <View style={styles.shiftControlHeader}>
-        <ShiftControl buildingId={buildingIdRef.current} />
-      </View>
 
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
@@ -1839,6 +1929,87 @@ export default function PorteiroDashboard() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Controle de Turno */}
+      <Modal
+        visible={showShiftModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowShiftModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.shiftModalContainer}>
+            <View style={styles.shiftModalHeader}>
+              <Text style={styles.shiftModalTitle}>Controle de Turno</Text>
+              <TouchableOpacity 
+                style={styles.shiftModalCloseButton}
+                onPress={() => setShowShiftModal(false)}>
+                <Text style={styles.shiftModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.shiftModalContent}>
+              {/* Status do Turno */}
+              <View style={styles.shiftStatusSection}>
+                <Text style={styles.shiftSectionTitle}>Status do Turno</Text>
+                <View style={styles.shiftStatusCard}>
+                  <View style={styles.shiftStatusIndicator}>
+                    <View style={[
+                      styles.statusDot,
+                      currentShift ? styles.statusDotActive : styles.statusDotInactive
+                    ]} />
+                    <Text style={styles.shiftStatusText}>
+                      {currentShift ? 'Turno Ativo' : 'Fora de Turno'}
+                    </Text>
+                  </View>
+                  
+                  {currentShift && (
+                    <View style={styles.shiftDetails}>
+                      <Text style={styles.shiftDetailLabel}>Início:</Text>
+                      <Text style={styles.shiftDetailValue}>
+                        {new Date(currentShift.shift_start).toLocaleString('pt-BR')}
+                      </Text>
+                      
+                      <Text style={styles.shiftDetailLabel}>Duração:</Text>
+                      <Text style={styles.shiftDetailValue}>
+                        {formatDuration(Date.now() - new Date(currentShift.shift_start).getTime())}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Controles do Turno */}
+              <View style={styles.shiftControlsSection}>
+                <Text style={styles.shiftSectionTitle}>Controles</Text>
+                
+                {!currentShift ? (
+                  <TouchableOpacity 
+                    style={styles.shiftActionButton}
+                    onPress={handleStartShift}
+                    disabled={shiftLoading}>
+                    <Text style={styles.shiftActionIcon}>▶️</Text>
+                    <Text style={styles.shiftActionText}>
+                      {shiftLoading ? 'Iniciando...' : 'Iniciar Turno'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity 
+                    style={[styles.shiftActionButton, styles.shiftEndButton]}
+                    onPress={handleEndShift}
+                    disabled={shiftLoading}>
+                    <Text style={styles.shiftActionIcon}>⏹️</Text>
+                    <Text style={styles.shiftActionText}>
+                      {shiftLoading ? 'Finalizando...' : 'Finalizar Turno'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ProtectedRoute>
   );
 }
@@ -2529,7 +2700,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 8,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -3180,5 +3351,146 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  // Estilos para o botão circular de controle de turno
+  shiftControlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  shiftControlIcon: {
+    fontSize: 20,
+    color: '#fff',
+  },
+  // Estilos para o modal de controle de turno
+  shiftModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    margin: 20,
+    maxHeight: '80%',
+    width: '90%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  shiftModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  shiftModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  shiftModalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shiftModalCloseText: {
+    fontSize: 18,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  shiftModalContent: {
+    padding: 20,
+  },
+  shiftStatusSection: {
+    marginBottom: 24,
+  },
+  shiftSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  shiftStatusCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  shiftStatusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  statusDotActive: {
+    backgroundColor: '#4CAF50',
+  },
+  statusDotInactive: {
+    backgroundColor: '#ccc',
+  },
+  shiftStatusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  shiftDetails: {
+    gap: 8,
+  },
+  shiftDetailLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  shiftDetailValue: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+  },
+  shiftControlsSection: {
+    marginBottom: 8,
+  },
+  shiftActionButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  shiftEndButton: {
+    backgroundColor: '#f44336',
+  },
+  shiftActionIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  shiftActionText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+
 
 });
