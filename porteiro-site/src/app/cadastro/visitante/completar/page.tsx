@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/utils/useAuth';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/lib/supabase';
 
 interface ProfileData {
   birth_date: string;
@@ -29,7 +29,6 @@ export default function CompletarCadastroPage() {
   const [searchPhone, setSearchPhone] = useState<string>('');
   const [isSearchingProfile, setIsSearchingProfile] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const supabase = createClient();
   
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
@@ -366,6 +365,121 @@ export default function CompletarCadastroPage() {
   // Se não está autenticado, não renderizar nada (será redirecionado)
   if (!user || !profile) {
     return null;
+  }
+
+  // Se não tem profileId, mostrar interface de busca por telefone
+  if (!profileId) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="flex items-center space-x-3">
+                <Image 
+                  src="/logo-james.png" 
+                  alt="Logo JAMES AVISA" 
+                  width={40} 
+                  height={40}
+                  className="h-10 w-auto"
+                />
+                <h1 className="text-2xl font-bold text-gray-900">JAMES AVISA</h1>
+              </Link>
+              <Link 
+                href="/login" 
+                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              >
+                Fazer Login
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="py-12">
+          <div className="max-w-md mx-auto px-4">
+            <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Localizar Perfil
+                </h2>
+                <p className="text-gray-600">
+                  Digite seu número de celular para localizar automaticamente seu perfil de visitante
+                </p>
+              </div>
+
+              {/* Search Error */}
+              {searchError && (
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="flex items-center">
+                    <div className="text-red-400 mr-3">
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-red-800">Erro na busca</h3>
+                      <p className="text-sm text-red-700 mt-1">{searchError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSearchPhoneSubmit} className="space-y-6">
+                {/* Phone Input */}
+                <div>
+                  <label htmlFor="search_phone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Número de Celular
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                    <input
+                      type="tel"
+                      id="search_phone"
+                      value={searchPhone}
+                      onChange={(e) => setSearchPhone(formatSearchPhone(e.target.value))}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                      placeholder="(11) 99999-9999"
+                      maxLength={15}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isSearchingProfile || !searchPhone.trim()}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center justify-center"
+                >
+                  {isSearchingProfile ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Buscando...
+                    </>
+                  ) : (
+                    'Localizar Perfil'
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-6 text-center text-sm text-gray-500">
+                Não recebeu o link? Verifique seu WhatsApp ou entre em contato com a administração.
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
