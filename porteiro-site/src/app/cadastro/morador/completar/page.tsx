@@ -115,16 +115,70 @@ export default function CompletarCadastroPage() {
     }
   }, []);
 
+  // Função para buscar profile_id usando o número de celular
+  const searchProfileByPhone = async (phoneNumber: string) => {
+    try {
+      setIsAuthenticating(true);
+      setAuthError(null);
+
+      // Limpar e formatar o número de celular
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      
+      // Buscar na tabela temporary_passwords usando o campo phone_number
+      const { data: tempPasswordData, error: tempPasswordError } = await supabase
+        .from('temporary_passwords')
+        .select('profile_id, phone_number')
+        .eq('used', false)
+        .not('expires_at', 'lt', new Date().toISOString());
+
+      if (tempPasswordError) {
+        throw new Error('Erro ao buscar dados temporários');
+      }
+
+      if (!tempPasswordData || tempPasswordData.length === 0) {
+        throw new Error('Nenhum registro encontrado para este celular');
+      }
+
+      // Encontrar o registro que corresponde ao telefone
+      const matchingRecord = tempPasswordData.find(record => {
+        const dbPhone = (record.phone_number || '').replace(/\D/g, '');
+        return dbPhone.slice(-11) === cleanPhone.slice(-11);
+      });
+
+      if (!matchingRecord) {
+        throw new Error('Celular não encontrado nos registros');
+      }
+
+      // Definir o profileId encontrado
+      setProfileId(matchingRecord.profile_id);
+      toast.success('Perfil encontrado! Agora digite sua senha.');
+      
+    } catch (error: unknown) {
+      console.error('Erro ao buscar perfil por telefone:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao buscar perfil';
+      setAuthError(errorMessage);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   // Função para autenticar com celular e senha
   const handleAuthentication = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuthenticating(true);
     setAuthError(null);
 
+    // Se não há profileId, tentar buscar usando o celular
     if (!profileId) {
-      setAuthError('ID do perfil não fornecido');
-      setIsAuthenticating(false);
-      return;
+      if (!authPhone) {
+        setAuthError('Por favor, informe o número do celular');
+        setIsAuthenticating(false);
+        return;
+      }
+      
+      // Buscar profileId usando o celular
+      await searchProfileByPhone(authPhone);
+      return; // A função searchProfileByPhone já define o profileId, então retornamos aqui
     }
 
     try {
@@ -737,6 +791,19 @@ export default function CompletarCadastroPage() {
             </svg>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Autenticação Necessária</h2>
             <p className="text-gray-600">Digite seu celular e a senha de 6 dígitos enviada por WhatsApp</p>
+            {!profileId && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-left">
+                    <p className="text-blue-800 text-sm font-medium mb-1">ID do perfil não fornecido</p>
+                    <p className="text-blue-700 text-sm">Por favor, digite seu número de celular primeiro. O sistema irá localizar automaticamente seu perfil usando este número.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleAuthentication} className="space-y-6">

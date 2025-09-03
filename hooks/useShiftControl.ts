@@ -37,7 +37,6 @@ export const useShiftControl = ({
   buildingId,
   onShiftChange
 }: UseShiftControlProps): UseShiftControlReturn => {
-  console.log('🎯 [useShiftControl] Hook executando para porteiro:', porteiroId, 'prédio:', buildingId);
   
   // Estados principais
   const [currentShift, setCurrentShift] = useState<PorteiroShift | null>(null);
@@ -57,7 +56,6 @@ export const useShiftControl = ({
   
   // Callback para mudanças de turno em tempo real
   const handleShiftChange = useCallback((shift: PorteiroShift) => {
-    console.log('🔄 [useShiftControl] Mudança de turno detectada:', shift);
     
     // Atualizar apenas se for do porteiro atual
     if (shift.porteiro_id === porteiroId) {
@@ -220,7 +218,7 @@ export const useShiftControl = ({
         console.error('❌ [useShiftControl] Erro ao carregar histórico:', historyError);
       } else {
         setShiftHistory(shifts || []);
-        console.log('📋 [useShiftControl] Histórico carregado:', shifts?.length, 'turnos');
+        // Histórico carregado silenciosamente
       }
       
     } catch (err) {
@@ -241,7 +239,7 @@ export const useShiftControl = ({
         await shiftService.startRealtimeListening(buildingId);
         setIsRealtimeConnected(shiftService.isRealtimeConnected());
         
-        console.log('🔄 [useShiftControl] Realtime configurado para prédio:', buildingId);
+        // Realtime configurado silenciosamente
         
       } catch (err) {
         console.error('❌ [useShiftControl] Erro ao configurar realtime:', err);
@@ -261,7 +259,6 @@ export const useShiftControl = ({
     if (!porteiroId || !buildingId || isInitialized.current) return;
     
     const initialize = async () => {
-      console.log('🚀 [useShiftControl] Inicializando hook');
       await refreshShiftStatus();
       await loadShiftHistory();
       isInitialized.current = true;

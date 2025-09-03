@@ -103,26 +103,8 @@ export default function PorteiroDashboard() {
       return;
     }
 
-    Alert.alert(
-      'Finalizar Turno',
-      'Deseja finalizar seu turno de trabalho agora?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Finalizar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await endShift();
-              Alert.alert('Sucesso', 'Turno finalizado com sucesso!');
-            } catch (error) {
-              console.error('Erro ao finalizar turno:', error);
-              Alert.alert('Erro', 'Falha ao finalizar turno. Tente novamente.');
-            }
-          }
-        }
-      ]
-    );
+    // O endShift do hook já gerencia a confirmação e feedback
+    await endShift();
   };
 
   const formatDuration = (durationMs: number) => {
@@ -821,7 +803,7 @@ export default function PorteiroDashboard() {
   };
 
   const renderChegadaTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <View style={[styles.tabContent, { flex: 1, justifyContent: 'center' }]}>
       {/* <View style={styles.header}>
         <Text style={styles.headerTitle}>🏠 Chegadas</Text>
         <Text style={styles.headerSubtitle}>Registre visitantes, encomendas e veículos</Text>
@@ -852,7 +834,7 @@ export default function PorteiroDashboard() {
           <Text style={styles.buttonDescription}>Autorizar entrada</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 
   const removerEncomenda = async (autorizacao: any) => {
@@ -2023,6 +2005,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContent: {
+    overflow: "hidden",
     flex: 1,
   },
   header: {

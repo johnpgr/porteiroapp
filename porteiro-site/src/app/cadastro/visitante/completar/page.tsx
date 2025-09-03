@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/utils/useAuth';
+import { createClient } from '@/utils/supabase/client';
 
 interface ProfileData {
   birth_date: string;
@@ -25,6 +26,10 @@ export default function CompletarCadastroPage() {
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
   const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [searchPhone, setSearchPhone] = useState<string>('');
+  const [isSearchingProfile, setIsSearchingProfile] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const supabase = createClient();
   
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
@@ -39,6 +44,50 @@ export default function CompletarCadastroPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Function to search visitor profile by phone number
+  const searchVisitorByPhone = async (phone: string) => {
+    try {
+      setIsSearchingProfile(true);
+      setSearchError(null);
+      
+      // Clean and format phone number
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      console.log('🔍 Buscando visitante por telefone:', cleanPhone);
+      
+      const { data, error } = await supabase
+        .from('visitor_temporary_passwords')
+        .select('visitor_id, phone, used, expires_at')
+        .eq('phone', cleanPhone)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+      
+      if (error) {
+        console.error('❌ Erro na busca por telefone:', error);
+        if (error.code === 'PGRST116') {
+          setSearchError('Nenhum registro encontrado para este número de telefone ou a senha temporária expirou.');
+        } else {
+          setSearchError('Erro ao buscar perfil. Tente novamente.');
+        }
+        return;
+      }
+      
+      if (data?.visitor_id) {
+        console.log('✅ Visitante encontrado:', data.visitor_id);
+        setProfileId(data.visitor_id);
+        setSearchError(null);
+      } else {
+        setSearchError('Perfil de visitante não encontrado para este telefone.');
+      }
+    } catch (error) {
+      console.error('💥 Erro na busca por telefone:', error);
+      setSearchError('Erro de conexão. Verifique sua internet e tente novamente.');
+    } finally {
+      setIsSearchingProfile(false);
+    }
+  };
 
   // Get profile_id from URL on component mount
   useEffect(() => {
@@ -129,6 +178,20 @@ export default function CompletarCadastroPage() {
     return cleanValue
       .replace(/(\d{2})(\d)/, '($1) $2')
       .replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const formatSearchPhone = (value: string) => {
+    const cleanValue = value.replace(/\D/g, '');
+    return cleanValue
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const handleSearchPhoneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchPhone.trim()) {
+      await searchVisitorByPhone(searchPhone);
+    }
   };
 
   const handleEmergencyPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {

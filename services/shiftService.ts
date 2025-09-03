@@ -120,7 +120,7 @@ class ShiftService {
         .from('porteiro_shifts')
         .update({
           shift_end: new Date().toISOString(),
-          status: 'ended'
+          status: 'completed'
         })
         .eq('id', activeShift.id)
         .select()
@@ -303,7 +303,6 @@ class ShiftService {
         )
         .subscribe((status) => {
           this.isConnected = status === 'SUBSCRIBED';
-          console.log('🔄 Status da conexão de turnos:', status);
         });
 
     } catch (error) {
@@ -320,7 +319,6 @@ class ShiftService {
       await supabase.removeChannel(this.channel);
       this.channel = null;
       this.isConnected = false;
-      console.log('🔄 Escuta de turnos interrompida');
     }
   }
 
@@ -360,8 +358,6 @@ class ShiftService {
    */
   private handleShiftChange(payload: any): void {
     try {
-      console.log('🔄 Mudança no turno detectada:', payload);
-      
       const shift = payload.new || payload.old;
       if (shift) {
         this.callbacks.forEach(callback => {

@@ -51,14 +51,6 @@ export default function HomePage() {
               >
                 🚀 Cadastre-se na lista de espera
               </button>
-              <a 
-                href="http://jamesavisa.jamesconcierge.com/morador/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors inline-block"
-              >
-                👤 Área do Morador
-              </a>
             </div>
           </div>
         </div>
@@ -101,14 +93,7 @@ export default function HomePage() {
                 className="h-15"
               />
             </a>
-            <a 
-              href="http://jamesavisa.jamesconcierge.com/morador/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center"
-            >
-              👤 Acesse a Área do Morador
-            </a>
+
           </div>
         </div>
       </section>
