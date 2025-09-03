@@ -16,6 +16,7 @@ import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import AutorizacoesTab from './AutorizacoesTab';
+import ShiftControl from '../../components/ShiftControl';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
@@ -730,6 +731,11 @@ export default function PorteiroDashboard() {
         <Text style={styles.headerTitle}>🏠 Chegadas</Text>
         <Text style={styles.headerSubtitle}>Registre visitantes, encomendas e veículos</Text>
       </View> */}
+
+      {/* Shift Control Component - Header Style */}
+      <View style={styles.shiftControlHeader}>
+        <ShiftControl buildingId={buildingIdRef.current} />
+      </View>
 
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
@@ -1870,6 +1876,12 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     padding: 20,
+  },
+  shiftControlHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    marginBottom: 8,
   },
   actionButton: {
     backgroundColor: '#fff',

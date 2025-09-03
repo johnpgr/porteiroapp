@@ -109,6 +109,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [visitorLogsSubscription, setVisitorLogsSubscription] = useState<any>(null);
+  const [activeSection, setActiveSection] = useState<'visitors' | 'preauthorized'>('visitors');
   
   console.log('🚀 [AutorizacoesTab] Iniciando hook usePorteiroNotifications com buildingId:', buildingId);
   
@@ -121,7 +122,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     stopListening,
     error: notificationsError,
     refreshNotifications
-  } = usePorteiroNotifications(buildingId);
+  } = usePorteiroNotifications(buildingId, user?.id);
   
   console.log('🔍 [AutorizacoesTab] Hook carregado - isListening:', isListening, 'notifications:', notifications.length, 'unreadCount:', unreadCount, 'error:', notificationsError);
   
@@ -1303,7 +1304,52 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Lista de Atividades */}
+        {/* Toggle para alternar entre seções */}
+        <View style={styles.sectionToggleContainer}>
+          <TouchableOpacity
+            style={[styles.sectionToggleButton, activeSection === 'visitors' && styles.sectionToggleButtonActive]}
+            onPress={() => setActiveSection('visitors')}>
+            <Text style={[styles.sectionToggleButtonText, activeSection === 'visitors' && styles.sectionToggleButtonTextActive]}>
+              👤 Visitantes 
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sectionToggleButton, activeSection === 'preauthorized' && styles.sectionToggleButtonActive]}
+            onPress={() => setActiveSection('preauthorized')}>
+            <Text style={[styles.sectionToggleButtonText, activeSection === 'preauthorized' && styles.sectionToggleButtonTextActive]}>
+              ✅ Pré-autorizados 
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Seção de Visitantes */}
+        {activeSection === 'visitors' && (
+          <>
+            <Text style={styles.sectionTitle}>Visitantes</Text>
+            {/* Lista de Visitor Logs */}
+        <View style={styles.logsList}>
+          {visitorLogs.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📝</Text>
+              <Text style={styles.emptyTitle}>Nenhum registro encontrado</Text>
+              <Text style={styles.emptySubtitle}>
+                Não há registros de visitantes para exibir
+              </Text>
+            </View>
+          ) : (
+            visitorLogs.map((log) => (
+              <LogCard key={log.id} log={log} />
+            ))
+          )}
+        </View>
+          </>
+        )}
+
+        {/* Seção de Convidados Pré-autorizados */}
+        {activeSection === 'preauthorized' && (
+          <>
+            <Text style={styles.sectionTitle}>Convidados Pré-autorizados</Text>
+            {/* Lista de Atividades */}
         {loading ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando atividades...</Text>
@@ -1322,6 +1368,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             </Text>
           </View>
         ) : (
+          
           activities.map((activity) => (
             <TouchableOpacity
               key={activity.id}
@@ -1338,7 +1385,6 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
                   <Text style={styles.activityTime}>{activity.time}</Text>
                 </View>
               </View>
-              
               {/* Detalhes expandidos */}
               {expandedCards.has(activity.id) && (
                 <View style={styles.activityDetails}>
@@ -1381,24 +1427,8 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             </TouchableOpacity>
           ))
         )}
-
-        {/* Lista de Visitor Logs */}
-        <View style={styles.logsList}>
-          {visitorLogs.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📝</Text>
-              <Text style={styles.emptyTitle}>Nenhum log encontrado</Text>
-              <Text style={styles.emptySubtitle}>
-                Não há registros de visitantes para exibir
-              </Text>
-            </View>
-          ) : (
-            visitorLogs.map((log) => (
-              <LogCard key={log.id} log={log} />
-            ))
-          )}
-        </View>
-
+          </>
+        )}
 
       </ScrollView>
 
@@ -1475,6 +1505,56 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
+  Subtitle: {
+    fontSize: 24,
+    marginVertical: 10,
+    fontWeight: 'bold',
+    color: '#000',
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    marginVertical: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  sectionToggleContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginVertical: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 25,
+    padding: 4,
+  },
+  sectionToggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionToggleButtonActive: {
+    backgroundColor: '#2196F3',
+    shadowColor: '#2196F3',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionToggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sectionToggleButtonTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
   headerSubtitle: {
     fontSize: 14,
     color: '#E3F2FD',
@@ -1544,7 +1624,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 50,
+    paddingVertical: 20,
   },
   emptyIcon: {
     fontSize: 48,
@@ -1794,6 +1874,7 @@ const styles = StyleSheet.create({
   // Estilos para LogCard
   logsList: {
     paddingHorizontal: 16,
+    paddingBottom: 20
   },
   logCard: {
     backgroundColor: '#fff',

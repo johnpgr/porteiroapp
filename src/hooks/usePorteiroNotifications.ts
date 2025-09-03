@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { shiftService } from '../services/shiftService';
 
 export interface PorteiroNotification {
   id: string;
@@ -27,7 +28,7 @@ export interface UsePorteiroNotificationsReturn {
   clearAll: () => void;
 }
 
-export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
+export function usePorteiroNotifications(buildingId?: string | null, porteiroId?: string | null): UsePorteiroNotificationsReturn {
   console.log('🚀 HOOK EXECUTANDO - usePorteiroNotifications iniciado');
   
   const { user } = useAuth();
@@ -36,7 +37,6 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [channels, setChannels] = useState<any[]>([]);
-  const [buildingId, setBuildingId] = useState<string | null>(null);
 
   console.log('🔧 Estados inicializados:', { 
     notificationsCount: notifications.length, 
@@ -84,6 +84,14 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
     configureNotifications();
   }, []);
 
+  // Effect para iniciar listeners automaticamente quando buildingId e porteiroId estão disponíveis
+  useEffect(() => {
+    if (buildingId && porteiroId && !isListening) {
+      console.log('🚀 Iniciando listeners automaticamente para:', { buildingId, porteiroId });
+      startListening();
+    }
+  }, [buildingId, porteiroId, isListening, startListening]);
+
   // Função para criar notificação local
   const createLocalNotification = useCallback(async (notification: PorteiroNotification) => {
     console.log('📢 Criando notificação local:', notification.title);
@@ -103,8 +111,8 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
     }
   }, []);
 
-  // Função para processar mudanças nas tabelas
-  const processTableChange = useCallback((tableName: string, payload: any) => {
+  // Função para processar mudanças nas tabelas com validação de turno
+  const processTableChangeWithShiftValidation = useCallback(async (tableName: string, payload: any, addNotification: (notification: PorteiroNotification) => Promise<void>) => {
     console.log(`🔄 Processando mudança na tabela ${tableName}:`, payload);
     
     let notification: PorteiroNotification;
@@ -182,20 +190,39 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
     
     console.log('📝 Notificação criada:', notification);
     
-    // Adicionar à lista de notificações
-    setNotifications(prev => [notification, ...prev]);
-    setUnreadCount(prev => prev + 1);
+    // Processar notificação com validação de turno
+    await addNotification(notification);
+  }, []);
+
+  // Função para verificar se o porteiro está em turno ativo
+  const isPorteiroOnDuty = useCallback(async (porteiroId: string): Promise<boolean> => {
+    if (!porteiroId) return false;
     
-    // Criar notificação push local
-    createLocalNotification(notification);
-  }, [createLocalNotification]);
+    try {
+      const { data, error } = await shiftService.getActiveShift(porteiroId);
+      if (error) {
+        console.error('Erro ao verificar turno ativo:', error);
+        return false;
+      }
+      return !!data;
+    } catch (error) {
+      console.error('Erro ao verificar turno ativo:', error);
+      return false;
+    }
+  }, []);
 
   // Função para iniciar listeners
-  const startListening = useCallback((newBuildingId: string) => {
-    console.log('🎧 Iniciando listeners para building_id:', newBuildingId);
+  const startListening = useCallback((targetBuildingId?: string) => {
+    const effectiveBuildingId = targetBuildingId || buildingId;
+    console.log('🎧 Iniciando listeners para building_id:', effectiveBuildingId);
     
-    if (isListening && buildingId === newBuildingId) {
-      console.log('⚠️ Já está ouvindo este building_id');
+    if (!effectiveBuildingId) {
+      console.log('⚠️ BuildingId não disponível');
+      return;
+    }
+    
+    if (isListening) {
+      console.log('⚠️ Já está ouvindo');
       return;
     }
     
@@ -208,60 +235,76 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
       setChannels([]);
     }
     
-    setBuildingId(newBuildingId);
     setError(null);
     
     try {
+      // Função para processar notificações com validação de turno
+      const addNotification = async (notification: PorteiroNotification) => {
+        // Verificar se o porteiro está em turno ativo antes de processar a notificação
+        if (porteiroId) {
+          const isOnDuty = await isPorteiroOnDuty(porteiroId);
+          if (!isOnDuty) {
+            console.log('🚫 Porteiro não está em turno ativo. Notificação ignorada:', notification.title);
+            return;
+          }
+        }
+        
+        console.log('📝 Notificação processada (porteiro em turno):', notification);
+        setNotifications(prev => [notification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+        createLocalNotification(notification);
+      };
+
       // Listener para visitors
       const visitorsChannel = supabase
-        .channel(`visitors_${newBuildingId}`)
+        .channel(`visitors_${effectiveBuildingId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'visitors',
-            filter: `building_id=eq.${newBuildingId}`
+            filter: `building_id=eq.${effectiveBuildingId}`
           },
           (payload) => {
-            console.log('👥 Mudança em visitors:', payload);
-            processTableChange('visitors', payload);
+            console.log('📨 Mudança em visitors:', payload);
+            processTableChangeWithShiftValidation('visitors', payload, addNotification);
           }
         )
         .subscribe();
       
       // Listener para deliveries
       const deliveriesChannel = supabase
-        .channel(`deliveries_${newBuildingId}`)
+        .channel(`deliveries_${effectiveBuildingId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'deliveries',
-            filter: `building_id=eq.${newBuildingId}`
+            filter: `building_id=eq.${effectiveBuildingId}`
           },
           (payload) => {
-            console.log('📦 Mudança em deliveries:', payload);
-            processTableChange('deliveries', payload);
+            console.log('📨 Mudança em deliveries:', payload);
+            processTableChangeWithShiftValidation('deliveries', payload, addNotification);
           }
         )
         .subscribe();
       
       // Listener para visitor_logs
       const logsChannel = supabase
-        .channel(`visitor_logs_${newBuildingId}`)
+        .channel(`visitor_logs_${effectiveBuildingId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'visitor_logs',
-            filter: `building_id=eq.${newBuildingId}`
+            filter: `building_id=eq.${effectiveBuildingId}`
           },
           (payload) => {
-            console.log('📋 Mudança em visitor_logs:', payload);
-            processTableChange('visitor_logs', payload);
+            console.log('📨 Mudança em visitor_logs:', payload);
+            processTableChangeWithShiftValidation('visitor_logs', payload, addNotification);
           }
         )
         .subscribe();
@@ -270,7 +313,7 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
       setChannels(newChannels);
       setIsListening(true);
       
-      console.log('✅ Listeners iniciados com sucesso para:', newBuildingId);
+      console.log('✅ Listeners iniciados com sucesso para:', effectiveBuildingId);
       console.log('📡 Canais ativos:', newChannels.length);
       
     } catch (err) {
@@ -278,7 +321,7 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
       setError('Erro ao iniciar listeners');
       setIsListening(false);
     }
-  }, [isListening, buildingId, channels, processTableChange]);
+  }, [isListening, buildingId, channels, porteiroId, isPorteiroOnDuty, createLocalNotification, processTableChangeWithShiftValidation]);
 
   // Função para parar listeners
   const stopListening = useCallback(() => {
@@ -290,7 +333,6 @@ export function usePorteiroNotifications(): UsePorteiroNotificationsReturn {
     
     setChannels([]);
     setIsListening(false);
-    setBuildingId(null);
     
     console.log('✅ Listeners parados');
   }, [channels]);

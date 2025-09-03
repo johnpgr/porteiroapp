@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { shiftService } from '../services/shiftService';
 
 console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
 
@@ -15,8 +16,8 @@ interface PorteiroNotification {
   read: boolean;
 }
 
-export const usePorteiroNotifications = (buildingId?: string | null) => {
-  console.log('🎯 [usePorteiroNotifications] Hook EXECUTANDO com buildingId:', buildingId);
+export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?: string | null) => {
+  console.log('🎯 [usePorteiroNotifications] Hook EXECUTANDO com buildingId:', buildingId, 'porteiroId:', porteiroId);
   
   const [notifications, setNotifications] = useState<PorteiroNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -70,9 +71,37 @@ export const usePorteiroNotifications = (buildingId?: string | null) => {
     }
   };
   
-  // Função para adicionar nova notificação
+  // Verificar se o porteiro está em turno ativo
+  const isPorteiroOnDuty = async (): Promise<boolean> => {
+    if (!porteiroId) {
+      console.log('⚠️ [usePorteiroNotifications] PorteiroId não disponível para verificação de turno');
+      return false;
+    }
+    
+    try {
+      const { shift } = await shiftService.getActiveShift(porteiroId);
+      const onDuty = shift?.status === 'active';
+      console.log('🔍 [usePorteiroNotifications] Porteiro em turno:', onDuty, shift ? `(${shift.id})` : '(sem turno)');
+      return onDuty;
+    } catch (error) {
+      console.error('❌ [usePorteiroNotifications] Erro ao verificar turno:', error);
+      return false;
+    }
+  };
+  
+  // Função para adicionar nova notificação (apenas se porteiro estiver em turno)
   const addNotification = async (notification: PorteiroNotification) => {
-    console.log('➕ [usePorteiroNotifications] Adicionando notificação:', notification);
+    console.log('➕ [usePorteiroNotifications] Tentando adicionar notificação:', notification.title);
+    
+    // Verificar se o porteiro está em turno ativo
+    const onDuty = await isPorteiroOnDuty();
+    
+    if (!onDuty) {
+      console.log('⏸️ [usePorteiroNotifications] Notificação ignorada - porteiro não está em turno ativo');
+      return;
+    }
+    
+    console.log('✅ [usePorteiroNotifications] Adicionando notificação - porteiro em turno ativo');
     
     setNotifications(prev => [notification, ...prev]);
     setUnreadCount(prev => prev + 1);
@@ -88,12 +117,17 @@ export const usePorteiroNotifications = (buildingId?: string | null) => {
       return;
     }
     
+    if (!porteiroId) {
+      console.log('⚠️ [usePorteiroNotifications] Não pode iniciar listeners - porteiroId não disponível');
+      return;
+    }
+    
     if (isListening) {
       console.log('⚠️ [usePorteiroNotifications] Listeners já estão ativos, ignorando chamada');
       return;
     }
     
-    console.log('🚀 [usePorteiroNotifications] Iniciando listeners para buildingId:', buildingId);
+    console.log('🚀 [usePorteiroNotifications] Iniciando listeners para buildingId:', buildingId, 'porteiroId:', porteiroId);
     
     // Marcar como listening imediatamente para prevenir chamadas simultâneas
     setIsListening(true);
@@ -225,13 +259,13 @@ export const usePorteiroNotifications = (buildingId?: string | null) => {
     // Aqui poderia buscar notificações do banco se necessário
   };
   
-  // Iniciar listeners automaticamente quando buildingId estiver disponível
+  // Iniciar listeners automaticamente quando buildingId e porteiroId estiverem disponíveis
   useEffect(() => {
-    if (buildingId && !isListening) {
-      console.log('🎯 [usePorteiroNotifications] BuildingId disponível, iniciando listeners automaticamente');
+    if (buildingId && porteiroId && !isListening) {
+      console.log('🎯 [usePorteiroNotifications] BuildingId e PorteiroId disponíveis, iniciando listeners automaticamente');
       startListening();
-    } else if (!buildingId && isListening) {
-      console.log('🛑 [usePorteiroNotifications] BuildingId removido, parando listeners');
+    } else if ((!buildingId || !porteiroId) && isListening) {
+      console.log('🛑 [usePorteiroNotifications] BuildingId ou PorteiroId removido, parando listeners');
       stopListening();
     }
     
@@ -242,7 +276,7 @@ export const usePorteiroNotifications = (buildingId?: string | null) => {
         stopListening();
       }
     };
-  }, [buildingId]); // Removido isListening das dependências para evitar loops
+  }, [buildingId, porteiroId]); // Adicionado porteiroId às dependências
   
   return {
     notifications,
