@@ -84,7 +84,7 @@ export default function HomePage() {
                 className="h-15"
               />
             </a> */}
-            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+            <a target='_blank' href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-google-play-badge.png" 
                 alt="Disponível no Google Play" 
@@ -430,7 +430,7 @@ export default function HomePage() {
                 className="h-15"
               />
             </a> */}
-            <a href="#" className="inline-block hover:opacity-80 transition-opacity">
+            <a target='_blank' href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" className="inline-block hover:opacity-80 transition-opacity">
               <Image 
                 src="/disponivel-google-play-badge.png" 
                 alt="Disponível no Google Play" 
@@ -438,14 +438,6 @@ export default function HomePage() {
                 height={60}
                 className="h-15"
               />
-            </a>
-            <a 
-              href="http://jamesavisa.jamesconcierge.com/morador/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center"
-            >
-              👤 Portal do Morador
             </a>
           </div>
         </div>

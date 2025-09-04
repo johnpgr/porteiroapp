@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import PhotoUpload from '@/components/PhotoUpload';
 
 import { toast } from 'sonner';
 
@@ -79,6 +80,11 @@ export default function CompletarCadastroPage() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authenticatedProfile, setAuthenticatedProfile] = useState<Profile | null>(null);
   
+  // Estados para busca automática por telefone
+  const [isSearchingByPhone, setIsSearchingByPhone] = useState(false);
+  const [phoneSearchSuccess, setPhoneSearchSuccess] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   const [formData, setFormData] = useState<ProfileData>({
     full_name: '',
     email: '',
@@ -96,10 +102,7 @@ export default function CompletarCadastroPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoUrl, setPhotoUrl] = useState<string>('');
   
   // Estados para controlar visibilidade das senhas
   const [showPassword, setShowPassword] = useState(false);
@@ -115,14 +118,52 @@ export default function CompletarCadastroPage() {
     }
   }, []);
 
+  // Debounce para busca automática por telefone
+  useEffect(() => {
+    // Limpar timer anterior
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Se não há profileId e o telefone tem pelo menos 10 dígitos, iniciar busca com debounce
+    if (!profileId && authPhone) {
+      const cleanPhone = authPhone.replace(/\D/g, '');
+      if (cleanPhone.length >= 10) {
+        debounceTimerRef.current = setTimeout(() => {
+          searchProfileByPhone(authPhone, true);
+        }, 1500); // 1.5 segundos de debounce
+      }
+    }
+
+    // Cleanup
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [authPhone, profileId]);
+
   // Função para buscar profile_id usando o número de celular
-  const searchProfileByPhone = async (phoneNumber: string) => {
+  const searchProfileByPhone = async (phoneNumber: string, isAutoSearch = false) => {
     try {
-      setIsAuthenticating(true);
+      if (isAutoSearch) {
+        setIsSearchingByPhone(true);
+      } else {
+        setIsAuthenticating(true);
+      }
       setAuthError(null);
+      setPhoneSearchSuccess(false);
 
       // Limpar e formatar o número de celular
       const cleanPhone = phoneNumber.replace(/\D/g, '');
+      
+      // Verificar se o telefone tem pelo menos 10 dígitos
+      if (cleanPhone.length < 10) {
+        if (!isAutoSearch) {
+          throw new Error('Número de telefone muito curto');
+        }
+        return;
+      }
       
       // Buscar na tabela temporary_passwords usando o campo phone_number
       const { data: tempPasswordData, error: tempPasswordError } = await supabase
@@ -136,7 +177,10 @@ export default function CompletarCadastroPage() {
       }
 
       if (!tempPasswordData || tempPasswordData.length === 0) {
-        throw new Error('Nenhum registro encontrado para este celular');
+        if (!isAutoSearch) {
+          throw new Error('Nenhum registro encontrado para este celular');
+        }
+        return;
       }
 
       // Encontrar o registro que corresponde ao telefone
@@ -146,19 +190,34 @@ export default function CompletarCadastroPage() {
       });
 
       if (!matchingRecord) {
-        throw new Error('Celular não encontrado nos registros');
+        if (!isAutoSearch) {
+          throw new Error('Celular não encontrado nos registros');
+        }
+        return;
       }
 
       // Definir o profileId encontrado
       setProfileId(matchingRecord.profile_id);
-      toast.success('Perfil encontrado! Agora digite sua senha.');
+      setPhoneSearchSuccess(true);
+      
+      if (isAutoSearch) {
+        toast.success('Perfil encontrado! Digite sua senha para continuar.');
+      } else {
+        toast.success('Perfil encontrado! Agora digite sua senha.');
+      }
       
     } catch (error: unknown) {
       console.error('Erro ao buscar perfil por telefone:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao buscar perfil';
-      setAuthError(errorMessage);
+      if (!isAutoSearch) {
+        setAuthError(errorMessage);
+      }
     } finally {
-      setIsAuthenticating(false);
+      if (isAutoSearch) {
+        setIsSearchingByPhone(false);
+      } else {
+        setIsAuthenticating(false);
+      }
     }
   };
 
@@ -245,18 +304,8 @@ export default function CompletarCadastroPage() {
         throw new Error('Esta senha temporária expirou');
       }
 
-      // Marcar senha como usada
-      const { error: updateError } = await supabase
-        .from('temporary_passwords')
-        .update({ 
-          used: true, 
-          used_at: new Date().toISOString() 
-        })
-        .eq('id', tempPassword.id);
-
-      if (updateError) {
-        throw new Error('Erro ao processar autenticação');
-      }
+      // Não marcar senha como usada ainda - será feito apenas após cadastro completo
+      // A temporary_password será mantida até o final do processo
 
       // Buscar dados do perfil
       const { data: profile, error: profileError } = await supabase
@@ -289,9 +338,9 @@ export default function CompletarCadastroPage() {
         emergency_contact_phone: profile.emergency_contact_phone || ''
       }));
       
-      // Se o perfil já tem uma foto, definir o previewUrl
+      // Se o perfil já tem uma foto, definir o photoUrl
       if (profile.avatar_url) {
-        setPreviewUrl(profile.avatar_url);
+        setPhotoUrl(profile.avatar_url);
       }
       
       setIsAuthenticated(true);
@@ -349,58 +398,13 @@ export default function CompletarCadastroPage() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({ ...prev, photo: 'Por favor, selecione apenas arquivos de imagem' }));
-        return;
-      }
-      
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, photo: 'A imagem deve ter no máximo 5MB' }));
-        return;
-      }
-      
-      setSelectedFile(file);
-      setErrors(prev => ({ ...prev, photo: '' }));
-      
-      // Create preview URL
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
+  const handlePhotoUpload = (url: string) => {
+    setPhotoUrl(url);
+    setErrors(prev => ({ ...prev, photo: '' }));
   };
 
-  const uploadPhoto = async (file: File): Promise<string | null> => {
-    try {
-      setUploadingPhoto(true);
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `profiles/${fileName}`;
-      
-
-      const { error } = await supabase.storage
-        .from('profiles-fotos')
-        .upload(filePath, file);
-
-      if (error) {
-        throw error;
-      }
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('profiles-fotos')
-        .getPublicUrl(filePath);
-
-      return publicUrl;
-    } catch {
-      setErrors(prev => ({ ...prev, photo: 'Erro ao fazer upload da foto' }));
-      return null;
-    } finally {
-      setUploadingPhoto(false);
-    }
+  const handlePhotoRemove = () => {
+    setPhotoUrl('');
   };
 
   // Funções de navegação entre etapas
@@ -447,11 +451,10 @@ export default function CompletarCadastroPage() {
     console.log('📝 Validação Etapa 3 (Senha):', step3Valid);
     
     const newErrors: FormErrors = {};
-    // Verificar se há foto: arquivo selecionado, preview URL ou avatar existente no perfil
-    const hasPhoto = selectedFile || previewUrl || authenticatedProfile?.avatar_url;
+    // Verificar se há foto: photoUrl ou avatar existente no perfil
+    const hasPhoto = photoUrl || authenticatedProfile?.avatar_url;
     console.log('📸 Validação da foto:', {
-      selectedFile: !!selectedFile,
-      previewUrl: !!previewUrl,
+      photoUrl: !!photoUrl,
       avatarUrl: !!authenticatedProfile?.avatar_url,
       hasPhoto
     });
@@ -641,114 +644,52 @@ export default function CompletarCadastroPage() {
         profileId: authenticatedProfile?.id
       });
 
-      let avatarUrl = null;
-      if (selectedFile) {
-        console.log('📸 Fazendo upload da foto:', selectedFile.name);
-        avatarUrl = await uploadPhoto(selectedFile);
-        if (selectedFile && !avatarUrl) {
-          const uploadErrorMessage = 'Erro ao fazer upload da foto. Tente novamente.';
-          toast.error(uploadErrorMessage, { id: 'submit-toast' });
-          setErrors({ submit: uploadErrorMessage });
-          return;
-        }
-        console.log('✅ Upload da foto concluído:', avatarUrl);
-      }
+      // Usar a URL da foto já carregada pelo componente PhotoUpload
+      const avatarUrl = photoUrl || authenticatedProfile?.avatar_url;
+      console.log('📸 URL da foto para salvar:', avatarUrl);
 
-      // Preparar dados para atualização
-        const updateData = {
+      // Chamar a API para completar o perfil e criar o usuário
+      const response = await fetch('/api/complete-morador-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profile_id: authenticatedProfile.id,
           full_name: formData.full_name,
           email: formData.email,
           cpf: formData.cpf,
           birth_date: formData.birth_date,
           address: formData.address,
           emergency_contact_name: formData.emergency_contact_name,
-          emergency_contact_phone: formData.emergency_contact_phone.replace(/\D/g, ''),
-          avatar_url: avatarUrl,
-          profile_complete: true,
-          updated_at: new Date().toISOString()
-        };
-
-      // Log dos dados que serão enviados
-      console.log('📝 Dados para atualização do perfil:', {
-        profileId: authenticatedProfile.id,
-        updateData: updateData,
-        originalProfileData: formData
+          emergency_contact_phone: formData.emergency_contact_phone,
+          password: formData.password,
+          avatar_url: avatarUrl
+        }),
       });
 
-      // Log da estrutura dos dados antes do envio
-      console.log('🔍 Verificação dos campos:', {
-        email: { value: updateData.email, type: typeof updateData.email, valid: !!updateData.email },
-        birth_date: { value: updateData.birth_date, type: typeof updateData.birth_date, valid: !!updateData.birth_date },
-        address: { value: updateData.address, type: typeof updateData.address, valid: !!updateData.address },
-        emergency_contact_name: { value: updateData.emergency_contact_name, type: typeof updateData.emergency_contact_name, valid: !!updateData.emergency_contact_name },
-        emergency_contact_phone: { value: updateData.emergency_contact_phone, type: typeof updateData.emergency_contact_phone, valid: !!updateData.emergency_contact_phone },
-        avatar_url: { value: updateData.avatar_url, type: typeof updateData.avatar_url },
-        profile_complete: { value: updateData.profile_complete, type: typeof updateData.profile_complete },
-        updated_at: { value: updateData.updated_at, type: typeof updateData.updated_at }
-      });
+      if (response.ok) {
+        // Cadastro concluído com sucesso - agora apagar a temporary_password
+        try {
+          const { error: deleteError } = await supabase
+            .from('temporary_passwords')
+            .delete()
+            .eq('profile_id', authenticatedProfile.id);
 
-      const { data: profileUpdateData, error: profileError } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', authenticatedProfile.id)
-        .select();
-
-      // Log da resposta completa
-      console.log('📤 Resposta da atualização do perfil:', {
-        data: profileUpdateData,
-        error: profileError,
-        hasError: !!profileError
-      });
-
-      if (profileError) {
-        console.error('❌ Erro detalhado na atualização do perfil:', {
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-          code: profileError.code,
-          fullError: profileError
-        });
-        const profileErrorMessage = `Erro ao completar cadastro: ${profileError.message}`;
-        toast.error(profileErrorMessage, { id: 'submit-toast' });
-        setErrors({ submit: profileErrorMessage });
-        return;
-      }
-
-      // Preparar dados para criação do usuário
-      const signUpData = {
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            phone: authenticatedProfile.phone,
-            profile_id: authenticatedProfile.id
+          if (deleteError) {
+            console.warn('⚠️ Aviso: Não foi possível apagar temporary_password:', deleteError);
+          } else {
+            console.log('🗑️ Temporary_password apagada com sucesso após cadastro completo');
           }
+        } catch (tempPasswordError) {
+          console.error('⚠️ Erro ao remover temporary password:', tempPasswordError);
+          // Não bloquear o fluxo se houver erro na remoção da temporary password
         }
-      };
-
-      console.log('👤 Dados para criação do usuário:', {
-        email: signUpData.email,
-        hasPassword: !!signUpData.password,
-        passwordLength: signUpData.password?.length,
-        metadata: signUpData.options.data
-      });
-
-      const { data: signUpData_result, error: signUpError } = await supabase.auth.signUp(signUpData);
-
-      console.log('📤 Resposta da criação do usuário:', {
-        data: signUpData_result,
-        error: signUpError,
-        hasError: !!signUpError
-      });
-
-      if (signUpError) {
-        console.error('❌ Erro detalhado na criação do usuário:', {
-          message: signUpError.message,
-          status: signUpError.status,
-          fullError: signUpError
-        });
-        toast.error(`Erro ao criar conta: ${signUpError.message}`, { id: 'submit-toast' });
-        setErrors({ submit: `Erro ao criar conta: ${signUpError.message}` });
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Erro na API:', errorData);
+        toast.error(errorData.message || 'Erro ao completar cadastro', { id: 'submit-toast' });
+        setErrors({ submit: errorData.message || 'Erro ao completar cadastro' });
         return;
       }
 
@@ -810,6 +751,24 @@ export default function CompletarCadastroPage() {
             <div>
               <label htmlFor="authPhone" className="block text-sm font-medium text-gray-700 mb-2">
                 Celular
+                {isSearchingByPhone && (
+                  <span className="ml-2 text-blue-600 text-xs">
+                    <div className="inline-flex items-center">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
+                      Buscando perfil...
+                    </div>
+                  </span>
+                )}
+                {phoneSearchSuccess && (
+                  <span className="ml-2 text-green-600 text-xs">
+                    <div className="inline-flex items-center">
+                      <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Perfil encontrado!
+                    </div>
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <svg className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -819,11 +778,35 @@ export default function CompletarCadastroPage() {
                   id="authPhone"
                   type="tel"
                   value={authPhone}
-                  onChange={(e) => setAuthPhone(formatAuthPhone(e.target.value))}
+                  onChange={(e) => {
+                    setAuthPhone(formatAuthPhone(e.target.value));
+                    // Reset estados quando o usuário digita
+                    setPhoneSearchSuccess(false);
+                    setAuthError(null);
+                  }}
                   placeholder="(11) 99999-9999"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500"
+                  className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500 transition-all ${
+                    phoneSearchSuccess 
+                      ? 'border-green-300 bg-green-50' 
+                      : isSearchingByPhone 
+                      ? 'border-blue-300 bg-blue-50' 
+                      : 'border-gray-300'
+                  }`}
                   required
                 />
+                {/* Ícone de status no campo */}
+                {isSearchingByPhone && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+                {phoneSearchSuccess && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -980,54 +963,12 @@ export default function CompletarCadastroPage() {
 
                   {/* Foto de Perfil */}
                   <div className="flex flex-col items-center space-y-4 mb-8">
-                    <div className="relative">
-                      {previewUrl ? (
-                        <div className="relative">
-                          <Image
-                            src={previewUrl}
-                            alt="Preview"
-                            width={120}
-                            height={120}
-                            className="rounded-full object-cover border-4 border-blue-100 shadow-lg"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewUrl(null);
-                              setSelectedFile(null);
-                            }}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm hover:bg-red-600 transition-all duration-200 shadow-lg"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-full flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                          <div className="text-center">
-                            <svg className="w-8 h-8 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <p className="text-xs text-gray-500">Clique para adicionar</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileSelect}
-                      accept="image/*"
-                      className="hidden"
+                    <PhotoUpload
+                      onPhotoUpload={handlePhotoUpload}
+                      onPhotoRemove={handlePhotoRemove}
+                      initialPhotoUrl={photoUrl}
+                      userId={authenticatedProfile?.id || 'temp'}
                     />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium"
-                    >
-                      {previewUrl ? 'Alterar Foto' : 'Adicionar Foto'}
-                    </button>
                     {errors.photo && (
                       <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.photo}</p>
                     )}

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/utils/useAuth';
 import { supabase } from '@/lib/supabase';
+import PhotoUpload from '@/components/PhotoUpload';
 
 interface ProfileData {
   birth_date: string;
@@ -30,6 +31,11 @@ export default function CompletarCadastroPage() {
   const [isSearchingProfile, setIsSearchingProfile] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   
+  // Estados para busca automática com debounce
+  const [isSearchingByPhone, setIsSearchingByPhone] = useState(false);
+  const [phoneSearchSuccess, setPhoneSearchSuccess] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   const [profileData, setProfileData] = useState<ProfileData>({
     birth_date: '',
     address: '',
@@ -40,14 +46,17 @@ export default function CompletarCadastroPage() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   // Function to search visitor profile by phone number
-  const searchVisitorByPhone = async (phone: string) => {
+  const searchVisitorByPhone = async (phone: string, isAutoSearch = false) => {
     try {
-      setIsSearchingProfile(true);
+      if (isAutoSearch) {
+        setIsSearchingByPhone(true);
+        setPhoneSearchSuccess(false);
+      } else {
+        setIsSearchingProfile(true);
+      }
       setSearchError(null);
       
       // Clean and format phone number
@@ -66,9 +75,13 @@ export default function CompletarCadastroPage() {
       if (error) {
         console.error('❌ Erro na busca por telefone:', error);
         if (error.code === 'PGRST116') {
-          setSearchError('Nenhum registro encontrado para este número de telefone ou a senha temporária expirou.');
+          if (!isAutoSearch) {
+            setSearchError('Nenhum registro encontrado para este número de telefone ou a senha temporária expirou.');
+          }
         } else {
-          setSearchError('Erro ao buscar perfil. Tente novamente.');
+          if (!isAutoSearch) {
+            setSearchError('Erro ao buscar perfil. Tente novamente.');
+          }
         }
         return;
       }
@@ -77,14 +90,25 @@ export default function CompletarCadastroPage() {
         console.log('✅ Visitante encontrado:', data.visitor_id);
         setProfileId(data.visitor_id);
         setSearchError(null);
+        if (isAutoSearch) {
+          setPhoneSearchSuccess(true);
+        }
       } else {
-        setSearchError('Perfil de visitante não encontrado para este telefone.');
+        if (!isAutoSearch) {
+          setSearchError('Perfil de visitante não encontrado para este telefone.');
+        }
       }
     } catch (error) {
       console.error('💥 Erro na busca por telefone:', error);
-      setSearchError('Erro de conexão. Verifique sua internet e tente novamente.');
+      if (!isAutoSearch) {
+        setSearchError('Erro de conexão. Verifique sua internet e tente novamente.');
+      }
     } finally {
-      setIsSearchingProfile(false);
+      if (isAutoSearch) {
+        setIsSearchingByPhone(false);
+      } else {
+        setIsSearchingProfile(false);
+      }
     }
   };
 
@@ -135,6 +159,31 @@ export default function CompletarCadastroPage() {
       }
     }
   }, [loading, user, profile, requireAuth, router, autoLoginAttempted, autoLoginError]);
+
+  // Debounce para busca automática por telefone
+  useEffect(() => {
+    // Limpar timer anterior
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Se não há profileId e o telefone tem pelo menos 10 dígitos, iniciar busca com debounce
+    if (!profileId && searchPhone) {
+      const cleanPhone = searchPhone.replace(/\D/g, '');
+      if (cleanPhone.length >= 10) {
+        debounceTimerRef.current = setTimeout(() => {
+          searchVisitorByPhone(searchPhone, true);
+        }, 1500); // 1.5 segundos de debounce
+      }
+    }
+
+    // Cleanup
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchPhone, profileId]);
 
   const performAutoLogin = async (profileId: string) => {
     try {
@@ -201,58 +250,13 @@ export default function CompletarCadastroPage() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({ ...prev, photo: 'Por favor, selecione apenas arquivos de imagem' }));
-        return;
-      }
-      
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, photo: 'A imagem deve ter no máximo 5MB' }));
-        return;
-      }
-      
-      setSelectedFile(file);
-      setErrors(prev => ({ ...prev, photo: '' }));
-      
-      // Create preview URL
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    }
+  const handlePhotoUpload = (url: string) => {
+    setPhotoUrl(url);
+    setErrors(prev => ({ ...prev, photo: '' }));
   };
 
-  const uploadPhoto = async (): Promise<string | null> => {
-    if (!selectedFile || !profile?.id) return null;
-    
-    setUploadingPhoto(true);
-    const formData = new FormData();
-    formData.append('photo', selectedFile);
-    formData.append('profile_id', profile.id);
-    
-    try {
-      const response = await fetch('/api/upload-profile-photo', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        return result.avatar_url;
-      } else {
-        const errorData = await response.json();
-        setErrors(prev => ({ ...prev, photo: errorData.message || 'Erro ao fazer upload da foto' }));
-        return null;
-      }
-    } catch (error) {
-      setErrors(prev => ({ ...prev, photo: 'Erro de conexão ao fazer upload da foto' }));
-      return null;
-    } finally {
-      setUploadingPhoto(false);
-    }
+  const handlePhotoRemove = () => {
+    setPhotoUrl(null);
   };
 
   const validateForm = (): boolean => {
@@ -309,16 +313,8 @@ export default function CompletarCadastroPage() {
     setIsSubmitting(true);
 
     try {
-      // Upload photo first if selected
-      let avatarUrl = null;
-      if (selectedFile) {
-        avatarUrl = await uploadPhoto();
-        if (selectedFile && !avatarUrl) {
-          // Photo upload failed, don't continue
-          setIsSubmitting(false);
-          return;
-        }
-      }
+      // Use the photo URL that was already uploaded by PhotoUpload component
+      const avatarUrl = photoUrl;
 
       // Complete profile
       const response = await fetch('/api/complete-profile', {
@@ -338,7 +334,24 @@ export default function CompletarCadastroPage() {
       });
 
       if (response.ok) {
-        router.push('/cadastro/morador/sucesso');
+        // Cadastro concluído com sucesso - agora apagar a temporary_password
+        try {
+          const cleanPhone = profile.phone?.replace(/\D/g, '');
+          if (cleanPhone) {
+            await supabase
+              .from('visitor_temporary_passwords')
+              .delete()
+              .eq('visitor_id', profile.id)
+              .eq('phone', cleanPhone);
+            
+            console.log('✅ Visitor temporary password removida após cadastro completo');
+          }
+        } catch (tempPasswordError) {
+          console.error('⚠️ Erro ao remover visitor temporary password:', tempPasswordError);
+          // Não bloquear o fluxo se houver erro na remoção da temporary password
+        }
+        
+        router.push('/cadastro/visitante/sucesso');
       } else {
         const errorData = await response.json();
         setErrors({ submit: errorData.message || 'Erro ao completar cadastro' });
@@ -435,6 +448,24 @@ export default function CompletarCadastroPage() {
                 <div>
                   <label htmlFor="search_phone" className="block text-sm font-medium text-gray-700 mb-1">
                     Número de Celular
+                    {isSearchingByPhone && (
+                      <span className="ml-2 text-blue-600 text-xs">
+                        <div className="inline-flex items-center">
+                          <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
+                          Buscando perfil...
+                        </div>
+                      </span>
+                    )}
+                    {phoneSearchSuccess && (
+                      <span className="ml-2 text-green-600 text-xs">
+                        <div className="inline-flex items-center">
+                          <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Perfil encontrado!
+                        </div>
+                      </span>
+                    )}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -446,12 +477,36 @@ export default function CompletarCadastroPage() {
                       type="tel"
                       id="search_phone"
                       value={searchPhone}
-                      onChange={(e) => setSearchPhone(formatSearchPhone(e.target.value))}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                      onChange={(e) => {
+                        setSearchPhone(formatSearchPhone(e.target.value));
+                        // Reset estados quando o usuário digita
+                        setPhoneSearchSuccess(false);
+                        setSearchError(null);
+                      }}
+                      className={`w-full pl-10 pr-12 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+                        phoneSearchSuccess 
+                          ? 'border-green-300 bg-green-50' 
+                          : isSearchingByPhone 
+                          ? 'border-blue-300 bg-blue-50' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="(11) 99999-9999"
                       maxLength={15}
                       required
                     />
+                    {/* Ícone de status no campo */}
+                    {isSearchingByPhone && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      </div>
+                    )}
+                    {phoneSearchSuccess && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -568,42 +623,12 @@ export default function CompletarCadastroPage() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Photo Upload */}
-              <div className="text-center">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Foto do Perfil (Opcional)
-                </label>
-                <div className="flex flex-col items-center">
-                  <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center mb-4 overflow-hidden">
-                    {previewUrl ? (
-                      <img 
-                        src={previewUrl} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    id="photo"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="photo"
-                    className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    {selectedFile ? 'Alterar Foto' : 'Selecionar Foto'}
-                  </label>
-                  {errors.photo && (
-                    <p className="mt-2 text-sm text-red-600">{errors.photo}</p>
-                  )}
-                </div>
-              </div>
+              <PhotoUpload
+                onPhotoUpload={handlePhotoUpload}
+                onPhotoRemove={handlePhotoRemove}
+                initialPhotoUrl={photoUrl}
+                userId={profile?.id || ''}
+              />
 
               {/* Data de Nascimento */}
               <div>
@@ -741,16 +766,16 @@ export default function CompletarCadastroPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || uploadingPhoto}
+                disabled={isSubmitting}
                 className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-3 px-4 rounded-md transition-colors duration-200 flex items-center justify-center"
               >
-                {isSubmitting || uploadingPhoto ? (
+                {isSubmitting ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    {uploadingPhoto ? 'Enviando foto...' : 'Finalizando cadastro...'}
+                    Finalizando cadastro...
                   </>
                 ) : (
                   'Finalizar Cadastro'
