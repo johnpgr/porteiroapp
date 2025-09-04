@@ -132,7 +132,6 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
   const [responding, setResponding] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
 
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
@@ -175,69 +174,39 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
     }
   };
 
-  const handleApprove = async () => {
-    if (notification.entry_type === 'delivery') {
-      setShowDeliveryModal(true);
-      return;
-    }
-    
-    setResponding(true);
-    const result = await onRespond(notification.id, { action: 'approve' });
-    
-    if (!result.success) {
-      Alert.alert('Erro', 'Não foi possível aprovar a solicitação');
-    }
-    setResponding(false);
+  const isDelivery = notification.purpose?.toLowerCase().includes('entrega') || 
+                   notification.entry_type === 'delivery';
+
+  const handleApprove = () => {
+    onRespond(notification.id, { action: 'approve' });
   };
 
   const handleReject = () => {
     setShowRejectModal(true);
   };
 
-  const handleDeliveryPortaria = async () => {
-    setResponding(true);
-    const result = await onRespond(notification.id, { 
+  const handleDeliveryPortaria = () => {
+    onRespond(notification.id, { 
       action: 'approve', 
       delivery_destination: 'portaria' 
     });
-    
-    if (!result.success) {
-      Alert.alert('Erro', 'Não foi possível processar a encomenda');
-    }
-    
-    setShowDeliveryModal(false);
-    setResponding(false);
   };
 
-  const handleDeliveryElevador = async () => {
-    setResponding(true);
-    const result = await onRespond(notification.id, { 
+  const handleDeliveryElevador = () => {
+    onRespond(notification.id, { 
       action: 'approve', 
       delivery_destination: 'elevador' 
     });
-    
-    if (!result.success) {
-      Alert.alert('Erro', 'Não foi possível processar a encomenda');
-    }
-    
-    setShowDeliveryModal(false);
-    setResponding(false);
   };
 
-  const confirmReject = async () => {
-    setResponding(true);
-    const result = await onRespond(notification.id, {
-      action: 'reject',
-      reason: rejectReason || 'Não autorizado'
+  const confirmReject = () => {
+    onRespond(notification.id, { 
+      action: 'reject', 
+      reason: rejectReason 
     });
-    
-    if (!result.success) {
-      Alert.alert('Erro', 'Não foi possível recusar a solicitação');
-    }
     
     setShowRejectModal(false);
     setRejectReason('');
-    setResponding(false);
   };
 
   const handleDeliveryDestination = async (destination: 'portaria' | 'elevador' | 'apartamento') => {
@@ -281,27 +250,27 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
       
       <View style={styles.notificationActions}>
         {isDelivery ? (
-          // Botões específicos para entregas
           <>
             <TouchableOpacity
               style={[styles.actionButton, styles.porterButton]}
               onPress={handleDeliveryPortaria}
               disabled={responding}
-              activeOpacity={0.8}
             >
-              <Text style={styles.actionButtonText}>🏢 Deixar na portaria</Text>
+              <Text style={styles.actionButtonText}>
+                {responding ? 'Processando...' : 'Deixar na portaria'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.elevatorButton]}
               onPress={handleDeliveryElevador}
               disabled={responding}
-              activeOpacity={0.8}
             >
-              <Text style={styles.actionButtonText}>🛗 Enviar pelo elevador</Text>
+              <Text style={styles.actionButtonText}>
+                {responding ? 'Processando...' : 'Subir no elevador'}
+              </Text>
             </TouchableOpacity>
           </>
         ) : (
-          // Botões padrão para visitantes e veículos
           <>
             <TouchableOpacity
               style={[styles.actionButton, styles.denyButton]}
@@ -309,7 +278,7 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
               disabled={responding}
             >
               <Text style={styles.actionButtonText}>
-                {notification.entry_type === 'vehicle' ? 'Recusar' : 'Recusar'}
+                {responding ? 'Processando...' : 'Recusar'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -318,7 +287,7 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
               disabled={responding}
             >
               <Text style={styles.actionButtonText}>
-                {notification.entry_type === 'vehicle' ? 'Aceitar' : 'Aprovar'}
+                {responding ? 'Processando...' : 'Aceitar'}
               </Text>
             </TouchableOpacity>
           </>
@@ -360,7 +329,6 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
           </View>
         </View>
       </Modal>
-
 
     </View>
   );

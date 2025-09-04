@@ -1,8 +1,57 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/utils/useAuth';
+import { Ionicons } from '@expo/vector-icons';
+import { toast } from 'sonner';
+
+// Interface para tipagem do histórico de visitantes
+interface VisitorHistory {
+  id: string;
+  visitor_name: string;
+  purpose: string;
+  log_time: string;
+  notification_status: 'approved' | 'pending' | 'rejected';
+  visitor_document?: string;
+  visitor_phone?: string;
+  delivery_destination?: string;
+}
+
+// Interface para notificações pendentes
+interface PendingNotification {
+  id: string;
+  entry_type: 'visitor' | 'delivery' | 'vehicle';
+  notification_status: 'pending' | 'approved' | 'rejected' | 'expired';
+  notification_sent_at: string;
+  expires_at: string;
+  apartment_id: string;
+  guest_name?: string;
+  purpose?: string;
+  visitor_id?: string;
+  delivery_sender?: string;
+  delivery_description?: string;
+  delivery_tracking_code?: string;
+  license_plate?: string;
+  vehicle_model?: string;
+  vehicle_color?: string;
+  vehicle_brand?: string;
+  building_id: string;
+  created_at: string;
+  log_time: string;
+  visitors?: {
+    name: string;
+    document: string;
+    phone?: string;
+  };
+}
+
+interface NotificationResponse {
+  action: 'approve' | 'reject';
+  reason?: string;
+  delivery_destination?: 'portaria' | 'elevador' | 'apartamento';
+}
 import {
   UserIcon,
   Mail,
@@ -51,6 +100,21 @@ interface UserProfile {
   building?: string;
   profile_type?: string;
   created_at?: string;
+  // Novos campos da tabela profiles
+  cpf?: string;
+  address?: string;
+  birth_date?: string;
+  work_schedule?: string;
+  role?: string;
+  user_type?: string;
+  relation?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  profile_complete?: boolean;
+  building_address?: string;
+  floor?: number;
+  is_owner?: boolean;
+  relationship?: string;
 }
 
 export default function LoginClient() {
@@ -74,6 +138,22 @@ export default function LoginClient() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('home');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  
+  // Estados para o histórico de visitantes
+  const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  
+  // Estados para notificações pendentes
+  const [pendingNotifications, setPendingNotifications] = useState<PendingNotification[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [apartmentId, setApartmentId] = useState<string | null>(null);
+  
+  // Estados para exclusão de conta
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Funções de validação
   const validateEmail = (email: string): string | undefined => {
@@ -110,7 +190,7 @@ export default function LoginClient() {
         setFormErrors(prev => ({ ...prev, email: undefined }));
       }
     }
-  }, [email, formErrors.email]);
+  }, [email]);
 
   useEffect(() => {
     if (password && formErrors.password) {
@@ -119,7 +199,7 @@ export default function LoginClient() {
         setFormErrors(prev => ({ ...prev, password: undefined }));
       }
     }
-  }, [password, formErrors.password]);
+  }, [password]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,9 +216,6 @@ export default function LoginClient() {
       await signIn(email, password);
       setSuccessMessage('Login realizado com sucesso!');
       
-      // Carregar perfil do usuário
-      await loadUserProfile();
-      
     } catch (error: any) {
       console.error('Erro no login:', error);
       setError(error.message || 'Erro ao fazer login. Verifique suas credenciais.');
@@ -147,35 +224,421 @@ export default function LoginClient() {
     }
   };
 
-  // Carregar perfil do usuário
-  const loadUserProfile = async () => {
-    if (!user) return;
+  // Função para buscar dados completos do usuário com JOIN
+  const fetchUserCompleteData = async () => {
+    if (!user) return { 
+      apartment: '', 
+      building: '', 
+      fullName: '', 
+      phone: '', 
+      email: '', 
+      relationship: '',
+      isOwner: false,
+      floor: null,
+      cpf: '',
+      address: '',
+      birth_date: '',
+      work_schedule: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+      buildingAddress: '',
+      userType: '',
+      role: '',
+      avatar_url: ''
+    };
     
-    setIsLoadingProfile(true);
     try {
-      const response = await fetch('/api/user-profile', {
-        headers: {
-          'Authorization': `Bearer ${user.access_token}`
-        }
-      });
+      // Buscar dados completos com JOIN entre todas as tabelas relevantes
+      const { data: userData, error: userError } = await supabase
+        .from('apartment_residents')
+        .select(`
+          apartment_id,
+          is_owner,
+          relationship,
+          profiles (
+            id,
+            full_name,
+            phone,
+            email,
+            cpf,
+            address,
+            birth_date,
+            work_schedule,
+            emergency_contact_name,
+            emergency_contact_phone,
+            user_type,
+            role,
+            profile_complete,
+            avatar_url
+          ),
+          apartments (
+            id,
+            number,
+            floor,
+            buildings (
+              id,
+              name,
+              address
+            )
+          )
+        `)
+        .eq('profile_id', user.id)
+        .eq('is_active', true)
+        .single();
       
-      if (response.ok) {
-        const profile = await response.json();
-        setUserProfile(profile);
+      if (userError || !userData) {
+        console.warn('Usuário não possui apartamento associado:', userError?.message);
+        
+        // Tentar buscar dados diretamente da tabela profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            full_name,
+            phone,
+            email,
+            cpf,
+            address,
+            birth_date,
+            work_schedule,
+            emergency_contact_name,
+            emergency_contact_phone,
+            user_type,
+            role,
+            profile_complete,
+            avatar_url,
+            building_id,
+            buildings (
+              id,
+              name,
+              address
+            )
+          `)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (profileError || !profileData) {
+          return { 
+            apartment: '', 
+            building: '', 
+            fullName: user.user_metadata?.name || '',
+            phone: user.user_metadata?.phone || '',
+            email: user.email || '',
+            relationship: '',
+            isOwner: false,
+            floor: null,
+            cpf: '',
+            address: '',
+            birth_date: '',
+            work_schedule: '',
+            emergency_contact_name: '',
+            emergency_contact_phone: '',
+            buildingAddress: '',
+            userType: '',
+            role: '',
+            avatar_url: ''
+          };
+        }
+        
+        // Retornar dados apenas do perfil (sem apartamento)
+        return {
+          apartment: '',
+          building: profileData.buildings?.name || '',
+          buildingAddress: profileData.buildings?.address || '',
+          floor: null,
+          fullName: profileData.full_name || user.user_metadata?.name || '',
+          phone: profileData.phone || user.user_metadata?.phone || '',
+          email: profileData.email || user.email || '',
+          cpf: profileData.cpf || '',
+          address: profileData.address || '',
+          birth_date: profileData.birth_date || '',
+          work_schedule: profileData.work_schedule || '',
+          emergency_contact_name: profileData.emergency_contact_name || '',
+          emergency_contact_phone: profileData.emergency_contact_phone || '',
+          relationship: '',
+          isOwner: false,
+          userType: profileData.user_type || '',
+          role: profileData.role || '',
+          avatar_url: profileData.avatar_url || ''
+        };
       }
+      
+      const apartment = userData.apartments?.number || '';
+      const building = userData.apartments?.buildings?.name || '';
+      const buildingAddress = userData.apartments?.buildings?.address || '';
+      const floor = userData.apartments?.floor;
+      const fullName = userData.profiles?.full_name || user.user_metadata?.name || '';
+      const phone = userData.profiles?.phone || user.user_metadata?.phone || '';
+      const email = userData.profiles?.email || user.email || '';
+      const cpf = userData.profiles?.cpf || '';
+      const address = userData.profiles?.address || '';
+      const birth_date = userData.profiles?.birth_date || '';
+      const work_schedule = userData.profiles?.work_schedule || '';
+      const emergency_contact_name = userData.profiles?.emergency_contact_name || '';
+      const emergency_contact_phone = userData.profiles?.emergency_contact_phone || '';
+      const relationship = userData.relationship || '';
+      const isOwner = userData.is_owner || false;
+      const userType = userData.profiles?.user_type || '';
+      const role = userData.profiles?.role || '';
+      const avatar_url = userData.profiles?.avatar_url || '';
+      
+      return { 
+        apartment, 
+        building, 
+        buildingAddress,
+        floor,
+        fullName, 
+        phone,
+        email,
+        cpf,
+        address,
+        birth_date,
+        work_schedule,
+        emergency_contact_name,
+        emergency_contact_phone,
+        relationship,
+        isOwner,
+        userType,
+        role,
+        avatar_url
+      };
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-    } finally {
-      setIsLoadingProfile(false);
+      console.error('Erro ao buscar dados completos do usuário:', error);
+      return { 
+        apartment: '', 
+        building: '', 
+        fullName: user.user_metadata?.name || '',
+        phone: user.user_metadata?.phone || '',
+        email: user.email || '',
+        relationship: '',
+        isOwner: false,
+        floor: null,
+        cpf: '',
+        address: '',
+        birth_date: '',
+        work_schedule: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        buildingAddress: '',
+        userType: '',
+        role: '',
+        avatar_url: ''
+      };
     }
   };
 
-  // Carregar perfil quando usuário fizer login
+  // Função removida: loadUserProfile não é mais necessária
+
+  // Função para buscar histórico de visitantes
+  const fetchVisitorsHistory = async () => {
+    if (!user) return;
+    
+    setLoadingHistory(true);
+    setHistoryError(null);
+    
+    try {
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .single();
+      
+      if (apartmentError || !apartmentData) {
+        // Se o usuário não tem apartamento associado, definir lista vazia e retornar
+        console.warn('Usuário não possui apartamento associado:', apartmentError?.message);
+        setVisitorsHistory([]);
+        setApartmentId(null);
+        setHistoryError('Usuário não possui apartamento associado. Entre em contato com a administração.');
+        return;
+      }
+      
+      setApartmentId(apartmentData.apartment_id);
+      
+      const { data: visitorsData, error: visitorsError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          guest_name,
+          log_time,
+          notification_status,
+          purpose,
+          visitors (
+            name,
+            document,
+            phone
+          )
+        `)
+        .eq('apartment_id', apartmentData.apartment_id)
+        .order('log_time', { ascending: false })
+        .limit(50);
+      
+      if (visitorsError) {
+        throw new Error('Erro ao buscar histórico de visitantes');
+      }
+      
+      const formattedHistory: VisitorHistory[] = visitorsData.map(log => ({
+        id: log.id,
+        visitor_name: log.guest_name || log.visitors?.name || 'Nome não informado',
+        visitor_document: log.visitors?.document || 'Documento não informado',
+        log_time: log.log_time,
+        purpose: log.purpose || 'Visita',
+        notification_status: log.notification_status as 'approved' | 'rejected' | 'pending',
+        visitor_phone: log.visitors?.phone
+      }));
+      
+      setVisitorsHistory(formattedHistory);
+    } catch (error: any) {
+      console.error('Erro ao buscar histórico:', error);
+      setHistoryError(error.message);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Função para buscar notificações pendentes
+  const fetchPendingNotifications = async () => {
+    if (!apartmentId) return;
+    
+    setLoadingNotifications(true);
+    setNotificationsError(null);
+    
+    try {
+      const { data: notificationsData, error: notificationsError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          guest_name,
+          log_time,
+          purpose,
+          notification_status,
+          visitors (
+            name,
+            document,
+            phone
+          )
+        `)
+        .eq('apartment_id', apartmentId)
+        .eq('notification_status', 'pending')
+        .order('log_time', { ascending: false });
+      
+      if (notificationsError) {
+        throw new Error('Erro ao buscar notificações pendentes');
+      }
+      
+      const formattedNotifications: PendingNotification[] = notificationsData.map(notification => ({
+        id: notification.id,
+        entry_type: 'visitor',
+        notification_status: notification.notification_status,
+        notification_sent_at: notification.log_time,
+        expires_at: notification.log_time,
+        apartment_id: apartmentId,
+        guest_name: notification.guest_name || notification.visitors?.name || 'Nome não informado',
+        purpose: notification.purpose || 'Visita',
+        visitor_id: notification.visitors?.id,
+        building_id: '',
+        created_at: notification.log_time,
+        log_time: notification.log_time,
+        visitors: notification.visitors
+      }));
+      
+      setPendingNotifications(formattedNotifications);
+    } catch (error: any) {
+      console.error('Erro ao buscar notificações:', error);
+      setNotificationsError(error.message);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  // Função para responder notificação
+  const respondToNotification = async (notificationId: string, response: 'approved' | 'rejected') => {
+    try {
+      const { error } = await supabase
+        .from('visitor_logs')
+        .update({ 
+          notification_status: response,
+          resident_response_at: new Date().toISOString(),
+          resident_response_by: user.id
+        })
+        .eq('id', notificationId);
+      
+      if (error) {
+        console.error('Erro ao responder notificação:', error);
+        setMessage('Erro ao responder notificação');
+        setMessageType('error');
+        return;
+      }
+      
+      // Atualizar lista de notificações
+      setPendingNotifications(prev => 
+        prev.filter(notification => notification.id !== notificationId)
+      );
+      
+      // Recarregar histórico para mostrar a atualização
+      await fetchVisitorsHistory();
+      
+      setMessage(`Notificação ${response === 'approved' ? 'aprovada' : 'rejeitada'} com sucesso!`);
+      setMessageType('success');
+      
+    } catch (error: any) {
+      console.error('Erro ao responder notificação:', error);
+      setMessage('Erro ao responder notificação');
+      setMessageType('error');
+    }
+  };
+
+  // Carregar dados quando apartmentId estiver disponível
   useEffect(() => {
-    if (user && !userProfile) {
-      loadUserProfile();
+    if (apartmentId) {
+      fetchPendingNotifications();
+    }
+  }, [apartmentId]);
+
+  // Carregar dados do usuário quando fizer login
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (user && !userProfile) {
+        setIsLoadingProfile(true);
+        try {
+          const userData = await fetchUserCompleteData();
+          setUserProfile({
+            id: user.id,
+            email: userData.email,
+            full_name: userData.fullName,
+            phone: userData.phone,
+            apartment: userData.apartment,
+            building: userData.building,
+            avatar_url: userData.avatar_url
+          });
+        } catch (error) {
+          console.error('Erro ao carregar dados do usuário:', error);
+        } finally {
+          setIsLoadingProfile(false);
+        }
+      }
+    };
+    
+    loadUserData();
+  }, [user]);
+
+  // Carregar dados quando usuário fizer login (apenas uma vez)
+  useEffect(() => {
+    if (user && visitorsHistory.length === 0 && !loadingHistory) {
+      fetchVisitorsHistory();
     }
   }, [user]);
+
+  // Função para formatar data em português
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   const handleLogout = async () => {
     try {
@@ -210,7 +673,9 @@ export default function LoginClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Notificações Pendentes</p>
-              <p className="text-2xl font-bold text-gray-900">3</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {loadingNotifications ? '...' : pendingNotifications.length}
+              </p>
             </div>
             <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
               <Bell className="w-5 h-5 text-yellow-600" />
@@ -222,7 +687,12 @@ export default function LoginClient() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Visitantes Hoje</p>
-              <p className="text-2xl font-bold text-gray-900">7</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {loadingHistory ? '...' : visitorsHistory.filter(visitor => {
+                  const today = new Date().toDateString();
+                  return new Date(visitor.log_time).toDateString() === today;
+                }).length}
+              </p>
             </div>
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
               <UserIcon className="w-5 h-5 text-green-600" />
@@ -254,7 +724,7 @@ export default function LoginClient() {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Tipo de Perfil</label>
-              <p className="text-gray-900">{user.user_metadata?.profile_type || 'Usuário'}</p>
+              <p className="text-gray-900">{user.user_metadata?.user_type || 'Usuário'}</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -334,575 +804,166 @@ export default function LoginClient() {
           Notificações Pendentes
         </h3>
         
-        <div className="space-y-4">
-          {/* Notification Card 1 */}
-          <div className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-900">Visitante Aguardando</span>
-                  <span className="text-xs text-gray-500">há 5 min</span>
-                </div>
-                <p className="text-gray-700 mb-2">João Silva deseja visitar o apartamento 101</p>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Documento:</strong> 123.456.789-00</p>
-                  <p><strong>Motivo:</strong> Visita social</p>
-                </div>
-              </div>
-              <div className="flex space-x-2 ml-4">
-                <button className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
-                  Aprovar
-                </button>
-                <button className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
-                  Rejeitar
-                </button>
-              </div>
-            </div>
+        {loadingNotifications ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-500 mt-2">Carregando notificações...</p>
           </div>
-
-          {/* Notification Card 2 */}
-          <div className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-900">Entrega Pendente</span>
-                  <span className="text-xs text-gray-500">há 15 min</span>
-                </div>
-                <p className="text-gray-700 mb-2">Entregador da Amazon para apartamento 205</p>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Empresa:</strong> Amazon</p>
-                  <p><strong>Destinatário:</strong> Maria Santos</p>
-                </div>
-              </div>
-              <div className="flex space-x-2 ml-4">
-                <button className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
-                  Aprovar
-                </button>
-                <button className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">
-                  Rejeitar
-                </button>
-              </div>
-            </div>
+        ) : notificationsError ? (
+          <div className="text-center py-8 text-red-500">
+            <p>Erro ao carregar notificações: {notificationsError}</p>
+            <button 
+              onClick={fetchPendingNotifications}
+              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Tentar novamente
+            </button>
           </div>
-
-          {/* Empty State */}
+        ) : pendingNotifications.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Bell className="w-12 h-12 mx-auto mb-4 text-gray-300" />
             <p>Nenhuma notificação pendente no momento</p>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            {pendingNotifications.map((notification) => (
+              <div key={notification.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-3 sm:space-y-0">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-900">Visitante Aguardando</span>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(notification.log_time)}
+                      </span>
+                    </div>
+                    <p className="text-gray-700 mb-2 text-sm sm:text-base">{notification.guest_name} deseja visitar</p>
+                    <div className="text-xs sm:text-sm text-gray-600 space-y-1">
+                      <p><strong>Documento:</strong> {notification.visitors?.document || 'Não informado'}</p>
+                      <p><strong>Motivo:</strong> {notification.purpose}</p>
+                      {notification.visitors?.phone && (
+                        <p><strong>Telefone:</strong> {notification.visitors.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex space-x-2 sm:ml-4">
+                    <button 
+                      onClick={() => respondToNotification(notification.id, 'approved')}
+                      className="flex-1 sm:flex-none px-3 py-2 bg-green-600 text-white text-xs sm:text-sm rounded hover:bg-green-700 transition-colors"
+                    >
+                      Aprovar
+                    </button>
+                    <button 
+                      onClick={() => respondToNotification(notification.id, 'rejected')}
+                      className="flex-1 sm:flex-none px-3 py-2 bg-red-600 text-white text-xs sm:text-sm rounded hover:bg-red-700 transition-colors"
+                    >
+                      Rejeitar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Histórico de Visitantes */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Clock className="w-5 h-5 mr-2 text-blue-600" />
+      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center">
+            <Clock className="w-4 sm:w-5 h-4 sm:h-5 mr-2 text-blue-600" />
             Histórico de Visitantes
           </h3>
-          <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+          <button className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-medium self-start sm:self-auto">
             Ver todos
           </button>
         </div>
         
         <div className="space-y-4">
-          {/* History Card 1 */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-900">Visita Aprovada</span>
-                  <span className="text-xs text-gray-500">hoje às 14:30</span>
-                </div>
-                <p className="text-gray-700 mb-2">Carlos Oliveira visitou apartamento 303</p>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Documento:</strong> 987.654.321-00</p>
-                  <p><strong>Duração:</strong> 2h 15min</p>
-                  <p><strong>Status:</strong> <span className="text-green-600">Finalizada</span></p>
-                </div>
-              </div>
-            </div>
+          {loadingHistory ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
+        ) : historyError ? (
+            <div className="text-center py-8">
+              <p className="text-red-600 mb-4">Erro ao carregar histórico</p>
+              <button
+                onClick={fetchVisitorsHistory}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : visitorsHistory.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Nenhum histórico de visitantes encontrado</p>
+            </div>
+          ) : (
+            visitorsHistory.map((visit) => {
+              const getStatusColor = (status: string) => {
+                switch (status) {
+                  case 'approved': return 'bg-green-500';
+                  case 'rejected': return 'bg-red-500';
+                  case 'completed': return 'bg-blue-500';
+                  default: return 'bg-gray-500';
+                }
+              };
 
-          {/* History Card 2 */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-900">Visita Rejeitada</span>
-                  <span className="text-xs text-gray-500">ontem às 16:45</span>
-                </div>
-                <p className="text-gray-700 mb-2">Tentativa de visita não autorizada</p>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Motivo:</strong> Morador não estava presente</p>
-                  <p><strong>Status:</strong> <span className="text-red-600">Rejeitada</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
+              const getStatusText = (status: string) => {
+                switch (status) {
+                  case 'approved': return 'Visita Aprovada';
+                  case 'rejected': return 'Visita Rejeitada';
+                  case 'completed': return 'Visita Finalizada';
+                  default: return 'Status Desconhecido';
+                }
+              };
 
-          {/* History Card 3 */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-900">Entrega Realizada</span>
-                  <span className="text-xs text-gray-500">ontem às 10:20</span>
+              const getStatusTextColor = (status: string) => {
+                switch (status) {
+                  case 'approved': return 'text-green-600';
+                  case 'rejected': return 'text-red-600';
+                  case 'completed': return 'text-blue-600';
+                  default: return 'text-gray-600';
+                }
+              };
+
+              return (
+                <div key={visit.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 ${getStatusColor(visit.notification_status)} rounded-full`}></div>
+                          <span className="text-xs sm:text-sm font-medium text-gray-900">{getStatusText(visit.notification_status)}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{formatDate(visit.log_time)}</span>
+                      </div>
+                      <p className="text-sm sm:text-base text-gray-700 mb-2">
+                        {visit.visitor_name} - {visit.purpose}
+                      </p>
+                      <div className="text-xs sm:text-sm text-gray-600 space-y-1">
+                        <p><strong>Documento:</strong> {visit.visitor_document}</p>
+                        {visit.visitor_phone && (
+                          <p><strong>Telefone:</strong> {visit.visitor_phone}</p>
+                        )}
+                        <p><strong>Motivo:</strong> {visit.purpose}</p>
+                        <p><strong>Status:</strong> <span className={getStatusTextColor(visit.notification_status)}>{getStatusText(visit.notification_status)}</span></p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-gray-700 mb-2">Correios entregou encomenda para apt 150</p>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Empresa:</strong> Correios</p>
-                  <p><strong>Destinatário:</strong> Ana Costa</p>
-                  <p><strong>Status:</strong> <span className="text-blue-600">Entregue</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
   );
 
-  // Renderizar aba de perfil
-  const renderProfileTab = () => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [profileData, setProfileData] = useState({
-      name: user.user_metadata?.name || '',
-      email: user.email || '',
-      phone: user.user_metadata?.phone || '',
-      apartment: user.user_metadata?.apartment || '',
-      building: user.user_metadata?.building || ''
-    });
-    const [isSaving, setIsSaving] = useState(false);
+  // Atualizar dados do perfil quando o usuário estiver disponível
+  // Função renderProfileTab removida - não é mais necessária
 
-    const handleSaveProfile = async () => {
-      setIsSaving(true);
-      try {
-        // Aqui você implementaria a lógica para salvar no Supabase
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulação
-        setIsEditing(false);
-        // Mostrar mensagem de sucesso
-      } catch (error) {
-        console.error('Erro ao salvar perfil:', error);
-        // Mostrar mensagem de erro
-      } finally {
-        setIsSaving(false);
-      }
-    };
-
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Meu Perfil</h2>
-              <p className="text-gray-600">Gerencie suas informações pessoais</p>
-            </div>
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              <span>{isEditing ? 'Cancelar' : 'Editar'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Profile Form */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Avatar Section */}
-            <div className="md:col-span-2 flex items-center space-x-6 pb-6 border-b border-gray-200">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                <UserIcon className="w-10 h-10 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{profileData.name || 'Usuário'}</h3>
-                <p className="text-gray-600">{profileData.email}</p>
-                {isEditing && (
-                  <button className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
-                    Alterar foto
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Name Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nome Completo
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={profileData.name}
-                  onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Digite seu nome completo"
-                />
-              ) : (
-                <p className="text-gray-900 py-2">{profileData.name || 'Não informado'}</p>
-              )}
-            </div>
-
-            {/* Email Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <p className="text-gray-900 py-2">{profileData.email}</p>
-              <p className="text-xs text-gray-500">O email não pode ser alterado</p>
-            </div>
-
-            {/* Phone Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Telefone
-              </label>
-              {isEditing ? (
-                <input
-                  type="tel"
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="(11) 99999-9999"
-                />
-              ) : (
-                <p className="text-gray-900 py-2">{profileData.phone || 'Não informado'}</p>
-              )}
-            </div>
-
-            {/* Apartment Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Apartamento
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={profileData.apartment}
-                  onChange={(e) => setProfileData({...profileData, apartment: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ex: 101, 205A"
-                />
-              ) : (
-                <p className="text-gray-900 py-2">{profileData.apartment || 'Não informado'}</p>
-              )}
-            </div>
-
-            {/* Building Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Prédio/Bloco
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={profileData.building}
-                  onChange={(e) => setProfileData({...profileData, building: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ex: Bloco A, Torre 1"
-                />
-              ) : (
-                <p className="text-gray-900 py-2">{profileData.building || 'Não informado'}</p>
-              )}
-            </div>
-
-            {/* Profile Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de Perfil
-              </label>
-              <p className="text-gray-900 py-2">{user.user_metadata?.profile_type || 'Usuário'}</p>
-              <p className="text-xs text-gray-500">O tipo de perfil é definido pelo administrador</p>
-            </div>
-          </div>
-
-          {/* Save Button */}
-          {isEditing && (
-            <div className="mt-6 pt-6 border-t border-gray-200 flex justify-end space-x-4">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Salvando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>Salvar Alterações</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Account Security */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Shield className="w-5 h-5 mr-2 text-blue-600" />
-            Segurança da Conta
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Alterar Senha</p>
-                <p className="text-sm text-gray-600">Última alteração há 30 dias</p>
-              </div>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Alterar
-              </button>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Autenticação em Duas Etapas</p>
-                <p className="text-sm text-gray-600">Adicione uma camada extra de segurança</p>
-              </div>
-              <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                Configurar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Renderizar aba de configurações
-  const renderSettingsTab = () => {
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [deleteConfirmText, setDeleteConfirmText] = useState('');
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const handleDeleteAccount = async () => {
-      if (deleteConfirmText !== 'EXCLUIR') {
-        return;
-      }
-      
-      setIsDeleting(true);
-      try {
-        // Aqui você implementaria a lógica para excluir a conta no Supabase
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulação
-        // Redirecionar para página de confirmação ou login
-        router.push('/login?message=account-deleted');
-      } catch (error) {
-        console.error('Erro ao excluir conta:', error);
-        // Mostrar mensagem de erro
-      } finally {
-        setIsDeleting(false);
-        setShowDeleteConfirm(false);
-        setDeleteConfirmText('');
-      }
-    };
-
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Configurações</h2>
-            <p className="text-gray-600">Gerencie suas preferências e configurações da conta</p>
-          </div>
-        </div>
-
-        {/* Notification Settings */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Bell className="w-5 h-5 mr-2 text-blue-600" />
-            Notificações
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Notificações por Email</p>
-                <p className="text-sm text-gray-600">Receba notificações importantes por email</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Notificações Push</p>
-                <p className="text-sm text-gray-600">Receba notificações em tempo real no navegador</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Notificações de Visitantes</p>
-                <p className="text-sm text-gray-600">Seja notificado quando houver visitantes</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Privacy Settings */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Shield className="w-5 h-5 mr-2 text-green-600" />
-            Privacidade
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Perfil Público</p>
-                <p className="text-sm text-gray-600">Permitir que outros moradores vejam seu perfil</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Histórico de Atividades</p>
-                <p className="text-sm text-gray-600">Manter registro das suas atividades no sistema</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" defaultChecked />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Data Management */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <Download className="w-5 h-5 mr-2 text-purple-600" />
-            Gerenciamento de Dados
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Exportar Dados</p>
-                <p className="text-sm text-gray-600">Baixe uma cópia de todos os seus dados</p>
-              </div>
-              <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-                Exportar
-              </button>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">Limpar Histórico</p>
-                <p className="text-sm text-gray-600">Remove todo o histórico de atividades</p>
-              </div>
-              <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                Limpar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Danger Zone */}
-        <div className="bg-white rounded-xl shadow-sm border-2 border-red-200 p-6">
-          <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
-            Zona de Perigo
-          </h3>
-          <div className="bg-red-50 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-medium text-red-900">Excluir Conta</p>
-                <p className="text-sm text-red-700 mt-1">
-                  Esta ação é irreversível. Todos os seus dados serão permanentemente removidos.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Excluir Conta
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertTriangle className="w-8 h-8 text-red-600" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Confirmar Exclusão</h3>
-                <p className="text-gray-600">
-                  Esta ação não pode ser desfeita. Todos os seus dados serão permanentemente removidos.
-                </p>
-              </div>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Digite <strong>EXCLUIR</strong> para confirmar:
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  placeholder="EXCLUIR"
-                />
-              </div>
-              
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirm(false);
-                    setDeleteConfirmText('');
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-                  disabled={isDeleting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleteConfirmText !== 'EXCLUIR' || isDeleting}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Excluindo...
-                    </>
-                  ) : (
-                    'Excluir Conta'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Função renderSettingsTab removida - não é mais necessária
 
   // Renderizar dashboard completo
   const renderDashboard = () => (
@@ -912,21 +973,53 @@ export default function LoginClient() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                <UserIcon className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center relative">
+                {userProfile?.avatar_url ? (
+                  <img 
+                    src={userProfile.avatar_url} 
+                    alt="Avatar do usuário" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.style.display = 'none';
+                      const fallback = target.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userProfile?.avatar_url ? 'hidden' : 'flex'}`}>
+                  {userProfile?.full_name ? 
+                    userProfile.full_name.split(' ').map(name => name[0]).join('').substring(0, 2).toUpperCase() :
+                    (user?.email ? user.email.substring(0, 2).toUpperCase() : 'JA')
+                  }
+                </div>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">James Avisa</h1>
+                <h1 className="text-xl font-bold text-gray-900">
+                  {isLoadingProfile ? 'Carregando...' : (userProfile?.full_name || user?.email || 'Usuário')}
+                </h1>
                 <p className="text-sm text-gray-600">Portaria Virtual</p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Sair</span>
-            </button>
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Botão Excluir Conta */}
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Excluir Conta</span>
+                <span className="sm:hidden">Excluir</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sair</span>
+                <span className="sm:hidden">Sair</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -934,57 +1027,31 @@ export default function LoginClient() {
       {/* Navigation Tabs */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
+          <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto">
             <button
               onClick={() => setActiveTab('home')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-2 sm:px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'home'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <Home className="w-4 h-4" />
-                <span>Início</span>
+                <span className="text-xs sm:text-sm">Início</span>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-2 sm:px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'notifications'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <Bell className="w-4 h-4" />
-                <span>Notificações</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'profile'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Edit className="w-4 h-4" />
-                <span>Meu Perfil</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'settings'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Settings className="w-4 h-4" />
-                <span>Configurações</span>
+                <span className="text-xs sm:text-sm">Notificações</span>
               </div>
             </button>
           </nav>
@@ -995,9 +1062,84 @@ export default function LoginClient() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'home' && renderHomeTab()}
         {activeTab === 'notifications' && renderNotificationsTab()}
-        {activeTab === 'profile' && renderProfileTab()}
-        {activeTab === 'settings' && renderSettingsTab()}
       </div>
+
+      {/* Modal de Confirmação de Exclusão */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Excluir Conta</h3>
+                <p className="text-sm text-gray-600">Esta ação não pode ser desfeita</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Tem certeza de que deseja excluir permanentemente sua conta? Todos os seus dados serão removidos e não poderão ser recuperados.
+              </p>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <div className="flex items-start">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Atenção:</p>
+                    <p className="text-sm text-yellow-700">
+                      Esta ação é irreversível. Todos os dados associados à sua conta serão permanentemente excluídos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label htmlFor="deleteConfirm" className="block text-sm font-medium text-gray-700">
+                  Para confirmar, digite <strong>EXCLUIR</strong> no campo abaixo:
+                </label>
+                <input
+                  id="deleteConfirm"
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  placeholder="Digite EXCLUIR"
+                  disabled={isDeleting}
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                disabled={isDeleting}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'EXCLUIR' || isDeleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Excluindo...
+                  </>
+                ) : (
+                  'Excluir Conta'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

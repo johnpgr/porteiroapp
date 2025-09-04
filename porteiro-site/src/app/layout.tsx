@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+'use client';
 import { Geist, Geist_Mono } from "next/font/google";
+import { useEffect } from 'react';
 import "./globals.css";
 import { AuthProvider } from '@/utils/useAuth';
 
@@ -13,20 +14,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "James avisa - Portaria Virtual",
-  description: "Sistema inteligente de portaria virtual para condomínios e empresas",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  useEffect(() => {
+    // Remove atributos adicionados por extensões do navegador após a hidratação
+    // para evitar erros de hydration mismatch
+    const body = document.body;
+    if (body) {
+      // Remove atributos comuns de extensões
+      body.removeAttribute('cz-shortcut-listen');
+      body.removeAttribute('data-new-gr-c-s-check-loaded');
+      body.removeAttribute('data-gr-ext-installed');
+    }
+  }, []);
+
   return (
     <html lang="pt-BR">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true}
       >
         <AuthProvider>
           {children}
