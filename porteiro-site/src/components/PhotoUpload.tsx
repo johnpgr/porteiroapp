@@ -4,22 +4,24 @@ import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface PhotoUploadProps {
-  onPhotoUploaded: (photoUrl: string) => void;
-  onError: (error: string) => void;
-  currentPhotoUrl?: string;
+  onPhotoUpload: (photoUrl: string) => void;
+  onPhotoRemove?: () => void;
+  initialPhotoUrl?: string;
   userId: string;
   className?: string;
+  onUploadingChange?: (isUploading: boolean) => void;
 }
 
 export default function PhotoUpload({ 
-  onPhotoUploaded, 
-  onError, 
-  currentPhotoUrl, 
+  onPhotoUpload, 
+  onPhotoRemove, 
+  initialPhotoUrl, 
   userId,
-  className = '' 
+  className = '',
+  onUploadingChange
 }: PhotoUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentPhotoUrl || null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialPhotoUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
@@ -45,7 +47,8 @@ export default function PhotoUpload({
     // Validar arquivo
     const validationError = validateFile(file);
     if (validationError) {
-      onError(validationError);
+      console.error('Erro de validação:', validationError);
+      alert(validationError); // Fallback para mostrar erro ao usuário
       return;
     }
 
@@ -62,6 +65,7 @@ export default function PhotoUpload({
 
   const uploadFile = async (file: File) => {
     setIsUploading(true);
+    onUploadingChange?.(true);
     
     try {
       // Gerar nome único para o arquivo
@@ -70,7 +74,7 @@ export default function PhotoUpload({
 
       // Fazer upload para o Supabase Storage
       const { data, error } = await supabase.storage
-        .from('profile-photos')
+        .from('user-photos')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: true
@@ -82,16 +86,17 @@ export default function PhotoUpload({
 
       // Obter URL pública
       const { data: { publicUrl } } = supabase.storage
-        .from('profile-photos')
+        .from('user-photos')
         .getPublicUrl(fileName);
 
-      onPhotoUploaded(publicUrl);
+      onPhotoUpload(publicUrl);
     } catch (error: any) {
       console.error('Erro no upload:', error);
-      onError('Erro ao fazer upload da foto. Tente novamente.');
-      setPreviewUrl(currentPhotoUrl || null);
+      alert('Erro ao fazer upload da foto. Tente novamente.'); // Fallback para mostrar erro ao usuário
+      setPreviewUrl(initialPhotoUrl || null);
     } finally {
       setIsUploading(false);
+      onUploadingChange?.(false);
     }
   };
 
@@ -101,7 +106,10 @@ export default function PhotoUpload({
 
   const handleRemovePhoto = () => {
     setPreviewUrl(null);
-    onPhotoUploaded('');
+    onPhotoUpload('');
+    if (onPhotoRemove) {
+      onPhotoRemove();
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

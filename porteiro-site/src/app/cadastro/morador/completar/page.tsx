@@ -103,6 +103,7 @@ export default function CompletarCadastroPage() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string>('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // Estados para controlar visibilidade das senhas
   const [showPassword, setShowPassword] = useState(false);
@@ -648,24 +649,45 @@ export default function CompletarCadastroPage() {
       const avatarUrl = photoUrl || authenticatedProfile?.avatar_url;
       console.log('📸 URL da foto para salvar:', avatarUrl);
 
+      // Preparar dados para a API
+      const apiPayload = {
+        profile_id: authenticatedProfile.id,
+        full_name: formData.full_name,
+        email: formData.email,
+        cpf: formData.cpf,
+        birth_date: formData.birth_date,
+        address: formData.address,
+        emergency_contact_name: formData.emergency_contact_name,
+        emergency_contact_phone: formData.emergency_contact_phone,
+        password: formData.password,
+        avatar_url: avatarUrl
+      };
+      
+      console.log('🌐 Chamando API complete-morador-profile:', {
+        url: '/api/complete-morador-profile',
+        method: 'POST',
+        payload: {
+          ...apiPayload,
+          password: '[REDACTED]', // Não logar a senha
+          cpf: formData.cpf ? '[REDACTED]' : null // Não logar o CPF completo
+        }
+      });
+      
       // Chamar a API para completar o perfil e criar o usuário
       const response = await fetch('/api/complete-morador-profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          profile_id: authenticatedProfile.id,
-          full_name: formData.full_name,
-          email: formData.email,
-          cpf: formData.cpf,
-          birth_date: formData.birth_date,
-          address: formData.address,
-          emergency_contact_name: formData.emergency_contact_name,
-          emergency_contact_phone: formData.emergency_contact_phone,
-          password: formData.password,
-          avatar_url: avatarUrl
-        }),
+        body: JSON.stringify(apiPayload),
+      });
+      
+      console.log('📡 Resposta da API recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        url: response.url,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (response.ok) {
@@ -686,10 +708,34 @@ export default function CompletarCadastroPage() {
           // Não bloquear o fluxo se houver erro na remoção da temporary password
         }
       } else {
-        const errorData = await response.json();
-        console.error('❌ Erro na API:', errorData);
-        toast.error(errorData.message || 'Erro ao completar cadastro', { id: 'submit-toast' });
-        setErrors({ submit: errorData.message || 'Erro ao completar cadastro' });
+        let errorData = {};
+        let errorMessage = 'Erro ao completar cadastro';
+        
+        try {
+          // Tentar parsear a resposta como JSON
+          errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || `Erro HTTP ${response.status}: ${response.statusText}`;
+        } catch (parseError) {
+          // Se não conseguir parsear como JSON, usar informações da resposta HTTP
+          console.error('❌ Erro ao parsear resposta de erro:', parseError);
+          errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+          errorData = {
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url
+          };
+        }
+        
+        console.error('❌ Erro na API:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          errorData: errorData,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        toast.error(errorMessage, { id: 'submit-toast' });
+        setErrors({ submit: errorMessage });
         return;
       }
 
@@ -704,13 +750,32 @@ export default function CompletarCadastroPage() {
       console.error('💥 Erro não tratado no handleSubmit:', {
         error: error,
         message: error instanceof Error ? error.message : 'Erro desconhecido',
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'UnknownError',
+        cause: error instanceof Error ? error.cause : undefined,
+        timestamp: new Date().toISOString(),
+        formData: {
+          profile_id: authenticatedProfile?.id,
+          full_name: formData.full_name,
+          email: formData.email,
+          // Não logar dados sensíveis como CPF e senha
+          has_cpf: !!formData.cpf,
+          has_password: !!formData.password
+        }
       });
       
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      const userFriendlyMessage = errorMessage.includes('network') || errorMessage.includes('fetch') 
-        ? 'Erro de conexão. Verifique sua internet e tente novamente.'
-        : 'Erro interno do sistema. Tente novamente em alguns instantes.';
+      let userFriendlyMessage;
+      
+      if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('Failed to fetch')) {
+        userFriendlyMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (errorMessage.includes('timeout')) {
+        userFriendlyMessage = 'Tempo limite excedido. Tente novamente.';
+      } else if (errorMessage.includes('JSON') || errorMessage.includes('parse')) {
+        userFriendlyMessage = 'Erro na comunicação com o servidor. Tente novamente.';
+      } else {
+        userFriendlyMessage = 'Erro interno do sistema. Tente novamente em alguns instantes.';
+      }
       
       toast.error(userFriendlyMessage, { id: 'submit-toast' });
       setErrors({ submit: userFriendlyMessage });
@@ -968,6 +1033,7 @@ export default function CompletarCadastroPage() {
                       onPhotoRemove={handlePhotoRemove}
                       initialPhotoUrl={photoUrl}
                       userId={authenticatedProfile?.id || 'temp'}
+                      onUploadingChange={setUploadingPhoto}
                     />
                     {errors.photo && (
                       <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errors.photo}</p>

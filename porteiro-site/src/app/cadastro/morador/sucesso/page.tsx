@@ -80,7 +80,7 @@ export default function SucessoCadastroPage() {
                       <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      Credenciais enviadas por WhatsApp
+                      Sistema pronto para uso
                     </li>
                   </ul>
                 </div>
@@ -99,22 +99,22 @@ export default function SucessoCadastroPage() {
                 <div className="flex items-start">
                   <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">1</div>
                   <div>
-                    <p className="font-medium text-gray-900">Verifique seu WhatsApp</p>
-                    <p className="text-sm text-gray-600">Você recebeu suas credenciais de acesso por mensagem</p>
+                    <p className="font-medium text-gray-900">Aguarde aprovação</p>
+                    <p className="text-sm text-gray-600">Seu cadastro será analisado pela administração do condomínio</p>
                   </div>
                 </div>
                 <div className="flex items-start">
                   <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">2</div>
                   <div>
-                    <p className="font-medium text-gray-900">Faça seu primeiro login</p>
-                    <p className="text-sm text-gray-600">Use o e-mail e a senha temporária enviada</p>
+                    <p className="font-medium text-gray-900">Receba confirmação</p>
+                    <p className="text-sm text-gray-600">Você será notificado quando seu acesso for liberado</p>
                   </div>
                 </div>
                 <div className="flex items-start">
                   <div className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5">3</div>
                   <div>
-                    <p className="font-medium text-gray-900">Explore o sistema</p>
-                    <p className="text-sm text-gray-600">Descubra todas as funcionalidades disponíveis</p>
+                    <p className="font-medium text-gray-900">Comece a usar</p>
+                    <p className="text-sm text-gray-600">Acesse o sistema e explore todas as funcionalidades</p>
                   </div>
                 </div>
               </div>
@@ -122,26 +122,18 @@ export default function SucessoCadastroPage() {
 
             {/* Action Buttons */}
             <div className="space-y-4">
-              <Link 
-                href="/login"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition-colors duration-200 inline-block"
-              >
-                Fazer Login Agora
-              </Link>
-              
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <a 
                   href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white hover:bg-gray-50 text-green-600 border-2 border-green-600 px-4 py-2 rounded-md font-medium transition-colors inline-flex items-center justify-center"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium transition-colors inline-flex items-center justify-center"
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z" />
                   </svg>
                   📱 Baixar App
                 </a>
-
               </div>
             </div>
 

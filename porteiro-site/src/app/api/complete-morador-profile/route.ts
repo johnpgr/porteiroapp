@@ -4,7 +4,11 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 Iniciando complete-morador-profile API');
+    
     const body = await request.json();
+    console.log('📝 Body recebido:', { ...body, password: '[REDACTED]' });
+    
     const {
       profile_id,
       full_name,
@@ -20,6 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Validar dados obrigatórios
     if (!profile_id || !full_name || !email || !cpf || !birth_date || !address || !emergency_contact_name || !emergency_contact_phone || !password) {
+      console.error('❌ Dados obrigatórios não fornecidos');
       return NextResponse.json(
         { message: 'Dados obrigatórios não fornecidos' },
         { status: 400 }
@@ -88,7 +93,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar usuário na autenticação do Supabase usando admin client
-    const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+    console.log('👤 Tentando criar usuário no Supabase Auth para email:', email);
+    
+    const createUserPayload = {
       email: email,
       password: password,
       user_metadata: {
@@ -97,18 +104,83 @@ export async function POST(request: NextRequest) {
         user_type: 'resident'
       },
       email_confirm: true // Confirma o email automaticamente
-    });
+    };
+    
+    console.log('📤 Payload para createUser:', { ...createUserPayload, password: '[REDACTED]' });
+    
+    const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.admin.createUser(createUserPayload);
+    
+    console.log('📥 Resposta do createUser - data:', signUpData);
+    console.log('📥 Resposta do createUser - error:', signUpError);
 
     if (signUpError) {
-      console.error('Erro ao criar usuário:', signUpError);
+      console.error('❌ Erro ao criar usuário:', signUpError);
+      console.error('❌ Detalhes do erro:', JSON.stringify(signUpError, null, 2));
+      
+      // Se o email já existe, tentar buscar o usuário existente
+      if (signUpError.message?.includes('email_exists') || signUpError.code === 'email_exists') {
+        console.log('Email já existe, tentando buscar usuário existente...');
+        
+        const { data: existingUsers, error: getUserError } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = existingUsers?.users?.find(user => user.email === email);
+        
+        if (getUserError || !existingUser) {
+          console.error('Erro ao buscar usuário existente:', getUserError);
+          return NextResponse.json(
+            { message: 'Email já cadastrado, mas não foi possível localizar o usuário. Entre em contato com o suporte.' },
+            { status: 409 }
+          );
+        }
+        
+        // Atualizar o profile com o user_id do usuário existente
+        const { error: updateUserIdError } = await supabase
+          .from('profiles')
+          .update({ 
+            user_id: existingUser.id,
+            profile_complete: true,
+            temporary_password_used: true
+          })
+          .eq('id', profile_id);
+
+        if (updateUserIdError) {
+          console.error('Erro ao atualizar user_id no profile:', updateUserIdError);
+          return NextResponse.json(
+            { message: 'Erro ao vincular usuário ao perfil' },
+            { status: 500 }
+          );
+        }
+        
+        // Marcar a temporary_password como usada
+        const { error: markUsedError } = await supabase
+          .from('temporary_passwords')
+          .update({ 
+            used: true,
+            used_at: new Date().toISOString()
+          })
+          .eq('profile_id', profile_id);
+
+        if (markUsedError) {
+          console.error('Erro ao marcar temporary_password como usada:', markUsedError);
+        }
+        
+        return NextResponse.json(
+          { message: 'Perfil completado com sucesso (usuário já existia)', user: existingUser },
+          { status: 200 }
+        );
+      }
+      
+      // Para outros tipos de erro
       return NextResponse.json(
-        { error: 'Erro ao criar usuário na autenticação' },
+        { message: `Erro ao criar usuário: ${signUpError.message || 'Erro desconhecido'}` },
         { status: 500 }
       );
     }
 
     // Atualizar o profile com o user_id do usuário criado
     if (signUpData.user) {
+      console.log('✅ Usuário criado com sucesso! ID:', signUpData.user.id);
+      console.log('🔄 Atualizando profile com user_id...');
+      
       const { error: updateUserIdError } = await supabase
         .from('profiles')
         .update({ 
@@ -119,8 +191,11 @@ export async function POST(request: NextRequest) {
         .eq('id', profile_id);
 
       if (updateUserIdError) {
-        console.error('Erro ao atualizar user_id no profile:', updateUserIdError);
+        console.error('❌ Erro ao atualizar user_id no profile:', updateUserIdError);
+        console.error('❌ Detalhes do erro de update:', JSON.stringify(updateUserIdError, null, 2));
         // Não falhar o processo, apenas logar o erro
+      } else {
+        console.log('✅ Profile atualizado com user_id com sucesso!');
       }
 
       // Marcar a temporary_password como usada
@@ -144,9 +219,16 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error) {
-    console.error('Erro interno na API:', error);
+    console.error('❌ Erro interno na API:', error);
+    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
+    console.error('❌ Detalhes completos do erro:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    
     return NextResponse.json(
-      { message: 'Erro interno do servidor' },
+      { 
+        message: 'Erro interno do servidor',
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      },
       { status: 500 }
     );
   }
