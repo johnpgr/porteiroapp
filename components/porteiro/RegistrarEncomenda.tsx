@@ -532,11 +532,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             building_id: doormanBuildingId,
             recipient_name: nomeDestinatario,
             delivery_company: empresaSelecionada.nome,
-          description: descricaoEncomenda,
-          notification_status: 'delivered',
-          received_at: currentTime,
-          notes: observacoes || null,
-          photo_url: photoUrl
+            description: descricaoEncomenda,
+            notification_status: 'delivered',
+            received_at: currentTime,
+            notes: observacoes || null,
+            photo_url: photoUrl,
+            is_active: true
           })
           .select('id')
           .single();

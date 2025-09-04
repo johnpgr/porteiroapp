@@ -131,6 +131,7 @@ function LegacyNotificationCard({ notification, onPress, onMarkAsRead }: LegacyN
 function PendingNotificationCard({ notification, onRespond }: PendingNotificationCardProps) {
   const [responding, setResponding] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
   const getTimeAgo = (dateString: string) => {
@@ -223,9 +224,6 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
     setShowDeliveryModal(false);
     setResponding(false);
   };
-
-  // Verificar se é uma entrega baseado no entry_type
-  const isDelivery = notification.entry_type === 'delivery';
 
   return (
     <View style={[styles.notificationCard, isDelivery && styles.deliveryCard]}>
