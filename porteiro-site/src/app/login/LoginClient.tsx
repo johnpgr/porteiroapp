@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/utils/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner';
+import NotificationCard from '../../components/NotificationCard';
+import { usePendingNotifications } from '../../hooks/usePendingNotifications';
 
 // Interface para tipagem do histórico de visitantes
 interface VisitorHistory {
@@ -145,10 +147,16 @@ export default function LoginClient() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   
   // Estados para notificações pendentes
-  const [pendingNotifications, setPendingNotifications] = useState<PendingNotification[]>([]);
-  const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [apartmentId, setApartmentId] = useState<string | null>(null);
+  
+  // Hook para notificações pendentes
+  const {
+    notifications: pendingNotifications,
+    loading: loadingNotifications,
+    error: notificationsError,
+    fetchPendingNotifications,
+    respondToNotification
+  } = usePendingNotifications(apartmentId);
   
   // Estados para exclusão de conta
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -495,104 +503,9 @@ export default function LoginClient() {
     }
   };
 
-  // Função para buscar notificações pendentes
-  const fetchPendingNotifications = async () => {
-    if (!apartmentId) return;
-    
-    setLoadingNotifications(true);
-    setNotificationsError(null);
-    
-    try {
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('visitor_logs')
-        .select(`
-          id,
-          guest_name,
-          log_time,
-          purpose,
-          notification_status,
-          visitors (
-            name,
-            document,
-            phone
-          )
-        `)
-        .eq('apartment_id', apartmentId)
-        .eq('notification_status', 'pending')
-        .order('log_time', { ascending: false });
-      
-      if (notificationsError) {
-        throw new Error('Erro ao buscar notificações pendentes');
-      }
-      
-      const formattedNotifications: PendingNotification[] = notificationsData.map(notification => ({
-        id: notification.id,
-        entry_type: 'visitor',
-        notification_status: notification.notification_status,
-        notification_sent_at: notification.log_time,
-        expires_at: notification.log_time,
-        apartment_id: apartmentId,
-        guest_name: notification.guest_name || notification.visitors?.name || 'Nome não informado',
-        purpose: notification.purpose || 'Visita',
-        visitor_id: notification.visitors?.id,
-        building_id: '',
-        created_at: notification.log_time,
-        log_time: notification.log_time,
-        visitors: notification.visitors
-      }));
-      
-      setPendingNotifications(formattedNotifications);
-    } catch (error: any) {
-      console.error('Erro ao buscar notificações:', error);
-      setNotificationsError(error.message);
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
+  // As funções fetchPendingNotifications e respondToNotification agora são fornecidas pelo hook usePendingNotifications
 
-  // Função para responder notificação
-  const respondToNotification = async (notificationId: string, response: 'approved' | 'rejected') => {
-    try {
-      const { error } = await supabase
-        .from('visitor_logs')
-        .update({ 
-          notification_status: response,
-          resident_response_at: new Date().toISOString(),
-          resident_response_by: user.id
-        })
-        .eq('id', notificationId);
-      
-      if (error) {
-        console.error('Erro ao responder notificação:', error);
-        setMessage('Erro ao responder notificação');
-        setMessageType('error');
-        return;
-      }
-      
-      // Atualizar lista de notificações
-      setPendingNotifications(prev => 
-        prev.filter(notification => notification.id !== notificationId)
-      );
-      
-      // Recarregar histórico para mostrar a atualização
-      await fetchVisitorsHistory();
-      
-      setMessage(`Notificação ${response === 'approved' ? 'aprovada' : 'rejeitada'} com sucesso!`);
-      setMessageType('success');
-      
-    } catch (error: any) {
-      console.error('Erro ao responder notificação:', error);
-      setMessage('Erro ao responder notificação');
-      setMessageType('error');
-    }
-  };
-
-  // Carregar dados quando apartmentId estiver disponível
-  useEffect(() => {
-    if (apartmentId) {
-      fetchPendingNotifications();
-    }
-  }, [apartmentId]);
+  // O carregamento das notificações é agora gerenciado pelo hook usePendingNotifications
 
   // Carregar dados do usuário quando fizer login
   useEffect(() => {
@@ -790,7 +703,10 @@ export default function LoginClient() {
             <h2 className="text-xl font-bold text-gray-900">Notificações</h2>
             <p className="text-gray-600">Gerencie suas notificações e histórico de visitantes</p>
           </div>
-          <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          <button 
+            onClick={() => fetchPendingNotifications()}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
             <RefreshCw className="w-4 h-4" />
             <span>Atualizar</span>
           </button>
@@ -813,7 +729,7 @@ export default function LoginClient() {
           <div className="text-center py-8 text-red-500">
             <p>Erro ao carregar notificações: {notificationsError}</p>
             <button 
-              onClick={fetchPendingNotifications}
+              onClick={() => fetchPendingNotifications()}
               className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Tentar novamente
@@ -827,41 +743,11 @@ export default function LoginClient() {
         ) : (
           <div className="space-y-4">
             {pendingNotifications.map((notification) => (
-              <div key={notification.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-3 sm:space-y-0">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-gray-900">Visitante Aguardando</span>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(notification.log_time)}
-                      </span>
-                    </div>
-                    <p className="text-gray-700 mb-2 text-sm sm:text-base">{notification.guest_name} deseja visitar</p>
-                    <div className="text-xs sm:text-sm text-gray-600 space-y-1">
-                      <p><strong>Documento:</strong> {notification.visitors?.document || 'Não informado'}</p>
-                      <p><strong>Motivo:</strong> {notification.purpose}</p>
-                      {notification.visitors?.phone && (
-                        <p><strong>Telefone:</strong> {notification.visitors.phone}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex space-x-2 sm:ml-4">
-                    <button 
-                      onClick={() => respondToNotification(notification.id, 'approved')}
-                      className="flex-1 sm:flex-none px-3 py-2 bg-green-600 text-white text-xs sm:text-sm rounded hover:bg-green-700 transition-colors"
-                    >
-                      Aprovar
-                    </button>
-                    <button 
-                      onClick={() => respondToNotification(notification.id, 'rejected')}
-                      className="flex-1 sm:flex-none px-3 py-2 bg-red-600 text-white text-xs sm:text-sm rounded hover:bg-red-700 transition-colors"
-                    >
-                      Rejeitar
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <NotificationCard
+                key={notification.id}
+                notification={notification}
+                onRespond={respondToNotification}
+              />
             ))}
           </div>
         )}

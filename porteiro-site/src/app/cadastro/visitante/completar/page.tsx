@@ -1,822 +1,533 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/utils/useAuth';
 import { supabase } from '@/lib/supabase';
-import PhotoUpload from '@/components/PhotoUpload';
+import { User } from 'lucide-react';
 
-interface ProfileData {
-  birth_date: string;
-  address: string;
-  emergency_contact_name: string;
-  emergency_contact_phone: string;
-  password: string;
-  confirmPassword: string;
+interface FormData {
+  document: string;
 }
 
 interface FormErrors {
-  [key: string]: string;
+  document?: string;
+  photo?: string;
 }
 
-export default function CompletarCadastroPage() {
+interface ProfileData {
+  id?: string;
+  phone?: string;
+  full_name?: string;
+  photo_url?: string;
+  hashed_password?: string;
+  plain_password?: string;
+}
+
+export default function CompleteVisitorRegistration() {
   const router = useRouter();
-  const { user, profile, loading, requireAuth } = useAuth();
-  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
-  const [autoLoginError, setAutoLoginError] = useState<string | null>(null);
-  const [profileId, setProfileId] = useState<string | null>(null);
-  const [searchPhone, setSearchPhone] = useState<string>('');
-  const [isSearchingProfile, setIsSearchingProfile] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Estados para busca automática com debounce
-  const [isSearchingByPhone, setIsSearchingByPhone] = useState(false);
-  const [phoneSearchSuccess, setPhoneSearchSuccess] = useState(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Estados de autenticação
+  const [phone, setPhone] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   
-  const [profileData, setProfileData] = useState<ProfileData>({
-    birth_date: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-    password: '',
-    confirmPassword: ''
+  // Estados de busca de perfil
+  const [isSearching, setIsSearching] = useState(false);
+  const [profileFound, setProfileFound] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileData>({});
+  
+  // Estados do formulário simplificado
+  const [formData, setFormData] = useState<FormData>({
+    document: ''
   });
+  
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-
-  // Function to search visitor profile by phone number
-  const searchVisitorByPhone = async (phone: string, isAutoSearch = false) => {
-    try {
-      if (isAutoSearch) {
-        setIsSearchingByPhone(true);
-        setPhoneSearchSuccess(false);
-      } else {
-        setIsSearchingProfile(true);
-      }
-      setSearchError(null);
-      
-      // Clean and format phone number
-      const cleanPhone = phone.replace(/\D/g, '');
-      
-      console.log('🔍 Buscando visitante por telefone:', cleanPhone);
-      
-      const { data, error } = await supabase
-        .from('visitor_temporary_passwords')
-        .select('visitor_id, phone, used, expires_at')
-        .eq('phone', cleanPhone)
-        .eq('used', false)
-        .gt('expires_at', new Date().toISOString())
-        .single();
-      
-      if (error) {
-        console.error('❌ Erro na busca por telefone:', error);
-        if (error.code === 'PGRST116') {
-          if (!isAutoSearch) {
-            setSearchError('Nenhum registro encontrado para este número de telefone ou a senha temporária expirou.');
-          }
-        } else {
-          if (!isAutoSearch) {
-            setSearchError('Erro ao buscar perfil. Tente novamente.');
-          }
-        }
-        return;
-      }
-      
-      if (data?.visitor_id) {
-        console.log('✅ Visitante encontrado:', data.visitor_id);
-        setProfileId(data.visitor_id);
-        setSearchError(null);
-        if (isAutoSearch) {
-          setPhoneSearchSuccess(true);
-        }
-      } else {
-        if (!isAutoSearch) {
-          setSearchError('Perfil de visitante não encontrado para este telefone.');
-        }
-      }
-    } catch (error) {
-      console.error('💥 Erro na busca por telefone:', error);
-      if (!isAutoSearch) {
-        setSearchError('Erro de conexão. Verifique sua internet e tente novamente.');
-      }
-    } finally {
-      if (isAutoSearch) {
-        setIsSearchingByPhone(false);
-      } else {
-        setIsSearchingProfile(false);
-      }
-    }
-  };
-
-  // Get profile_id from URL on component mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlProfileId = urlParams.get('profile_id');
-      setProfileId(urlProfileId);
-    }
-  }, []);
-
-  // Auto-login effect when profile_id is provided
-  useEffect(() => {
-    if (profileId && !user && !autoLoginAttempted) {
-      setAutoLoginAttempted(true);
-      performAutoLogin(profileId);
-    }
-  }, [profileId, user, autoLoginAttempted]);
-
-  // Main auth effect
-  useEffect(() => {
-    if (!loading && autoLoginAttempted) {
-      if (!user) {
-        // Se tentou auto-login mas falhou, mostrar erro
-        if (autoLoginError) {
-          return; // Mostrar erro na tela
-        }
-        requireAuth();
-        return;
-      }
-      
-      // Verificar se o perfil já está completo
-      if (profile?.profile_complete) {
-        router.push('/login'); // Redirecionar para dashboard se já completou
-        return;
-      }
-      
-      // Pré-preencher dados existentes do perfil
-      if (profile) {
-        setProfileData(prev => ({
-          ...prev,
-          birth_date: profile.birth_date || '',
-          address: profile.address || '',
-          emergency_contact_name: profile.emergency_contact_name || '',
-          emergency_contact_phone: profile.emergency_contact_phone || ''
-        }));
-      }
-    }
-  }, [loading, user, profile, requireAuth, router, autoLoginAttempted, autoLoginError]);
-
-  // Debounce para busca automática por telefone
-  useEffect(() => {
-    // Limpar timer anterior
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Se não há profileId e o telefone tem pelo menos 10 dígitos, iniciar busca com debounce
-    if (!profileId && searchPhone) {
-      const cleanPhone = searchPhone.replace(/\D/g, '');
-      if (cleanPhone.length >= 10) {
-        debounceTimerRef.current = setTimeout(() => {
-          searchVisitorByPhone(searchPhone, true);
-        }, 1500); // 1.5 segundos de debounce
-      }
-    }
-
-    // Cleanup
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [searchPhone, profileId]);
-
-  const performAutoLogin = async (profileId: string) => {
-    try {
-      const response = await fetch('/api/auto-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ profile_id: profileId }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setAutoLoginError(data.error || 'Erro ao fazer login automático');
-        return;
-      }
-
-      // Auto-login bem-sucedido, aguardar o useAuth detectar a mudança
-      console.log('Auto-login realizado com sucesso');
-      
-    } catch (error) {
-      console.error('Erro no auto-login:', error);
-      setAutoLoginError('Erro de conexão ao fazer login automático');
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setProfileData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
-
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Função para formatar telefone
   const formatPhone = (value: string) => {
-    const cleanValue = value.replace(/\D/g, '');
-    return cleanValue
-      .replace(/(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2');
-  };
-
-  const formatSearchPhone = (value: string) => {
-    const cleanValue = value.replace(/\D/g, '');
-    return cleanValue
-      .replace(/(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2');
-  };
-
-  const handleSearchPhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchPhone.trim()) {
-      await searchVisitorByPhone(searchPhone);
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     }
+    return value;
   };
-
-  const handleEmergencyPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatPhone(e.target.value);
-    setProfileData(prev => ({ ...prev, emergency_contact_phone: formatted }));
-    if (errors.emergency_contact_phone) {
-      setErrors(prev => ({ ...prev, emergency_contact_phone: '' }));
+  
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
+  
+  // Função para validar CPF
+  const validateCPF = (cpf: string) => {
+    const numbers = cpf.replace(/\D/g, '');
+    if (numbers.length !== 11) return false;
+    
+    // Verifica se todos os dígitos são iguais
+    if (/^(\d)\1{10}$/.test(numbers)) return false;
+    
+    // Validação do primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(numbers[i]) * (10 - i);
     }
+    let digit1 = 11 - (sum % 11);
+    if (digit1 > 9) digit1 = 0;
+    
+    // Validação do segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(numbers[i]) * (11 - i);
+    }
+    let digit2 = 11 - (sum % 11);
+    if (digit2 > 9) digit2 = 0;
+    
+    return parseInt(numbers[9]) === digit1 && parseInt(numbers[10]) === digit2;
   };
-
-  const handlePhotoUpload = (url: string) => {
-    setPhotoUrl(url);
-    setErrors(prev => ({ ...prev, photo: '' }));
-  };
-
-  const handlePhotoRemove = () => {
-    setPhotoUrl(null);
-  };
-
-  const validateForm = (): boolean => {
+  
+  // Função para validar formulário
+  const validateForm = () => {
     const newErrors: FormErrors = {};
-
-    if (!profileData.birth_date) {
-      newErrors.birth_date = 'Data de nascimento é obrigatória';
-    } else {
-      const birthDate = new Date(profileData.birth_date);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      if (age < 16 || age > 120) {
-        newErrors.birth_date = 'Idade deve estar entre 16 e 120 anos';
-      }
+    
+    // Validação do CPF
+    if (!formData.document.trim()) {
+      newErrors.document = 'CPF é obrigatório para garantir a segurança do local';
+    } else if (!validateCPF(formData.document)) {
+      newErrors.document = 'CPF inválido';
     }
-
-    if (!profileData.address.trim()) {
-      newErrors.address = 'Endereço é obrigatório';
+    
+    // Validação da foto
+    if (!profileData.photo_url) {
+      newErrors.photo = 'Foto é obrigatória';
     }
-
-    if (!profileData.emergency_contact_name.trim()) {
-      newErrors.emergency_contact_name = 'Nome do contato de emergência é obrigatório';
-    }
-
-    if (!profileData.emergency_contact_phone.trim()) {
-      newErrors.emergency_contact_phone = 'Telefone do contato de emergência é obrigatório';
-    } else if (!/^\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}$/.test(profileData.emergency_contact_phone.replace(/\D/g, ''))) {
-      newErrors.emergency_contact_phone = 'Telefone de emergência inválido';
-    }
-
-    if (!profileData.password) {
-      newErrors.password = 'Senha é obrigatória';
-    } else if (profileData.password.length < 6) {
-      newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
-    }
-
-    if (!profileData.confirmPassword) {
-      newErrors.confirmPassword = 'Confirmação de senha é obrigatória';
-    } else if (profileData.password !== profileData.confirmPassword) {
-      newErrors.confirmPassword = 'Senhas não coincidem';
-    }
-
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
+  
+  // Buscar perfil por telefone com debounce
+  useEffect(() => {
+    if (phone.replace(/\D/g, '').length === 11) {
+      const timeoutId = setTimeout(async () => {
+        setIsSearching(true);
+        try {
+          // Buscar na tabela visitor_temporary_passwords
+          const phoneNumbers = phone.replace(/\D/g, '');
+          const last11Digits = phoneNumbers.slice(-11);
+          
+          const { data, error } = await supabase
+            .from('visitor_temporary_passwords')
+            .select('visitor_id, visitor_phone, visitor_name, hashed_password, plain_password')
+            .eq('used', false)
+            .eq('status', 'active')
+            .gt('expires_at', new Date().toISOString())
+            .ilike('visitor_phone', `%${last11Digits}`);
+          
+          if (data && data.length > 0 && !error) {
+            const profile = data[0];
+            setProfileFound(true);
+            setProfileData({
+              id: profile.visitor_id,
+              phone: profile.visitor_phone,
+              full_name: profile.visitor_name,
+              hashed_password: profile.hashed_password,
+              plain_password: profile.plain_password
+            });
+          } else {
+            setProfileFound(false);
+            setProfileData({});
+          }
+        } catch (err) {
+          console.error('Erro ao buscar perfil:', err);
+          setProfileFound(false);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    } else {
+      setProfileFound(false);
+      setProfileData({});
+    }
+  }, [phone]);
+  
+  // Função de login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      if (!profileFound) {
+        throw new Error('Perfil não encontrado. Verifique o telefone.');
+      }
+      
+      // Verificar senha temporária usando a senha da tabela visitor_temporary_passwords
+      if (!profileData.plain_password || tempPassword !== profileData.plain_password) {
+        throw new Error('Senha temporária inválida.');
+      }
+      
+      // Inicializar formulário vazio
+      setFormData({
+        document: ''
+      });
+      
+      setIsAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Função para lidar com mudanças no CPF
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const formattedValue = formatCPF(value);
+    
+    setFormData(prev => ({
+      ...prev,
+      document: formattedValue
+    }));
+    
+    // Limpar erro do CPF quando usuário começar a digitar
+    if (errors.document) {
+      setErrors(prev => ({
+        ...prev,
+        document: undefined
+      }));
+    }
+  };
+  
+  // Função para upload de foto
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `visitors/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('user-photos')
+        .upload(filePath, file);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('user-photos')
+        .getPublicUrl(filePath);
+      
+      setProfileData(prev => ({
+        ...prev,
+        photo_url: publicUrl
+      }));
+    } catch (err: any) {
+      console.error('Erro no upload:', err);
+      setError('Erro ao fazer upload da foto');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // Função de submissão final
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm() || !profile?.id) {
+    console.log('Iniciando submissão do formulário...');
+    console.log('Dados do formulário:', formData);
+    console.log('Dados do perfil:', profileData);
+    
+    if (!validateForm()) {
+      console.log('Validação do formulário falhou');
       return;
     }
-
+    
     setIsSubmitting(true);
-
+    setError(''); // Limpar erros anteriores
+    
     try {
-      // Use the photo URL that was already uploaded by PhotoUpload component
-      const avatarUrl = photoUrl;
-
-      // Complete profile
-      const response = await fetch('/api/complete-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profile_id: profile.id,
-          birth_date: profileData.birth_date,
-          address: profileData.address,
-          emergency_contact_name: profileData.emergency_contact_name,
-          emergency_contact_phone: profileData.emergency_contact_phone.replace(/\D/g, ''),
-          password: profileData.password,
-          avatar_url: avatarUrl
-        }),
-      });
-
-      if (response.ok) {
-        // Cadastro concluído com sucesso - agora apagar a temporary_password
-        try {
-          const cleanPhone = profile.phone?.replace(/\D/g, '');
-          if (cleanPhone) {
-            await supabase
-              .from('visitor_temporary_passwords')
-              .delete()
-              .eq('visitor_id', profile.id)
-              .eq('phone', cleanPhone);
-            
-            console.log('✅ Visitor temporary password removida após cadastro completo');
-          }
-        } catch (tempPasswordError) {
-          console.error('⚠️ Erro ao remover visitor temporary password:', tempPasswordError);
-          // Não bloquear o fluxo se houver erro na remoção da temporary password
-        }
-        
-        router.push('/cadastro/visitante/sucesso');
-      } else {
-        const errorData = await response.json();
-        setErrors({ submit: errorData.message || 'Erro ao completar cadastro' });
+      if (!profileData.id) {
+        throw new Error('ID do visitante não encontrado');
       }
-    } catch (error) {
-      setErrors({ submit: 'Erro de conexão. Tente novamente.' });
+      
+      console.log('Atualizando perfil do visitante com ID:', profileData.id);
+      
+      // Atualizar perfil do visitante com CPF e foto
+      const updateData = {
+          document: formData.document.replace(/\D/g, ''), // Salvar apenas números
+          photo_url: profileData.photo_url,
+          status: 'aprovado',
+          updated_at: new Date().toISOString()
+        };
+      
+      console.log('Dados para atualização:', updateData);
+      
+      const { data: updateResult, error: updateError } = await supabase
+        .from('visitors')
+        .update(updateData)
+        .eq('id', profileData.id)
+        .select();
+      
+      if (updateError) {
+        console.error('Erro na atualização do visitante:', updateError);
+        throw new Error(`Erro ao atualizar perfil: ${updateError.message}`);
+      }
+      
+      console.log('Perfil atualizado com sucesso:', updateResult);
+      
+      // Marcar a senha temporária como usada
+      console.log('Marcando senha temporária como usada...');
+      const { error: passwordError } = await supabase
+        .from('visitor_temporary_passwords')
+        .update({
+          used: true,
+          used_at: new Date().toISOString()
+        })
+        .eq('visitor_id', profileData.id)
+        .eq('used', false);
+      
+      if (passwordError) {
+        console.warn('Erro ao marcar senha como usada:', passwordError.message);
+      } else {
+        console.log('Senha temporária marcada como usada com sucesso');
+      }
+      
+      console.log('Redirecionando para página de sucesso...');
+      // Redirecionar para página de sucesso
+      router.push('/cadastro/sucesso?tipo=visitante');
+    } catch (err: any) {
+      console.error('Erro detalhado ao finalizar cadastro:');
+      console.error('Tipo do erro:', typeof err);
+      console.error('Mensagem do erro:', err?.message || 'Erro desconhecido');
+      console.error('Stack do erro:', err?.stack);
+      console.error('Objeto completo do erro:', JSON.stringify(err, null, 2));
+      
+      const errorMessage = err?.message || 'Erro desconhecido ao finalizar cadastro';
+      setError(`Erro ao finalizar cadastro: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  // Mostrar loading enquanto verifica autenticação
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
-  }
   
-  // Se não está autenticado, não renderizar nada (será redirecionado)
-  if (!user || !profile) {
-    return null;
-  }
-
-  // Se não tem profileId, mostrar interface de busca por telefone
-  if (!profileId) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <Link href="/" className="flex items-center space-x-3">
-                <Image 
-                  src="/logo-james.png" 
-                  alt="Logo JAMES AVISA" 
-                  width={40} 
-                  height={40}
-                  className="h-10 w-auto"
-                />
-                <h1 className="text-2xl font-bold text-gray-900">JAMES AVISA</h1>
-              </Link>
-              <Link 
-                href="/login" 
-                className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-              >
-                Fazer Login
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="py-12">
-          <div className="max-w-md mx-auto px-4">
-            <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Localizar Perfil
-                </h2>
-                <p className="text-gray-600">
-                  Digite seu número de celular para localizar automaticamente seu perfil de visitante
-                </p>
-              </div>
-
-              {/* Search Error */}
-              {searchError && (
-                <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-                  <div className="flex items-center">
-                    <div className="text-red-400 mr-3">
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-medium text-red-800">Erro na busca</h3>
-                      <p className="text-sm text-red-700 mt-1">{searchError}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleSearchPhoneSubmit} className="space-y-6">
-                {/* Phone Input */}
-                <div>
-                  <label htmlFor="search_phone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Número de Celular
-                    {isSearchingByPhone && (
-                      <span className="ml-2 text-blue-600 text-xs">
-                        <div className="inline-flex items-center">
-                          <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600 mr-1"></div>
-                          Buscando perfil...
-                        </div>
-                      </span>
-                    )}
-                    {phoneSearchSuccess && (
-                      <span className="ml-2 text-green-600 text-xs">
-                        <div className="inline-flex items-center">
-                          <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                          Perfil encontrado!
-                        </div>
-                      </span>
-                    )}
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                    </div>
-                    <input
-                      type="tel"
-                      id="search_phone"
-                      value={searchPhone}
-                      onChange={(e) => {
-                        setSearchPhone(formatSearchPhone(e.target.value));
-                        // Reset estados quando o usuário digita
-                        setPhoneSearchSuccess(false);
-                        setSearchError(null);
-                      }}
-                      className={`w-full pl-10 pr-12 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                        phoneSearchSuccess 
-                          ? 'border-green-300 bg-green-50' 
-                          : isSearchingByPhone 
-                          ? 'border-blue-300 bg-blue-50' 
-                          : 'border-gray-300'
-                      }`}
-                      placeholder="(11) 99999-9999"
-                      maxLength={15}
-                      required
-                    />
-                    {/* Ícone de status no campo */}
-                    {isSearchingByPhone && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      </div>
-                    )}
-                    {phoneSearchSuccess && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSearchingProfile || !searchPhone.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center justify-center"
-                >
-                  {isSearchingProfile ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Buscando...
-                    </>
-                  ) : (
-                    'Localizar Perfil'
-                  )}
-                </button>
-              </form>
-
-              <div className="mt-6 text-center text-sm text-gray-500">
-                Não recebeu o link? Verifique seu WhatsApp ou entre em contato com a administração.
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      {/* Cabeçalho */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-md mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center space-x-3">
-              <Image 
-                src="/logo-james.png" 
-                alt="Logo JAMES AVISA" 
-                width={40} 
-                height={40}
-                className="h-10 w-auto"
-              />
-              <h1 className="text-2xl font-bold text-gray-900">JAMES AVISA</h1>
-            </Link>
-            <Link 
-              href="/login" 
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              Fazer Login
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="py-12">
-        <div className="max-w-2xl mx-auto px-4">
-          {/* Progress Badge */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-medium text-sm border border-blue-200">
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-              </svg>
-              Etapa 2 de 2 - Complete seu perfil
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">J</span>
+              </div>
+              <h1 className="text-xl font-bold text-gray-900">JAMES AVISA</h1>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Form Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                Complete seu Perfil
+      {/* Conteúdo Principal */}
+      <div className="max-w-md mx-auto px-4 py-6">
+        {!isAuthenticated ? (
+          /* Tela de Login */
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Complete seu Cadastro
               </h2>
-              <p className="text-lg text-gray-600">
-                Adicione sua foto e informações pessoais para finalizar o cadastro
+              <p className="text-gray-600">
+                Digite seu telefone e senha temporária
               </p>
             </div>
 
-            {/* Auto-login Error */}
-            {autoLoginError && (
-              <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-                <div className="flex items-center">
-                  <div className="text-red-400 mr-3">
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-red-800">Link Inválido</h3>
-                    <p className="text-sm text-red-700 mt-1">{autoLoginError}</p>
-                    <p className="text-sm text-red-600 mt-2">
-                      Verifique se o link foi copiado corretamente ou solicite um novo link.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 flex space-x-3">
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Tentar Novamente
-                  </button>
-                  <Link
-                    href="/login"
-                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Voltar ao Início
-                  </Link>
+            {isSearching && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <p className="text-blue-800 text-sm">Buscando perfil...</p>
                 </div>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Photo Upload */}
-              <PhotoUpload
-                onPhotoUpload={handlePhotoUpload}
-                onPhotoRemove={handlePhotoRemove}
-                initialPhotoUrl={photoUrl}
-                userId={profile?.id || ''}
-              />
-
-              {/* Data de Nascimento */}
-              <div>
-                <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data de Nascimento *
-                </label>
-                <input
-                  type="date"
-                  id="birth_date"
-                  name="birth_date"
-                  value={profileData.birth_date}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.birth_date ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                />
-                {errors.birth_date && (
-                  <p className="mt-1 text-sm text-red-600">{errors.birth_date}</p>
-                )}
+            {profileFound && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-green-800 text-sm">✓ Perfil encontrado! Faça login para continuar.</p>
               </div>
+            )}
 
-              {/* Endereço */}
+            <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                  Endereço Completo *
-                </label>
-                <input
-                  type="text"
-                  id="address"
-                  name="address"
-                  value={profileData.address}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.address ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Rua, número, bairro, cidade - UF"
-                />
-                {errors.address && (
-                  <p className="mt-1 text-sm text-red-600">{errors.address}</p>
-                )}
-              </div>
-
-              {/* Contato de Emergência - Nome */}
-              <div>
-                <label htmlFor="emergency_contact_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome do Contato de Emergência *
-                </label>
-                <input
-                  type="text"
-                  id="emergency_contact_name"
-                  name="emergency_contact_name"
-                  value={profileData.emergency_contact_name}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.emergency_contact_name ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Nome completo do contato"
-                />
-                {errors.emergency_contact_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergency_contact_name}</p>
-                )}
-              </div>
-
-              {/* Contato de Emergência - Telefone */}
-              <div>
-                <label htmlFor="emergency_contact_phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone do Contato de Emergência *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Telefone
                 </label>
                 <input
                   type="tel"
-                  id="emergency_contact_phone"
-                  name="emergency_contact_phone"
-                  value={profileData.emergency_contact_phone}
-                  onChange={handleEmergencyPhoneChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.emergency_contact_phone ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
+                  value={phone}
+                  onChange={(e) => setPhone(formatPhone(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="(11) 99999-9999"
                   maxLength={15}
+                  required
                 />
-                {errors.emergency_contact_phone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.emergency_contact_phone}</p>
-                )}
               </div>
 
-              {/* Nova Senha */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nova Senha *
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Senha Temporária
                 </label>
                 <input
                   type="password"
-                  id="password"
-                  name="password"
-                  value={profileData.password}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.password ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Mínimo 6 caracteres"
+                  value={tempPassword}
+                  onChange={(e) => setTempPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Digite a senha temporária"
+                  required
                 />
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                )}
               </div>
 
-              {/* Confirmar Senha */}
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirmar Nova Senha *
-                </label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={profileData.confirmPassword}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.confirmPassword ? 'border-red-300 text-red-900' : 'border-gray-300 text-gray-900'
-                  }`}
-                  placeholder="Digite a senha novamente"
-                />
-                {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-                )}
-              </div>
-
-              {/* Submit Error */}
-              {errors.submit && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <p className="text-sm text-red-600">{errors.submit}</p>
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-red-600 text-sm">{error}</p>
                 </div>
               )}
 
-              {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium py-3 px-4 rounded-md transition-colors duration-200 flex items-center justify-center"
+                disabled={isLoading}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                {isSubmitting ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Finalizando cadastro...
-                  </>
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 ) : (
-                  'Finalizar Cadastro'
+                  'Entrar'
                 )}
               </button>
             </form>
+          </div>
+        ) : (
+          /* Formulário Principal Simplificado */
+          <div className="space-y-6">
+            {/* Formulário Simples */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  Complete seu Cadastro
+                </h2>
+                <p className="text-gray-600">
+                  Adicione seu CPF e foto para finalizar
+                </p>
+              </div>
 
-            {/* Info Box */}
-            <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <div className="text-lg mr-3">✅</div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Upload de Foto */}
+                <div className="text-center">
+                  <div className="mb-4">
+                    {profileData.photo_url ? (
+                      <img
+                        src={profileData.photo_url}
+                        alt="Foto do perfil"
+                        className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 rounded-full mx-auto bg-gray-200 flex items-center justify-center border-4 border-gray-200">
+                        <User className="w-12 h-12 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handlePhotoUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+                  >
+                    {isUploading ? 'Enviando...' : profileData.photo_url ? 'Alterar foto' : 'Adicionar foto *'}
+                  </button>
+                  {errors.photo && (
+                    <p className="text-red-600 text-sm mt-2">{errors.photo}</p>
+                  )}
+                </div>
+
+                {/* Campo CPF */}
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm">Quase pronto!</p>
-                  <p className="text-gray-600 text-sm">
-                    Após finalizar o cadastro, você receberá uma confirmação e poderá fazer login no sistema com suas novas credenciais.
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CPF *
+                  </label>
+                  <input
+                    type="text"
+                    name="document"
+                    value={formData.document}
+                    onChange={handleCPFChange}
+                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg ${
+                      errors.document ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                  />
+                  {errors.document && (
+                    <p className="text-red-600 text-sm mt-1">{errors.document}</p>
+                  )}
+                  <p className="text-gray-600 text-sm mt-2">
+                    O CPF é obrigatório para garantir a segurança e identificação no condomínio.
                   </p>
                 </div>
-              </div>
+
+                {/* Botão de Submissão */}
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || isUploading}
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium text-lg"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        <span>Finalizando...</span>
+                      </>
+                    ) : isUploading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        <span>Enviando foto...</span>
+                      </>
+                    ) : (
+                      <span>Finalizar Cadastro</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Informações de Segurança */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800 text-sm text-center">
+                Seus dados são protegidos e utilizados apenas para identificação no condomínio.
+              </p>
             </div>
           </div>
-        </div>
-      </main>
+        )}
+      </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <Image 
-              src="/logo-james.png" 
-              alt="Logo JAMES AVISA" 
-              width={32} 
-              height={32}
-              className="h-8 w-auto bg-white rounded-full p-1"
-            />
-            <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
-          </div>
-          <p className="text-gray-400 text-sm">
-            © 2025 JAMES AVISA. Todos os direitos reservados.
-          </p>
+      <div className="max-w-md mx-auto px-4 py-6">
+        <div className="text-center text-gray-500 text-sm">
+          <p>© 2024 James Avisa. Todos os direitos reservados.</p>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
