@@ -169,7 +169,7 @@ export default function CadastroMoradorPage() {
         const errorData = await response.json();
         setErrors({ submit: errorData.message || 'Erro ao processar cadastro' });
       }
-    } catch (error) {
+    } catch {
       setErrors({ submit: 'Erro de conexão. Tente novamente.' });
     } finally {
       setIsSubmitting(false);

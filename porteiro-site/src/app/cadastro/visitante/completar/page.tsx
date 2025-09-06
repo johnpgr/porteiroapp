@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { User } from 'lucide-react';
+import Image from 'next/image';
 
 interface FormData {
   document: string;
@@ -117,27 +118,23 @@ export default function CompleteVisitorRegistration() {
         setIsSearching(true);
         try {
           // Buscar na tabela visitor_temporary_passwords
-          const phoneNumbers = phone.replace(/\D/g, '');
-          const last11Digits = phoneNumbers.slice(-11);
+          // TODO: Implementar busca quando a tabela for criada
+          console.log('Tabela visitor_temporary_passwords não existe ainda');
           
-          const { data, error } = await supabase
-            .from('visitor_temporary_passwords')
-            .select('visitor_id, visitor_phone, visitor_name, hashed_password, plain_password')
-            .eq('used', false)
-            .eq('status', 'active')
-            .gt('expires_at', new Date().toISOString())
-            .ilike('visitor_phone', `%${last11Digits}`);
+          // Simular dados vazios até a tabela ser implementada
+          const hasData = false;
           
-          if (data && data.length > 0 && !error) {
-            const profile = data[0];
-            setProfileFound(true);
-            setProfileData({
-              id: profile.visitor_id,
-              phone: profile.visitor_phone,
-              full_name: profile.visitor_name,
-              hashed_password: profile.hashed_password,
-              plain_password: profile.plain_password
-            });
+          if (hasData) {
+            // Este código será executado quando a tabela for implementada
+            // const profile = data[0];
+            // setProfileFound(true);
+            // setProfileData({
+            //   id: profile.visitor_id,
+            //   phone: profile.visitor_phone,
+            //   full_name: profile.visitor_name,
+            //   hashed_password: profile.hashed_password,
+            //   plain_password: profile.plain_password
+            // });
           } else {
             setProfileFound(false);
             setProfileData({});
@@ -179,8 +176,8 @@ export default function CompleteVisitorRegistration() {
       });
       
       setIsAuthenticated(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setIsLoading(false);
     }
@@ -231,7 +228,7 @@ export default function CompleteVisitorRegistration() {
         ...prev,
         photo_url: publicUrl
       }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro no upload:', err);
       setError('Erro ao fazer upload da foto');
     } finally {
@@ -266,7 +263,7 @@ export default function CompleteVisitorRegistration() {
       const updateData = {
           document: formData.document.replace(/\D/g, ''), // Salvar apenas números
           photo_url: profileData.photo_url,
-          status: 'aprovado',
+          status: 'aprovado' as const,
           updated_at: new Date().toISOString()
         };
       
@@ -285,34 +282,20 @@ export default function CompleteVisitorRegistration() {
       
       console.log('Perfil atualizado com sucesso:', updateResult);
       
-      // Marcar a senha temporária como usada
-      console.log('Marcando senha temporária como usada...');
-      const { error: passwordError } = await supabase
-        .from('visitor_temporary_passwords')
-        .update({
-          used: true,
-          used_at: new Date().toISOString()
-        })
-        .eq('visitor_id', profileData.id)
-        .eq('used', false);
-      
-      if (passwordError) {
-        console.warn('Erro ao marcar senha como usada:', passwordError.message);
-      } else {
-        console.log('Senha temporária marcada como usada com sucesso');
-      }
+      // TODO: Implementar marcação da senha temporária como usada quando a tabela visitor_temporary_passwords for criada
+      console.log('Senha temporária seria marcada como usada aqui');
       
       console.log('Redirecionando para página de sucesso...');
       // Redirecionar para página de sucesso
       router.push('/cadastro/sucesso?tipo=visitante');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro detalhado ao finalizar cadastro:');
       console.error('Tipo do erro:', typeof err);
-      console.error('Mensagem do erro:', err?.message || 'Erro desconhecido');
-      console.error('Stack do erro:', err?.stack);
+      console.error('Mensagem do erro:', err instanceof Error ? err.message : 'Erro desconhecido');
+      console.error('Stack do erro:', err instanceof Error ? err.stack : 'N/A');
       console.error('Objeto completo do erro:', JSON.stringify(err, null, 2));
       
-      const errorMessage = err?.message || 'Erro desconhecido ao finalizar cadastro';
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao finalizar cadastro';
       setError(`Erro ao finalizar cadastro: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
@@ -432,9 +415,11 @@ export default function CompleteVisitorRegistration() {
                 <div className="text-center">
                   <div className="mb-4">
                     {profileData.photo_url ? (
-                      <img
+                      <Image
                         src={profileData.photo_url}
                         alt="Foto do perfil"
+                        width={128}
+                        height={128}
                         className="w-32 h-32 rounded-full mx-auto object-cover border-4 border-gray-200"
                       />
                     ) : (

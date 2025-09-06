@@ -25,13 +25,20 @@ const generateUUID = () => {
 
 type FlowStep = 'placa' | 'apartamento' | 'empresa' | 'marca' | 'modelo' | 'cor' | 'convidado' | 'confirmacao';
 
+interface ApartmentInfo {
+  id: string;
+  number: string | number;
+  floor?: number | null;
+  building_id: string;
+}
+
 interface VehicleInfo {
   license_plate: string;
   model?: string;
   color?: string;
   apartment_id?: string;
   existing?: boolean;
-  apartment_info?: any;
+  apartment_info?: ApartmentInfo;
 }
 
 interface RegistrarVeiculoProps {

@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle, TextStyle, ImageStyle } from 'react-native';
 
 /**
  * Flattens an array of styles into a single style object.
@@ -8,9 +8,9 @@ import { StyleSheet } from 'react-native';
  * @param styles - Array of style objects or a single style object
  * @returns Flattened style object
  */
-export function flattenStyles(styles: any): any {
+export function flattenStyles<T extends ViewStyle | TextStyle | ImageStyle>(styles: StyleProp<T>): T | undefined {
   if (Array.isArray(styles)) {
-    return StyleSheet.flatten(styles);
+    return StyleSheet.flatten(styles) as T | undefined;
   }
-  return styles;
+  return styles as T | undefined;
 }

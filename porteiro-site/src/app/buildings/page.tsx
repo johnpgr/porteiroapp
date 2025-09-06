@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/utils/useAuth';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building, Plus, Edit, Trash2, Users, MapPin, Phone, Mail } from 'lucide-react';
 
@@ -18,15 +18,7 @@ interface BuildingData {
   };
 }
 
-interface ResidentCount {
-  building_id: string;
-  count: number;
-}
 
-interface AdminCount {
-  building_id: string;
-  count: number;
-}
 
 export default function BuildingManagement() {
   const { user, isSuperAdmin, isAdmin, requireAuth } = useAuth();
@@ -43,16 +35,7 @@ export default function BuildingManagement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    requireAuth();
-    if (!isAdmin()) {
-      window.location.href = '/login';
-      return;
-    }
-    loadBuildings();
-  }, []);
-
-  const loadBuildings = async () => {
+  const loadBuildings = useCallback(async () => {
     try {
       let query = supabase
         .from('buildings')
@@ -73,7 +56,7 @@ export default function BuildingManagement() {
         (buildingsData || []).map(async (building) => {
           // Contar moradores
           const { count: residentsCount } = await supabase
-            .from('residents')
+            .from('apartment_residents')
             .select('*', { count: 'exact', head: true })
             .eq('building_id', building.id);
 
@@ -101,7 +84,16 @@ export default function BuildingManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isSuperAdmin, user?.building_id]);
+
+  useEffect(() => {
+    requireAuth();
+    if (!isAdmin()) {
+      window.location.href = '/login';
+      return;
+    }
+    loadBuildings();
+  }, [isAdmin, loadBuildings, requireAuth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,9 +139,9 @@ export default function BuildingManagement() {
       setShowCreateForm(false);
       setEditingBuilding(null);
       loadBuildings();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar prédio:', error);
-      setError(error.message || 'Erro ao salvar prédio');
+      setError(error instanceof Error ? error.message : 'Erro ao salvar prédio');
     }
   };
 
@@ -178,7 +170,7 @@ export default function BuildingManagement() {
       if (error) throw error;
       setSuccess('Prédio excluído com sucesso!');
       loadBuildings();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao excluir prédio:', error);
       setError('Erro ao excluir prédio. Verifique se não há moradores ou admins associados.');
     }

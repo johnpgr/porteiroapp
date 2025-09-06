@@ -1,15 +1,24 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
+import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import PhotoUpload from '@/components/PhotoUpload';
+import PhotoUpload from '../../../../components/PhotoUpload';
+import { supabase } from '../../../../lib/supabase';
+import toast from 'react-hot-toast';
+import type { Database } from '../../../../types/database';
 
-import { toast } from 'sonner';
+interface TemporaryPassword {
+  plain_password: string;
+  used: boolean;
+  expires_at?: string | null;
+}
 
-interface ProfileData {
+// Tipos derivados do Supabase e do formulário
+type Profile = Database['public']['Tables']['profiles']['Row'];
+
+interface FormDataState {
   full_name: string;
   email: string;
   cpf: string;
@@ -21,71 +30,34 @@ interface ProfileData {
   confirmPassword: string;
 }
 
-interface FormErrors {
-  full_name?: string;
-  email?: string;
-  cpf?: string;
-  birth_date?: string;
-  address?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  password?: string;
-  confirmPassword?: string;
-  photo?: string;
-  submit?: string;
-  [key: string]: string | undefined;
-}
+type FormErrors = Partial<Record<keyof FormDataState | 'photo' | 'submit', string>>;
 
-interface Profile {
-  id: string;
-  user_id?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  cpf?: string | null;
-  birth_date?: string | null;
-  address?: string | null;
-  emergency_contact_name?: string | null;
-  emergency_contact_phone?: string | null;
-  avatar_url?: string | null;
-  building_id?: string | null;
-  role?: string | null;
-  user_type?: string | null;
-  profile_complete?: boolean | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
-interface TemporaryPassword {
-  id: string;
-  profile_id: string;
-  password_hash: string;
-  plain_password: string;
-  used: boolean | null;
-  created_at: string | null;
-  used_at: string | null;
-  expires_at: string | null;
-  phone_number?: string;
-}
-
-export default function CompletarCadastroPage() {
+const CompleteMoradorProfile = () => {
   const router = useRouter();
-  const [profileId, setProfileId] = useState<string | null>(null);
   
-  // Estados para autenticação
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authPhone, setAuthPhone] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authenticatedProfile, setAuthenticatedProfile] = useState<Profile | null>(null);
+  // Estados de navegação e autenticação
+  const [phoneSearchSuccess, setPhoneSearchSuccess] = React.useState(false);
+  const [isAutoSearch] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const [isSearchingByPhone, setIsSearchingByPhone] = React.useState(false);
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [completedSteps, setCompletedSteps] = React.useState(new Set<number>());
+  const [currentStep, setCurrentStep] = React.useState(1);
+  const [totalSteps] = React.useState(3);
   
-  // Estados para busca automática por telefone
-  const [isSearchingByPhone, setIsSearchingByPhone] = useState(false);
-  const [phoneSearchSuccess, setPhoneSearchSuccess] = useState(false);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const [formData, setFormData] = useState<ProfileData>({
+  // Estados do formulário e dados
+  const [profileId] = React.useState<string | null>(null);
+  const [authPhone, setAuthPhone] = React.useState('');
+  const [authPassword, setAuthPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
+  const [photoUrl, setPhotoUrl] = React.useState<string>('');
+  const [authenticatedProfile, setAuthenticatedProfile] = React.useState<Profile | null>(null);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+  const [errors, setErrors] = React.useState<FormErrors>({});
+  const [formData, setFormData] = React.useState<FormDataState>({
     full_name: '',
     email: '',
     cpf: '',
@@ -97,116 +69,44 @@ export default function CompletarCadastroPage() {
     confirmPassword: ''
   });
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 3;
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string>('');
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  
-  // Estados para controlar visibilidade das senhas
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Get profile_id from URL on component mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlProfileId = urlParams.get('profile_id');
-      console.log('Profile ID extraído da URL:', urlProfileId);
-      setProfileId(urlProfileId);
-    }
-  }, []);
-
-  // Debounce para busca automática por telefone
-  useEffect(() => {
-    // Limpar timer anterior
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Se não há profileId e o telefone tem pelo menos 10 dígitos, iniciar busca com debounce
-    if (!profileId && authPhone) {
-      const cleanPhone = authPhone.replace(/\D/g, '');
-      if (cleanPhone.length >= 10) {
-        debounceTimerRef.current = setTimeout(() => {
-          searchProfileByPhone(authPhone, true);
-        }, 1500); // 1.5 segundos de debounce
-      }
-    }
-
-    // Cleanup
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [authPhone, profileId]);
-
-  // Função para buscar profile_id usando o número de celular
-  const searchProfileByPhone = async (phoneNumber: string, isAutoSearch = false) => {
+  const searchProfileByPhone = async (phone: string) => {
     try {
-      if (isAutoSearch) {
-        setIsSearchingByPhone(true);
-      } else {
-        setIsAuthenticating(true);
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone', phone)
+        .single();
+
+      if (profileError) {
+        throw new Error('Erro ao buscar perfil por telefone');
       }
+
+      if (!profile) {
+        throw new Error('Perfil não encontrado');
+      }
+
       setAuthError(null);
-      setPhoneSearchSuccess(false);
-
-      // Limpar e formatar o número de celular
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      setAuthenticatedProfile(profile);
       
-      // Verificar se o telefone tem pelo menos 10 dígitos
-      if (cleanPhone.length < 10) {
-        if (!isAutoSearch) {
-          throw new Error('Número de telefone muito curto');
-        }
-        return;
-      }
+      // Pré-preencher dados existentes do perfil
+      setFormData(prev => ({
+        ...prev,
+        full_name: profile.full_name || '',
+        email: profile.email || '',
+        cpf: profile.cpf || '',
+        birth_date: profile.birth_date || '',
+        address: profile.address || '',
+        emergency_contact_name: profile.emergency_contact_name || '',
+        emergency_contact_phone: profile.emergency_contact_phone || ''
+      }));
       
-      // Buscar na tabela temporary_passwords usando o campo phone_number
-      const { data: tempPasswordData, error: tempPasswordError } = await supabase
-        .from('temporary_passwords')
-        .select('profile_id, phone_number')
-        .eq('used', false)
-        .not('expires_at', 'lt', new Date().toISOString());
-
-      if (tempPasswordError) {
-        throw new Error('Erro ao buscar dados temporários');
-      }
-
-      if (!tempPasswordData || tempPasswordData.length === 0) {
-        if (!isAutoSearch) {
-          throw new Error('Nenhum registro encontrado para este celular');
-        }
-        return;
-      }
-
-      // Encontrar o registro que corresponde ao telefone
-      const matchingRecord = tempPasswordData.find(record => {
-        const dbPhone = (record.phone_number || '').replace(/\D/g, '');
-        return dbPhone.slice(-11) === cleanPhone.slice(-11);
-      });
-
-      if (!matchingRecord) {
-        if (!isAutoSearch) {
-          throw new Error('Celular não encontrado nos registros');
-        }
-        return;
-      }
-
-      // Definir o profileId encontrado
-      setProfileId(matchingRecord.profile_id);
-      setPhoneSearchSuccess(true);
-      
-      if (isAutoSearch) {
-        toast.success('Perfil encontrado! Digite sua senha para continuar.');
-      } else {
-        toast.success('Perfil encontrado! Agora digite sua senha.');
+      // Se o perfil já tem uma foto, definir o photoUrl
+      if (profile.avatar_url) {
+        setPhotoUrl(profile.avatar_url);
       }
       
+      setIsAuthenticated(true);
+      toast.success('Perfil encontrado! Agora digite sua senha.');
     } catch (error: unknown) {
       console.error('Erro ao buscar perfil por telefone:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao buscar perfil';
@@ -272,9 +172,20 @@ export default function CompletarCadastroPage() {
 
       const tempPassword = filteredData[0] as TemporaryPassword;
 
+      // Buscar o telefone do perfil para verificação
+      const { data: profileData, error: phoneError } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', profileId)
+        .single();
+
+      if (phoneError || !profileData) {
+        throw new Error('Erro ao verificar dados do perfil');
+      }
+
       // Verificar telefone e senha
       const cleanPhoneFunc = (phone: string) => phone.replace(/\D/g, '');
-      const phoneFromDBOriginal = tempPassword.phone_number || '';
+      const phoneFromDBOriginal = profileData.phone || '';
       const phoneFromDBCleaned = cleanPhoneFunc(phoneFromDBOriginal);
       const phoneEnteredCleaned = cleanPhoneFunc(authPhone);
       
@@ -360,8 +271,8 @@ export default function CompletarCadastroPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
     
     // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    if (errors[name as keyof FormDataState]) {
+      setErrors(prev => ({ ...prev, [name as keyof FormDataState]: '' }));
     }
   };
 
@@ -370,10 +281,11 @@ export default function CompletarCadastroPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
     
     // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    if (errors[name as keyof FormDataState]) {
+      setErrors(prev => ({ ...prev, [name as keyof FormDataState]: '' }));
     }
   };
+
 
   const formatPhone = (value: string) => {
     const cleanValue = value.replace(/\D/g, '');
@@ -708,7 +620,7 @@ export default function CompletarCadastroPage() {
           // Não bloquear o fluxo se houver erro na remoção da temporary password
         }
       } else {
-        let errorData = {};
+        let errorData: { message?: string; error?: string; [key: string]: string | number | boolean | undefined } = {};
         let errorMessage = 'Erro ao completar cadastro';
         
         try {
@@ -1265,7 +1177,7 @@ export default function CompletarCadastroPage() {
                           value={formData.confirmPassword}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
-                            errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                            errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 hover-blue-500'
                           }`}
                           placeholder="Confirme sua nova senha"
                         />
@@ -1365,55 +1277,20 @@ export default function CompletarCadastroPage() {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        {uploadingPhoto ? 'Enviando foto...' : 'Finalizando...'}
+                        Finalizando...
                       </div>
                     ) : (
-                      <div className="flex items-center">
-                        Finalizar Cadastro
-                        <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
+                      'Finalizar Cadastro'
                     )}
                   </button>
                 )}
               </div>
             </form>
-
-            {/* Info Box */}
-            <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <div className="text-lg mr-3">✅</div>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">Quase pronto!</p>
-                  <p className="text-gray-600 text-sm">
-                    Após finalizar o cadastro, você receberá uma confirmação e poderá fazer login no sistema com suas novas credenciais.
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex items-center justify-center space-x-3 mb-4">
-            <Image 
-              src="/logo-james.png" 
-              alt="Logo JAMES AVISA" 
-              width={32} 
-              height={32}
-              className="h-8 w-auto bg-white rounded-full p-1"
-            />
-            <h4 className="text-xl font-bold text-white">JAMES AVISA</h4>
-          </div>
-          <p className="text-gray-400 text-sm">
-            © 2025 JAMES AVISA. Todos os direitos reservados.
-          </p>
-        </div>
-      </footer>
     </div>
   );
-}
+};
+
+export default CompleteMoradorProfile;

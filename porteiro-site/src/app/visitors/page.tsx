@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/utils/useAuth';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { UserCheck, Plus, Edit, Trash2, Building, Phone, Clock, Key, Eye, EyeOff, Copy } from 'lucide-react';
 
@@ -49,27 +49,17 @@ export default function VisitorManagement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    requireAuth();
-    if (!isAdmin()) {
-      window.location.href = '/login';
-      return;
-    }
-    loadBuildings();
-    loadVisitors();
-    generateRandomPassword();
-  }, []);
-
-  const loadBuildings = async () => {
+  const loadBuildings = useCallback(async () => {
     try {
       let query = supabase
         .from('buildings')
         .select('id, name')
         .order('name');
 
-      // Se não for super admin, mostrar apenas o prédio do admin
-      if (!isSuperAdmin() && user?.building_id) {
-        query = query.eq('id', user.building_id);
+      // Se não for super admin, mostrar apenas o prédio do admin (usar variável local para evitar problemas de narrowing)
+      const bid = user?.building_id;
+      if (!isSuperAdmin() && bid) {
+        query = query.eq('id', bid);
       }
 
       const { data, error } = await query;
@@ -77,33 +67,20 @@ export default function VisitorManagement() {
       setBuildings(data || []);
 
       // Se admin regular, definir automaticamente o building_id
-      if (!isSuperAdmin() && user?.building_id) {
-        setFormData(prev => ({ ...prev, building_id: user.building_id }));
+      const bid2 = user?.building_id;
+      if (!isSuperAdmin() && bid2) {
+        setFormData(prev => ({ ...prev, building_id: bid2 }));
       }
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
     }
-  };
+  }, [isSuperAdmin, user?.building_id]);
 
   const loadVisitors = async () => {
     try {
-      let query = supabase
-        .from('visitor_temporary_passwords')
-        .select(`
-          *,
-          building:buildings(name),
-          creator:admin_profiles(name)
-        `)
-        .order('created_at', { ascending: false });
-
-      // Se não for super admin, mostrar apenas visitantes do prédio do admin
-      if (!isSuperAdmin() && user?.building_id) {
-        query = query.eq('building_id', user.building_id);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setVisitors(data || []);
+      // TODO: Implementar carregamento de visitantes quando a tabela for criada
+      console.log('Tabela visitor_temporary_passwords não existe ainda');
+      setVisitors([]);
     } catch (error) {
       console.error('Erro ao carregar visitantes:', error);
       setError('Erro ao carregar visitantes');
@@ -121,6 +98,17 @@ export default function VisitorManagement() {
     setFormData(prev => ({ ...prev, password }));
   };
 
+  useEffect(() => {
+    requireAuth();
+    if (!isAdmin()) {
+      window.location.href = '/login';
+      return;
+    }
+    loadBuildings();
+    loadVisitors();
+    generateRandomPassword();
+  }, [isAdmin, loadBuildings, requireAuth]);
+
   const getDefaultExpiryTime = () => {
     const now = new Date();
     now.setHours(now.getHours() + 24); // 24 horas a partir de agora
@@ -133,46 +121,16 @@ export default function VisitorManagement() {
     setSuccess('');
 
     try {
-      if (editingVisitor) {
-        // Atualizar visitante existente
-        const { error } = await supabase
-          .from('visitor_temporary_passwords')
-          .update({
-            visitor_name: formData.visitor_name,
-            visitor_phone: formData.visitor_phone || null,
-            apartment: formData.apartment,
-            building_id: formData.building_id,
-            password: formData.password,
-            expires_at: formData.expires_at
-          })
-          .eq('id', editingVisitor.id);
-
-        if (error) throw error;
-        setSuccess('Visitante atualizado com sucesso!');
-      } else {
-        // Criar novo visitante
-        const { error } = await supabase
-          .from('visitor_temporary_passwords')
-          .insert({
-            visitor_name: formData.visitor_name,
-            visitor_phone: formData.visitor_phone || null,
-            apartment: formData.apartment,
-            building_id: formData.building_id,
-            password: formData.password,
-            expires_at: formData.expires_at,
-            created_by: user?.id,
-            is_used: false
-          });
-
-        if (error) throw error;
-        setSuccess('Senha temporária criada com sucesso!');
-      }
+      // TODO: Implementar criação/edição quando a tabela for criada
+      console.log('Funcionalidade temporariamente desabilitada - tabela não existe');
+      setError('Funcionalidade temporariamente indisponível');
+      return;
 
       setFormData({
         visitor_name: '',
         visitor_phone: '',
         apartment: '',
-        building_id: !isSuperAdmin() && user?.building_id ? user.building_id : '',
+        building_id: !isSuperAdmin() ? (user?.building_id ?? '') : '',
         password: '',
         expires_at: ''
       });
@@ -180,9 +138,9 @@ export default function VisitorManagement() {
       setShowCreateForm(false);
       setEditingVisitor(null);
       loadVisitors();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar visitante:', error);
-      setError(error.message || 'Erro ao salvar visitante');
+      setError(error instanceof Error ? error.message : 'Erro ao salvar visitante');
     }
   };
 
@@ -205,15 +163,10 @@ export default function VisitorManagement() {
     }
 
     try {
-      const { error } = await supabase
-        .from('visitor_temporary_passwords')
-        .delete()
-        .eq('id', visitor.id);
-
-      if (error) throw error;
-      setSuccess('Senha temporária excluída com sucesso!');
-      loadVisitors();
-    } catch (error: any) {
+      // TODO: Implementar exclusão quando a tabela for criada
+      console.log('Funcionalidade temporariamente desabilitada - tabela não existe');
+      setError('Funcionalidade temporariamente indisponível');
+    } catch (error: unknown) {
       console.error('Erro ao excluir visitante:', error);
       setError('Erro ao excluir senha temporária');
     }
@@ -223,7 +176,7 @@ export default function VisitorManagement() {
     try {
       await navigator.clipboard.writeText(password);
       setSuccess('Senha copiada para a área de transferência!');
-    } catch (error) {
+    } catch {
       setError('Erro ao copiar senha');
     }
   };
@@ -242,7 +195,7 @@ export default function VisitorManagement() {
       visitor_name: '',
       visitor_phone: '',
       apartment: '',
-      building_id: !isSuperAdmin() && user?.building_id ? user.building_id : '',
+      building_id: !isSuperAdmin() ? (user?.building_id ?? '') : '',
       password: '',
       expires_at: ''
     });

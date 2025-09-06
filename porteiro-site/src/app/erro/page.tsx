@@ -7,7 +7,7 @@ import { Suspense } from 'react';
 
 function ErroContent() {
   const searchParams = useSearchParams();
-  const tipo = searchParams.get('tipo');
+  const tipo = searchParams?.get('tipo');
 
   const getErrorInfo = () => {
     switch (tipo) {

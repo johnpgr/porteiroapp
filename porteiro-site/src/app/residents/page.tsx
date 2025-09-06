@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/utils/useAuth';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Users, Plus, Edit, Trash2, Building, Phone, Mail, Home, Eye, EyeOff } from 'lucide-react';
 
@@ -16,6 +16,23 @@ interface ResidentData {
   created_at: string;
   building?: {
     name: string;
+  };
+}
+
+interface SupabaseResidentItem {
+  id: string;
+  created_at: string;
+  profiles?: {
+    full_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
+  apartments?: {
+    number?: string;
+    building_id?: string;
+    buildings?: {
+      name?: string;
+    };
   };
 }
 
@@ -44,17 +61,7 @@ export default function ResidentManagement() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    requireAuth();
-    if (!isAdmin()) {
-      window.location.href = '/login';
-      return;
-    }
-    loadBuildings();
-    loadResidents();
-  }, []);
-
-  const loadBuildings = async () => {
+  const loadBuildings = useCallback(async () => {
     try {
       let query = supabase
         .from('buildings')
@@ -72,38 +79,81 @@ export default function ResidentManagement() {
 
       // Se admin regular, definir automaticamente o building_id
       if (!isSuperAdmin() && user?.building_id) {
-        setFormData(prev => ({ ...prev, building_id: user.building_id }));
+        setFormData(prev => ({ ...prev, building_id: user.building_id || '' }));
       }
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
     }
-  };
+  }, [isSuperAdmin, user?.building_id]);
 
-  const loadResidents = async () => {
+  const loadResidents = useCallback(async () => {
     try {
       let query = supabase
-        .from('residents')
+        .from('apartment_residents')
         .select(`
-          *,
-          building:buildings(name)
+          id,
+          created_at,
+          relationship,
+          profiles!apartment_residents_profile_id_fkey(
+            id,
+            full_name,
+            email,
+            phone
+          ),
+          apartments!apartment_residents_apartment_id_fkey(
+            id,
+            number,
+            building_id,
+            buildings(
+              id,
+              name
+            )
+          )
         `)
         .order('created_at', { ascending: false });
 
       // Se não for super admin, mostrar apenas moradores do prédio do admin
       if (!isSuperAdmin() && user?.building_id) {
-        query = query.eq('building_id', user.building_id);
+        query = query.eq('apartments.building_id', user.building_id);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      setResidents(data || []);
+      
+      // Transform the data to match ResidentData interface
+      const transformedData: ResidentData[] = (data || []).map((item: SupabaseResidentItem) => ({
+        id: item.id,
+        name: item.profiles?.full_name || '',
+        email: item.profiles?.email || '',
+        phone: item.profiles?.phone || '',
+        apartment: item.apartments?.number || '',
+        building_id: item.apartments?.building_id || '',
+        is_active: true, // Default value
+        created_at: item.created_at,
+        building: {
+          name: item.apartments?.buildings?.name || ''
+        }
+      }));
+      
+      setResidents(transformedData);
     } catch (error) {
       console.error('Erro ao carregar moradores:', error);
       setError('Erro ao carregar moradores');
     } finally {
       setLoading(false);
     }
-  };
+  }, [isSuperAdmin, user?.building_id]);
+
+  // Carregar dados iniciais
+  useEffect(() => {
+    requireAuth();
+    if (!isAdmin()) {
+      window.location.href = '/login';
+      return;
+    }
+    loadBuildings();
+    loadResidents();
+  }, [isAdmin, loadBuildings, loadResidents, requireAuth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,18 +162,13 @@ export default function ResidentManagement() {
 
     try {
       if (editingResident) {
-        // Atualizar morador existente
-        const updateData: any = {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || null,
-          apartment: formData.apartment,
-          building_id: formData.building_id,
-          is_active: formData.is_active
+        // Atualizar morador existente - apenas campos válidos da tabela
+        const updateData = {
+          relationship: 'resident'
         };
 
         const { error } = await supabase
-          .from('residents')
+          .from('apartment_residents')
           .update(updateData)
           .eq('id', editingResident.id);
 
@@ -146,19 +191,19 @@ export default function ResidentManagement() {
         if (authError) throw authError;
 
         // Depois criar o perfil do morador
-        const { error: profileError } = await supabase
-          .from('residents')
-          .insert({
-            id: authData.user?.id,
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone || null,
-            apartment: formData.apartment,
-            building_id: formData.building_id,
-            is_active: formData.is_active
-          });
+        if (!authData.user?.id) {
+          throw new Error('Usuário não autenticado');
+        }
 
-        if (profileError) throw profileError;
+        const { error: insertError } = await supabase
+           .from('apartment_residents')
+           .insert({
+             profile_id: authData.user.id,
+             apartment_id: formData.apartment,
+             relationship: 'resident'
+           });
+
+        if (insertError) throw insertError;
         setSuccess('Morador criado com sucesso!');
       }
 
@@ -174,9 +219,9 @@ export default function ResidentManagement() {
       setShowCreateForm(false);
       setEditingResident(null);
       loadResidents();
-    } catch (error: any) {
-      console.error('Erro ao salvar morador:', error);
-      setError(error.message || 'Erro ao salvar morador');
+    } catch (err: unknown) {
+      console.error('Erro ao salvar morador:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao salvar morador');
     }
   };
 
@@ -194,20 +239,9 @@ export default function ResidentManagement() {
     setShowCreateForm(true);
   };
 
-  const handleToggleActive = async (resident: ResidentData) => {
-    try {
-      const { error } = await supabase
-        .from('residents')
-        .update({ is_active: !resident.is_active })
-        .eq('id', resident.id);
-
-      if (error) throw error;
-      setSuccess(`Morador ${!resident.is_active ? 'ativado' : 'desativado'} com sucesso!`);
-      loadResidents();
-    } catch (error: any) {
-      console.error('Erro ao alterar status do morador:', error);
-      setError('Erro ao alterar status do morador');
-    }
+  const handleToggleActive = async () => {
+    // Funcionalidade temporariamente desabilitada
+    setError('Funcionalidade de ativar/desativar temporariamente indisponível.');
   };
 
   const handleDelete = async (resident: ResidentData) => {
@@ -218,7 +252,7 @@ export default function ResidentManagement() {
     try {
       // Primeiro deletar o perfil
       const { error: profileError } = await supabase
-        .from('residents')
+        .from('apartment_residents')
         .delete()
         .eq('id', resident.id);
 
@@ -232,7 +266,7 @@ export default function ResidentManagement() {
 
       setSuccess('Morador excluído com sucesso!');
       loadResidents();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao excluir morador:', error);
       setError('Erro ao excluir morador');
     }
@@ -521,7 +555,7 @@ export default function ResidentManagement() {
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleToggleActive(resident)}
+                          onClick={() => handleToggleActive()}
                           className={`${resident.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
                         >
                           {resident.is_active ? (

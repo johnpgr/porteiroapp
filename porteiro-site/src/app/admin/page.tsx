@@ -3,42 +3,38 @@
 import { useAuth } from '@/utils/useAuth';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Shield, Plus, Edit, Trash2, Building, Users, Eye, EyeOff } from 'lucide-react';
+import { Shield, Plus, Edit, Users, Eye, EyeOff } from 'lucide-react';
 
 interface AdminProfile {
   id: string;
-  name: string;
+  full_name: string;
   email: string;
   phone?: string;
-  building_id?: string;
-  is_active: boolean;
-  is_super_admin: boolean;
+  user_id?: string;
+  admin_type: string;
   created_at: string;
   building?: {
     name: string;
   };
 }
 
-interface Building {
-  id: string;
-  name: string;
-  address: string;
-}
+
+
+
 
 export default function AdminManagement() {
-  const { user, isSuperAdmin, requireAuth } = useAuth();
+  const { isSuperAdmin, requireAuth } = useAuth();
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
-  const [buildings, setBuildings] = useState<Building[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<AdminProfile | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     email: '',
     phone: '',
     password: '',
-    building_id: '',
-    is_super_admin: false
+    admin_type: 'admin'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -51,21 +47,39 @@ export default function AdminManagement() {
       return;
     }
     loadAdmins();
-    loadBuildings();
-  }, []);
+  }, [isSuperAdmin, requireAuth]);
 
   const loadAdmins = async () => {
     try {
       const { data, error } = await supabase
         .from('admin_profiles')
-        .select(`
-          *,
-          building:buildings(name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAdmins(data || []);
+      
+      const mappedData: AdminProfile[] = (data || []).map((item: {
+        id: string;
+        full_name?: string;
+        name?: string;
+        email: string;
+        phone?: string | null;
+        user_id: string;
+        role?: string;
+        admin_type?: string;
+        created_at: string;
+      }) => ({
+        id: item.id as string,
+        full_name: (item.full_name || item.name || 'N/A') as string,
+        email: item.email as string,
+        phone: item.phone === null ? undefined : item.phone,
+        user_id: item.user_id as string,
+        admin_type: (item.role ?? 'admin') as string,
+        created_at: item.created_at as string,
+        building: undefined
+      }));
+      
+      setAdmins(mappedData);
     } catch (error) {
       console.error('Erro ao carregar administradores:', error);
       setError('Erro ao carregar administradores');
@@ -74,19 +88,7 @@ export default function AdminManagement() {
     }
   };
 
-  const loadBuildings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('*')
-        .order('name');
 
-      if (error) throw error;
-      setBuildings(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar prédios:', error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,10 +101,9 @@ export default function AdminManagement() {
         const { error } = await supabase
           .from('admin_profiles')
           .update({
-            name: formData.name,
+            full_name: formData.full_name,
             phone: formData.phone,
-            building_id: formData.building_id || null,
-            is_super_admin: formData.is_super_admin
+            admin_type: formData.admin_type
           })
           .eq('id', editingAdmin.id);
 
@@ -121,13 +122,11 @@ export default function AdminManagement() {
           const { error: profileError } = await supabase
             .from('admin_profiles')
             .insert({
-              id: authData.user.id,
-              name: formData.name,
+              user_id: authData.user.id,
+              name: formData.full_name,
               email: formData.email,
               phone: formData.phone,
-              building_id: formData.building_id || null,
-              is_super_admin: formData.is_super_admin,
-              is_active: true
+              role: formData.admin_type
             });
 
           if (profileError) throw profileError;
@@ -136,61 +135,44 @@ export default function AdminManagement() {
       }
 
       setFormData({
-        name: '',
+        full_name: '',
         email: '',
         phone: '',
         password: '',
-        building_id: '',
-        is_super_admin: false
+        admin_type: 'admin'
       });
       setShowCreateForm(false);
       setEditingAdmin(null);
       loadAdmins();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao salvar administrador:', error);
-      setError(error.message || 'Erro ao salvar administrador');
+      setError(error instanceof Error ? error.message : 'Erro ao salvar administrador');
     }
   };
 
   const handleEdit = (admin: AdminProfile) => {
     setEditingAdmin(admin);
     setFormData({
-      name: admin.name,
+      full_name: admin.full_name,
       email: admin.email,
       phone: admin.phone || '',
       password: '',
-      building_id: admin.building_id || '',
-      is_super_admin: admin.is_super_admin
+      admin_type: admin.admin_type
     });
     setShowCreateForm(true);
   };
 
-  const handleToggleActive = async (admin: AdminProfile) => {
-    try {
-      const { error } = await supabase
-        .from('admin_profiles')
-        .update({ is_active: !admin.is_active })
-        .eq('id', admin.id);
-
-      if (error) throw error;
-      setSuccess(`Administrador ${admin.is_active ? 'desativado' : 'ativado'} com sucesso!`);
-      loadAdmins();
-    } catch (error: any) {
-      console.error('Erro ao alterar status:', error);
-      setError('Erro ao alterar status do administrador');
-    }
-  };
+  // Função removida - campo is_active não existe na tabela admin_profiles
 
   const cancelForm = () => {
     setShowCreateForm(false);
     setEditingAdmin(null);
     setFormData({
-      name: '',
+      full_name: '',
       email: '',
       phone: '',
       password: '',
-      building_id: '',
-      is_super_admin: false
+      admin_type: 'admin'
     });
     setError('');
     setSuccess('');
@@ -258,8 +240,8 @@ export default function AdminManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -311,31 +293,15 @@ export default function AdminManagement() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prédio</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Administrador</label>
                   <select
-                    value={formData.building_id}
-                    onChange={(e) => setFormData({ ...formData, building_id: e.target.value })}
+                    value={formData.admin_type}
+                    onChange={(e) => setFormData({ ...formData, admin_type: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Selecione um prédio (opcional)</option>
-                    {buildings.map((building) => (
-                      <option key={building.id} value={building.id}>
-                        {building.name}
-                      </option>
-                    ))}
+                    <option value="admin">Administrador</option>
+                    <option value="super_admin">Super Administrador</option>
                   </select>
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="is_super_admin"
-                    checked={formData.is_super_admin}
-                    onChange={(e) => setFormData({ ...formData, is_super_admin: e.target.checked })}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_super_admin" className="ml-2 block text-sm text-gray-900">
-                    Super Administrador
-                  </label>
                 </div>
               </div>
               <div className="flex justify-end space-x-3 mt-6">
@@ -388,7 +354,7 @@ export default function AdminManagement() {
                   <tr key={admin.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{admin.name}</div>
+                        <div className="text-sm font-medium text-gray-900">{admin.full_name}</div>
                         <div className="text-sm text-gray-500">{admin.email}</div>
                         {admin.phone && (
                           <div className="text-sm text-gray-500">{admin.phone}</div>
@@ -401,7 +367,7 @@ export default function AdminManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {admin.is_super_admin ? (
+                      {admin.admin_type === 'super_admin' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                           <Shield className="h-3 w-3 mr-1" />
                           Super Admin
@@ -414,15 +380,9 @@ export default function AdminManagement() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {admin.is_active ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          Inativo
-                        </span>
-                      )}
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Ativo
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -431,16 +391,6 @@ export default function AdminManagement() {
                           className="text-blue-600 hover:text-blue-900"
                         >
                           <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(admin)}
-                          className={admin.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}
-                        >
-                          {admin.is_active ? (
-                            <Trash2 className="h-4 w-4" />
-                          ) : (
-                            <Shield className="h-4 w-4" />
-                          )}
                         </button>
                       </div>
                     </td>

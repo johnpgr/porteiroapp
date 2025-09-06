@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import BottomNav from '~/components/BottomNav';
 
@@ -58,14 +58,14 @@ export default function PeriodoVisitante() {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (event: DateTimePickerEvent, date?: Date) => {
     setShowDatePicker(false);
     if (date) {
       setSelectedDate(date);
     }
   };
 
-  const handleStartTimeChange = (event: any, time?: Date) => {
+  const handleStartTimeChange = (event: DateTimePickerEvent, time?: Date) => {
     setShowStartTimePicker(false);
     if (time) {
       setStartTime(time);
@@ -76,7 +76,7 @@ export default function PeriodoVisitante() {
     }
   };
 
-  const handleEndTimeChange = (event: any, time?: Date) => {
+  const handleEndTimeChange = (event: DateTimePickerEvent, time?: Date) => {
     setShowEndTimePicker(false);
     if (time) {
       if (time <= startTime) {

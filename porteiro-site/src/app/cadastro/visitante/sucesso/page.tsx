@@ -2,15 +2,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 export default function SucessoCadastroPage() {
-  const [showConfetti, setShowConfetti] = useState(false);
-
   useEffect(() => {
     // Show confetti animation on page load
-    setShowConfetti(true);
-    const timer = setTimeout(() => setShowConfetti(false), 3000);
+    const timer = setTimeout(() => {}, 3000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -120,31 +117,6 @@ export default function SucessoCadastroPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-4">
-              <Link 
-                href="/login"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition-colors duration-200 inline-block"
-              >
-                Fazer Login Agora
-              </Link>
-              
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <a 
-                  href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-white hover:bg-gray-50 text-green-600 border-2 border-green-600 px-4 py-2 rounded-md font-medium transition-colors inline-flex items-center justify-center"
-                >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.61 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z" />
-                  </svg>
-                  📱 Baixar App
-                </a>
-
-              </div>
-            </div>
-
             {/* Support Info */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h4 className="font-semibold text-gray-900 mb-2">Precisa de Ajuda?</h4>
@@ -156,9 +128,6 @@ export default function SucessoCadastroPage() {
                   📧 Suporte por E-mail
                 </a>
                 <span className="hidden sm:inline text-gray-400">•</span>
-                <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
-                  💬 Chat Online
-                </a>
                 <span className="hidden sm:inline text-gray-400">•</span>
                 <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
                   📞 Telefone

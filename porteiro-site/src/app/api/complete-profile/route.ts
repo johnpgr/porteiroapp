@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,20 +22,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se existe uma visitor_temporary_password válida para este visitor_id
-    const { data: tempPasswordData, error: tempPasswordError } = await supabase
-      .from('visitor_temporary_passwords')
-      .select('visitor_id, used, expires_at')
-      .eq('visitor_id', profile_id)
-      .eq('used', false)
-      .gt('expires_at', new Date().toISOString())
+    // Verificar se o token é válido
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('visitors')
+      .select('*')
+      .eq('registration_token', profile_id)
+      .gt('token_expires_at', new Date().toISOString())
       .single();
 
-    if (tempPasswordError || !tempPasswordData) {
-      console.error('Erro ao verificar visitor_temporary_password:', tempPasswordError);
+    if (tokenError || !tokenData) {
       return NextResponse.json(
-        { message: 'Senha temporária de visitante não encontrada ou expirada' },
-        { status: 404 }
+        { error: 'Token inválido ou expirado' },
+        { status: 400 }
       );
     }
 
@@ -75,39 +72,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Criar usuário na autenticação do Supabase usando admin client
-    if (visitorData.email) {
-      const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
-        email: visitorData.email,
-        password: password,
-        user_metadata: {
-          phone: visitorData.phone,
-          visitor_id: profile_id,
-          user_type: 'visitor'
-        },
-        email_confirm: true // Confirma o email automaticamente
-      });
-
-      if (signUpError) {
-        console.error('Erro ao criar usuário:', signUpError);
-        // Não falhar o processo se houver erro na criação do usuário
-        // O visitante pode tentar fazer login manualmente depois
-      } else {
-        // Marcar a visitor_temporary_password como usada
-        const { error: markUsedError } = await supabase
-          .from('visitor_temporary_passwords')
-          .update({ 
-            used: true,
-            used_at: new Date().toISOString()
-          })
-          .eq('visitor_id', profile_id);
-
-        if (markUsedError) {
-          console.error('Erro ao marcar visitor_temporary_password como usada:', markUsedError);
-          // Não falhar o processo, apenas logar o erro
-        }
-      }
-    }
+    // TODO: Implementar criação de usuário quando o campo email for adicionado à tabela visitors
+    // TODO: Implementar marcação de token como usado quando o campo for adicionado à tabela visitors
 
     return NextResponse.json(
       { 

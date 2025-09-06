@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     };
 
-    const { data: updatedProfile, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', profile_id)

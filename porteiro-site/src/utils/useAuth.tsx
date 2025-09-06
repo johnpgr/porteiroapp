@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -41,6 +41,19 @@ interface Profile {
   profile_complete: boolean | null;
 }
 
+// Tipo para a linha real do banco admin_profiles
+interface DBAdminProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  created_at: string;
+  updated_at: string;
+  is_active?: boolean | null;
+}
+
 interface AuthUser {
   id: string;
   email: string;
@@ -70,53 +83,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    checkSession();
+  // checkSession é definido mais abaixo, após loadUserProfile
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await loadUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkSession = async () => {
+  const signOut = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserProfile(session.user);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro no logout:', error);
       }
+      setUser(null);
+      router.push('/login');
     } catch (error) {
-      console.error('Erro ao verificar sessão:', error);
-    } finally {
-      setLoading(false);
+      console.error('Erro no logout:', error);
+      setUser(null);
+      router.push('/login');
     }
-  };
+  }, [router]);
 
-  const loadUserProfile = async (authUser: User) => {
+  const loadUserProfile = useCallback(async (authUser: User) => {
     try {
       // Primeiro verifica se é um admin
       const { data: adminProfile, error: adminError } = await supabase
         .from('admin_profiles')
         .select('*')
         .eq('user_id', authUser.id)
-        .eq('is_active', true)
         .maybeSingle();
 
       if (adminProfile && !adminError) {
         // É um admin (super-admin ou admin regular)
+        const ap = adminProfile as DBAdminProfile;
+        const adminType: 'super_admin' | 'admin' = (ap.role === 'super_admin' || ap.role === 'superadmin') ? 'super_admin' : 'admin';
+        const isActive: boolean = (ap.is_active ?? true) as boolean;
+        const mappedProfile: AdminProfile = {
+          id: ap.id,
+          user_id: ap.user_id,
+          name: ap.name,
+          email: ap.email,
+          phone: ap.phone,
+          role: ap.role,
+          admin_type: adminType,
+          is_active: isActive,
+          created_at: ap.created_at,
+          updated_at: ap.updated_at,
+        };
         const userData: AuthUser = {
           id: authUser.id,
-          email: adminProfile.email,
-          user_type: adminProfile.admin_type === 'super_admin' ? 'super_admin' : 'admin',
-          admin_type: adminProfile.admin_type,
-          is_active: adminProfile.is_active,
-          profile: adminProfile
+          email: mappedProfile.email,
+          user_type: adminType,
+          admin_type: adminType,
+          is_active: isActive,
+          profile: mappedProfile
         };
         setUser(userData);
         return;
@@ -147,7 +163,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao carregar perfil:', error);
       await signOut();
     }
-  };
+  }, [signOut]);
+
+  const checkSession = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar sessão:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadUserProfile]);
+
+  useEffect(() => {
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        await loadUserProfile(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [checkSession, loadUserProfile]);
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -181,20 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Erro no logout:', error);
-      }
-      setUser(null);
-      router.push('/login');
-    } catch (error) {
-      console.error('Erro no logout:', error);
-      setUser(null);
-      router.push('/login');
-    }
-  };
+
 
   const requireAuth = (redirectTo?: string) => {
     if (!loading && !user) {

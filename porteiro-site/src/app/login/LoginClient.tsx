@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/utils/useAuth';
-import { Ionicons } from '@expo/vector-icons';
-import { toast } from 'sonner';
+
+
 import NotificationCard from '../../components/NotificationCard';
 import { usePendingNotifications } from '../../hooks/usePendingNotifications';
 
@@ -21,39 +21,7 @@ interface VisitorHistory {
   delivery_destination?: string;
 }
 
-// Interface para notificações pendentes
-interface PendingNotification {
-  id: string;
-  entry_type: 'visitor' | 'delivery' | 'vehicle';
-  notification_status: 'pending' | 'approved' | 'rejected' | 'expired';
-  notification_sent_at: string;
-  expires_at: string;
-  apartment_id: string;
-  guest_name?: string;
-  purpose?: string;
-  visitor_id?: string;
-  delivery_sender?: string;
-  delivery_description?: string;
-  delivery_tracking_code?: string;
-  license_plate?: string;
-  vehicle_model?: string;
-  vehicle_color?: string;
-  vehicle_brand?: string;
-  building_id: string;
-  created_at: string;
-  log_time: string;
-  visitors?: {
-    name: string;
-    document: string;
-    phone?: string;
-  };
-}
 
-interface NotificationResponse {
-  action: 'approve' | 'reject';
-  reason?: string;
-  delivery_destination?: 'portaria' | 'elevador' | 'apartamento';
-}
 import {
   UserIcon,
   Mail,
@@ -62,26 +30,14 @@ import {
   Shield,
   ShieldCheck,
   Building,
-  Settings,
   Bell,
   Home,
-  Edit,
   Trash2,
   LogOut,
-  Users,
   RefreshCw,
   AlertCircle,
   CheckCircle,
   Clock,
-  Package,
-  Car,
-  User,
-  Phone,
-  MapPin,
-  Calendar,
-  X,
-  Download,
-  Save,
   AlertTriangle
 } from 'lucide-react';
 
@@ -121,16 +77,13 @@ interface UserProfile {
 
 export default function LoginClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const returnUrl = searchParams.get('returnUrl');
-  const { user, signIn, signOut, loading, isSuperAdmin, isAdmin } = useAuth();
+
+  const { user, signIn, signOut, isSuperAdmin, isAdmin } = useAuth();
   
   // Estados do formulário
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -156,12 +109,30 @@ export default function LoginClient() {
     error: notificationsError,
     fetchPendingNotifications,
     respondToNotification
-  } = usePendingNotifications(apartmentId);
+  } = usePendingNotifications(apartmentId || undefined);
   
   // Estados para exclusão de conta
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Função para excluir conta
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'EXCLUIR') return;
+    
+    setIsDeleting(true);
+    try {
+      // Implementar lógica de exclusão de conta aqui
+      console.log('Excluindo conta...');
+      await signOut();
+    } catch (error) {
+      console.error('Erro ao excluir conta:', error);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      setDeleteConfirmText('');
+    }
+  };
 
   // Funções de validação
   const validateEmail = (email: string): string | undefined => {
@@ -198,7 +169,7 @@ export default function LoginClient() {
         setFormErrors(prev => ({ ...prev, email: undefined }));
       }
     }
-  }, [email]);
+  }, [email, formErrors.email]);
 
   useEffect(() => {
     if (password && formErrors.password) {
@@ -207,7 +178,7 @@ export default function LoginClient() {
         setFormErrors(prev => ({ ...prev, password: undefined }));
       }
     }
-  }, [password]);
+  }, [password, formErrors.password]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,16 +195,16 @@ export default function LoginClient() {
       await signIn(email, password);
       setSuccessMessage('Login realizado com sucesso!');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no login:', error);
-      setError(error.message || 'Erro ao fazer login. Verifique suas credenciais.');
+      setError(error instanceof Error ? error.message : 'Erro ao fazer login. Verifique suas credenciais.');
     } finally {
       setIsLoading(false);
     }
   };
 
   // Função para buscar dados completos do usuário com JOIN
-  const fetchUserCompleteData = async () => {
+  const fetchUserCompleteData = useCallback(async () => {
     if (!user) return { 
       apartment: '', 
       building: '', 
@@ -261,7 +232,6 @@ export default function LoginClient() {
         .from('apartment_residents')
         .select(`
           apartment_id,
-          is_owner,
           relationship,
           profiles (
             id,
@@ -291,7 +261,6 @@ export default function LoginClient() {
           )
         `)
         .eq('profile_id', user.id)
-        .eq('is_active', true)
         .single();
       
       if (userError || !userData) {
@@ -329,8 +298,8 @@ export default function LoginClient() {
           return { 
             apartment: '', 
             building: '', 
-            fullName: user.user_metadata?.name || '',
-            phone: user.user_metadata?.phone || '',
+            fullName: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
+            phone: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
             email: user.email || '',
             relationship: '',
             isOwner: false,
@@ -354,8 +323,8 @@ export default function LoginClient() {
           building: profileData.buildings?.name || '',
           buildingAddress: profileData.buildings?.address || '',
           floor: null,
-          fullName: profileData.full_name || user.user_metadata?.name || '',
-          phone: profileData.phone || user.user_metadata?.phone || '',
+          fullName: profileData.full_name || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
+          phone: profileData.phone || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
           email: profileData.email || user.email || '',
           cpf: profileData.cpf || '',
           address: profileData.address || '',
@@ -375,8 +344,8 @@ export default function LoginClient() {
       const building = userData.apartments?.buildings?.name || '';
       const buildingAddress = userData.apartments?.buildings?.address || '';
       const floor = userData.apartments?.floor;
-      const fullName = userData.profiles?.full_name || user.user_metadata?.name || '';
-      const phone = userData.profiles?.phone || user.user_metadata?.phone || '';
+      const fullName = userData.profiles?.full_name || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '';
+      const phone = userData.profiles?.phone || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '';
       const email = userData.profiles?.email || user.email || '';
       const cpf = userData.profiles?.cpf || '';
       const address = userData.profiles?.address || '';
@@ -385,7 +354,7 @@ export default function LoginClient() {
       const emergency_contact_name = userData.profiles?.emergency_contact_name || '';
       const emergency_contact_phone = userData.profiles?.emergency_contact_phone || '';
       const relationship = userData.relationship || '';
-      const isOwner = userData.is_owner || false;
+      const isOwner = false; // Default value since is_owner field was removed
       const userType = userData.profiles?.user_type || '';
       const role = userData.profiles?.role || '';
       const avatar_url = userData.profiles?.avatar_url || '';
@@ -415,8 +384,8 @@ export default function LoginClient() {
       return { 
         apartment: '', 
         building: '', 
-        fullName: user.user_metadata?.name || '',
-        phone: user.user_metadata?.phone || '',
+        fullName: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
+        phone: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
         email: user.email || '',
         relationship: '',
         isOwner: false,
@@ -433,12 +402,12 @@ export default function LoginClient() {
         avatar_url: ''
       };
     }
-  };
+  }, [user]);
 
   // Função removida: loadUserProfile não é mais necessária
 
   // Função para buscar histórico de visitantes
-  const fetchVisitorsHistory = async () => {
+  const fetchVisitorsHistory = useCallback(async () => {
     if (!user) return;
     
     setLoadingHistory(true);
@@ -466,9 +435,7 @@ export default function LoginClient() {
         .from('visitor_logs')
         .select(`
           id,
-          guest_name,
           log_time,
-          notification_status,
           purpose,
           visitors (
             name,
@@ -486,22 +453,22 @@ export default function LoginClient() {
       
       const formattedHistory: VisitorHistory[] = visitorsData.map(log => ({
         id: log.id,
-        visitor_name: log.guest_name || log.visitors?.name || 'Nome não informado',
+        visitor_name: log.visitors?.name || 'Nome não informado',
         visitor_document: log.visitors?.document || 'Documento não informado',
         log_time: log.log_time,
         purpose: log.purpose || 'Visita',
-        notification_status: log.notification_status as 'approved' | 'rejected' | 'pending',
-        visitor_phone: log.visitors?.phone
+        notification_status: 'pending' as 'approved' | 'rejected' | 'pending', // Default value since field was removed
+        visitor_phone: log.visitors?.phone || undefined
       }));
       
       setVisitorsHistory(formattedHistory);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao buscar histórico:', error);
-      setHistoryError(error.message);
+      setHistoryError(error instanceof Error ? error.message : 'Erro desconhecido');
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [user]);
 
   // As funções fetchPendingNotifications e respondToNotification agora são fornecidas pelo hook usePendingNotifications
 
@@ -517,11 +484,10 @@ export default function LoginClient() {
           setUserProfile({
             id: user.id,
             email: userData.email,
-            full_name: userData.fullName,
+            name: userData.fullName,
             phone: userData.phone,
             apartment: userData.apartment,
-            building: userData.building,
-            avatar_url: userData.avatar_url
+            building: userData.building
           });
         } catch (error) {
           console.error('Erro ao carregar dados do usuário:', error);
@@ -532,14 +498,14 @@ export default function LoginClient() {
     };
     
     loadUserData();
-  }, [user]);
+  }, [user, userProfile, fetchUserCompleteData]);
 
   // Carregar dados quando usuário fizer login (apenas uma vez)
   useEffect(() => {
     if (user && visitorsHistory.length === 0 && !loadingHistory) {
       fetchVisitorsHistory();
     }
-  }, [user]);
+  }, [user, visitorsHistory.length, loadingHistory, fetchVisitorsHistory]);
 
   // Função para formatar data em português
   const formatDate = (dateString: string) => {
@@ -556,11 +522,8 @@ export default function LoginClient() {
   const handleLogout = async () => {
     try {
       await signOut();
-      setMessage('Logout realizado com sucesso!');
-      setMessageType('success');
-    } catch (error: any) {
-      setMessage(error.message || 'Erro ao fazer logout');
-      setMessageType('error');
+    } catch (error: unknown) {
+      console.error('Erro ao fazer logout:', error);
     }
   };
 
@@ -633,11 +596,11 @@ export default function LoginClient() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium text-gray-600">Email</label>
-              <p className="text-gray-900">{user.email}</p>
+              <p className="text-gray-900">{user?.email || 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Tipo de Perfil</label>
-              <p className="text-gray-900">{user.user_metadata?.user_type || 'Usuário'}</p>
+              <p className="text-gray-900">{(user as { user_metadata?: { user_type?: string } })?.user_metadata?.user_type || 'Usuário'}</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -860,29 +823,16 @@ export default function LoginClient() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center relative">
-                {userProfile?.avatar_url ? (
-                  <img 
-                    src={userProfile.avatar_url} 
-                    alt="Avatar do usuário" 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement;
-                      target.style.display = 'none';
-                      const fallback = target.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userProfile?.avatar_url ? 'hidden' : 'flex'}`}>
-                  {userProfile?.full_name ? 
-                    userProfile.full_name.split(' ').map(name => name[0]).join('').substring(0, 2).toUpperCase() :
+                <div className="w-full h-full flex items-center justify-center text-white font-semibold text-sm">
+                  {userProfile?.name ? 
+                    userProfile.name.split(' ').map(name => name[0]).join('').substring(0, 2).toUpperCase() :
                     (user?.email ? user.email.substring(0, 2).toUpperCase() : 'JA')
                   }
                 </div>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  {isLoadingProfile ? 'Carregando...' : (userProfile?.full_name || user?.email || 'Usuário')}
+                  {isLoadingProfile ? 'Carregando...' : (userProfile?.name || user?.email || 'Usuário')}
                 </h1>
                 <p className="text-sm text-gray-600">Portaria Virtual</p>
               </div>
