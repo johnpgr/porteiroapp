@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
+import { useNotifications } from './useNotifications';
 
 export interface Lembrete {
   id: string;
@@ -46,6 +47,7 @@ export interface UpdateLembreteData {
 
 export function useLembretes() {
   const { user } = useAuth();
+  const { scheduleNotification, cancelNotification } = useNotifications();
   const [lembretes, setLembretes] = useState<Lembrete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,67 @@ export function useLembretes() {
   const logError = (message: string, error?: any) => {
     if (__DEV__) {
       console.error(`[useLembretes] ${message}`, error || '');
+    }
+  };
+
+  // Calcular data de notificação baseada na antecedência
+  const calculateNotificationDate = (dataVencimento: string, antecedenciaHoras: number): Date => {
+    const vencimento = new Date(dataVencimento);
+    const notificationDate = new Date(vencimento.getTime() - (antecedenciaHoras * 60 * 60 * 1000));
+    return notificationDate;
+  };
+
+  // Agendar notificação para um lembrete
+  const scheduleReminderNotification = async (lembrete: Lembrete): Promise<void> => {
+    try {
+      const notificationDate = calculateNotificationDate(
+        lembrete.data_vencimento,
+        lembrete.antecedencia_alerta
+      );
+
+      // Só agendar se a data de notificação for no futuro
+      if (notificationDate > new Date()) {
+        await scheduleNotification({
+          id: `lembrete_${lembrete.id}`,
+          title: `Lembrete: ${lembrete.titulo}`,
+          body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
+          triggerDate: notificationDate,
+          data: {
+            lembreteId: lembrete.id,
+            categoria: lembrete.categoria,
+            prioridade: lembrete.prioridade
+          }
+        });
+
+        console.log(`Notificação agendada para lembrete ${lembrete.titulo} em ${notificationDate.toLocaleString()}`);
+      }
+    } catch (error) {
+      logError('Erro ao agendar notificação:', error);
+    }
+  };
+
+  // Cancelar notificação de um lembrete
+  const cancelReminderNotification = async (lembreteId: string): Promise<void> => {
+    try {
+      await cancelNotification(`lembrete_${lembreteId}`);
+      console.log(`Notificação cancelada para lembrete ${lembreteId}`);
+    } catch (error) {
+      logError('Erro ao cancelar notificação:', error);
+    }
+  };
+
+  // Reagendar notificações para lembretes pendentes
+  const rescheduleNotifications = async (lembretes: Lembrete[]): Promise<void> => {
+    try {
+      const lembretesPendentes = lembretes.filter(lembrete => lembrete.status === 'pendente');
+      
+      for (const lembrete of lembretesPendentes) {
+        await scheduleReminderNotification(lembrete);
+      }
+      
+      console.log(`${lembretesPendentes.length} notificações reagendadas`);
+    } catch (error) {
+      logError('Erro ao reagendar notificações:', error);
     }
   };
 
@@ -79,7 +142,11 @@ export function useLembretes() {
         throw fetchError;
       }
 
-      setLembretes(data || []);
+      const lembretes = data || [];
+      setLembretes(lembretes);
+      
+      // Reagendar notificações para lembretes pendentes
+      await rescheduleNotifications(lembretes);
     } catch (err: any) {
       const errorMessage = err.message || 'Erro ao carregar lembretes';
       setError(errorMessage);
@@ -87,7 +154,7 @@ export function useLembretes() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, scheduleReminderNotification]);
 
   // Criar lembrete
   const createLembrete = useCallback(async (data: CreateLembreteData): Promise<{ success: boolean; error?: string; lembrete?: Lembrete }> => {
@@ -122,6 +189,9 @@ export function useLembretes() {
           detalhes: `Lembrete "${data.titulo}" criado`,
           sindico_id: user.id
         });
+
+      // Agendar notificação para o novo lembrete
+      await scheduleReminderNotification(newLembrete);
 
       // Atualizar lista local
       setLembretes(prev => [...prev, newLembrete].sort((a, b) => 
@@ -168,6 +238,14 @@ export function useLembretes() {
           sindico_id: user.id
         });
 
+      // Cancelar notificação anterior e agendar nova se necessário
+      await cancelReminderNotification(id);
+      
+      // Se o lembrete ainda está pendente, reagendar notificação
+      if (updatedLembrete.status === 'pendente') {
+        await scheduleReminderNotification(updatedLembrete);
+      }
+
       // Atualizar lista local
       setLembretes(prev => 
         prev.map(lembrete => 
@@ -201,6 +279,9 @@ export function useLembretes() {
       if (deleteError) {
         throw deleteError;
       }
+
+      // Cancelar notificação do lembrete deletado
+      await cancelReminderNotification(id);
 
       // Remover da lista local
       setLembretes(prev => prev.filter(lembrete => lembrete.id !== id));

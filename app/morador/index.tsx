@@ -444,6 +444,19 @@ export default function MoradorDashboard() {
           Avisos
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.navItem]}
+        onPress={() => router.push('/morador/configuracoes')}>
+        <Ionicons
+          name="settings-outline"
+          size={24}
+          color="#666"
+        />
+        <Text style={[styles.navLabel]}>
+          Config
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 
