@@ -69,11 +69,19 @@ const validateDate = (dateString: string): boolean => {
   if (!day || !month || !year) return false;
   if (day < 1 || day > 31) return false;
   if (month < 1 || month > 12) return false;
-  if (year < new Date().getFullYear()) return false;
   
   // Verifica se a data é válida
   const date = new Date(year, month - 1, day);
-  return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
+  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) {
+    return false;
+  }
+  
+  // Permite datas a partir de hoje (data atual)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Remove horas para comparar apenas a data
+  date.setHours(0, 0, 0, 0);
+  
+  return date >= today;
 };
 
 const validateTime = (timeString: string): boolean => {
@@ -155,6 +163,7 @@ interface Visitor {
   document: string | null;
   phone: string | null;
   photo_url: string | null;
+  access_type?: 'direto' | 'com_aprovacao';
   status: string;
   visitor_type: string;
   created_at: string;
@@ -169,11 +178,14 @@ interface PreRegistrationData {
   phone: string;
   visitor_type: 'comum' | 'frequente';
   visit_type: 'pontual' | 'frequente';
+  access_type?: 'direto' | 'com_aprovacao';
   visit_date?: string;
   visit_start_time?: string;
   visit_end_time?: string;
   allowed_days?: string[];
   max_simultaneous_visits?: number;
+  validity_start?: string;
+  validity_end?: string;
 }
 
 export default function VisitantesTab() {
@@ -188,11 +200,14 @@ export default function VisitantesTab() {
     phone: '',
     visitor_type: 'comum',
     visit_type: 'pontual',
+    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
     allowed_days: [],
-    max_simultaneous_visits: 1
+    max_simultaneous_visits: 1,
+    validity_start: '',
+    validity_end: ''
   });
   
   // Estado para armazenar apartment_id e evitar múltiplas consultas
@@ -212,6 +227,7 @@ export default function VisitantesTab() {
     phone: '',
     visitor_type: 'comum',
     visit_type: 'pontual',
+    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
@@ -334,6 +350,7 @@ export default function VisitantesTab() {
           photo_url,
           status,
           visitor_type,
+          access_type,
           created_at,
           updated_at,
           apartment_id
@@ -343,7 +360,16 @@ export default function VisitantesTab() {
 
       if (visitorsError) {
         console.error('❌ Erro ao buscar visitantes:', visitorsError);
-        throw visitorsError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (visitorsError.code === '42703') {
+          setError('Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (visitorsError.code === 'PGRST204') {
+          setError('Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          setError(`Erro ao buscar visitantes: ${visitorsError.message}`);
+        }
+        return;
       }
 
       console.log('✅ Visitantes encontrados para o apartamento:', visitorsData?.length || 0);
@@ -358,6 +384,7 @@ export default function VisitantesTab() {
         photo_url: visitor.photo_url,
         status: visitor.status || 'approved',
         visitor_type: visitor.visitor_type || 'comum',
+        access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
         apartment_id: visitor.apartment_id
@@ -727,6 +754,29 @@ export default function VisitantesTab() {
       return;
     }
 
+    // Validações removidas: visit_reason e access_type não existem na tabela
+
+    // Validar período de validade se fornecido
+    if (preRegistrationData.validity_start && !validateDate(preRegistrationData.validity_start)) {
+      Alert.alert('Erro', 'Data de início da validade inválida. Use o formato DD/MM/AAAA.');
+      return;
+    }
+
+    if (preRegistrationData.validity_end && !validateDate(preRegistrationData.validity_end)) {
+      Alert.alert('Erro', 'Data de fim da validade inválida. Use o formato DD/MM/AAAA.');
+      return;
+    }
+
+    // Verificar se data de início é anterior à data de fim
+    if (preRegistrationData.validity_start && preRegistrationData.validity_end) {
+      const startDate = parseDate(preRegistrationData.validity_start);
+      const endDate = parseDate(preRegistrationData.validity_end);
+      if (startDate >= endDate) {
+        Alert.alert('Erro', 'Data de início da validade deve ser anterior à data de fim.');
+        return;
+      }
+    }
+
     // Validações específicas para agendamento
     if (preRegistrationData.visit_type === 'pontual') {
       if (!preRegistrationData.visit_date || !preRegistrationData.visit_start_time || !preRegistrationData.visit_end_time) {
@@ -824,6 +874,17 @@ export default function VisitantesTab() {
         is_recurring: preRegistrationData.visit_type === 'frequente'
       };
 
+      // Adicionar período de validade se fornecido
+      if (preRegistrationData.validity_start) {
+        const [day, month, year] = preRegistrationData.validity_start.split('/');
+        visitData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+
+      if (preRegistrationData.validity_end) {
+        const [day, month, year] = preRegistrationData.validity_end.split('/');
+        visitData.validity_end = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+
       // Adicionar campos específicos baseados no tipo de visita
       if (preRegistrationData.visit_type === 'pontual') {
         // Converter data DD/MM/AAAA para formato ISO (AAAA-MM-DD)
@@ -856,7 +917,16 @@ export default function VisitantesTab() {
 
       if (visitorError) {
         console.error('Erro ao inserir visitante:', visitorError);
-        throw visitorError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (visitorError.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (visitorError.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao inserir visitante: ${visitorError.message}`);
+        }
+        return;
       }
 
       console.log('Visitante inserido com sucesso:', insertedVisitor);
@@ -920,13 +990,17 @@ export default function VisitantesTab() {
             setPreRegistrationData({ 
               name: '', 
               phone: '', 
+              visit_reason: '',
+              access_type: 'direct',
               visitor_type: 'comum',
               visit_type: 'pontual',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
               allowed_days: [],
-              max_simultaneous_visits: 1
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
             });
             fetchVisitors(); // Atualizar lista
           }}]
@@ -968,6 +1042,7 @@ export default function VisitantesTab() {
       phone: visitor.phone || '',
       visitor_type: visitor.visitor_type as 'comum' | 'frequente',
       visit_type: 'pontual', // Valor padrão, pode ser ajustado conforme necessário
+      access_type: visitor.access_type || 'com_aprovacao', // Carregar valor real do banco
       visit_date: '',
       visit_start_time: '',
       visit_end_time: '',
@@ -1010,13 +1085,23 @@ export default function VisitantesTab() {
           name: sanitizedName,
           phone: sanitizedPhone.replace(/\D/g, ''),
           visitor_type: editData.visitor_type,
+          access_type: editData.access_type,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingVisitor.id);
 
       if (updateError) {
         console.error('Erro ao atualizar visitante:', updateError);
-        throw updateError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (updateError.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (updateError.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
+        }
+        return;
       }
 
       Alert.alert(
@@ -1032,6 +1117,7 @@ export default function VisitantesTab() {
               phone: '',
               visitor_type: 'comum',
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
@@ -1082,7 +1168,15 @@ export default function VisitantesTab() {
 
               if (error) {
                 console.error('Erro ao excluir visitante:', error);
-                Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
+                
+                // Tratamento específico para erros de coluna inexistente
+                if (error.code === '42703') {
+                  Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+                } else if (error.code === 'PGRST204') {
+                  Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+                } else {
+                  Alert.alert('Erro', `Erro ao excluir visitante: ${error.message}`);
+                }
                 return;
               }
 
@@ -1122,7 +1216,15 @@ export default function VisitantesTab() {
 
       if (error) {
         console.error('Erro ao aprovar visitante:', error);
-        Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (error.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (error.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao aprovar visitante: ${error.message}`);
+        }
         return;
       }
 
@@ -1147,7 +1249,15 @@ export default function VisitantesTab() {
 
       if (error) {
         console.error('Erro ao desaprovar visitante:', error);
-        Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (error.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (error.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao desaprovar visitante: ${error.message}`);
+        }
         return;
       }
 
@@ -1297,7 +1407,7 @@ export default function VisitantesTab() {
         <SafeAreaView style={styles.modalOverlay}>
           <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pré-cadastro de Visitante</Text>
+              <Text style={styles.modalTitle}>Pré-cadastro de Visitantes</Text>
               <TouchableOpacity
                 onPress={() => setShowPreRegistrationModal(false)}
                 style={styles.closeButton}
@@ -1328,6 +1438,56 @@ export default function VisitantesTab() {
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Motivo da Visita *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={preRegistrationData.visit_reason}
+                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, visit_reason: text }))}
+                  placeholder="Ex: Entrega, Manutenção, Visita social..."
+                  placeholderTextColor="#999"
+                  multiline
+                  numberOfLines={2}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'direct' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'direct' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'direct' && styles.visitorTypeButtonTextActive
+                    ]}>Direto</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'approval' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'approval' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'approval' && styles.visitorTypeButtonTextActive
+                    ]}>Com Aprovação</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.helpText}>
+                  {preRegistrationData.access_type === 'direct' 
+                    ? 'Visitante pode entrar diretamente no horário permitido'
+                    : 'Porteiro deve confirmar entrada mesmo no horário permitido'
+                  }
+                </Text>
               </View>
 
               <View style={styles.inputGroup}>
@@ -1608,6 +1768,37 @@ export default function VisitantesTab() {
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.access_type === 'direto' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'direto' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.access_type === 'direto' && styles.visitorTypeButtonTextActive
+                    ]}>Direto</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
+                    ]}>Com Aprovação</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
@@ -2028,14 +2219,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 0,
     width: '100%',
-    flex: 1,
+    height: '100%',
     marginTop: 0,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -2058,11 +2250,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   modalBody: {
-    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 15,
+    flex: 1,
   },
   inputGroup: {
+    marginTop: 12,
     marginBottom: 16,
   },
   inputLabel: {
@@ -2110,8 +2303,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 4,
     marginTop: 10,
+    marginBottom: 35,
     borderLeftColor: '#4CAF50',
-  },
+  }, 
   infoText: {
     fontSize: 12,
     color: '#555',
@@ -2119,9 +2313,8 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     gap: 12,
@@ -2161,6 +2354,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   timeInputGroup: {
+    marginBottom: 36,
     flex: 1,
   },
   daysSelector: {
@@ -2258,6 +2452,12 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDanger: {
     color: '#f44336',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 
 });

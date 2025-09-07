@@ -354,6 +354,7 @@ export default function VisitorManagement() {
           photo_url: photoUrl,
           visitor_type: newVisitor.visitor_type,
           notification_status: 'approved', // Porteiro pode aprovar diretamente
+          access_type: 'com_aprovacao', // Tipo de acesso padrão
         });
 
         if (insertError) throw insertError;

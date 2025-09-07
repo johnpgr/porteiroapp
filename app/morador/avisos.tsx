@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
 import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
-import BottomNav from '~/components/BottomNav';
+
 
 interface Communication {
   id: string;

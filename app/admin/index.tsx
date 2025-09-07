@@ -174,6 +174,14 @@ export default function AdminDashboard() {
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
+        
+        <TouchableOpacity 
+          style={styles.statCard}
+          onPress={() => router.push('/admin/lembretes')}>
+          <Text style={styles.statIcon}>📝</Text>
+          <Text style={styles.statLabel}>Lembretes</Text>
+          <Text style={styles.statDescription}>Gerenciar lembretes</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.activitiesContainer}>
@@ -254,7 +262,7 @@ export default function AdminDashboard() {
       <SafeAreaView style={styles.container}>
         {renderHeader()}
         {renderContent()}
-        {renderBottomNavigation()}
+        {/* BottomNav fixa é renderizada no layout global */}
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -306,7 +314,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 80,
+    paddingBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -326,10 +334,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  statIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
   statLabel: {
     fontSize: 12,
     color: '#666',
     marginBottom: 10,
+  },
+  statDescription: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'center',
   },
   addButton: {
     width: 30,

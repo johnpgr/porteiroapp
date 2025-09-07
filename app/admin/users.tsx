@@ -2451,34 +2451,7 @@ export default function UsersManagement() {
         </View>
       )}
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]} 
-          onPress={() => router.push('/admin')}>
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navLabel}>Dashboard</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'users' && styles.navItemActive]} 
-          onPress={() => setActiveTab('users')}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>Usuários</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/logs')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Logs</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => router.push('/admin/communications')}>
-          <Text style={styles.navIcon}>📢</Text>
-          <Text style={styles.navLabel}>Avisos</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -3153,33 +3126,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 15,
     fontWeight: '500',
   },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    paddingBottom: 30,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  navItemActive: {
-    backgroundColor: '#f8f9fa',
-  },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  navLabel: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
+
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',

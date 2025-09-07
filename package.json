@@ -19,6 +19,7 @@
     "@react-navigation/native": "^7.0.3",
     "@supabase/supabase-js": "^2.38.4",
     "@types/bcrypt": "^6.0.0",
+    "date-fns": "^4.1.0",
     "expo": "53.0.22",
     "expo-av": "^15.1.7",
     "expo-camera": "^16.1.11",

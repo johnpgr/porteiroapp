@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import BottomNav from '../../components/BottomNav';
+
 
 interface LogEntry {
   id: string;
@@ -278,7 +278,7 @@ export default function LogsScreen() {
           </View>
         )}
       </ScrollView>
-      <BottomNav activeTab="logs" />
+
     </SafeAreaView>
   );
 }
