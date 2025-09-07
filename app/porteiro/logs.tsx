@@ -740,7 +740,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

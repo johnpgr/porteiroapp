@@ -1500,13 +1500,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
   },
   Subtitle: {
-    fontSize: 24,
+    fontSize: 18,
     marginVertical: 10,
     fontWeight: 'bold',
     color: '#000',
