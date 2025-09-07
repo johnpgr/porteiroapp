@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface NotificationLog {
   id: string;
   lembreteId: string;
-  type: 'exact' | 'before_15min' | 'fallback';
+  type: 'exact' | 'before' | 'fallback';
   scheduledTime: Date;
   actualTriggerTime?: Date;
   status: 'scheduled' | 'triggered' | 'missed' | 'cancelled';
@@ -114,7 +114,7 @@ export function useNotificationLogger() {
   }: {
     id: string;
     lembreteId: string;
-    type: 'exact' | 'before_15min';
+    type: 'exact' | 'before';
     scheduledTime: Date;
     title: string;
     body: string;

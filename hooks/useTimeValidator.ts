@@ -6,7 +6,7 @@ import { useNotificationLogger } from './useNotificationLogger';
 interface ValidationRule {
   id: string; // deve corresponder ao identificador da notificação agendada
   lembreteId: string;
-  type: 'exact' | 'before_15min';
+  type: 'exact' | 'before';
   scheduledTime: Date;
   title: string;
   body: string;
@@ -78,7 +78,8 @@ export function useTimeValidator() {
           if (timeDiff <= criticalWindow && timeDiff > -60000) {
             try {
               const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-              const hasScheduled = scheduledNotifications.some(notif => (notif as any).identifier === rule.id);
+              // Checar por customId usado no agendamento
+              const hasScheduled = scheduledNotifications.some(req => (req as any)?.content?.data?.customId === rule.id);
               
               if (!hasScheduled) {
                 // Agendar notificação de emergência (fallback)
@@ -87,6 +88,7 @@ export function useTimeValidator() {
                     title: `⚠️ ${rule.title}`,
                     body: `${rule.body} (Disparo de emergência)`,
                     sound: true,
+                    data: { ...(rule.data || {}), customId: rule.id, fallback: true },
                   },
                   trigger: { seconds: 1 },
                 });
@@ -109,7 +111,7 @@ export function useTimeValidator() {
         
         setValidationStats(prev => ({ ...prev, validatedCount: prev.validatedCount + 1, lastValidation: now }));
       };
-      
+
       interval = setInterval(validate, 30000);
       setIsValidating(true);
     } else {

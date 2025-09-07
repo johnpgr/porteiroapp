@@ -5,9 +5,10 @@ import { Platform } from 'react-native';
 // Configurar como as notificações devem ser tratadas quando recebidas
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -53,15 +54,15 @@ export const useNotifications = () => {
     try {
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
       
-      // Encontrar notificações com o customId específico
+      // Encontrar notificações com o customId específico no data
       const notificationsToCancel = scheduledNotifications.filter(
-        notification => notification.identifier === customId
+        notification => notification.content.data?.customId === customId
       );
 
       // Cancelar todas as notificações encontradas
       for (const notification of notificationsToCancel) {
         await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-        console.log(`Notificação cancelada: ${notification.identifier}`);
+        console.log(`Notificação cancelada: ${notification.identifier} (customId: ${customId})`);
       }
     } catch (error) {
       console.error('Erro ao cancelar notificação:', error);
@@ -92,7 +93,6 @@ export const useNotifications = () => {
       await cancelNotification(id);
 
       const notificationId = await Notifications.scheduleNotificationAsync({
-        identifier: id,
         content: {
           title,
           body,

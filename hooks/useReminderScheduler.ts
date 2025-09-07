@@ -7,9 +7,10 @@ interface ScheduledReminder {
   id: string;
   title: string;
   body: string;
-  exactTime: Date;
-  beforeTime: Date;
+  exactTime?: Date;
+  beforeTime?: Date;
   data: any;
+  registeredAt?: Date;
 }
 
 /**
@@ -34,22 +35,24 @@ export const useReminderScheduler = () => {
   };
 
   // Verificar se uma notificação deve ser disparada agora
-  const shouldTriggerNow = (targetTime: Date, tolerance: number = 30000): boolean => {
+  const shouldTriggerNow = (targetTime: Date, tolerance: number = 15000): boolean => {
     const now = new Date();
     const timeDiff = Math.abs(now.getTime() - targetTime.getTime());
+    
+    // Não disparar se o horário alvo ainda não chegou
+    if (now < targetTime) {
+      return false;
+    }
+    
+    // Só disparar se estiver dentro da tolerância E o horário já passou
     return timeDiff <= tolerance && now >= targetTime;
   };
 
   // Disparar notificação imediatamente (fallback)
   const triggerImmediateNotification = async (reminder: ScheduledReminder, type: 'exact' | 'before') => {
     try {
-      const title = type === 'exact' 
-        ? `🔔 LEMBRETE: ${reminder.title}`
-        : `⏰ LEMBRETE EM 15 MIN: ${reminder.title}`;
-      
-      const body = type === 'exact'
-        ? reminder.body
-        : `Em 15 minutos: ${reminder.body}`;
+      const title = `Lembrete: ${reminder.title}`;
+      const body = reminder.body;
 
       await scheduleNotification({
         id: `immediate_${type}_${reminder.id}_${Date.now()}`,
@@ -77,41 +80,62 @@ export const useReminderScheduler = () => {
 
       // Verificar cada lembrete registrado
       for (const [reminderId, reminder] of scheduledReminders.current) {
-        // Verificar notificação 15 minutos antes
-        if (shouldTriggerNow(reminder.beforeTime)) {
-          debugLog(`🚨 Disparando notificação 15min antes para: ${reminder.title}`);
-          await triggerImmediateNotification(reminder, 'before');
-          
-          // Log do fallback
-          await logFallbackTriggered({
-            lembreteId: reminder.id,
-            type: 'before_15min',
-            title: reminder.title,
-            body: reminder.body,
-            originalScheduledTime: reminder.beforeTime
-          });
+        let shouldRemove = false;
+        
+        // Verificar se o lembrete foi registrado há menos de 2 minutos (evitar disparo imediato)
+        const registeredAt = reminder.registeredAt?.getTime() ?? now.getTime();
+        const reminderAge = now.getTime() - registeredAt;
+        if (reminderAge < 120000) { // 2 minutos
+          debugLog(`⏳ Lembrete muito recente, aguardando: ${reminder.title}`);
+          continue;
         }
-
-        // Verificar notificação no horário exato
-        if (shouldTriggerNow(reminder.exactTime)) {
-          debugLog(`🚨 Disparando notificação exata para: ${reminder.title}`);
-          await triggerImmediateNotification(reminder, 'exact');
-          
-          // Log do fallback
-          await logFallbackTriggered({
-            lembreteId: reminder.id,
-            type: 'exact',
-            title: reminder.title,
-            body: reminder.body,
-            originalScheduledTime: reminder.exactTime
-          });
-          
-          // Remover lembrete após disparo final
+        
+        const customId = `lembrete_${reminder.id}`;
+        const hasSystemScheduled = systemScheduled.some(req => (req as any)?.content?.data?.customId === customId);
+        
+        // Verificar notificação antecipada (se configurada)
+        if (reminder.beforeTime && shouldTriggerNow(reminder.beforeTime)) {
+          if (!hasSystemScheduled) {
+            debugLog(`🚨 Disparando notificação antecipada (fallback) para: ${reminder.title}`);
+            await triggerImmediateNotification(reminder, 'before');
+            await logFallbackTriggered({
+              lembreteId: reminder.id,
+              type: 'before',
+              title: reminder.title,
+              body: reminder.body,
+              originalScheduledTime: reminder.beforeTime
+            });
+          } else {
+            debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (antes). Evitando fallback.`);
+          }
+          shouldRemove = true;
+        }
+        // Verificar notificação no horário exato (apenas se não disparou antecipada)
+        else if (reminder.exactTime && shouldTriggerNow(reminder.exactTime)) {
+          if (!hasSystemScheduled) {
+            debugLog(`🚨 Disparando notificação exata (fallback) para: ${reminder.title}`);
+            await triggerImmediateNotification(reminder, 'exact');
+            await logFallbackTriggered({
+              lembreteId: reminder.id,
+              type: 'exact',
+              title: reminder.title,
+              body: reminder.body,
+              originalScheduledTime: reminder.exactTime
+            });
+          } else {
+            debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (exata). Evitando fallback.`);
+          }
+          shouldRemove = true;
+        }
+        
+        // Remover lembrete após disparo ou decisão
+        if (shouldRemove) {
           scheduledReminders.current.delete(reminderId);
         }
 
         // Remover lembretes muito antigos (mais de 1 hora passados)
-        if (now.getTime() - reminder.exactTime.getTime() > 3600000) {
+        const baseTime = reminder.exactTime || reminder.beforeTime;
+        if (baseTime && now.getTime() - baseTime.getTime() > 3600000) {
           scheduledReminders.current.delete(reminderId);
           debugLog(`🗑️ Removido lembrete expirado: ${reminder.title}`);
         }
@@ -125,14 +149,14 @@ export const useReminderScheduler = () => {
 
   // Registrar um novo lembrete para monitoramento
   const registerReminder = useCallback(async (reminder: ScheduledReminder) => {
-    scheduledReminders.current.set(reminder.id, reminder);
+    scheduledReminders.current.set(reminder.id, { ...reminder, registeredAt: new Date() });
     
     // Apenas registrar internamente para monitoramento; evitar duplicar logs aqui
     debugLog(`📝 Lembrete registrado para monitoramento:`, {
       id: reminder.id,
       title: reminder.title,
-      exactTime: reminder.exactTime.toLocaleString(),
-      beforeTime: reminder.beforeTime.toLocaleString()
+      exactTime: reminder.exactTime?.toLocaleString?.() || '—',
+      beforeTime: reminder.beforeTime?.toLocaleString?.() || '—'
     });
   }, []);
 
@@ -189,7 +213,10 @@ export const useReminderScheduler = () => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
-        checkPendingReminders();
+        // Aguardar 5 segundos antes de verificar para evitar disparos imediatos
+        setTimeout(() => {
+          checkPendingReminders();
+        }, 5000);
         intervalRef.current = setInterval(() => {
           checkPendingReminders();
         }, 30000);
@@ -201,9 +228,9 @@ export const useReminderScheduler = () => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     
-    // Iniciar monitoramento quando o hook é montado
+    // Iniciar monitoramento quando o hook é montado (sem verificação imediata)
     debugLog('🚀 Iniciando monitoramento em tempo real (verificação a cada 30s)');
-    checkPendingReminders();
+    // Aguardar 30 segundos antes da primeira verificação para evitar disparos imediatos
     intervalRef.current = setInterval(() => {
       checkPendingReminders();
     }, 30000);

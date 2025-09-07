@@ -132,14 +132,13 @@ class NotificationService {
 
       // Configurar como as notificações devem ser tratadas quando recebidas
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldShowBanner: true,
-          shouldShowList: true,
-          shouldSetBadge: true,
-        }),
-      });
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
 
       // Solicitar permissões de notificação
       const { status: existingStatus } = await Notifications.getPermissionsAsync();

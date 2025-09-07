@@ -299,18 +299,6 @@ export default function NovoLembrete() {
             </View>
           </View>
 
-          <View style={styles.formGroup}>
-            <View style={styles.switchContainer}>
-              <Text style={styles.label}>Lembrete Recorrente</Text>
-              <TouchableOpacity
-                style={[styles.switch, formData.recorrente && styles.switchActive]}
-                onPress={() => setFormData(prev => ({ ...prev, recorrente: !prev.recorrente }))}
-              >
-                <View style={[styles.switchThumb, formData.recorrente && styles.switchThumbActive]} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
           {formData.recorrente && (
             <View style={styles.formGroup}>
               <Text style={styles.label}>Frequência de Recorrência</Text>
