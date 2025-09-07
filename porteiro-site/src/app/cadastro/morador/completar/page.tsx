@@ -109,6 +109,14 @@ export default function CompletarCadastroPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Controle para evitar buscas repetidas por telefone (cooldown)
+  const lastSearchedPhoneRef = useRef<string>('');
+  const lastSearchAtRef = useRef<number>(0);
+  const lastSearchEmptyRef = useRef<boolean>(false);
+  const [lastSearchEmpty, setLastSearchEmpty] = useState(false);
+  // Timeout de segurança para evitar loading infinito
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Get profile_id from URL on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -126,11 +134,21 @@ export default function CompletarCadastroPage() {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Se não há profileId e o telefone tem pelo menos 10 dígitos, iniciar busca com debounce
-    if (!profileId && authPhone) {
+    // Se não há profileId, não está autenticado, não está buscando e o telefone tem pelo menos 10 dígitos
+    if (!profileId && !isAuthenticated && !isSearchingByPhone && !isAuthenticating && authPhone) {
       const cleanPhone = authPhone.replace(/\D/g, '');
       if (cleanPhone.length >= 10) {
         debounceTimerRef.current = setTimeout(() => {
+          // Cooldown de 30s para o mesmo número quando a última busca foi vazia
+          const COOLDOWN_MS = 30000;
+          const clean = cleanPhone;
+          if (
+            lastSearchedPhoneRef.current === clean &&
+            lastSearchEmptyRef.current &&
+            Date.now() - lastSearchAtRef.current < COOLDOWN_MS
+          ) {
+            return;
+          }
           searchProfileByPhone(authPhone, true);
         }, 1500); // 1.5 segundos de debounce
       }
@@ -142,9 +160,9 @@ export default function CompletarCadastroPage() {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [authPhone, profileId]);
+  }, [authPhone, profileId, isAuthenticated, isSearchingByPhone, isAuthenticating]);
 
-  // Função para buscar profile_id usando o número de celular
+  // Função otimizada para buscar profile_id usando o número de celular
   const searchProfileByPhone = async (phoneNumber: string, isAutoSearch = false) => {
     try {
       if (isAutoSearch) {
@@ -154,6 +172,21 @@ export default function CompletarCadastroPage() {
       }
       setAuthError(null);
       setPhoneSearchSuccess(false);
+      setLastSearchEmpty(false);
+      // Inicia um timeout de segurança (8s) para evitar loading infinito
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => {
+        setIsSearchingByPhone(false);
+        setIsAuthenticating(false);
+        setPhoneSearchSuccess(false);
+        setAuthError('A busca está demorando mais que o esperado. Tente novamente em instantes.');
+        toast.info('A busca está demorando mais que o esperado. Tente novamente em instantes.', { duration: 4000 });
+        const clean = phoneNumber.replace(/\D/g, '');
+        lastSearchedPhoneRef.current = clean;
+        lastSearchAtRef.current = Date.now();
+        lastSearchEmptyRef.current = true;
+        setLastSearchEmpty(true);
+      }, 8000);
 
       // Limpar e formatar o número de celular
       const cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -161,63 +194,107 @@ export default function CompletarCadastroPage() {
       // Verificar se o telefone tem pelo menos 10 dígitos
       if (cleanPhone.length < 10) {
         if (!isAutoSearch) {
-          throw new Error('Número de telefone muito curto');
+          throw new Error('Número de telefone deve ter pelo menos 10 dígitos');
         }
         return;
       }
       
-      // Buscar na tabela temporary_passwords usando o campo phone_number
-      const { data: tempPasswordData, error: tempPasswordError } = await supabase
+      console.log('🔍 Buscando perfil para telefone:', cleanPhone);
+
+      // Montar variações do número (para diferentes formatos salvos)
+      const phoneVariations = [
+        cleanPhone,
+        cleanPhone.slice(-11), // Últimos 11 dígitos (com DDD)
+        cleanPhone.slice(-10)  // Últimos 10 dígitos (sem DDD)
+      ].filter(v => v.length >= 10);
+
+      // 1) Buscar o perfil pelo telefone na tabela profiles
+      const { data: profileMatches, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, phone')
+        .or(phoneVariations.map(variation => `phone.eq.${variation}`).join(','))
+        .limit(1);
+
+      if (profileError) {
+        console.error('❌ Erro ao consultar perfis:', profileError);
+        throw new Error('Erro ao buscar dados do perfil');
+      }
+
+      // Flags para atualizar cooldown
+      let foundSomething = false;
+      let hasActiveTempPassword = false;
+
+      if (!profileMatches || profileMatches.length === 0) {
+        // Nenhum perfil com este telefone: atualizar cooldown para evitar loop
+        lastSearchedPhoneRef.current = cleanPhone;
+        lastSearchAtRef.current = Date.now();
+        lastSearchEmptyRef.current = true;
+        if (!isAutoSearch) {
+          throw new Error('Nenhum perfil encontrado para este celular.');
+        }
+        return;
+      }
+
+      const matchedProfile = profileMatches[0];
+      foundSomething = true;
+
+      // 2) Verificar se existe senha temporária ativa para este profile_id (opcional nesta etapa)
+      const { data: activeTemp, error: tempErr } = await supabase
         .from('temporary_passwords')
-        .select('profile_id, phone_number')
+        .select('id, profile_id, plain_password, used, expires_at, status')
+        .eq('profile_id', matchedProfile.id)
         .eq('used', false)
-        .not('expires_at', 'lt', new Date().toISOString());
+        .eq('status', 'active')
+        .gte('expires_at', new Date().toISOString())
+        .limit(1);
 
-      if (tempPasswordError) {
-        throw new Error('Erro ao buscar dados temporários');
+      if (tempErr) {
+        console.warn('⚠️ Erro ao consultar senhas temporárias (continuando):', tempErr);
       }
 
-      if (!tempPasswordData || tempPasswordData.length === 0) {
-        if (!isAutoSearch) {
-          throw new Error('Nenhum registro encontrado para este celular');
-        }
-        return;
-      }
-
-      // Encontrar o registro que corresponde ao telefone
-      const matchingRecord = tempPasswordData.find(record => {
-        const dbPhone = (record.phone_number || '').replace(/\D/g, '');
-        return dbPhone.slice(-11) === cleanPhone.slice(-11);
-      });
-
-      if (!matchingRecord) {
-        if (!isAutoSearch) {
-          throw new Error('Celular não encontrado nos registros');
-        }
-        return;
-      }
+      hasActiveTempPassword = !!(activeTemp && activeTemp.length > 0);
 
       // Definir o profileId encontrado
-      setProfileId(matchingRecord.profile_id);
+      setProfileId(matchedProfile.id);
       setPhoneSearchSuccess(true);
-      
+
+      // Feedback ao usuário
       if (isAutoSearch) {
-        toast.success('Perfil encontrado! Digite sua senha para continuar.');
+        toast.success('✅ Perfil encontrado! Digite sua senha para continuar.', { duration: 3000 });
       } else {
-        toast.success('Perfil encontrado! Agora digite sua senha.');
+        toast.success('✅ Perfil encontrado! Agora digite sua senha.', { duration: 3000 });
       }
+
+      if (!hasActiveTempPassword) {
+        toast.info('Não encontramos uma senha temporária ativa agora. Verifique seu WhatsApp pelo código.', { duration: 4000 });
+      }
+
+      // Atualizar controles de cooldown
+      lastSearchedPhoneRef.current = cleanPhone;
+      lastSearchAtRef.current = Date.now();
+      lastSearchEmptyRef.current = !hasActiveTempPassword;
       
     } catch (error: unknown) {
-      console.error('Erro ao buscar perfil por telefone:', error);
+      console.error('💥 Erro ao buscar perfil por telefone:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao buscar perfil';
       if (!isAutoSearch) {
         setAuthError(errorMessage);
+        toast.error(errorMessage, { duration: 4000 });
       }
+      // Atualizar cooldown para evitar buscas repetidas em caso de erro
+      const clean = phoneNumber.replace(/\D/g, '');
+      lastSearchedPhoneRef.current = clean;
+      lastSearchAtRef.current = Date.now();
+      lastSearchEmptyRef.current = true;
+      setPhoneSearchSuccess(false);
+      setProfileId(null);
     } finally {
-      if (isAutoSearch) {
-        setIsSearchingByPhone(false);
-      } else {
-        setIsAuthenticating(false);
+      // Sempre resetar o estado de loading
+      setIsSearchingByPhone(false);
+      setIsAuthenticating(false);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
       }
     }
   };
@@ -242,60 +319,46 @@ export default function CompletarCadastroPage() {
     }
 
     try {
-      // Validar formato do celular (básico)
-      const phoneRegex = /^\(?\d{2}\)?[\s-]?9?\d{4}[\s-]?\d{4}$/;
-      if (!phoneRegex.test(authPhone)) {
-        throw new Error('Formato de celular inválido');
-      }
-
       // Validar senha (6 dígitos)
       if (!/^\d{6}$/.test(authPassword)) {
         throw new Error('A senha deve conter exatamente 6 dígitos');
       }
 
-
-      
-      // Buscar registros com filtros específicos
+      // Buscar registros de senha temporária ativos para este profile
       const { data: filteredData, error: filteredError } = await supabase
         .from('temporary_passwords')
-        .select('*')
+        .select('id, profile_id, plain_password, used, expires_at, status')
         .eq('profile_id', profileId)
         .eq('used', false)
+        .eq('status', 'active')
+        .gte('expires_at', new Date().toISOString())
+        .limit(1);
 
       if (filteredError) {
         throw new Error('Erro ao verificar senha temporária');
       }
 
       if (!filteredData || filteredData.length === 0) {
+        // Atualizar cooldown baseado no telefone informado
+        const clean = authPhone.replace(/\D/g, '');
+        lastSearchedPhoneRef.current = clean;
+        lastSearchAtRef.current = Date.now();
+        lastSearchEmptyRef.current = true;
         throw new Error('Senha temporária não encontrada ou expirada');
       }
 
       const tempPassword = filteredData[0] as TemporaryPassword;
 
-      // Verificar telefone e senha
-      const cleanPhoneFunc = (phone: string) => phone.replace(/\D/g, '');
-      const phoneFromDBOriginal = tempPassword.phone_number || '';
-      const phoneFromDBCleaned = cleanPhoneFunc(phoneFromDBOriginal);
-      const phoneEnteredCleaned = cleanPhoneFunc(authPhone);
-      
-      // Comparação robusta de telefones (últimos 11 dígitos)
-      const phoneMatch = phoneFromDBCleaned.slice(-11) === phoneEnteredCleaned.slice(-11);
-      
-      if (!phoneMatch) {
-        throw new Error('Celular não corresponde ao cadastro');
-      }
-      
       // Verificar se a senha está correta
       if (authPassword !== tempPassword.plain_password) {
         throw new Error('Senha incorreta');
       }
 
-      // Validar se a senha temporária está ativa
+      // Validar se a senha temporária é válida (não usada e não expirada)
       if (tempPassword.used) {
         throw new Error('Esta senha temporária já foi utilizada');
       }
 
-      // Validar se a senha temporária não expirou
       const now = new Date();
       if (!tempPassword.expires_at) {
         throw new Error('Data de expiração não definida');
@@ -305,10 +368,7 @@ export default function CompletarCadastroPage() {
         throw new Error('Esta senha temporária expirou');
       }
 
-      // Não marcar senha como usada ainda - será feito apenas após cadastro completo
-      // A temporary_password será mantida até o final do processo
-
-      // Buscar dados do perfil
+      // Buscar dados completos do perfil
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -789,33 +849,22 @@ export default function CompletarCadastroPage() {
   // Mostrar tela de autenticação se não estiver autenticado
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full mx-auto bg-white rounded-lg shadow-lg p-8">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+        <div className="max-w-md w-full mx-auto bg-white rounded-xl shadow-md p-8 relative z-10">
           <div className="text-center mb-8">
-            <svg className="h-12 w-12 text-blue-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Autenticação Necessária</h2>
-            <p className="text-gray-600">Digite seu celular e a senha de 6 dígitos enviada por WhatsApp</p>
-            {!profileId && (
-              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start">
-                  <svg className="h-5 w-5 text-blue-500 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="text-left">
-                    <p className="text-blue-800 text-sm font-medium mb-1">ID do perfil não fornecido</p>
-                    <p className="text-blue-700 text-sm">Por favor, digite seu número de celular primeiro. O sistema irá localizar automaticamente seu perfil usando este número.</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-6">
+              <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Acesso de Morador</h2>
+            <p className="text-lg text-gray-600">Digite seu telefone e senha temporária para acessar o sistema e completar seu cadastro</p>
           </div>
 
           <form onSubmit={handleAuthentication} className="space-y-6">
             <div>
               <label htmlFor="authPhone" className="block text-sm font-medium text-gray-700 mb-2">
-                Celular
+                Número de Telefone
                 {isSearchingByPhone && (
                   <span className="ml-2 text-blue-600 text-xs">
                     <div className="inline-flex items-center">
@@ -834,42 +883,57 @@ export default function CompletarCadastroPage() {
                     </div>
                   </span>
                 )}
+                {!isSearchingByPhone && !phoneSearchSuccess && lastSearchEmpty && (
+                  <span className="ml-2 text-yellow-600 text-xs">
+                    <div className="inline-flex items-center">
+                      <svg className="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.592c.75 1.335-.213 2.989-1.743 2.989H3.482c-1.53 0-2.493-1.654-1.743-2.989L8.257 3.1z" clipRule="evenodd" />
+                      </svg>
+                      Nenhum perfil ativo encontrado recentemente para este número. Aguarde alguns segundos e tente novamente.
+                    </div>
+                  </span>
+                )}
               </label>
               <div className="relative">
-                <svg className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
                 <input
                   id="authPhone"
                   type="tel"
                   value={authPhone}
                   onChange={(e) => {
-                    setAuthPhone(formatAuthPhone(e.target.value));
+                    const newPhone = formatAuthPhone(e.target.value);
+                    setAuthPhone(newPhone);
                     // Reset estados quando o usuário digita
-                    setPhoneSearchSuccess(false);
-                    setAuthError(null);
+                    if (newPhone !== authPhone) {
+                      setPhoneSearchSuccess(false);
+                      setAuthError(null);
+                      setProfileId(null);
+                    }
                   }}
-                  placeholder="(11) 99999-9999"
-                  className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500 transition-all ${
+                  placeholder="(91) 98194-1219"
+                  className={`w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 ${
                     phoneSearchSuccess 
                       ? 'border-green-300 bg-green-50' 
                       : isSearchingByPhone 
                       ? 'border-blue-300 bg-blue-50' 
-                      : 'border-gray-300'
+                      : authError
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-gray-300 bg-white'
                   }`}
                   required
                 />
                 {/* Ícone de status no campo */}
                 {isSearchingByPhone && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
                   </div>
                 )}
                 {phoneSearchSuccess && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                      <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
                   </div>
                 )}
               </div>
@@ -877,19 +941,18 @@ export default function CompletarCadastroPage() {
 
             <div>
               <label htmlFor="authPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Senha (6 dígitos)
+                Senha Temporária (6 dígitos)
               </label>
               <div className="relative">
-                <svg className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
                 <input
                   id="authPassword"
                   type="password"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="123456"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-500 text-center text-lg tracking-widest"
+                  className={`w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-center text-lg tracking-widest ${
+                    authError ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                  }`}
                   maxLength={6}
                   required
                 />
@@ -909,16 +972,27 @@ export default function CompletarCadastroPage() {
 
             <button
               type="submit"
-              disabled={isAuthenticating || !authPhone || !authPassword}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+              disabled={isAuthenticating || !authPhone || !authPassword || !phoneSearchSuccess || isSearchingByPhone}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors duration-200"
             >
-              {isAuthenticating ? (
+              {isAuthenticating || isSearchingByPhone ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Verificando...
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-white/30 border-t-white"></div>
+                </div>
+              ) : !phoneSearchSuccess ? (
+                <div className="flex items-center justify-center">
+                  <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Aguardando perfil...
                 </div>
               ) : (
-                'Entrar'
+                <div className="flex items-center justify-center">
+                  <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                  </svg>
+                  Entrar no Sistema
+                </div>
               )}
             </button>
           </form>
@@ -936,49 +1010,73 @@ export default function CompletarCadastroPage() {
   // Renderizar o formulário principal após autenticação
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      {/* Decorative background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-indigo-400/20 to-purple-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-blue-400/20 to-indigo-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-purple-400/10 to-indigo-400/10 rounded-full blur-3xl"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <header className="bg-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center space-x-3">
-              <Image 
-                src="/logo-james.png" 
-                alt="Logo JAMES AVISA" 
-                width={40} 
-                height={40}
-                className="h-10 w-auto"
-              />
-              <h1 className="text-2xl font-bold text-gray-900">JAMES AVISA</h1>
+            <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity duration-200">
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">JAMES AVISA</h1>
+                <p className="text-gray-600 text-sm">Sistema de Portaria Inteligente</p>
+              </div>
             </Link>
-            <div className="text-sm text-gray-600">
-              Complete seu cadastro
+            <div className="flex items-center space-x-3">
+              <div className="hidden sm:block text-right">
+                <p className="text-lg font-semibold text-gray-900">Cadastro de Morador</p>
+                <p className="text-gray-600 text-sm">Complete seu perfil</p>
+              </div>
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="py-12">
+      <main className="relative py-12">
         <div className="max-w-2xl mx-auto px-4">
           {/* Progress Badge */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-medium text-sm border border-blue-200">
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-              </svg>
+            <div className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-medium text-sm shadow-md">
+              <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                </svg>
+              </div>
               Etapa 2 de 2 - Complete seu perfil
             </div>
+            <p className="text-gray-600 mt-4 text-lg">Você está quase terminando! Preencha os dados abaixo para finalizar seu cadastro.</p>
           </div>
 
           {/* Form Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200">
+          <div className="bg-white rounded-xl shadow-md p-8">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
                 Complete seu Perfil
               </h2>
-              <p className="text-lg text-gray-600">
-                Adicione sua foto e informações pessoais para finalizar o cadastro
+              <p className="text-lg text-gray-600 max-w-lg mx-auto">
+                Adicione sua foto e informações pessoais para finalizar o cadastro no sistema
               </p>
             </div>
 
@@ -1052,7 +1150,7 @@ export default function CompletarCadastroPage() {
                         name="full_name"
                           value={formData.full_name}
                           onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                           errors.full_name ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                         placeholder="Digite seu nome completo"
@@ -1072,7 +1170,7 @@ export default function CompletarCadastroPage() {
                         name="email"
                         value={formData.email}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                           errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                         placeholder="seu@email.com"
@@ -1092,7 +1190,7 @@ export default function CompletarCadastroPage() {
                         name="cpf"
                         value={formData.cpf}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                           errors.cpf ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                         placeholder="000.000.000-00"
@@ -1112,7 +1210,7 @@ export default function CompletarCadastroPage() {
                         name="birth_date"
                         value={formData.birth_date}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                           errors.birth_date ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
                       />
@@ -1226,7 +1324,7 @@ export default function CompletarCadastroPage() {
                           name="password"
                           value={formData.password}
                           onChange={handleInputChange}
-                          className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          className={`w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                             errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                           }`}
                           placeholder="Digite sua nova senha"
@@ -1264,7 +1362,7 @@ export default function CompletarCadastroPage() {
                           name="confirmPassword"
                           value={formData.confirmPassword}
                           onChange={handleInputChange}
-                          className={`w-full px-4 py-3 pr-12 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-gray-500 focus:border-blue-500 transition-all duration-200 ${
+                          className={`w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 focus:border-blue-500 transition-colors duration-200 ${
                             errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                           }`}
                           placeholder="Confirme sua nova senha"
@@ -1291,14 +1389,14 @@ export default function CompletarCadastroPage() {
                       )}
                     </div>
 
-                    <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="flex items-start">
-                        <svg className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-green-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                         <div>
-                          <h4 className="text-sm font-semibold text-green-900 mb-2">Quase pronto!</h4>
-                          <p className="text-sm text-green-800">
+                          <h4 className="text-sm font-medium text-green-900 mb-1">Quase pronto!</h4>
+                          <p className="text-sm text-green-700">
                             Após definir sua senha, você terá acesso completo ao sistema e poderá gerenciar todas as funcionalidades disponíveis.
                           </p>
                         </div>
@@ -1326,10 +1424,10 @@ export default function CompletarCadastroPage() {
                   type="button"
                   onClick={prevStep}
                   disabled={currentStep === 1}
-                  className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
+                  className={`group px-6 py-3 rounded-lg font-medium transition-colors duration-200 ${
                     currentStep === 1
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-md hover:shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   <div className="flex items-center">
@@ -1344,7 +1442,7 @@ export default function CompletarCadastroPage() {
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                    className="group px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
                   >
                     <div className="flex items-center">
                       Próximo
@@ -1357,15 +1455,14 @@ export default function CompletarCadastroPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || uploadingPhoto}
-                    className="px-8 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                    className="group px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors duration-200"
                   >
                     {isSubmitting || uploadingPhoto ? (
-                      <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <div className="flex items-center justify-center">
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        {uploadingPhoto ? 'Enviando foto...' : 'Finalizando...'}
                       </div>
                     ) : (
                       <div className="flex items-center">
@@ -1381,12 +1478,14 @@ export default function CompletarCadastroPage() {
             </form>
 
             {/* Info Box */}
-            <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-start">
-                <div className="text-lg mr-3">✅</div>
+                <svg className="w-4 h-4 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm">Quase pronto!</p>
-                  <p className="text-gray-600 text-sm">
+                  <p className="font-medium text-blue-900 text-sm">Quase pronto!</p>
+                  <p className="text-blue-700 text-sm">
                     Após finalizar o cadastro, você receberá uma confirmação e poderá fazer login no sistema com suas novas credenciais.
                   </p>
                 </div>

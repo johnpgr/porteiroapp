@@ -206,6 +206,8 @@ export default function UsersManagement() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [activeTab, setActiveTab] = useState('users');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
   const [newUser, setNewUser] = useState({
     name: '',
     type: 'morador' as 'morador' | 'porteiro',
@@ -354,7 +356,6 @@ export default function UsersManagement() {
     } catch (error) {
       console.error('❌ [DEBUG] Erro final no upload da imagem:', error);
       
-      // Retornar null em vez de lançar erro para permitir que o cadastro continue
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           console.error('❌ [DEBUG] Upload cancelado por timeout');
@@ -363,11 +364,10 @@ export default function UsersManagement() {
         }
       }
       
-      return null; // Retorna null em vez de lançar erro
+      return null; 
     }
   };
 
-  // Função para seleção e upload automático de foto
   const handleSelectPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -456,6 +456,7 @@ export default function UsersManagement() {
   const filterUsers = () => {
     if (!searchQuery.trim()) {
       setFilteredUsers(users);
+      setCurrentPage(1); // Reset página ao limpar busca
       return;
     }
 
@@ -471,14 +472,33 @@ export default function UsersManagement() {
       );
     });
     setFilteredUsers(filtered);
+    setCurrentPage(1); // Reset página ao filtrar
   };
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(
-          `
+      // Obter o administrador atual
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        router.push('/');
+        return;
+      }
+
+      // Buscar apenas os prédios gerenciados pelo administrador atual
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      const buildingIds = adminBuildings?.map(b => b.id) || [];
+
+      if (buildingIds.length === 0) {
+        console.log('Nenhum prédio encontrado para este administrador');
+        setUsers([]);
+        setFilteredUsers([]);
+        return;
+      }
+
+      // Selects para relacionamento: um com LEFT (para incluir usuários sem apartamento)
+      // e outro com INNER (para garantir moradores de apartamentos dos prédios do admin)
+      const nestedSelectLeft = `
           *,
           apartments:apartment_residents(
             apartment:apartments(
@@ -487,18 +507,57 @@ export default function UsersManagement() {
               building_id
             )
           )
-        `
-        )
-        .order('full_name');
+        `;
 
-      if (error) throw error;
+      const nestedSelectInner = `
+          *,
+          apartments:apartment_residents(
+            apartment:apartments!inner(
+              id,
+              number,
+              building_id
+            )
+          )
+        `;
 
-      const usersWithApartments: User[] = (data || []).map((user: any) => ({
+      // Duas consultas para evitar erro de sintaxe no PostgREST e combinar OR entre tabela base e relação aninhada
+      const [baseRes, residentsRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select(nestedSelectLeft)
+          .in('building_id', buildingIds)
+          .order('full_name'),
+        supabase
+          .from('profiles')
+          .select(nestedSelectInner)
+          .filter('building_id', 'in', `(${buildingIds.join(',')})`, { foreignTable: 'apartment_residents.apartments' })
+          .order('full_name')
+      ]);
+
+      if (baseRes.error) throw baseRes.error;
+      if (residentsRes.error) throw residentsRes.error;
+
+      // Mesclar e remover duplicados por id
+      const merged = [
+        ...(baseRes.data || []),
+        ...(residentsRes.data || [])
+      ];
+      const uniqByIdMap = new Map<string, any>();
+      for (const u of merged) uniqByIdMap.set(u.id, u);
+      const combinedData = Array.from(uniqByIdMap.values());
+
+      const usersWithApartments: User[] = (combinedData || []).map((user: any) => ({
         ...user,
         name: user.name || user.full_name,
         role: (user.user_type || user.role || 'morador') as User['role'],
-        apartments: user.apartments?.map((ar: any) => ar.apartment) || [],
-      }));
+        apartments: user.apartments?.map((ar: any) => ar.apartment).filter((apt: any) => buildingIds.includes(apt.building_id)) || [],
+      })).filter((user: User) => {
+        // Filtrar usuários que têm pelo menos um apartamento nos prédios gerenciados
+        // ou que são porteiros/admins associados aos prédios
+        return user.apartments.length > 0 || 
+               (user.building_id && buildingIds.includes(user.building_id)) ||
+               user.role === 'admin';
+      });
 
       setUsers(usersWithApartments);
       setFilteredUsers(usersWithApartments);
@@ -2315,8 +2374,15 @@ export default function UsersManagement() {
         <Text style={styles.emptyStateSubtitle}>Use o botão &quot;Novo Usuário&quot; para adicionar o primeiro usuário</Text>
         </View>
       ) : (
-        <ScrollView style={styles.usersList}>
-          {filteredUsers.map((user) => (
+        <View style={{ flex: 1 }}>
+          <ScrollView style={styles.usersList}>
+            {(() => {
+              const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+              const startIndex = (currentPage - 1) * itemsPerPage;
+              const endIndex = startIndex + itemsPerPage;
+              const currentUsers = filteredUsers.slice(startIndex, endIndex);
+              
+              return currentUsers.map((user) => (
             <View key={user.id} style={styles.userCard}>
               <View style={styles.userInfo}>
                 {user.photo_url ? (
@@ -2354,8 +2420,35 @@ export default function UsersManagement() {
                 <Text style={styles.deleteButtonText}>🗑️</Text>
               </TouchableOpacity>
             </View>
-          ))}
-        </ScrollView>
+              ));
+            })()}
+          </ScrollView>
+          
+          {/* Paginação */}
+          {filteredUsers.length > itemsPerPage && (
+            <View style={styles.paginationContainer}>
+              <TouchableOpacity
+                style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                onPress={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>Anterior</Text>
+              </TouchableOpacity>
+              
+              <Text style={styles.paginationInfo}>
+                Página {currentPage} de {Math.ceil(filteredUsers.length / itemsPerPage)}
+              </Text>
+              
+              <TouchableOpacity
+                style={[styles.paginationButton, currentPage === Math.ceil(filteredUsers.length / itemsPerPage) && styles.paginationButtonDisabled]}
+                onPress={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === Math.ceil(filteredUsers.length / itemsPerPage)}
+              >
+                <Text style={[styles.paginationButtonText, currentPage === Math.ceil(filteredUsers.length / itemsPerPage) && styles.paginationButtonTextDisabled]}>Próximo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       )}
 
       {/* Bottom Navigation */}
@@ -3084,6 +3177,40 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+  },
+  paginationButton: {
+    backgroundColor: '#9C27B0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#e9ecef',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#adb5bd',
+  },
+  paginationInfo: {
+    fontSize: 14,
     color: '#666',
     fontWeight: '500',
   },

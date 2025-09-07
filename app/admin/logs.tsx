@@ -26,7 +26,7 @@ interface Log {
   building_name: string;
   log_time: string;
   tipo_log: 'IN' | 'OUT';
-  visit_session_id: string;
+  visit_session_id: string | null;
   purpose?: string;
   notification_status: string;
   authorized_by_name?: string;
@@ -106,6 +106,9 @@ export default function SystemLogs() {
   const [endTimeInput, setEndTimeInput] = useState('');
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
+  // Estados de paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     fetchData();
@@ -124,26 +127,31 @@ export default function SystemLogs() {
 
   const fetchData = async () => {
     try {
+      console.log('🔍 Iniciando busca de logs...');
+      
       // Obter o administrador atual
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
-        console.error('Administrador não encontrado');
+        console.error('❌ Administrador não encontrado');
         router.push('/');
         return;
       }
+      console.log('👤 Admin atual:', currentAdmin.id);
 
       // Buscar apenas os prédios gerenciados pelo administrador atual
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
       const buildingIds = adminBuildings?.map(b => b.id) || [];
+      console.log('🏢 Prédios do admin:', buildingIds);
 
       if (buildingIds.length === 0) {
-        console.log('Nenhum prédio encontrado para este administrador');
+        console.log('⚠️ Nenhum prédio encontrado para este administrador');
         setBuildings([]);
         setLogs([]);
         return;
       }
 
       // Buscar logs de visitantes com joins para obter informações completas
+      console.log('📊 Executando consulta de logs...');
       const logsData = await supabase
         .from('visitor_logs')
         .select(`
@@ -154,6 +162,7 @@ export default function SystemLogs() {
           purpose,
           notification_status,
           created_at,
+          building_id,
           visitors(
             name,
             document
@@ -164,13 +173,17 @@ export default function SystemLogs() {
           ),
           buildings!inner(
             name
-          ),
-          authorized_by_profile:profiles(
-            full_name
           )
         `)
         .in('building_id', buildingIds)
         .order('log_time', { ascending: false });
+      
+      console.log('📋 Resultado da consulta:', logsData.error ? 'ERRO' : 'SUCESSO');
+      if (logsData.error) {
+        console.error('❌ Erro na consulta:', logsData.error);
+      } else {
+        console.log('✅ Logs encontrados:', logsData.data?.length || 0);
+      }
 
       setBuildings(adminBuildings || []);
       setLogs(
@@ -185,7 +198,7 @@ export default function SystemLogs() {
           visit_session_id: log.visit_session_id,
           purpose: log.purpose,
           notification_status: log.notification_status || 'pending',
-          authorized_by_name: log.authorized_by_profile?.full_name || null,
+          authorized_by_name: null,
           created_at: log.created_at
         }))
       );
@@ -267,6 +280,8 @@ export default function SystemLogs() {
       });
     }
 
+    // Resetar página atual quando filtros mudarem
+    setCurrentPage(1);
     setFilteredLogs(filtered);
   };
 
@@ -439,12 +454,20 @@ export default function SystemLogs() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.logsList}>
-            {filteredLogs.map((log) => (
-              <View key={log.id} style={[
-                styles.logItem,
-                log.tipo_log === 'IN' ? styles.logItemEntry : styles.logItemExit
-              ]}>
+          <View style={styles.logsContainer}>
+            <ScrollView style={styles.logsList}>
+              {(() => {
+                // Calcular paginação
+                const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const currentLogs = filteredLogs.slice(startIndex, endIndex);
+                
+                return currentLogs.map((log) => (
+                  <View key={log.id} style={[
+                    styles.logItem,
+                    log.tipo_log === 'IN' ? styles.logItemEntry : styles.logItemExit
+                  ]}>
                 <View style={styles.logHeader}>
                   <Text style={styles.logTime}>
                     {new Date(log.log_time).toLocaleString('pt-BR')}
@@ -490,16 +513,52 @@ export default function SystemLogs() {
                   ]}>
                     {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}: {new Date(log.log_time).toLocaleString('pt-BR')}
                   </Text>
-                  <Text style={styles.sessionId}>Sessão: {log.visit_session_id.slice(0, 8)}</Text>
+                  <Text style={styles.sessionId}>Sessão: {log.visit_session_id ? log.visit_session_id.slice(0, 8) : 'N/A'}</Text>
                 </View>
                 
                 {log.authorized_by_name && (
-                  <Text style={styles.authorizedBy}>
-                    Autorizado por: {log.authorized_by_name}
+                    <Text style={styles.authorizedBy}>
+                      Autorizado por: {log.authorized_by_name}
+                    </Text>
+                  )}
+                </View>
+              ));
+              })()}
+            </ScrollView>
+            
+            {/* UI de Paginação */}
+            {(() => {
+              const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+              if (totalPages <= 1) return null;
+              
+              return (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                    onPress={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>
+                      Anterior
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.paginationInfo}>
+                    Página {currentPage} de {totalPages}
                   </Text>
-                )}
-              </View>
-            ))}
+                  
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                    onPress={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.paginationButtonTextDisabled]}>
+                      Próximo
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
           </View>
         </ScrollView>
         
@@ -868,5 +927,42 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  logsContainer: {
+    flex: 1,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  paginationButton: {
+    backgroundColor: '#9C27B0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });
