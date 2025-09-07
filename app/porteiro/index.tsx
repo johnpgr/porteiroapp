@@ -2037,15 +2037,27 @@ export default function PorteiroDashboard() {
                 <Text style={styles.shiftSectionTitle}>Controles</Text>
                 
                 {!currentShift ? (
-                  <TouchableOpacity 
-                    style={styles.shiftActionButton}
-                    onPress={handleStartShift}
-                    disabled={shiftLoading}>
-                    <Text style={styles.shiftActionIcon}>▶️</Text>
-                    <Text style={styles.shiftActionText}>
-                      {shiftLoading ? 'Iniciando...' : 'Iniciar Turno'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View>
+                    <TouchableOpacity 
+                      style={styles.shiftActionButton}
+                      onPress={handleStartShift}
+                      disabled={shiftLoading}>
+                      <Text style={styles.shiftActionIcon}>▶️</Text>
+                      <Text style={styles.shiftActionText}>
+                        {shiftLoading ? 'Iniciando...' : 'Iniciar Turno'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {/* Botão de logout quando modal for obrigatório */}
+                    {isModalMandatory && (
+                      <TouchableOpacity 
+                        style={[styles.shiftActionButton, styles.logoutButton]}
+                        onPress={handleLogout}>
+                        <Text style={styles.shiftActionIcon}>🚪</Text>
+                        <Text style={styles.shiftActionText}>Sair do Sistema</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 ) : (
                   <TouchableOpacity 
                     style={[styles.shiftActionButton, styles.shiftEndButton]}
@@ -3552,6 +3564,10 @@ const styles = StyleSheet.create({
   },
   shiftEndButton: {
     backgroundColor: '#f44336',
+  },
+  logoutButton: {
+    backgroundColor: '#FF9800',
+    marginTop: 12,
   },
   shiftActionIcon: {
     fontSize: 18,
