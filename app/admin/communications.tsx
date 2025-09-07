@@ -852,32 +852,6 @@ export default function Communications() {
       {activeTab === 'communications' ? renderCommunications() : renderPolls()}
       {renderCommunicationsModal()}
       {renderPollsModal()}
-      
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push('/admin')}>
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navLabel}>Dashboard</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>Usuários</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/logs')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Logs</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.navItem, styles.navItemActive]}
-          onPress={() => router.push('/admin/communications')}>
-          <Text style={styles.navIcon}>📢</Text>
-          <Text style={styles.navLabel}>Avisos</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }

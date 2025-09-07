@@ -250,7 +250,7 @@ export function useLembretes() {
         .from('lembrete_historico')
         .select('*')
         .eq('lembrete_id', lembreteId)
-        .order('created_at', { ascending: false });
+        .order('data_acao', { ascending: false });
 
       if (fetchError) {
         throw fetchError;

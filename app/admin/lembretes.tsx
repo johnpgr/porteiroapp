@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  StyleSheet,
-  SafeAreaView,
-  Modal,
   FlatList,
+  TouchableOpacity,
   RefreshControl,
+  Alert,
+  SafeAreaView,
+  TextInput,
+  Platform,
+  Modal,
+  ScrollView,
+  StyleSheet,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePickerAndroid from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
 import { adminAuth } from '~/utils/supabase';
@@ -35,6 +39,11 @@ export default function LembretesAdmin() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingLembrete, setEditingLembrete] = useState<any>(null);
+  const [formData, setFormData] = useState<any>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     status: 'all',
     prioridade: 'all',
@@ -84,6 +93,73 @@ export default function LembretesAdmin() {
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'ativo' ? 'concluido' : 'ativo';
     await updateLembrete(id, { status: newStatus });
+  };
+
+  const handleEditLembrete = (lembrete: any) => {
+    setEditingLembrete(lembrete);
+    setFormData({
+      titulo: lembrete.titulo,
+      descricao: lembrete.descricao,
+      tipo: lembrete.tipo,
+      prioridade: lembrete.prioridade,
+      status: lembrete.status,
+      data_vencimento: new Date(lembrete.data_vencimento),
+      notificar_antes: lembrete.notificar_antes,
+      recorrente: lembrete.recorrente,
+      frequencia_recorrencia: lembrete.frequencia_recorrencia,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingLembrete || !formData) return;
+
+    try {
+      await updateLembrete(editingLembrete.id, formData);
+      setShowEditModal(false);
+      setEditingLembrete(null);
+      setFormData(null);
+      Alert.alert('Sucesso', 'Lembrete atualizado com sucesso!');
+    } catch (error) {
+      Alert.alert('Erro', 'Falha ao atualizar lembrete');
+    }
+  };
+
+  const showDatePickerModal = () => {
+    if (!formData) return;
+    
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: formData.data_vencimento,
+        onChange: (event, selectedDate) => {
+          if (selectedDate) {
+            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
+          }
+        },
+        mode: 'date',
+      });
+    } else {
+      setShowDatePicker(true);
+    }
+  };
+
+  const showTimePickerModal = () => {
+    if (!formData) return;
+    
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: formData.data_vencimento,
+        onChange: (event, selectedDate) => {
+          if (selectedDate) {
+            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
+          }
+        },
+        mode: 'time',
+        is24Hour: true,
+      });
+    } else {
+      setShowTimePicker(true);
+    }
   };
 
   const getFilteredLembretes = () => {
@@ -138,10 +214,7 @@ export default function LembretesAdmin() {
             {format(new Date(item.data_vencimento), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
           </Text>
         </View>
-        <View style={styles.detailRow}>
-          <Ionicons name="pricetag-outline" size={16} color="#6b7280" />
-          <Text style={styles.detailText}>{item.tipo}</Text>
-        </View>
+       
         <View style={styles.detailRow}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
             <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
@@ -152,24 +225,10 @@ export default function LembretesAdmin() {
       <View style={styles.lembreteFooter}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push(`/admin/lembretes/${item.id}`)}
+          onPress={() => handleEditLembrete(item)}
         >
-          <Ionicons name="eye-outline" size={20} color="#2196F3" />
-          <Text style={[styles.actionButtonText, { color: '#2196F3' }]}>Ver</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleToggleStatus(item.id, item.status)}
-        >
-          <Ionicons 
-            name={item.status === 'ativo' ? 'checkmark-circle-outline' : 'refresh-outline'} 
-            size={20} 
-            color="#4CAF50" 
-          />
-          <Text style={[styles.actionButtonText, { color: '#4CAF50' }]}>
-            {item.status === 'ativo' ? 'Concluir' : 'Reativar'}
-          </Text>
+          <Ionicons name="create-outline" size={20} color="#2196F3" />
+          <Text style={[styles.actionButtonText, { color: '#2196F3' }]}>Editar</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -354,8 +413,146 @@ export default function LembretesAdmin() {
       </TouchableOpacity>
 
       {renderFiltersModal()}
+      {renderEditModal()}
     </SafeAreaView>
   );
+
+  function renderEditModal() {
+    if (!showEditModal || !formData) return null;
+
+    return (
+      <Modal
+        visible={showEditModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Lembrete</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.editForm}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Título</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.titulo}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, titulo: text }))}
+                  placeholder="Digite o título do lembrete"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Descrição</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={formData.descricao}
+                  onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
+                  placeholder="Descreva os detalhes do lembrete"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                  <Text style={styles.label}>Tipo</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={formData.tipo}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}
+                      style={styles.picker}
+                    >
+                      <Picker.Item label="Manutenção" value="manutencao" />
+                      <Picker.Item label="Reunião" value="reuniao" />
+                      <Picker.Item label="Vencimento" value="vencimento" />
+                      <Picker.Item label="Outros" value="outros" />
+                    </Picker>
+                  </View>
+                </View>
+
+                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                  <Text style={styles.label}>Prioridade</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={formData.prioridade}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, prioridade: value }))}
+                      style={styles.picker}
+                    >
+                      <Picker.Item label="Baixa" value="baixa" />
+                      <Picker.Item label="Média" value="media" />
+                      <Picker.Item label="Alta" value="alta" />
+                    </Picker>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Status</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={formData.status}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Ativo" value="ativo" />
+                    <Picker.Item label="Concluído" value="concluido" />
+                    <Picker.Item label="Cancelado" value="cancelado" />
+                  </Picker>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Data e Hora de Vencimento</Text>
+                <View style={styles.dateTimeContainer}>
+                  <TouchableOpacity
+                    style={[styles.dateTimeButton, { flex: 1, marginRight: 8 }]}
+                    onPress={showDatePickerModal}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#6b7280" />
+                    <Text style={styles.dateTimeText}>
+                      {format(formData.data_vencimento, 'dd/MM/yyyy', { locale: ptBR })}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.dateTimeButton, { flex: 1, marginLeft: 8 }]}
+                    onPress={showTimePickerModal}
+                  >
+                    <Ionicons name="time-outline" size={20} color="#6b7280" />
+                    <Text style={styles.dateTimeText}>
+                      {format(formData.data_vencimento, 'HH:mm', { locale: ptBR })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.editModalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSaveEdit}
+              >
+                <Text style={styles.saveButtonText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -617,5 +814,113 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
+  },
+  editModalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    margin: 20,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  editForm: {
+    maxHeight: 400,
+    paddingHorizontal: 20,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#374151',
+    backgroundColor: '#ffffff',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+  },
+  picker: {
+    height: 50,
+    color: '#374151',
+  },
+  dateTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+  },
+  dateTimeText: {
+    fontSize: 16,
+    color: '#374151',
+    marginLeft: 8,
+  },
+  editModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  saveButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });

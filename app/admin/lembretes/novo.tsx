@@ -26,8 +26,6 @@ interface FormData {
   prioridade: 'baixa' | 'media' | 'alta';
   data_vencimento: Date;
   notificar_antes: number;
-  recorrente: boolean;
-  frequencia_recorrencia?: 'diaria' | 'semanal' | 'mensal' | 'anual';
 }
 
 const initialFormData: FormData = {
@@ -37,7 +35,6 @@ const initialFormData: FormData = {
   prioridade: 'media',
   data_vencimento: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
   notificar_antes: 60, // 1 hour
-  recorrente: false,
 };
 
 export default function NovoLembrete() {
@@ -98,13 +95,10 @@ export default function NovoLembrete() {
       const lembreteData = {
         titulo: formData.titulo.trim(),
         descricao: formData.descricao.trim(),
-        tipo: formData.tipo,
+        categoria: formData.tipo,
         prioridade: formData.prioridade,
         data_vencimento: formData.data_vencimento.toISOString(),
-        notificar_antes: formData.notificar_antes,
-        recorrente: formData.recorrente,
-        frequencia_recorrencia: formData.recorrente ? formData.frequencia_recorrencia : null,
-        status: 'ativo' as const,
+        antecedencia_alerta: formData.notificar_antes,
       };
 
       await createLembrete(lembreteData);
