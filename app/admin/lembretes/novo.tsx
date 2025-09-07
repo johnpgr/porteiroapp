@@ -184,7 +184,7 @@ export default function NovoLembrete() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#374151" />
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Novo Lembrete</Text>
         <View style={styles.headerSpacer} />
@@ -388,7 +388,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'white',
+    backgroundColor: '#FF9800',
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#111827',
+    color: '#fff',
     flex: 1,
     textAlign: 'center',
   },

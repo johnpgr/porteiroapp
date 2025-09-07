@@ -63,6 +63,22 @@ export default function ConfiguracoesScreen() {
                 <NotificationTest />
               </View>
             )}
+
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/morador/testes')}
+            >
+              <View style={styles.settingItemLeft}>
+                <Ionicons name="bug-outline" size={24} color="#FF6B35" />
+                <View style={styles.settingItemText}>
+                  <Text style={styles.settingItemTitle}>Sistema de Lembretes</Text>
+                  <Text style={styles.settingItemSubtitle}>
+                    Testar sistema completo de lembretes e validação
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
 
           {/* Seção de Conta */}

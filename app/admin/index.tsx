@@ -277,6 +277,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
     paddingBottom: 15,
     paddingTop: 15,
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingHorizontal: 20,
     zIndex: 50,
   },

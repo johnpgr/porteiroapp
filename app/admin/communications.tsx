@@ -614,9 +614,9 @@ export default function Communications() {
           <TouchableOpacity
             style={styles.modalCloseButton}
             onPress={() => setShowCommunicationsModal(false)}>
-            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+            <Text style={styles.modalCloseText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>📋 Todos os Comunicados</Text>
+          <Text style={styles.modalTitle}>📋 Comunicados</Text>
         </View>
         
         {loadingCommunications ? (
@@ -674,9 +674,9 @@ export default function Communications() {
           <TouchableOpacity
             style={styles.modalCloseButton}
             onPress={() => setShowPollsModal(false)}>
-            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+            <Text style={styles.modalCloseText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>📊 Todas as Enquetes</Text>
+          <Text style={styles.modalTitle}>📊 Enquetes</Text>
         </View>
         
         {loadingPolls ? (
@@ -864,6 +864,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1079,10 +1081,13 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     backgroundColor: '#FF9800',
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingVertical: 20,
     paddingHorizontal: 20,
+    gap: 33,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
   modalCloseButton: {
