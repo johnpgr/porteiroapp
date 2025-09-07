@@ -37,9 +37,6 @@ export default function EmergencyPage() {
   return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
-          </TouchableOpacity>
           <View>
             <Text style={styles.title}>🚨 Emergência</Text>
             <Text style={styles.subtitle}>Contatos de Emergência</Text>
@@ -114,10 +111,9 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#f44336',
     display: 'flex',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: "center",
     flexDirection: "row",
-    gap: 20,
     paddingHorizontal: 20,
     paddingVertical: 30,
   },
@@ -131,14 +127,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
     marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#fff',
     textAlign: 'center',
     opacity: 0.9,
