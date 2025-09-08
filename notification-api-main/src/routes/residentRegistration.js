@@ -53,8 +53,8 @@ router.post('/test-whatsapp-message', async (req, res) => {
 
     // Create the WhatsApp message format (using test profileId)
     const testProfileId = require('crypto').randomUUID();
-    const siteUrl = 'https://jamesavisa.jamesconcierge.com/login';
-    const completarCadastroUrl = `https://jamesavisa.jamesconcierge.com/cadastro/morador/completar?profileId=${testProfileId}`;
+    const siteUrl = 'porteiroapp://login';
+    const completarCadastroUrl = `porteiroapp://cadastro/morador/completar?profileId=${testProfileId}`;
 
     const whatsappMessage = `🎉 *Bem-vindo ao JamesAvisa!*
 
@@ -199,8 +199,8 @@ router.post('/register-resident', async (req, res) => {
     console.log('Usuário criado com sucesso. ProfileId real:', profile.id);
 
     // Step 4: Send WhatsApp notification with REAL profileId
-    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com/login';
-    const completarCadastroUrl = `https://jamesavisa.jamesconcierge.com/cadastro/morador/completar?profileId=${profile.id}`;
+    const siteUrl = process.env.SITE_URL || 'porteiroapp://login';
+    const completarCadastroUrl = `porteiroapp://cadastro/morador/completar?profileId=${profile.id}`;
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!

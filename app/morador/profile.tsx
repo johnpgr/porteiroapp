@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
+import { PhotoUploadService } from '~/utils/photoUploadService';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import BottomNav from '~/components/BottomNav';
@@ -59,6 +59,7 @@ export default function MoradorProfile() {
   });
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -429,26 +430,81 @@ export default function MoradorProfile() {
   };
 
   const handleImagePicker = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setFormData({ ...formData, avatar_url: result.assets[0].uri });
-      }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem');
+    if (!user?.id) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
     }
+
+    setPhotoUploading(true);
+    try {
+      const result = await PhotoUploadService.selectAndUploadPhoto(user.id);
+      
+      if (result.success && result.url) {
+        // Atualizar o avatar_url no banco de dados
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: result.url })
+          .eq('id', user.id);
+
+        if (error) {
+          console.error('Erro ao atualizar avatar_url:', error);
+          Alert.alert('Erro', 'Não foi possível salvar a foto no perfil');
+          return;
+        }
+
+        setFormData({ ...formData, avatar_url: result.url });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível fazer upload da foto');
+      }
+    } catch (error) {
+      console.error('Erro no upload da foto:', error);
+      Alert.alert('Erro', 'Erro interno ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.id || !formData.avatar_url) return;
+
+    Alert.alert(
+      'Remover Foto',
+      'Tem certeza que deseja remover sua foto de perfil?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            setPhotoUploading(true);
+            try {
+              await PhotoUploadService.deletePhoto(formData.avatar_url);
+              
+              // Atualizar o avatar_url no banco de dados
+              const { error } = await supabase
+                .from('profiles')
+                .update({ avatar_url: null })
+                .eq('id', user.id);
+
+              if (error) {
+                console.error('Erro ao remover avatar_url:', error);
+                Alert.alert('Erro', 'Não foi possível remover a foto do perfil');
+                return;
+              }
+
+              setFormData({ ...formData, avatar_url: '' });
+              Alert.alert('Sucesso', 'Foto removida com sucesso!');
+            } catch (error) {
+              console.error('Erro ao remover foto:', error);
+              Alert.alert('Erro', 'Erro interno ao remover foto');
+            } finally {
+              setPhotoUploading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const validatePassword = (password: string) => {
@@ -615,7 +671,8 @@ export default function MoradorProfile() {
             <View style={styles.photoSection}>
               <TouchableOpacity
                 style={styles.photoContainer}
-                onPress={isEditing ? handleImagePicker : undefined}>
+                onPress={isEditing && !photoUploading ? handleImagePicker : undefined}
+                disabled={photoUploading}>
                 {formData.avatar_url ? (
                   <Image source={{ uri: formData.avatar_url }} style={styles.photo} />
                 ) : (
@@ -625,11 +682,25 @@ export default function MoradorProfile() {
                 )}
                 {isEditing && (
                   <View style={styles.photoOverlay}>
-                    <Ionicons name="camera" size={24} color="#fff" />
+                    <Ionicons 
+                      name={photoUploading ? "hourglass" : "camera"} 
+                      size={24} 
+                      color="#fff" 
+                    />
                   </View>
                 )}
               </TouchableOpacity>
               <Text style={styles.photoLabel}>Foto do Perfil</Text>
+              {isEditing && formData.avatar_url && (
+                <TouchableOpacity
+                  style={[styles.removePhotoButton, photoUploading && styles.disabledButton]}
+                  onPress={handleRemovePhoto}
+                  disabled={photoUploading}>
+                  <Text style={styles.removePhotoText}>
+                    {photoUploading ? 'Processando...' : 'Remover Foto'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -875,6 +946,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1061,5 +1134,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  removePhotoButton: {
+    backgroundColor: '#f44336',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  removePhotoText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
   },
 });

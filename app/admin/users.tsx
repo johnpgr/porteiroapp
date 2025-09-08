@@ -18,6 +18,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { notificationService } from '~/services/notificationService';
 import * as Crypto from 'expo-crypto';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+const supabaseAdmin = createClient(
+  'https://ycamhxzumzkpxuhtugxc.supabase.co',
+  supabaseServiceRoleKey
+);
 
 // Interface para dados do morador
 interface ResidentData {
@@ -198,8 +205,6 @@ interface Vehicle {
 
 export default function UsersManagement() {
   const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
@@ -235,9 +240,14 @@ export default function UsersManagement() {
   });
 
   const [multipleResidents, setMultipleResidents] = useState([
-    { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+    { name: '', phone: '', email: '', selectedBuildingId: '', selectedApartmentId: '' },
   ]);
   const [showMultipleForm, setShowMultipleForm] = useState(false);
+  
+  // Estados para o modal de listagem de usuários
+  const [showUserListModal, setShowUserListModal] = useState(false);
+  const [userListFilter, setUserListFilter] = useState<'morador' | 'porteiro'>('morador');
+  const [adminUsers, setAdminUsers] = useState<User[]>([]);
 
   // Controle de abertura única dos modais
   const closeAllModals = () => {
@@ -245,6 +255,7 @@ export default function UsersManagement() {
     setShowMultipleForm(false);
     setShowVehicleForm(false);
     setShowBulkForm(false);
+    setShowUserListModal(false);
   };
 
   const openAddUserModal = () => {
@@ -255,6 +266,50 @@ export default function UsersManagement() {
   const openMultipleModal = () => {
     closeAllModals();
     setShowMultipleForm(true);
+  };
+
+  const openUserListModal = () => {
+    closeAllModals();
+    loadAdminUsers();
+    setShowUserListModal(true);
+  };
+
+  // Função para carregar usuários criados pelo admin logado
+  const loadAdminUsers = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          full_name,
+          role,
+          phone,
+          email,
+          cpf,
+          created_at,
+          apartments:apartment_residents(
+            apartment:apartments(
+              id,
+              number,
+              building_id
+            )
+          )
+        `)
+        .in('role', ['morador', 'porteiro'])
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao carregar usuários do admin:', error);
+        return;
+      }
+
+      setAdminUsers(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar usuários do admin:', error);
+    }
   };
 
   // Função para upload seguro de imagem para o Supabase Storage
@@ -449,32 +504,6 @@ export default function UsersManagement() {
     }
   }, [newUser.selectedBuildingId, apartments]);
 
-  useEffect(() => {
-    filterUsers();
-  }, [users, searchQuery]);
-
-  const filterUsers = () => {
-    if (!searchQuery.trim()) {
-      setFilteredUsers(users);
-      setCurrentPage(1); // Reset página ao limpar busca
-      return;
-    }
-
-    const q = searchQuery.toLowerCase();
-    const filtered = users.filter((user) => {
-      const nm = (user.name || user.full_name || '').toLowerCase();
-      return (
-        nm.includes(q) ||
-        (user.email || '').toLowerCase().includes(q) ||
-        (user.cpf || '').includes(searchQuery) ||
-        (user.phone || '').includes(searchQuery) ||
-        (user.role || '').toLowerCase().includes(q)
-      );
-    });
-    setFilteredUsers(filtered);
-    setCurrentPage(1); // Reset página ao filtrar
-  };
-
   const fetchUsers = async () => {
     try {
       // Obter o administrador atual
@@ -492,7 +521,6 @@ export default function UsersManagement() {
       if (buildingIds.length === 0) {
         console.log('Nenhum prédio encontrado para este administrador');
         setUsers([]);
-        setFilteredUsers([]);
         return;
       }
 
@@ -560,7 +588,6 @@ export default function UsersManagement() {
       });
 
       setUsers(usersWithApartments);
-      setFilteredUsers(usersWithApartments);
     } catch (error) {
       console.error('Erro ao carregar usuários:', error);
     } finally {
@@ -592,7 +619,6 @@ export default function UsersManagement() {
 
       if (error) throw error;
       console.log('🏠 Apartamentos carregados do banco:', data?.length || 0);
-      console.log('📋 Lista de apartamentos:', data);
       setApartments(data || []);
     } catch (error) {
       console.error('Erro ao carregar apartamentos:', error);
@@ -625,6 +651,16 @@ export default function UsersManagement() {
       return false;
     }
     
+    // Validação de e-mail obrigatório para todos os tipos
+    if (!newUser.email.trim()) {
+      Alert.alert('Erro', 'E-mail é obrigatório');
+      return false;
+    }
+    if (!validateEmail(newUser.email)) {
+      Alert.alert('Erro', 'E-mail inválido');
+      return false;
+    }
+    
     if (newUser.type === 'porteiro') {
       // Validações específicas para porteiro
       if (!newUser.cpf.trim()) {
@@ -635,14 +671,7 @@ export default function UsersManagement() {
         Alert.alert('Erro', 'CPF inválido');
         return false;
       }
-      if (!newUser.email.trim()) {
-        Alert.alert('Erro', 'E-mail é obrigatório para porteiros');
-        return false;
-      }
-      if (!validateEmail(newUser.email)) {
-        Alert.alert('Erro', 'E-mail inválido');
-        return false;
-      }
+
       if (!newUser.birthDate.trim()) {
         Alert.alert('Erro', 'Data de nascimento é obrigatória para porteiros');
         return false;
@@ -742,6 +771,18 @@ export default function UsersManagement() {
       }
       phoneNumbers.add(formattedPhone);
       
+      // Validação de email
+      if (!resident.email.trim()) {
+        Alert.alert('Erro', `Email é obrigatório para o morador ${i + 1}`);
+        return false;
+      }
+      
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(resident.email.trim())) {
+        Alert.alert('Erro', `Email inválido para o morador ${i + 1}. Use o formato email@exemplo.com`);
+        return false;
+      }
+      
       // Validação de prédio
       if (!resident.selectedBuildingId) {
         Alert.alert('Erro', `Prédio é obrigatório para o morador ${i + 1}`);
@@ -775,7 +816,7 @@ export default function UsersManagement() {
   const addMultipleResident = () => {
     setMultipleResidents([
       ...multipleResidents,
-      { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+      { name: '', phone: '', email: '', selectedBuildingId: '', selectedApartmentId: '' },
     ]);
   };
 
@@ -837,6 +878,7 @@ export default function UsersManagement() {
             userData: {
               full_name: resident.name.trim(),
               phone: formattedPhone,
+              email: resident.email.trim(),
               role: 'morador',
               user_type: 'morador'
             }
@@ -1149,39 +1191,41 @@ export default function UsersManagement() {
       setLoading(true);
       let authUserId = null;
       
-      // Se for porteiro, criar usuário no Supabase Auth primeiro
-      if (newUser.type === 'porteiro') {
-        console.log('🔐 [DEBUG] Criando login para porteiro...');
-        console.log('🔐 [DEBUG] Email:', newUser.email);
-        console.log('🔐 [DEBUG] Nome:', newUser.name);
-        
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: newUser.email,
-          password: '123456', // Senha padrão
-          options: {
-            data: {
-              full_name: newUser.name,
-              user_type: 'porteiro'
-            }
-          }
-        });
-
-        if (authError) {
-          console.error('❌ [DEBUG] Erro ao criar login:', authError);
-          console.error('❌ [DEBUG] Detalhes do erro:', JSON.stringify(authError, null, 2));
-          throw new Error(`Erro ao criar login: ${authError.message}`);
+      // Gerar uma única senha temporária para usar tanto no auth quanto na tabela temporary_passwords
+      const temporaryPassword = generateTemporaryPassword();
+      console.log('🔐 [DEBUG] Senha temporária única gerada:', temporaryPassword);
+      
+      // Criar usuário no Supabase Auth usando admin client (não causa login automático)
+      console.log('🔐 [DEBUG] Criando login no auth.users com admin client...');
+      console.log('🔐 [DEBUG] Email:', newUser.email);
+      console.log('🔐 [DEBUG] Nome:', newUser.name);
+      
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: newUser.email,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: newUser.name,
+          user_type: newUser.type
         }
+      });
 
-        if (!authData.user) {
-          console.error('❌ [DEBUG] authData.user é null ou undefined');
-          console.error('❌ [DEBUG] authData completo:', JSON.stringify(authData, null, 2));
-          throw new Error('Falha ao criar usuário de autenticação');
-        }
-
-        authUserId = authData.user.id;
-        console.log('✅ [DEBUG] Login criado com sucesso. User ID:', authUserId);
-        console.log('✅ [DEBUG] authData.user completo:', JSON.stringify(authData.user, null, 2));
+      if (authError) {
+        console.error('❌ [DEBUG] Erro ao criar login:', authError);
+        console.error('❌ [DEBUG] Detalhes do erro:', JSON.stringify(authError, null, 2));
+        throw new Error(`Erro ao criar login: ${authError.message}`);
       }
+
+      if (!authData.user) {
+        console.error('❌ [DEBUG] authData.user é null ou undefined');
+        console.error('❌ [DEBUG] authData completo:', JSON.stringify(authData, null, 2));
+        throw new Error('Falha ao criar usuário de autenticação');
+      }
+
+      authUserId = authData.user.id;
+      console.log('✅ [DEBUG] Login criado com sucesso. User ID:', authUserId);
+      console.log('✅ [DEBUG] authData.user completo:', JSON.stringify(authData.user, null, 2));
+      console.log('✅ [DEBUG] Admin não foi deslogado - usando createUser em vez de signUp');
       
       // Preparar dados base do usuário
       const userData: any = {
@@ -1236,9 +1280,13 @@ export default function UsersManagement() {
           }
         }
       } else {
-        // Para moradores - apenas dados básicos
+        // Para moradores - dados completos incluindo user_id
         userData.phone = newUser.phone;
+        userData.cpf = newUser.cpf;
+        userData.email = newUser.email;
+        userData.user_id = authUserId;
         userData.user_type = 'morador';
+        userData.building_id = newUser.selectedBuildingId;
       }
 
       console.log('🚀 [DEBUG] userData criado:', JSON.stringify(userData, null, 2));
@@ -1269,11 +1317,10 @@ export default function UsersManagement() {
       console.log('✅ [DEBUG] Verificando vinculação - user_id no profile:', insertedUser?.user_id);
       console.log('✅ [DEBUG] Verificando vinculação - authUserId original:', authUserId);
 
-      // Se for morador, associar aos apartamentos selecionados e gerar senha temporária
+      // Se for morador, associar aos apartamentos selecionados e armazenar senha temporária
       if (newUser.type === 'morador') {
-        // Gerar senha temporária para morador (sempre, mesmo sem apartamentos)
-        console.log('🔐 [DEBUG] Gerando senha temporária para morador...');
-        const temporaryPassword = generateTemporaryPassword();
+        // Usar a mesma senha temporária já gerada para o auth.users
+        console.log('🔐 [DEBUG] Armazenando senha temporária para morador...');
         const hashedPassword = await hashPassword(temporaryPassword);
         
         try {
@@ -1334,7 +1381,7 @@ export default function UsersManagement() {
       if (newUser.type === 'porteiro') {
         Alert.alert(
           'Porteiro Criado com Sucesso!', 
-          `O porteiro ${newUser.name} foi cadastrado e pode fazer login com:\n\nE-mail: ${newUser.email}\nSenha: 123456\n\nO porteiro poderá alterar sua senha após o primeiro login.`
+          `O porteiro ${newUser.name} foi cadastrado e pode fazer login com:\n\nE-mail: ${newUser.email}\nSenha: ${generatedPassword}\n\nO porteiro poderá alterar sua senha após o primeiro login.`
         );
       } else {
         Alert.alert('Sucesso', 'Usuário criado com sucesso');
@@ -1369,7 +1416,17 @@ export default function UsersManagement() {
       fetchUsers();
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
-      Alert.alert('Erro', 'Falha ao criar usuário');
+      
+      // Verificar se é erro de usuário já existente
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'user_already_exists') {
+        Alert.alert(
+          'E-mail já cadastrado',
+          `O e-mail ${newUser.email} já está cadastrado no sistema. Por favor, use um e-mail diferente.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+      } else {
+        Alert.alert('Erro', 'Falha ao criar usuário');
+      }
     } finally {
       setLoading(false);
     }
@@ -1384,15 +1441,45 @@ export default function UsersManagement() {
         onPress: async () => {
           try {
             // Primeiro, remover associações de apartamentos
-            await supabase.from('apartment_residents').delete().eq('profile_id', userId);
+            const { error: apartmentError } = await supabase
+              .from('apartment_residents')
+              .delete()
+              .eq('profile_id', userId);
+            
+            if (apartmentError) {
+              console.error('Erro ao remover associações de apartamentos:', apartmentError);
+              throw apartmentError;
+            }
 
-            // Depois, remover o usuário
-            const { error } = await supabase.from('profiles').delete().eq('id', userId);
+            // Segundo, remover da tabela profiles
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .delete()
+              .eq('id', userId);
 
-            if (error) throw error;
+            if (profileError) {
+              console.error('Erro ao remover perfil:', profileError);
+              throw profileError;
+            }
+
+            // Terceiro, remover da tabela auth.users usando cliente admin
+            const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+            if (authError) {
+              console.error('Erro ao remover usuário da auth.users:', authError);
+              // Não lançar erro aqui pois o perfil já foi removido
+              // Apenas logar o erro para debug
+              console.warn('Usuário removido do profiles mas falha na remoção do auth.users');
+            }
+
+            // Recarregar listas
             fetchUsers();
+            loadAdminUsers(); // Recarregar lista do modal
+            
+            Alert.alert('Sucesso', 'Usuário excluído com sucesso!');
           } catch (error) {
-            Alert.alert('Erro', 'Falha ao excluir usuário');
+            console.error('Erro na exclusão do usuário:', error);
+            Alert.alert('Erro', 'Falha ao excluir usuário. Tente novamente.');
           }
         },
       },
@@ -1615,6 +1702,7 @@ export default function UsersManagement() {
           const residentData: ResidentData = {
             name: userData.full_name || userData.name,
             phone: userData.phone,
+            email: userData.email,
             building: building.name,
             apartment: apartment.number,
             profile_id: userData.id, // Incluir profile_id obrigatório
@@ -1758,6 +1846,9 @@ export default function UsersManagement() {
         <TouchableOpacity style={styles.multipleButton} onPress={openMultipleModal}>
           <Text style={styles.multipleButtonText}>👥 Múltiplos Usuários</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.listUsersButton} onPress={openUserListModal}>
+                <Text style={styles.listUsersButtonText}>📋 Listar Usuários</Text>
+              </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.vehicleButton}
@@ -1767,17 +1858,6 @@ export default function UsersManagement() {
           </Text>
         </TouchableOpacity>
 
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="🔍 Buscar por nome, telefone ou tipo..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <TouchableOpacity style={styles.searchButton} onPress={() => filterUsers()}>
-            <Text style={styles.searchButtonText}>🔍 Procurar</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Modal de Novo Usuário */}
@@ -1837,6 +1917,18 @@ export default function UsersManagement() {
                 value={newUser.phone}
                 onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
                 keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>E-mail *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="email@exemplo.com"
+                value={newUser.email}
+                onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
             </View>
 
@@ -2134,30 +2226,6 @@ export default function UsersManagement() {
             style={styles.modalContent}
             contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}>
-            {/* Configurações do WhatsApp */}
-            <View style={styles.whatsappSection}>
-              <View style={styles.checkboxContainer}>
-                <TouchableOpacity
-                  style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}
-                  onPress={() => setSendWhatsApp(!sendWhatsApp)}>
-                  {sendWhatsApp && <Text style={styles.checkmark}>✓</Text>}
-                </TouchableOpacity>
-                <Text style={styles.checkboxLabel}>Enviar mensagem via WhatsApp</Text>
-              </View>
-
-              {sendWhatsApp && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>URL Base do Site de Cadastro</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={whatsappBaseUrl}
-                    onChangeText={setWhatsappBaseUrl}
-                    placeholder="https://seusite.com/cadastro"
-                    autoCapitalize="none"
-                  />
-                </View>
-              )}
-            </View>
 
             {/* Lista de moradores */}
             {multipleResidents.map((resident, index) => (
@@ -2194,6 +2262,18 @@ export default function UsersManagement() {
                     onChangeText={(value) => updateMultipleResident(index, 'phone', value)}
                     placeholder="(11) 99999-9999"
                     keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={resident.email}
+                    onChangeText={(value) => updateMultipleResident(index, 'email', value)}
+                    placeholder="email@exemplo.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
                   />
                 </View>
 
@@ -2367,90 +2447,89 @@ export default function UsersManagement() {
         </SafeAreaView>
       </Modal>
 
-      {filteredUsers.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateIcon}>👥</Text>
-        <Text style={styles.emptyStateTitle}>Não há usuários cadastrados ainda</Text>
-        <Text style={styles.emptyStateSubtitle}>Use o botão &quot;Novo Usuário&quot; para adicionar o primeiro usuário</Text>
-        </View>
-      ) : (
-        <View style={{ flex: 1 }}>
-          <ScrollView style={styles.usersList}>
-            {(() => {
-              const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-              const startIndex = (currentPage - 1) * itemsPerPage;
-              const endIndex = startIndex + itemsPerPage;
-              const currentUsers = filteredUsers.slice(startIndex, endIndex);
-              
-              return currentUsers.map((user) => (
-            <View key={user.id} style={styles.userCard}>
-              <View style={styles.userInfo}>
-                {user.photo_url ? (
-                  <Image source={{ uri: user.photo_url }} style={styles.userPhoto} />
-                ) : (
-                  <Text style={styles.userIcon}>{getRoleIcon(user.role)}</Text>
-                )}
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{user.name}</Text>
-                  {user.cpf && <Text style={styles.userCode}>CPF: {user.cpf}</Text>}
-                  {user.phone && <Text style={styles.userCode}>Tel: {user.phone}</Text>}
-                  {user.email && <Text style={styles.userCode}>Email: {user.email}</Text>}
-                  <Text
-                    style={[styles.userRole, { color: getRoleColor(user.user_type || user.role) }]}>
-                    {(user.user_type || user.role) ? 
-                      (user.user_type || user.role).charAt(0).toUpperCase() +
-                      (user.user_type || user.role).slice(1) : 'Indefinido'}
+
+
+
+      {/* Modal de Listagem de Usuários */}
+      <Modal visible={showUserListModal} animationType="slide" presentationStyle="fullScreen">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>📋 Usuários Cadastrados</Text>
+            <TouchableOpacity onPress={() => setShowUserListModal(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            {/* Toggle para alternar entre moradores e porteiros */}
+            <View style={styles.toggleContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  userListFilter === 'morador' && styles.toggleButtonActive
+                ]}
+                onPress={() => setUserListFilter('morador')}>
+                <Text style={[
+                  styles.toggleButtonText,
+                  userListFilter === 'morador' && styles.toggleButtonTextActive
+                ]}>🏠 Moradores</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  userListFilter === 'porteiro' && styles.toggleButtonActive
+                ]}
+                onPress={() => setUserListFilter('porteiro')}>
+                <Text style={[
+                  styles.toggleButtonText,
+                  userListFilter === 'porteiro' && styles.toggleButtonTextActive
+                ]}>🛡️ Porteiros</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Lista de usuários filtrados */}
+            <ScrollView style={styles.userListContainer}>
+              {adminUsers
+                .filter(user => user.role === userListFilter)
+                .map((user) => (
+                  <View key={user.id} style={styles.userListItem}>
+                    <View style={styles.userListInfo}>
+                      <Text style={styles.userListIcon}>{getRoleIcon(user.role)}</Text>
+                      <View style={styles.userListDetails}>
+                        <Text style={styles.userListName}>{user.full_name}</Text>
+                        {user.phone && <Text style={styles.userListPhone}>📞 {user.phone}</Text>}
+                        {user.email && <Text style={styles.userListEmail}>📧 {user.email}</Text>}
+                        {user.cpf && <Text style={styles.userListCpf}>🆔 {user.cpf}</Text>}
+                        {user.apartments && user.apartments.length > 0 && (
+                          <Text style={styles.userListApartments}>
+                            🏠 Apartamentos: {user.apartments.map((apt: any) => apt.apartment?.number).filter(Boolean).join(', ')}
+                          </Text>
+                        )}
+                        <Text style={styles.userListDate}>
+                          📅 Cadastrado em: {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteUser(user.id, user.full_name)}>
+                        <Text style={styles.deleteButtonText}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              }
+              {adminUsers.filter(user => user.role === userListFilter).length === 0 && (
+                <View style={styles.emptyListState}>
+                  <Text style={styles.emptyListIcon}>{userListFilter === 'morador' ? '🏠' : '🛡️'}</Text>
+                  <Text style={styles.emptyListText}>
+                    Nenhum {userListFilter} cadastrado ainda
                   </Text>
-                  {user.apartments && user.apartments.length > 0 && (
-                    <Text style={styles.userApartments}>
-                      Apartamentos: {user.apartments.map((apt) => apt.number).join(', ')}
-                    </Text>
-                  )}
-                  {user.last_login && (
-                    <Text style={styles.lastLogin}>
-                      Último acesso: {new Date(user.last_login).toLocaleDateString('pt-BR')}
-                    </Text>
-                  )}
                 </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDeleteUser(user.id, user.name)}>
-                <Text style={styles.deleteButtonText}>🗑️</Text>
-              </TouchableOpacity>
-            </View>
-              ));
-            })()}
-          </ScrollView>
-          
-          {/* Paginação */}
-          {filteredUsers.length > itemsPerPage && (
-            <View style={styles.paginationContainer}>
-              <TouchableOpacity
-                style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-                onPress={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>Anterior</Text>
-              </TouchableOpacity>
-              
-              <Text style={styles.paginationInfo}>
-                Página {currentPage} de {Math.ceil(filteredUsers.length / itemsPerPage)}
-              </Text>
-              
-              <TouchableOpacity
-                style={[styles.paginationButton, currentPage === Math.ceil(filteredUsers.length / itemsPerPage) && styles.paginationButtonDisabled]}
-                onPress={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage === Math.ceil(filteredUsers.length / itemsPerPage)}
-              >
-                <Text style={[styles.paginationButtonText, currentPage === Math.ceil(filteredUsers.length / itemsPerPage) && styles.paginationButtonTextDisabled]}>Próximo</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-
+              )}
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -2788,14 +2867,16 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+    backgroundColor: '#FF9800',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#fff',
   },
   closeButton: {
     fontSize: 24,
-    color: '#666',
+    color: '#fff',
   },
   modalContent: {
     flex: 1,
@@ -2941,6 +3022,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   multipleButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  listUsersButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listUsersButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
@@ -3160,5 +3254,121 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  // Estilos para o modal de listagem de usuários
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 20,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
+  },
+  userListContainer: {
+    flex: 1,
+  },
+  userListItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  userListInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  userListIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  userListDetails: {
+    flex: 1,
+  },
+  userListName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  userListPhone: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  userListEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  userListCpf: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  userListApartments: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  userListDate: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+  },
+  emptyListState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyListIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyListText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#ff4444',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    color: '#fff',
   },
 });

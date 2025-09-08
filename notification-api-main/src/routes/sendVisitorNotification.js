@@ -64,7 +64,7 @@ router.post('/send-visitor-whatsapp', async (req, res) => {
     });
 
     // Preparar template de mensagem WhatsApp
-    const registrationLink = `https://jamesavisa.jamesconcierge.com/login`;
+    const registrationLink = `porteiroapp://login`;
     const messageTemplate = `Olá, ${name} ! 👋  
  
 Seu acesso de visitante foi autorizado, mas é necessário completar seu cadastro para liberar a entrada.  

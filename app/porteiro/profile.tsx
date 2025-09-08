@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
+import { PhotoUploadService } from '~/utils/photoUploadService';
 import { useAuth } from '~/hooks/useAuth';
 
 export default function PorteiroProfile() {
@@ -40,6 +40,7 @@ export default function PorteiroProfile() {
   });
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -241,21 +242,40 @@ export default function PorteiroProfile() {
   };
 
   const handleChangePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Erro', 'Permissão para acessar galeria é necessária');
-      return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
+
+      setPhotoUploading(true);
+      const result = await PhotoUploadService.selectAndUploadPhoto(user.id);
+      if (result.success && result.url) {
+        setFormData({ ...formData, avatar_url: result.url });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', result.error || 'Não foi possível fazer upload da foto');
+      }
+    } catch (error) {
+      console.error('Erro ao fazer upload da foto:', error);
+      Alert.alert('Erro', 'Falha ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setFormData({ ...formData, avatar_url: result.assets[0].uri });
+  const handleRemovePhoto = async () => {
+    try {
+      if (formData.avatar_url) {
+        await PhotoUploadService.deletePhoto(formData.avatar_url);
+      }
+      setFormData({ ...formData, avatar_url: '' });
+    } catch (error) {
+      console.error('Erro ao remover foto:', error);
+      Alert.alert('Erro', 'Falha ao remover foto');
     }
   };
 
@@ -438,9 +458,22 @@ export default function PorteiroProfile() {
                   </View>
                 )}
                 {isEditing && (
-                  <TouchableOpacity style={styles.changePhotoButton} onPress={handleChangePhoto}>
-                    <Text style={styles.changePhotoText}>Alterar Foto</Text>
-                  </TouchableOpacity>
+                  <View style={styles.photoActions}>
+                    <TouchableOpacity 
+                      style={[styles.changePhotoButton, photoUploading && styles.disabledButton]} 
+                      onPress={handleChangePhoto}
+                      disabled={photoUploading}
+                    >
+                      <Text style={styles.changePhotoText}>
+                        {photoUploading ? 'Enviando...' : 'Alterar Foto'}
+                      </Text>
+                    </TouchableOpacity>
+                    {formData.avatar_url && (
+                      <TouchableOpacity style={styles.removePhotoButton} onPress={handleRemovePhoto}>
+                        <Text style={styles.removePhotoText}>Remover Foto</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
 
@@ -998,5 +1031,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  photoActions: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  removePhotoButton: {
+    backgroundColor: '#ff5722',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  removePhotoText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

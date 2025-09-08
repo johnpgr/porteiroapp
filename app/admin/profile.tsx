@@ -14,9 +14,9 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
+import { PhotoUploadService } from '~/utils/photoUploadService';
 
 export default function AdminProfilePage() {
   const { signOut } = useAuth();
@@ -41,6 +41,7 @@ export default function AdminProfilePage() {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     console.log('🔄 [AdminProfile] Iniciando busca do perfil...');
@@ -284,32 +285,39 @@ export default function AdminProfilePage() {
   };
 
   const handleImagePicker = async () => {
-    console.log('📷 [AdminProfile] Iniciando seleção de imagem...');
+    console.log('📷 [AdminProfile] Iniciando upload de foto...');
+    
+    if (!profile?.user_id) {
+      Alert.alert('Erro', 'Usuário não identificado');
+      return;
+    }
+    
+    setPhotoUploading(true);
     
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Permissão Negada', 'É necessário permitir acesso à galeria para alterar a foto do perfil.');
-        return;
+      // Remover foto anterior se existir
+      if (formData.avatar_url && formData.avatar_url.includes('supabase')) {
+        console.log('🗑️ [AdminProfile] Removendo foto anterior...');
+        await PhotoUploadService.deletePhoto(formData.avatar_url);
       }
       
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-        base64: false,
-      });
+      // Fazer upload da nova foto
+      const result = await PhotoUploadService.selectAndUploadPhoto(profile.user_id);
       
-      if (!result.canceled && result.assets && result.assets[0]) {
-        console.log('✅ [AdminProfile] Imagem selecionada:', result.assets[0].uri);
-        setFormData({ ...formData, avatar_url: result.assets[0].uri });
+      if (result.success && result.url) {
+        console.log('✅ [AdminProfile] Upload concluído:', result.url);
+        setFormData({ ...formData, avatar_url: result.url });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        console.error('❌ [AdminProfile] Falha no upload:', result.error);
+        Alert.alert('Erro', result.error || 'Falha ao fazer upload da foto');
       }
       
     } catch (error: any) {
-      console.error('❌ [AdminProfile] Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Falha ao selecionar imagem');
+      console.error('❌ [AdminProfile] Erro geral no upload:', error);
+      Alert.alert('Erro', 'Erro inesperado ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
     }
   };
   
@@ -543,8 +551,16 @@ export default function AdminProfilePage() {
                 </View>
               )}
               {isEditing && (
-                <TouchableOpacity style={styles.changePhotoButton} onPress={handleImagePicker}>
-                  <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
+                <TouchableOpacity 
+                  style={[styles.changePhotoButton, photoUploading && styles.disabledButton]} 
+                  onPress={handleImagePicker}
+                  disabled={photoUploading}
+                >
+                  {photoUploading ? (
+                    <ActivityIndicator size="small" color="#666" />
+                  ) : (
+                    <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>

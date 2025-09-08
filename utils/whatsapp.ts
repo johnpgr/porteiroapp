@@ -135,9 +135,9 @@ export const generateWhatsAppMessage = (
 ): { message: string; registrationLink: string } => {
   const registrationLink = generateRegistrationLink(residentData, baseUrl);
   
-  // Incluir senha temporária na mensagem se disponível
+  // Incluir credenciais de acesso na mensagem se disponível
   const passwordInfo = residentData.temporaryPassword 
-    ? `\n\n🔐 SUAS CREDENCIAIS DE ACESSO:\n\n📱 Usuário (Celular): ${residentData.phone}\n🔑 Senha temporária: ${residentData.temporaryPassword}\n\n💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!`
+    ? `\n\n🔐 SUAS CREDENCIAIS DE ACESSO:\n\n📧 E-mail: ${residentData.email || residentData.phone}\n🔑 Senha: ${residentData.temporaryPassword}\n\n💡 IMPORTANTE: Use essas credenciais para fazer login no aplicativo!`
     : '';
   
   const message = `🏢 JamesAvisa - Cadastro de Morador\n\nOlá *${residentData.name}*!\n\nVocê foi convidado(a) para se cadastrar no JamesAvisa.\n\n📍 Dados do seu apartamento:\n🏢 Prédio: ${residentData.building}\n🚪 Apartamento: ${residentData.apartment}\n\nPara completar seu cadastro, clique no link abaixo:\n\`${registrationLink}\`${passwordInfo}\n\nCom o JamesAvisa você pode:\n✅ Receber visitantes com mais segurança\n✅ Autorizar entregas remotamente\n✅ Comunicar-se diretamente com a portaria\n✅ Acompanhar movimentações do seu apartamento\n\nMensagem enviada automaticamente pelo sistema JamesAvisa`;

@@ -47,7 +47,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
     });
 
     // Preparar URL de regularização
-    const regularizationUrl = `https://jamesavisa.jamesconcierge.com/login`;
+    const regularizationUrl = `porteiroapp://login`;
 
     // Preparar template de mensagem WhatsApp
     const messageTemplate = `📢 James Avisa
