@@ -21,6 +21,7 @@ export interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
+  email?: string;
   profile_id?: string;
   temporaryPassword?: string;
 }
@@ -176,11 +177,15 @@ export const sendWhatsAppMessage = async (
       international: phoneNumber.international,
     });
 
-    // Prepara os dados para a API - incluindo profile_id e senha temporária
+    // Gera email automaticamente se não fornecido
+    const email = residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`;
+
+    // Prepara os dados para a API - incluindo profile_id, senha temporária e email
     const apiUrl = `${API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
     const apiData = {
       name: residentData.name,
       phone: phoneNumber.clean,
+      email: email,
       building: residentData.building,
       apartment: residentData.apartment,
       profile_id: residentData.profile_id,

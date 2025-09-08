@@ -1104,6 +1104,7 @@ export default function UsersManagement() {
                 whatsappData.push({
                   name: user.full_name,
                   phone: user.phone,
+                  email: user.email, // Adicionar email para evitar erro da API
                   building: apartment.buildings.name,
                   apartment: apartment.number,
                   profile_id: user.id,

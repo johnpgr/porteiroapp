@@ -67,10 +67,6 @@ Você foi convidado(a) para se cadastrar no JamesAvisa.
 
 🚪 Apartamento: ${apartment}
 
-Para completar seu cadastro, clique no link abaixo:
-
-${completarCadastroUrl}
-
 🔐 SUAS CREDENCIAIS DE ACESSO:
 
 📧 Usuário (Email): ${email}
