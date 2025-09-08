@@ -311,64 +311,69 @@ export default function Communications() {
     }
   };
 
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Função para enviar notificações push para moradores e porteiros
   const sendPushNotifications = async (buildingId: string, title: string, body: string, type: 'communication' | 'poll', itemId?: string) => {
-    try {
-      // Buscar moradores do prédio
-      const { data: residents, error: residentsError } = await supabase
-        .from('apartment_residents')
-        .select(`
-          profiles!inner(
-            id,
-            full_name,
-            expo_push_token
-          ),
-          apartments!inner(
-            building_id
-          )
-        `)
-        .eq('apartments.building_id', buildingId)
-        .not('profiles.expo_push_token', 'is', null);
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS - retorna 0 usuários notificados
+    console.log('📱 Push notifications desativadas - comunicado/enquete criado sem notificação');
+    return 0;
+    
+    // try {
+    //   // Buscar moradores do prédio
+    //   const { data: residents, error: residentsError } = await supabase
+    //     .from('apartment_residents')
+    //     .select(`
+    //       profiles!inner(
+    //         id,
+    //         full_name,
+    //         expo_push_token
+    //       ),
+    //       apartments!inner(
+    //         building_id
+    //       )
+    //     `)
+    //     .eq('apartments.building_id', buildingId)
+    //     .not('profiles.expo_push_token', 'is', null);
 
-      if (residentsError) {
-        console.error('Erro ao buscar moradores:', residentsError);
-      }
+    //   if (residentsError) {
+    //     console.error('Erro ao buscar moradores:', residentsError);
+    //   }
 
-      // Apenas moradores recebem comunicados - porteiros removidos conforme solicitado
-      const allUsers = [
-        ...(residents?.map(r => r.profiles) || [])
-      ].filter(user => user.expo_push_token);
+    //   // Apenas moradores recebem comunicados - porteiros removidos conforme solicitado
+    //   const allUsers = [
+    //     ...(residents?.map(r => r.profiles) || [])
+    //   ].filter(user => user.expo_push_token);
 
-      console.log(`Enviando notificações para ${allUsers.length} usuários`);
+    //   console.log(`Enviando notificações para ${allUsers.length} usuários`);
 
-      // Enviar notificação para cada usuário
-      for (const user of allUsers) {
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title,
-              body,
-              data: {
-                type,
-                building_id: buildingId,
-                item_id: itemId,
-                user_id: user.id
-              },
-            },
-            trigger: null, // Imediato
-          });
+    //   // Enviar notificação para cada usuário
+    //   for (const user of allUsers) {
+    //     try {
+    //       await Notifications.scheduleNotificationAsync({
+    //         content: {
+    //           title,
+    //           body,
+    //           data: {
+    //             type,
+    //             building_id: buildingId,
+    //             item_id: itemId,
+    //             user_id: user.id
+    //           },
+    //         },
+    //         trigger: null, // Imediato
+    //       });
 
-          console.log(`📱 Notificação enviada para ${user.full_name || user.id}`);
-        } catch (pushError) {
-          console.error(`❌ Erro ao enviar push para usuário ${user.id}:`, pushError);
-        }
-      }
+    //       console.log(`📱 Notificação enviada para ${user.full_name || user.id}`);
+    //     } catch (pushError) {
+    //       console.error(`❌ Erro ao enviar push para usuário ${user.id}:`, pushError);
+    //     }
+    //   }
 
-      return allUsers.length;
-    } catch (error) {
-      console.error('❌ Erro geral ao enviar notificações push:', error);
-      return 0;
-    }
+    //   return allUsers.length;
+    // } catch (error) {
+    //   console.error('❌ Erro geral ao enviar notificações push:', error);
+    //   return 0;
+    // }
   };
 
   const handleSendCommunication = async () => {

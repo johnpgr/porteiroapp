@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { AppState } from 'react-native';
-import { useNotifications } from './useNotifications';
-import { useNotificationLogger } from './useNotificationLogger';
+// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+// import { useNotifications } from './useNotifications';
+// import { useNotificationLogger } from './useNotificationLogger';
 
 interface ScheduledReminder {
   id: string;
@@ -18,12 +19,13 @@ interface ScheduledReminder {
  * Implementa sistema de fallback para garantir disparos pontuais
  */
 export const useReminderScheduler = () => {
-  const { scheduleNotification, getScheduledNotifications } = useNotifications();
-  const { 
-    logFallbackTriggered,
-    stats,
-    generateDebugReport 
-  } = useNotificationLogger();
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const { scheduleNotification, getScheduledNotifications } = useNotifications();
+  // const { 
+  //   logFallbackTriggered,
+  //   stats,
+  //   generateDebugReport 
+  // } = useNotificationLogger();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const scheduledReminders = useRef<Map<string, ScheduledReminder>>(new Map());
   const lastCheck = useRef<Date>(new Date());
@@ -48,150 +50,174 @@ export const useReminderScheduler = () => {
     return timeDiff <= tolerance && now >= targetTime;
   };
 
-  // Disparar notificação imediatamente (fallback)
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const triggerImmediateNotification = async (reminder: ScheduledReminder, type: 'exact' | 'before') => {
+  //   try {
+  //     const title = `Lembrete: ${reminder.title}`;
+  //     const body = reminder.body;
+
+  //     await scheduleNotification({
+  //       id: `immediate_${type}_${reminder.id}_${Date.now()}`,
+  //       title,
+  //       body,
+  //       triggerDate: new Date(Date.now() + 1000), // 1 segundo no futuro
+  //       data: { ...reminder.data, type, immediate: true }
+  //     });
+
+  //     debugLog(`✅ Notificação ${type} disparada imediatamente para: ${reminder.title}`);
+  //   } catch (error) {
+  //     debugLog(`❌ Erro ao disparar notificação imediata:`, error);
+  //   }
+  // };
   const triggerImmediateNotification = async (reminder: ScheduledReminder, type: 'exact' | 'before') => {
-    try {
-      const title = `Lembrete: ${reminder.title}`;
-      const body = reminder.body;
-
-      await scheduleNotification({
-        id: `immediate_${type}_${reminder.id}_${Date.now()}`,
-        title,
-        body,
-        triggerDate: new Date(Date.now() + 1000), // 1 segundo no futuro
-        data: { ...reminder.data, type, immediate: true }
-      });
-
-      debugLog(`✅ Notificação ${type} disparada imediatamente para: ${reminder.title}`);
-    } catch (error) {
-      debugLog(`❌ Erro ao disparar notificação imediata:`, error);
-    }
+    // Função temporariamente desativada
+    debugLog(`Notificação ${type} seria disparada para: ${reminder.title}`);
   };
 
-  // Verificar lembretes pendentes e disparar se necessário
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const checkPendingReminders = useCallback(async () => {
+  //   const now = new Date();
+  //   debugLog(`Verificando lembretes pendentes...`);
+
+  //   try {
+  //     // Verificar notificações agendadas no sistema
+  //     const systemScheduled = await getScheduledNotifications();
+  //     debugLog(`Notificações no sistema: ${systemScheduled.length}`);
+
+  //     // Verificar cada lembrete registrado
+  //     for (const [reminderId, reminder] of scheduledReminders.current) {
+  //       let shouldRemove = false;
+        
+  //       // Verificar se o lembrete foi registrado há menos de 2 minutos (evitar disparo imediato)
+  //       const registeredAt = reminder.registeredAt?.getTime() ?? now.getTime();
+  //       const reminderAge = now.getTime() - registeredAt;
+  //       if (reminderAge < 120000) { // 2 minutos
+  //         debugLog(`⏳ Lembrete muito recente, aguardando: ${reminder.title}`);
+  //         continue;
+  //       }
+        
+  //       const customId = `lembrete_${reminder.id}`;
+  //       const hasSystemScheduled = systemScheduled.some(req => (req as any)?.content?.data?.customId === customId);
+        
+  //       // Verificar notificação antecipada (se configurada)
+  //       if (reminder.beforeTime && shouldTriggerNow(reminder.beforeTime)) {
+  //         if (!hasSystemScheduled) {
+  //           debugLog(`🚨 Disparando notificação antecipada (fallback) para: ${reminder.title}`);
+  //           await triggerImmediateNotification(reminder, 'before');
+  //           await logFallbackTriggered({
+  //             lembreteId: reminder.id,
+  //             type: 'before',
+  //             title: reminder.title,
+  //             body: reminder.body,
+  //             originalScheduledTime: reminder.beforeTime
+  //           });
+  //         } else {
+  //           debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (antes). Evitando fallback.`);
+  //         }
+  //         shouldRemove = true;
+  //       }
+  //       // Verificar notificação no horário exato (apenas se não disparou antecipada)
+  //       else if (reminder.exactTime && shouldTriggerNow(reminder.exactTime)) {
+  //         if (!hasSystemScheduled) {
+  //           debugLog(`🚨 Disparando notificação exata (fallback) para: ${reminder.title}`);
+  //           await triggerImmediateNotification(reminder, 'exact');
+  //           await logFallbackTriggered({
+  //             lembreteId: reminder.id,
+  //             type: 'exact',
+  //             title: reminder.title,
+  //             body: reminder.body,
+  //             originalScheduledTime: reminder.exactTime
+  //           });
+  //         } else {
+  //           debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (exata). Evitando fallback.`);
+  //         }
+  //         shouldRemove = true;
+  //       }
+        
+  //       // Remover lembrete após disparo ou decisão
+  //       if (shouldRemove) {
+  //         scheduledReminders.current.delete(reminderId);
+  //       }
+
+  //       // Remover lembretes muito antigos (mais de 1 hora passados)
+  //       const baseTime = reminder.exactTime || reminder.beforeTime;
+  //       if (baseTime && now.getTime() - baseTime.getTime() > 3600000) {
+  //         scheduledReminders.current.delete(reminderId);
+  //         debugLog(`🗑️ Removido lembrete expirado: ${reminder.title}`);
+  //       }
+  //     }
+
+  //     lastCheck.current = now;
+  //   } catch (error) {
+  //     debugLog(`❌ Erro na verificação de lembretes:`, error);
+  //   }
+  // }, [getScheduledNotifications, scheduleNotification]);
   const checkPendingReminders = useCallback(async () => {
-    const now = new Date();
-    debugLog(`Verificando lembretes pendentes...`);
+    // Função temporariamente desativada
+    debugLog('Verificação de lembretes pendentes temporariamente desativada');
+  }, []);
 
-    try {
-      // Verificar notificações agendadas no sistema
-      const systemScheduled = await getScheduledNotifications();
-      debugLog(`Notificações no sistema: ${systemScheduled.length}`);
-
-      // Verificar cada lembrete registrado
-      for (const [reminderId, reminder] of scheduledReminders.current) {
-        let shouldRemove = false;
-        
-        // Verificar se o lembrete foi registrado há menos de 2 minutos (evitar disparo imediato)
-        const registeredAt = reminder.registeredAt?.getTime() ?? now.getTime();
-        const reminderAge = now.getTime() - registeredAt;
-        if (reminderAge < 120000) { // 2 minutos
-          debugLog(`⏳ Lembrete muito recente, aguardando: ${reminder.title}`);
-          continue;
-        }
-        
-        const customId = `lembrete_${reminder.id}`;
-        const hasSystemScheduled = systemScheduled.some(req => (req as any)?.content?.data?.customId === customId);
-        
-        // Verificar notificação antecipada (se configurada)
-        if (reminder.beforeTime && shouldTriggerNow(reminder.beforeTime)) {
-          if (!hasSystemScheduled) {
-            debugLog(`🚨 Disparando notificação antecipada (fallback) para: ${reminder.title}`);
-            await triggerImmediateNotification(reminder, 'before');
-            await logFallbackTriggered({
-              lembreteId: reminder.id,
-              type: 'before',
-              title: reminder.title,
-              body: reminder.body,
-              originalScheduledTime: reminder.beforeTime
-            });
-          } else {
-            debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (antes). Evitando fallback.`);
-          }
-          shouldRemove = true;
-        }
-        // Verificar notificação no horário exato (apenas se não disparou antecipada)
-        else if (reminder.exactTime && shouldTriggerNow(reminder.exactTime)) {
-          if (!hasSystemScheduled) {
-            debugLog(`🚨 Disparando notificação exata (fallback) para: ${reminder.title}`);
-            await triggerImmediateNotification(reminder, 'exact');
-            await logFallbackTriggered({
-              lembreteId: reminder.id,
-              type: 'exact',
-              title: reminder.title,
-              body: reminder.body,
-              originalScheduledTime: reminder.exactTime
-            });
-          } else {
-            debugLog(`⏭️ Sistema já possui notificação agendada para ${reminder.title} (exata). Evitando fallback.`);
-          }
-          shouldRemove = true;
-        }
-        
-        // Remover lembrete após disparo ou decisão
-        if (shouldRemove) {
-          scheduledReminders.current.delete(reminderId);
-        }
-
-        // Remover lembretes muito antigos (mais de 1 hora passados)
-        const baseTime = reminder.exactTime || reminder.beforeTime;
-        if (baseTime && now.getTime() - baseTime.getTime() > 3600000) {
-          scheduledReminders.current.delete(reminderId);
-          debugLog(`🗑️ Removido lembrete expirado: ${reminder.title}`);
-        }
-      }
-
-      lastCheck.current = now;
-    } catch (error) {
-      debugLog(`❌ Erro na verificação de lembretes:`, error);
-    }
-  }, [getScheduledNotifications, scheduleNotification]);
-
-  // Registrar um novo lembrete para monitoramento
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const registerReminder = useCallback(async (reminder: ScheduledReminder) => {
+  //   scheduledReminders.current.set(reminder.id, { ...reminder, registeredAt: new Date() });
+    
+  //   // Apenas registrar internamente para monitoramento; evitar duplicar logs aqui
+  //   debugLog(`📝 Lembrete registrado para monitoramento:`, {
+  //     id: reminder.id,
+  //     title: reminder.title,
+  //     exactTime: reminder.exactTime?.toLocaleString?.() || '—',
+  //     beforeTime: reminder.beforeTime?.toLocaleString?.() || '—'
+  //   });
+  // }, []);
   const registerReminder = useCallback(async (reminder: ScheduledReminder) => {
-    scheduledReminders.current.set(reminder.id, { ...reminder, registeredAt: new Date() });
-    
-    // Apenas registrar internamente para monitoramento; evitar duplicar logs aqui
-    debugLog(`📝 Lembrete registrado para monitoramento:`, {
-      id: reminder.id,
-      title: reminder.title,
-      exactTime: reminder.exactTime?.toLocaleString?.() || '—',
-      beforeTime: reminder.beforeTime?.toLocaleString?.() || '—'
-    });
+    // Função temporariamente desativada
+    debugLog(`Registro de lembrete temporariamente desativado: ${reminder.title}`);
   }, []);
 
-  // Remover lembrete do monitoramento
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const unregisterReminder = useCallback((reminderId: string) => {
+  //   const removed = scheduledReminders.current.delete(reminderId);
+  //   if (removed) {
+  //     debugLog(`🗑️ Lembrete removido do monitoramento: ${reminderId}`);
+  //   }
+  // }, []);
   const unregisterReminder = useCallback((reminderId: string) => {
-    const removed = scheduledReminders.current.delete(reminderId);
-    if (removed) {
-      debugLog(`🗑️ Lembrete removido do monitoramento: ${reminderId}`);
-    }
+    // Função temporariamente desativada
+    debugLog(`Cancelamento de monitoramento temporariamente desativado: ${reminderId}`);
   }, []);
 
-  // Iniciar monitoramento em tempo real
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const startRealTimeMonitoring = useCallback(() => {
+  //   if (intervalRef.current) {
+  //     clearInterval(intervalRef.current);
+  //   }
+
+  //   debugLog('🚀 Iniciando monitoramento em tempo real (verificação a cada 30s)');
+    
+  //   // Verificação inicial
+  //   checkPendingReminders();
+    
+  //   // Verificação periódica a cada 30 segundos
+  //   intervalRef.current = setInterval(() => {
+  //     checkPendingReminders();
+  //   }, 30000);
+  // }, [checkPendingReminders]);
   const startRealTimeMonitoring = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
+    // Função temporariamente desativada
+    debugLog('Monitoramento em tempo real temporariamente desativado');
+  }, []);
 
-    debugLog('🚀 Iniciando monitoramento em tempo real (verificação a cada 30s)');
-    
-    // Verificação inicial
-    checkPendingReminders();
-    
-    // Verificação periódica a cada 30 segundos
-    intervalRef.current = setInterval(() => {
-      checkPendingReminders();
-    }, 30000);
-  }, [checkPendingReminders]);
-
-  // Parar monitoramento
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const stopRealTimeMonitoring = useCallback(() => {
+  //   if (intervalRef.current) {
+  //     clearInterval(intervalRef.current);
+  //     intervalRef.current = null;
+  //     debugLog('⏹️ Monitoramento em tempo real parado');
+  //   }
+  // }, []);
   const stopRealTimeMonitoring = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-      debugLog('⏹️ Monitoramento em tempo real parado');
-    }
+    // Função temporariamente desativada
+    debugLog('Parada de monitoramento temporariamente desativada');
   }, []);
 
   // Obter estatísticas do scheduler

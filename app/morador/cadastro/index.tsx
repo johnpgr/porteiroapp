@@ -781,6 +781,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

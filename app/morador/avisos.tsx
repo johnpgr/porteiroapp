@@ -12,7 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
-import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
+// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+// import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
 
 
 interface Communication {
@@ -66,8 +67,9 @@ const AvisosTab = () => {
   const votesChannelRef = useRef<any>(null);
   const isSubscribedRef = useRef(false);
   
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Ativar notificações automáticas para avisos e enquetes
-  const { startListening, stopListening, isListening } = useAvisosNotifications();
+  // const { startListening, stopListening, isListening } = useAvisosNotifications();
 
   useEffect(() => {
     fetchCommunications();
@@ -76,17 +78,19 @@ const AvisosTab = () => {
   useEffect(() => {
     if (user) {
       fetchUserApartment();
+      // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
       // Iniciar monitoramento de notificações
-      startListening();
+      // startListening();
     }
     
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
     // Cleanup: parar monitoramento quando componente for desmontado
-    return () => {
-      if (isListening) {
-        stopListening();
-      }
-    };
-  }, [user?.id, startListening, stopListening, isListening]);
+    // return () => {
+    //   if (isListening) {
+    //     stopListening();
+    //   }
+    // };
+  }, [user?.id]);
 
   useEffect(() => {
     if (userApartment) {

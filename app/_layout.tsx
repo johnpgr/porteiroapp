@@ -29,6 +29,11 @@ export default function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+    // Sistema de notificações comentado para desativar push notifications dos lembretes
+    // Para reativar: descomente o código abaixo
+    
+    /*
     const initializeApp = async () => {
       try {
         setLoadingMessage('Inicializando notificações...');
@@ -66,6 +71,12 @@ export default function RootLayout() {
     return () => {
       notificationService.stopListening();
     };
+    */
+    
+    // Inicialização simplificada sem notificações
+    if (loaded) {
+      setIsAppReady(true);
+    }
   }, [loaded]);
 
 

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
-import { useNotifications } from './useNotifications';
-import { useReminderScheduler } from './useReminderScheduler';
-import { useNotificationLogger } from './useNotificationLogger';
-import { useTimeValidator } from './useTimeValidator';
+// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+// import { useNotifications } from './useNotifications';
+// import { useReminderScheduler } from './useReminderScheduler';
+// import { useNotificationLogger } from './useNotificationLogger';
+// import { useTimeValidator } from './useTimeValidator';
 
 export interface Lembrete {
   id: string;
@@ -50,10 +51,11 @@ export interface UpdateLembreteData {
 
 export function useLembretes() {
   const { user } = useAuth();
-  const { scheduleNotification, cancelNotification } = useNotifications();
-  const { registerReminder, unregisterReminder, getSchedulerStats } = useReminderScheduler();
-  const { logScheduled, logCancelled, loggerStats, generateDebugReport } = useNotificationLogger();
-  const { addValidationRule, removeRulesByLembrete, stats: validationStats } = useTimeValidator();
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const { scheduleNotification, cancelNotification } = useNotifications();
+  // const { registerReminder, unregisterReminder, getSchedulerStats } = useReminderScheduler();
+  // const { logScheduled, logCancelled, loggerStats, generateDebugReport } = useNotificationLogger();
+  // const { addValidationRule, removeRulesByLembrete, stats: validationStats } = useTimeValidator();
   const [lembretes, setLembretes] = useState<Lembrete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,117 +74,129 @@ export function useLembretes() {
     return notificationDate;
   };
 
-  // Agendar uma única notificação para um lembrete baseada na antecedência configurada
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const scheduleReminderNotification = useCallback(async (lembrete: Lembrete): Promise<void> => {
+  //   try {
+  //     const now = new Date();
+  //     const dataVencimento = new Date(lembrete.data_vencimento);
+      
+  //     // Calcular horário da notificação baseado na antecedência (em minutos)
+  //     const antecedenciaMs = lembrete.antecedencia_alerta * 60 * 1000;
+  //     const notificationTime = lembrete.antecedencia_alerta > 0 
+  //       ? new Date(dataVencimento.getTime() - antecedenciaMs)
+  //       : dataVencimento;
+      
+  //     const notificationType = lembrete.antecedencia_alerta > 0 ? 'before' : 'exact';
+      
+  //     // Só agendar se a notificação for no futuro
+  //     if (notificationTime > now) {
+  //       // Registrar no scheduler para monitoramento em tempo real
+  //       registerReminder({
+  //         id: lembrete.id,
+  //         title: lembrete.titulo,
+  //         body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
+  //         exactTime: notificationType === 'exact' ? dataVencimento : undefined,
+  //         beforeTime: notificationType === 'before' ? notificationTime : undefined,
+  //         data: {
+  //           lembreteId: lembrete.id,
+  //           categoria: lembrete.categoria,
+  //           prioridade: lembrete.prioridade
+  //         }
+  //       });
+        
+  //       await scheduleNotification({
+  //         id: `lembrete_${lembrete.id}`,
+  //         title: `Lembrete: ${lembrete.titulo}`,
+  //         body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
+  //         triggerDate: notificationTime,
+  //         data: {
+  //           lembreteId: lembrete.id,
+  //           categoria: lembrete.categoria,
+  //           prioridade: lembrete.prioridade,
+  //           type: notificationType
+  //         }
+  //       });
+        
+  //       // Log da notificação agendada
+  //       await logScheduled({
+  //         id: `lembrete_${lembrete.id}`,
+  //         lembreteId: lembrete.id,
+  //         type: notificationType,
+  //         scheduledTime: notificationTime,
+  //         title: lembrete.titulo,
+  //         body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`
+  //       });
+        
+  //       // Adicionar regra de validação
+  //       addValidationRule({
+  //         id: `lembrete_${lembrete.id}`,
+  //         lembreteId: lembrete.id,
+  //         type: notificationType,
+  //         scheduledTime: notificationTime,
+  //         title: lembrete.titulo,
+  //         body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
+  //         data: {
+  //           lembreteId: lembrete.id,
+  //           categoria: lembrete.categoria,
+  //           prioridade: lembrete.prioridade,
+  //           type: notificationType
+  //         }
+  //       });
+        
+  //       console.log(`✅ Notificação agendada para ${lembrete.titulo} em ${notificationTime.toLocaleString()} (${notificationType})`);
+  //     }
+  //   } catch (error) {
+  //     logError('Erro ao agendar notificação:', error);
+  //   }
+  // }, [registerReminder, scheduleNotification, logScheduled, addValidationRule]);
   const scheduleReminderNotification = useCallback(async (lembrete: Lembrete): Promise<void> => {
-    try {
-      const now = new Date();
-      const dataVencimento = new Date(lembrete.data_vencimento);
-      
-      // Calcular horário da notificação baseado na antecedência (em minutos)
-      const antecedenciaMs = lembrete.antecedencia_alerta * 60 * 1000;
-      const notificationTime = lembrete.antecedencia_alerta > 0 
-        ? new Date(dataVencimento.getTime() - antecedenciaMs)
-        : dataVencimento;
-      
-      const notificationType = lembrete.antecedencia_alerta > 0 ? 'before' : 'exact';
-      
-      // Só agendar se a notificação for no futuro
-      if (notificationTime > now) {
-        // Registrar no scheduler para monitoramento em tempo real
-        registerReminder({
-          id: lembrete.id,
-          title: lembrete.titulo,
-          body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
-          exactTime: notificationType === 'exact' ? dataVencimento : undefined,
-          beforeTime: notificationType === 'before' ? notificationTime : undefined,
-          data: {
-            lembreteId: lembrete.id,
-            categoria: lembrete.categoria,
-            prioridade: lembrete.prioridade
-          }
-        });
-        
-        await scheduleNotification({
-          id: `lembrete_${lembrete.id}`,
-          title: `Lembrete: ${lembrete.titulo}`,
-          body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
-          triggerDate: notificationTime,
-          data: {
-            lembreteId: lembrete.id,
-            categoria: lembrete.categoria,
-            prioridade: lembrete.prioridade,
-            type: notificationType
-          }
-        });
-        
-        // Log da notificação agendada
-        await logScheduled({
-          id: `lembrete_${lembrete.id}`,
-          lembreteId: lembrete.id,
-          type: notificationType,
-          scheduledTime: notificationTime,
-          title: lembrete.titulo,
-          body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`
-        });
-        
-        // Adicionar regra de validação
-        addValidationRule({
-          id: `lembrete_${lembrete.id}`,
-          lembreteId: lembrete.id,
-          type: notificationType,
-          scheduledTime: notificationTime,
-          title: lembrete.titulo,
-          body: lembrete.descricao || `Categoria: ${lembrete.categoria} | Prioridade: ${lembrete.prioridade}`,
-          data: {
-            lembreteId: lembrete.id,
-            categoria: lembrete.categoria,
-            prioridade: lembrete.prioridade,
-            type: notificationType
-          }
-        });
-        
-        console.log(`✅ Notificação agendada para ${lembrete.titulo} em ${notificationTime.toLocaleString()} (${notificationType})`);
-      }
-    } catch (error) {
-      logError('Erro ao agendar notificação:', error);
-    }
-  }, [registerReminder, scheduleNotification, logScheduled, addValidationRule]);
+    // Função temporariamente desativada
+    console.log(`Notificação seria agendada para: ${lembrete.titulo}`);
+  }, []);
 
-  // Cancelar a notificação de um lembrete
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const cancelReminderNotification = useCallback(async (lembreteId: string): Promise<void> => {
+  //   try {
+  //     // Remover do scheduler
+  //     unregisterReminder(lembreteId);
+  //     
+  //     // Remover regras de validação
+  //     removeRulesByLembrete(lembreteId);
+  //     
+  //     // Cancelar notificação agendada
+  //     await cancelNotification(`lembrete_${lembreteId}`);
+  //     
+  //     // Log do cancelamento
+  //     await logCancelled(lembreteId);
+  //     
+  //     console.log(`✅ Notificação cancelada para lembrete ${lembreteId}`);
+  //   } catch (error) {
+  //     logError('Erro ao cancelar notificação:', error);
+  //   }
+  // }, [unregisterReminder, removeRulesByLembrete, cancelNotification, logCancelled]);
   const cancelReminderNotification = useCallback(async (lembreteId: string): Promise<void> => {
-    try {
-      // Remover do scheduler
-      unregisterReminder(lembreteId);
-      
-      // Remover regras de validação
-      removeRulesByLembrete(lembreteId);
-      
-      // Cancelar notificação agendada
-      await cancelNotification(`lembrete_${lembreteId}`);
-      
-      // Log do cancelamento
-      await logCancelled(lembreteId);
-      
-      console.log(`✅ Notificação cancelada para lembrete ${lembreteId}`);
-    } catch (error) {
-      logError('Erro ao cancelar notificação:', error);
-    }
-  }, [unregisterReminder, removeRulesByLembrete, cancelNotification, logCancelled]);
+    // Função temporariamente desativada
+    console.log(`Notificação seria cancelada para lembrete: ${lembreteId}`);
+  }, []);
 
-  // Reagendar notificações para lembretes pendentes
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const rescheduleNotifications = useCallback(async (lembretes: Lembrete[]): Promise<void> => {
+  //   try {
+  //     const lembretesPendentes = lembretes.filter(lembrete => lembrete.status === 'pendente');
+  //     
+  //     for (const lembrete of lembretesPendentes) {
+  //       await scheduleReminderNotification(lembrete);
+  //     }
+  //     
+  //     console.log(`${lembretesPendentes.length} notificações reagendadas`);
+  //   } catch (error) {
+  //     logError('Erro ao reagendar notificações:', error);
+  //   }
+  // }, [scheduleReminderNotification]);
   const rescheduleNotifications = useCallback(async (lembretes: Lembrete[]): Promise<void> => {
-    try {
-      const lembretesPendentes = lembretes.filter(lembrete => lembrete.status === 'pendente');
-      
-      for (const lembrete of lembretesPendentes) {
-        await scheduleReminderNotification(lembrete);
-      }
-      
-      console.log(`${lembretesPendentes.length} notificações reagendadas`);
-    } catch (error) {
-      logError('Erro ao reagendar notificações:', error);
-    }
-  }, [scheduleReminderNotification]);
+    // Função temporariamente desativada
+    console.log('Reagendamento de notificações temporariamente desativado');
+  }, []);
 
   // Carregar lembretes
   const loadLembretes = useCallback(async () => {
@@ -254,8 +268,8 @@ export function useLembretes() {
           sindico_id: user.id
         });
 
-      // Agendar notificação para o novo lembrete
-      await scheduleReminderNotification(newLembrete);
+      // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+      // await scheduleReminderNotification(newLembrete);
 
       // Atualizar lista local
       setLembretes(prev => [...prev, newLembrete].sort((a, b) => 
@@ -302,13 +316,13 @@ export function useLembretes() {
           sindico_id: user.id
         });
 
-      // Cancelar notificação anterior e agendar nova se necessário
-      await cancelReminderNotification(id);
+      // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+      // await cancelReminderNotification(id);
       
       // Se o lembrete ainda está pendente, reagendar notificação
-      if (updatedLembrete.status === 'pendente') {
-        await scheduleReminderNotification(updatedLembrete);
-      }
+      // if (updatedLembrete.status === 'pendente') {
+      //   await scheduleReminderNotification(updatedLembrete);
+      // }
 
       // Atualizar lista local
       setLembretes(prev => 
@@ -325,7 +339,7 @@ export function useLembretes() {
       logError('Erro ao atualizar lembrete:', err);
       return { success: false, error: errorMessage };
     }
-  }, [user, cancelReminderNotification]);
+  }, [user]); // cancelReminderNotification removido temporariamente
 
   // Deletar lembrete
   const deleteLembrete = useCallback(async (id: string): Promise<{ success: boolean; error?: string }> => {
@@ -344,8 +358,8 @@ export function useLembretes() {
         throw deleteError;
       }
 
-      // Cancelar notificação do lembrete deletado
-      await cancelReminderNotification(id);
+      // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+      // await cancelReminderNotification(id);
 
       // Remover da lista local
       setLembretes(prev => prev.filter(lembrete => lembrete.id !== id));
@@ -480,10 +494,11 @@ export function useLembretes() {
     getLembretesByPrioridade,
     getLembretesByCategoria,
     getLembretesProximos,
-    refreshLembretes: loadLembretes,rescheduleNotifications,
-    // Estatísticas e debug
-    notificationStats: loggerStats,
-    validationStats,
-    generateNotificationReport: generateDebugReport
+    refreshLembretes: loadLembretes,
+    rescheduleNotifications,
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+    // notificationStats: loggerStats,
+    // validationStats,
+    // generateNotificationReport: generateDebugReport
   };
 }
