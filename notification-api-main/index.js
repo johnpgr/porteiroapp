@@ -14,6 +14,7 @@ const residentRegistrationRoutes = require('./src/routes/residentRegistration');
 const completeRegistrationRoutes = require('./src/routes/completeRegistration');
 const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
 const whatsappWebhookRoutes = require('./src/routes/whatsappWebhook');
+const interactiveNotificationsRoutes = require('./src/routes/interactiveNotifications');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,7 +65,10 @@ app.get('/', (req, res) => {
       sendVisitorWhatsApp: 'POST /api/send-visitor-whatsapp',
       sendVisitorWaitingNotification: 'POST /api/send-visitor-waiting-notification',
       registerResident: 'POST /api/register-resident',
-      completeProfile: 'POST /api/complete-profile'
+      completeProfile: 'POST /api/complete-profile',
+      interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
+      customButtons: 'POST /api/interactive/send-custom-buttons',
+      customList: 'POST /api/interactive/send-custom-list'
     },
     version: '1.0.0'
   });
@@ -77,7 +81,8 @@ app.use('/api', sendVisitorWaitingNotificationRoutes);
 app.use('/api', residentRegistrationRoutes);
 app.use('/api', completeRegistrationRoutes);
 app.use('/api', visitorAuthorizationRoutes);
-app.use('/api', whatsappWebhookRoutes);
+app.use('/webhook', whatsappWebhookRoutes);
+app.use('/api/interactive', interactiveNotificationsRoutes);
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
@@ -100,7 +105,10 @@ app.use('*', (req, res) => {
       sendVisitorWhatsApp: 'POST /api/send-visitor-whatsapp',
       sendVisitorWaitingNotification: 'POST /api/send-visitor-waiting-notification',
       registerResident: 'POST /api/register-resident',
-      completeProfile: 'POST /api/complete-profile'
+      completeProfile: 'POST /api/complete-profile',
+      interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
+      customButtons: 'POST /api/interactive/send-custom-buttons',
+      customList: 'POST /api/interactive/send-custom-list'
     }
   });
 });

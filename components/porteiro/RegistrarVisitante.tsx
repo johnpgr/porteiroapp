@@ -710,7 +710,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               apartment_residents!inner(
                 profiles!inner(
                   full_name,
-                  phone
+                  phone,
+                  email
                 ),
                 is_owner
               ),
@@ -731,6 +732,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 visitorName: nomeVisitante,
                 residentName: resident.profiles.full_name,
                 residentPhone: resident.profiles.phone,
+                residentEmail: resident.profiles.email || '',
                 building: building.name,
                 apartment: selectedApartment.number
               });

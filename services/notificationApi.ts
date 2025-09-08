@@ -46,6 +46,7 @@ interface SendVisitorAuthorizationRequest {
   visitorName: string;
   residentName: string;
   residentPhone: string;
+  residentEmail: string;
   building: string;
   apartment: string;
 }

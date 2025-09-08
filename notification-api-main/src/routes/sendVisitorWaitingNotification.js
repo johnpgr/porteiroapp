@@ -1,6 +1,10 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-const { sendWhatsApp } = require('../services/whatsappService');
+const { 
+  sendWhatsApp, 
+  sendWhatsAppWithButtons,
+  generateVisitorAuthorizationMessageWithButtons 
+} = require('../services/whatsappService');
 const router = express.Router();
 
 // Configuração do Supabase
@@ -17,7 +21,16 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
     console.log('📱 Recebida solicitação de notificação WhatsApp para morador:', req.body);
     
     // Validar dados de entrada
-    const { visitor_name, resident_phone, resident_name, building, apartment, visitor_log_id } = req.body;
+    const { 
+      visitor_name, 
+      resident_phone, 
+      resident_name, 
+      building, 
+      apartment, 
+      visitor_log_id,
+      use_interactive_buttons = true, // Por padrão usar botões interativos
+      visit_type = 'visitor' // Tipo de visita: visitor, delivery, service
+    } = req.body;
     
     if (!visitor_name || !resident_phone || !resident_name || !building || !apartment) {
       console.error('❌ Dados obrigatórios faltando');
@@ -46,28 +59,75 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       visitor_log_id
     });
 
-    // Preparar URL de regularização
+    // Definir URL de regularização
     const regularizationUrl = `porteiroapp://login`;
-
-    // Preparar template de mensagem WhatsApp
-    const messageTemplate = `📢 James Avisa
-Prezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.
-
-Visitante: ${visitor_name}
-Prédio: ${building}
-Apartamento: ${apartment}
-
-👉 Acesse ${regularizationUrl} para verificar os detalhes e autorizar ou recusar a entrada.`;
-
-    console.log('📤 Enviando mensagem WhatsApp...');
-    console.log('📱 Para:', resident_phone);
-    console.log('💬 Mensagem:', messageTemplate);
-
-    // Enviar mensagem via WhatsApp
-    const whatsappResult = await sendWhatsApp({
-      to: resident_phone,
-      message: messageTemplate
-    });
+    let whatsappResult;
+    
+    if (use_interactive_buttons) {
+      // Gerar token único para esta notificação
+      const tokenId = `${visitor_log_id}_${Date.now()}`;
+      
+      // Criar registro do token de autorização
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('visitor_authorization_tokens')
+        .insert({
+          visitor_log_id: visitor_log_id,
+          visitor_name: visitor_name,
+          resident_phone: resident_phone,
+          resident_name: resident_name,
+          apartment_number: apartment,
+          building: building,
+          expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
+          used: false
+        })
+        .select()
+        .single();
+        
+      if (tokenError) {
+        console.warn('⚠️ Erro ao criar token de autorização:', tokenError);
+        // Fallback para mensagem tradicional
+        const regularizationUrl = `porteiroapp://login`;
+        const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse ${regularizationUrl} para verificar os detalhes e autorizar ou recusar a entrada.`;
+        
+        whatsappResult = await sendWhatsApp({
+          to: resident_phone,
+          message: messageTemplate
+        });
+      } else {
+        // Gerar mensagem com botões interativos
+        const { message, buttons } = generateVisitorAuthorizationMessageWithButtons(
+          visitor_name,
+          apartment,
+          visit_type
+        );
+        
+        console.log('📤 Enviando mensagem com botões interativos...');
+        console.log('📱 Para:', resident_phone);
+        console.log('💬 Mensagem:', message);
+        console.log('🔘 Botões:', buttons);
+        
+        // Enviar mensagem com botões
+        whatsappResult = await sendWhatsAppWithButtons(
+          resident_phone,
+          message,
+          buttons,
+          tokenData.id
+        );
+      }
+    } else {
+      // Usar mensagem tradicional sem botões
+      const regularizationUrl = `porteiroapp://login`;
+      const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse ${regularizationUrl} para verificar os detalhes e autorizar ou recusar a entrada.`;
+      
+      console.log('📤 Enviando mensagem WhatsApp tradicional...');
+      console.log('📱 Para:', resident_phone);
+      console.log('💬 Mensagem:', messageTemplate);
+      
+      whatsappResult = await sendWhatsApp({
+        to: resident_phone,
+        message: messageTemplate
+      });
+    }
 
     if (!whatsappResult.success) {
       console.error('❌ Erro ao enviar WhatsApp:', whatsappResult.error);
