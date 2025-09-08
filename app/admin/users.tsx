@@ -894,63 +894,102 @@ export default function UsersManagement() {
         throw new Error('Nenhum morador válido para processar');
       }
 
-      // Segunda fase: Inserção em lote dos perfis
-      setProcessingStatus(`Criando ${validatedResidents.length} perfis em lote...`);
-      const usersToInsert = validatedResidents.map(r => r.userData);
-      
-      const { data: insertedUsers, error: batchError } = await supabase
-        .from('profiles')
-        .insert(usersToInsert)
-        .select();
-
-      if (batchError) {
-        console.error('❌ [DEBUG] Erro na inserção em lote:', batchError);
-        throw new Error(`Erro na criação em lote: ${batchError.message}`);
-      }
-
-      console.log('✅ [DEBUG] Perfis criados em lote:', insertedUsers?.length);
-
-      // Terceira fase: Processamento de senhas temporárias
-      setProcessingStatus('Gerando senhas temporárias...');
+      // Segunda fase: Criação individual com sequência correta (auth.users -> profiles -> temporary_passwords)
+      setProcessingStatus(`Processando ${validatedResidents.length} usuários individualmente...`);
       const usersWithPasswords = [];
       
       for (let i = 0; i < validatedResidents.length; i++) {
         const resident = validatedResidents[i];
-        const insertedUser = insertedUsers?.[i];
-        
-        if (!insertedUser) {
-          errorCount++;
-          errors.push(`${resident.name}: Erro ao obter dados do usuário criado`);
-          continue;
-        }
         
         try {
-          console.log('🔐 [DEBUG] Gerando senha temporária para:', resident.name);
+          console.log(`🔐 [DEBUG] === INICIANDO PROCESSAMENTO ${i + 1}/${validatedResidents.length}: ${resident.name} ===`);
+          
+          // Passo 1: Gerar senha temporária
+          console.log('🔐 [DEBUG] Passo 1: Gerando senha temporária para:', resident.name);
           const temporaryPassword = generateTemporaryPassword();
           const hashedPassword = await hashPassword(temporaryPassword);
+          console.log('🔐 [DEBUG] Senha gerada:', temporaryPassword, 'Hash:', hashedPassword.substring(0, 10) + '...');
           
-          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.formattedPhone);
+          // Passo 2: Criar usuário no Supabase Auth PRIMEIRO
+          console.log('🔐 [DEBUG] Passo 2: Criando usuário no auth.users para:', resident.name);
+          console.log('🔐 [DEBUG] Email:', resident.email.trim(), 'Senha:', temporaryPassword);
           
-          const { error: updateError } = await supabase
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: resident.email.trim(),
+            password: temporaryPassword,
+            email_confirm: true,
+            user_metadata: {
+              full_name: resident.name.trim(),
+              user_type: 'morador'
+            }
+          });
+
+          if (authError) {
+            console.error('❌ [DEBUG] ERRO no auth.users para', resident.name, ':', authError);
+            console.error('❌ [DEBUG] Detalhes do erro:', JSON.stringify(authError, null, 2));
+            throw new Error(`Erro ao criar login: ${authError.message}`);
+          }
+
+          if (!authData.user) {
+            console.error('❌ [DEBUG] authData.user é null para:', resident.name);
+            throw new Error('Falha ao criar usuário de autenticação - dados nulos');
+          }
+
+          console.log('✅ [DEBUG] Passo 2 CONCLUÍDO - Auth User ID:', authData.user.id);
+          console.log('✅ [DEBUG] Auth User Email:', authData.user.email);
+          
+          // Passo 3: Criar perfil com user_id do auth
+          console.log('🔐 [DEBUG] Passo 3: Criando perfil para:', resident.name);
+          const profileData = {
+            ...resident.userData,
+            user_id: authData.user.id,
+            temporary_password_used: false
+          };
+          
+          const { data: insertedUser, error: profileError } = await supabase
             .from('profiles')
-            .update({ temporary_password_used: false })
-            .eq('id', insertedUser.id);
+            .insert(profileData)
+            .select()
+            .single();
           
-          if (updateError) {
-            console.error('❌ [DEBUG] Erro ao atualizar flag temporary_password_used:', updateError);
-            throw updateError;
+          if (profileError) {
+            console.error('❌ [DEBUG] ERRO ao criar perfil para', resident.name, ':', profileError);
+            // Se falhar, deletar o usuário do auth para evitar inconsistência
+            try {
+              await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+              console.log('🔄 [DEBUG] Usuário do auth deletado devido ao erro no perfil');
+            } catch (deleteError) {
+              console.error('❌ [DEBUG] Erro ao deletar usuário do auth:', deleteError);
+            }
+            throw new Error(`Erro ao criar perfil: ${profileError.message}`);
           }
           
-          insertedUser.temporary_password = temporaryPassword;
-          usersWithPasswords.push({ user: insertedUser, resident });
-          console.log('✅ [DEBUG] Senha temporária configurada para:', resident.name);
+          console.log('✅ [DEBUG] Passo 3 CONCLUÍDO - Profile ID:', insertedUser.id);
           
-        } catch (passwordError) {
-          console.error('❌ [DEBUG] Erro ao gerar senha temporária:', passwordError);
-          errors.push(`${resident.name}: Problema ao gerar senha temporária`);
-          usersWithPasswords.push({ user: insertedUser, resident }); // Incluir mesmo com erro de senha
+          // Passo 4: Armazenar senha temporária
+          console.log('🔐 [DEBUG] Passo 4: Armazenando senha temporária para:', resident.name);
+          await storeTemporaryPassword(insertedUser.id, temporaryPassword, hashedPassword, resident.formattedPhone);
+          console.log('✅ [DEBUG] Passo 4 CONCLUÍDO - Senha temporária armazenada');
+          
+          // Adicionar dados extras para uso posterior
+          insertedUser.temporary_password = temporaryPassword;
+          insertedUser.user_id = authData.user.id;
+          usersWithPasswords.push({ user: insertedUser, resident });
+          
+          console.log(`✅ [DEBUG] === USUÁRIO ${i + 1} PROCESSADO COM SUCESSO: ${resident.name} ===`);
+          console.log('✅ [DEBUG] Auth ID:', authData.user.id, 'Profile ID:', insertedUser.id, 'Senha:', temporaryPassword);
+          
+        } catch (userError) {
+          console.error(`❌ [DEBUG] === ERRO NO USUÁRIO ${i + 1}: ${resident.name} ===`);
+          console.error('❌ [DEBUG] Erro completo:', userError);
+          errorCount++;
+          errors.push(`${resident.name}: ${userError instanceof Error ? userError.message : 'Erro na configuração de autenticação'}`);
         }
       }
+      
+      console.log(`🔐 [DEBUG] === RESUMO DA FASE 2 ===`);
+      console.log(`🔐 [DEBUG] Usuários processados com sucesso: ${usersWithPasswords.length}`);
+      console.log(`🔐 [DEBUG] Usuários com erro: ${errorCount}`);
 
       // Quarta fase: Verificação de apartamentos existentes
       setProcessingStatus('Verificando apartamentos...');
@@ -1050,6 +1089,17 @@ export default function UsersManagement() {
                 .eq('id', apartmentId)
                 .single();
 
+              // Buscar senha temporária do usuário
+              const { data: passwordData } = await supabase
+                .from('temporary_passwords')
+                .select('plain_password')
+                .eq('profile_id', user.id)
+                .eq('used', false)
+                .gt('expires_at', new Date().toISOString())
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
               if (apartment && apartment.buildings) {
                 whatsappData.push({
                   name: user.full_name,
@@ -1057,6 +1107,7 @@ export default function UsersManagement() {
                   building: apartment.buildings.name,
                   apartment: apartment.number,
                   profile_id: user.id,
+                  temporaryPassword: passwordData?.plain_password || 'Senha não encontrada',
                 });
               }
             } catch (dataError) {
@@ -1451,7 +1502,14 @@ export default function UsersManagement() {
               throw apartmentError;
             }
 
-            // Segundo, remover da tabela profiles
+            // Segundo, buscar o user_id do auth.users antes de remover o perfil
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('user_id')
+              .eq('id', userId)
+              .single();
+
+            // Terceiro, remover da tabela profiles
             const { error: profileError } = await supabase
               .from('profiles')
               .delete()
@@ -1462,14 +1520,33 @@ export default function UsersManagement() {
               throw profileError;
             }
 
-            // Terceiro, remover da tabela auth.users usando cliente admin
-            const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-
-            if (authError) {
-              console.error('Erro ao remover usuário da auth.users:', authError);
-              // Não lançar erro aqui pois o perfil já foi removido
-              // Apenas logar o erro para debug
-              console.warn('Usuário removido do profiles mas falha na remoção do auth.users');
+            // Se encontrou user_id, tentar remover do auth.users
+            if (profileData?.user_id) {
+              try {
+                // Verificar se o usuário existe no auth.users antes de tentar excluir
+                const { data: authUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(profileData.user_id);
+                
+                if (getUserError) {
+                  console.warn('Usuário não encontrado no auth.users ou já foi removido:', getUserError.message);
+                } else if (authUser?.user) {
+                  // Usuário existe, tentar remover
+                  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(profileData.user_id);
+                  
+                  if (authError) {
+                    console.error('Erro ao remover usuário da auth.users:', authError);
+                    console.warn('Usuário removido do profiles mas falha na remoção do auth.users');
+                  } else {
+                    console.log('✅ Usuário removido com sucesso do auth.users');
+                  }
+                } else {
+                  console.warn('Usuário não encontrado no auth.users (já foi removido)');
+                }
+              } catch (authError) {
+                console.error('Erro inesperado ao verificar/remover usuário do auth.users:', authError);
+                console.warn('Usuário removido do profiles mas falha na remoção do auth.users');
+              }
+            } else {
+              console.warn('user_id não encontrado no perfil, usuário pode não ter sido criado no auth.users');
             }
 
             // Recarregar listas
