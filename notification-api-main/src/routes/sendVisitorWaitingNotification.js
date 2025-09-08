@@ -28,7 +28,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       building, 
       apartment, 
       visitor_log_id,
-      use_interactive_buttons = true, // Por padrão usar botões interativos
+      use_interactive_buttons = false, // Por padrão não usar botões interativos
       visit_type = 'visitor' // Tipo de visita: visitor, delivery, service
     } = req.body;
     
@@ -60,7 +60,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
     });
 
     // Definir URL de regularização
-    const regularizationUrl = `porteiroapp://login`;
+    const regularizationUrl = `https://jamesavisa.jamesconcierge.com/login`;
     let whatsappResult;
     
     if (use_interactive_buttons) {
@@ -86,8 +86,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       if (tokenError) {
         console.warn('⚠️ Erro ao criar token de autorização:', tokenError);
         // Fallback para mensagem tradicional
-        const regularizationUrl = `porteiroapp://login`;
-        const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse ${regularizationUrl} para verificar os detalhes e autorizar ou recusar a entrada.`;
+        const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
         
         whatsappResult = await sendWhatsApp({
           to: resident_phone,
@@ -116,8 +115,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       }
     } else {
       // Usar mensagem tradicional sem botões
-      const regularizationUrl = `porteiroapp://login`;
-      const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse ${regularizationUrl} para verificar os detalhes e autorizar ou recusar a entrada.`;
+      const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
       
       console.log('📤 Enviando mensagem WhatsApp tradicional...');
       console.log('📱 Para:', resident_phone);
@@ -174,7 +172,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
         apartment,
         message_id: whatsappResult.messageId,
         sent_at: new Date().toISOString(),
-        regularization_url: regularizationUrl
+        regularization_url: 'https://jamesavisa.jamesconcierge.com/login'
       }
     });
 

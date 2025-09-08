@@ -16,6 +16,7 @@ interface PendingNotification {
   guest_name?: string;
   purpose?: string;
   visitor_id?: string;
+  photo_url?: string;
   
   // Dados da encomenda
   delivery_sender?: string;
@@ -98,6 +99,7 @@ export const usePendingNotifications = () => {
           guest_name,
           purpose,
           visitor_id,
+          photo_url,
           delivery_sender,
           delivery_description,
           delivery_tracking_code,

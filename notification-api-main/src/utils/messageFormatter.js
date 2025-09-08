@@ -173,13 +173,17 @@ function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'porteiro
  * @param {string} authorizationData.residentName - Nome do morador
  * @param {string} authorizationData.building - Prédio
  * @param {string} authorizationData.apartment - Apartamento
+ * @param {string} authorizationData.type - Tipo da notificação (visitor ou delivery)
  * @param {string} authorizationLink - Link de autorização personalizado
  * @returns {string} Mensagem formatada para WhatsApp
  */
 function generateVisitorAuthorizationMessage(authorizationData, authorizationLink) {
   return `📢 James Avisa\n` +
-         `Prezado(a), informamos que há um visitante aguardando na portaria.\n\n` +
-         `👉 Acesse porteiroapp://login para verificar os detalhes e autorizar ou recusar a entrada.`;
+         `Prezado(a) ${authorizationData.residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+         `Visitante: ${authorizationData.visitorName}\n` +
+         `Prédio: ${authorizationData.building}\n` +
+         `Apartamento: ${authorizationData.apartment}\n\n` +
+         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 
 /**

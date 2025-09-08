@@ -38,9 +38,9 @@ router.post('/', async (req, res) => {
             if (messageText === '1' || messageText === '2') {
                 await processVisitorResponse(from, messageText);
             } else if (buttonResponse) {
-                await handleButtonResponse(buttonResponse, from, messageId);
+                await handleButtonResponse(buttonResponse, from, message.key.id);
             } else if (listResponse) {
-                await processListResponse(from, listResponse, messageId);
+                await processListResponse(from, listResponse, message.key.id);
             }
         }
         
@@ -95,12 +95,40 @@ async function processVisitorResponse(phoneNumber, response) {
       return;
     }
     
-    // Enviar confirmação ao morador
-    const confirmationMessage = `✅ *Resposta registrada com sucesso!*\n\n` +
-      `👤 *Visitante:* ${token.visitor_name}\n` +
-      `🏠 *Apartamento:* ${token.apartment_number}\n` +
-      `📋 *Decisão:* ${actionText}\n\n` +
-      `${response === '1' ? '🟢 O visitante foi autorizado a entrar.' : '🔴 O acesso do visitante foi negado.'}`;
+    // Enviar confirmação detalhada ao morador
+    const currentTime = new Date().toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    let confirmationMessage = '';
+    if (response === '1') {
+      confirmationMessage = `✅ *VISITA AUTORIZADA COM SUCESSO*\n\n` +
+        `👤 *Visitante:* ${token.visitor_name}\n` +
+        `🏠 *Apartamento:* ${token.apartment_number}\n` +
+        `⏰ *Autorizado em:* ${currentTime}\n\n` +
+        `🟢 *Status:* APROVADO\n` +
+        `📋 *Ação realizada:* O porteiro foi notificado e o visitante está autorizado a subir ao seu apartamento.\n\n` +
+        `ℹ️ *Próximos passos:*\n` +
+        `• O visitante será direcionado ao seu apartamento\n` +
+        `• Esta autorização foi registrada no sistema\n` +
+        `• Você receberá uma notificação quando o visitante chegar`;
+    } else {
+      confirmationMessage = `❌ *VISITA RECUSADA*\n\n` +
+        `👤 *Visitante:* ${token.visitor_name}\n` +
+        `🏠 *Apartamento:* ${token.apartment_number}\n` +
+        `⏰ *Recusado em:* ${currentTime}\n\n` +
+        `🔴 *Status:* NEGADO\n` +
+        `📋 *Ação realizada:* O porteiro foi informado que a visita não foi autorizada.\n\n` +
+        `ℹ️ *Próximos passos:*\n` +
+        `• O visitante será informado sobre a recusa\n` +
+        `• Esta decisão foi registrada no sistema\n` +
+        `• Caso mude de ideia, será necessário solicitar nova autorização`;
+    }
     
     await sendWhatsApp(phoneNumber, confirmationMessage);
     
@@ -128,10 +156,30 @@ async function handleButtonResponse(buttonId, from, messageId) {
     
     console.log('📋 Ação extraída:', { action, tokenId });
     
-    // Buscar o token de autorização
+    // Buscar dados do token com informações detalhadas do visitor_log
     const { data: tokenData, error: tokenError } = await supabase
       .from('visitor_authorization_tokens')
-      .select('*')
+      .select(`
+        *,
+        visitor_logs (
+          id,
+          entry_type,
+          guest_name,
+          purpose,
+          delivery_sender,
+          delivery_description,
+          delivery_tracking_code,
+          license_plate,
+          vehicle_model,
+          vehicle_color,
+          vehicle_brand,
+          visitors (
+            name,
+            document,
+            phone
+          )
+        )
+      `)
       .eq('id', tokenId)
       .eq('used', false)
       .single();
@@ -240,20 +288,177 @@ async function handleButtonResponse(buttonId, from, messageId) {
       updates: visitorLogUpdate
     });
     
-    // Enviar confirmação para o usuário
+    // Enviar confirmação detalhada para o usuário
+    const currentTime = new Date().toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    // Obter dados detalhados do visitor_log
+    const visitorLog = tokenData.visitor_logs;
+    const entryType = visitorLog?.entry_type || 'visitor';
+    const guestName = visitorLog?.guest_name || visitorLog?.visitors?.name || tokenData.visitor_name || 'Visitante';
+    
     let confirmationMessage = '';
     switch (action) {
       case 'approve':
-        confirmationMessage = `✅ Visita de ${tokenData.visitor_name} foi APROVADA.\n\nO porteiro foi notificado e o visitante pode subir.`;
+        if (entryType === 'visitor') {
+          const purpose = visitorLog?.purpose || 'Motivo não informado';
+          const visitorPhone = visitorLog?.visitors?.phone || 'Não informado';
+          const visitorDoc = visitorLog?.visitors?.document || 'Não informado';
+          
+          confirmationMessage = `✅ *VISITA AUTORIZADA COM SUCESSO*\n\n` +
+            `👤 *Visitante:* ${guestName}\n` +
+            `📋 *Motivo:* ${purpose}\n` +
+            `📞 *Telefone:* ${visitorPhone}\n` +
+            `🆔 *Documento:* ${visitorDoc}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Autorizado em:* ${currentTime}\n\n` +
+            `🟢 *Status:* APROVADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e o visitante está autorizado a subir ao seu apartamento.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• O visitante será direcionado ao seu apartamento\n` +
+            `• Esta autorização foi registrada no sistema\n` +
+            `• Você receberá uma notificação quando o visitante chegar`;
+        } else if (entryType === 'vehicle') {
+          const licensePlate = visitorLog?.license_plate || 'Não informada';
+          const vehicleModel = visitorLog?.vehicle_model || 'Não informado';
+          const vehicleColor = visitorLog?.vehicle_color || 'Não informada';
+          const vehicleBrand = visitorLog?.vehicle_brand || 'Não informada';
+          
+          confirmationMessage = `✅ *ENTRADA DE VEÍCULO AUTORIZADA*\n\n` +
+            `🚗 *Proprietário:* ${guestName}\n` +
+            `🚙 *Veículo:* ${vehicleBrand} ${vehicleModel}\n` +
+            `🎨 *Cor:* ${vehicleColor}\n` +
+            `🔢 *Placa:* ${licensePlate}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Autorizado em:* ${currentTime}\n\n` +
+            `🟢 *Status:* APROVADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e o veículo está autorizado a entrar na garagem.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• O veículo será direcionado à vaga disponível\n` +
+            `• Esta autorização foi registrada no sistema\n` +
+            `• Lembre-se das regras de estacionamento do condomínio`;
+        } else {
+          confirmationMessage = `✅ *ENTRADA AUTORIZADA COM SUCESSO*\n\n` +
+            `👤 *Nome:* ${guestName}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Autorizado em:* ${currentTime}\n\n` +
+            `🟢 *Status:* APROVADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e a entrada foi autorizada.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• A pessoa será direcionada ao seu apartamento\n` +
+            `• Esta autorização foi registrada no sistema`;
+        }
         break;
       case 'reject':
-        confirmationMessage = `❌ Visita de ${tokenData.visitor_name} foi RECUSADA.\n\nO porteiro foi notificado.`;
+        if (entryType === 'visitor') {
+          const purpose = visitorLog?.purpose || 'Motivo não informado';
+          
+          confirmationMessage = `❌ *VISITA RECUSADA*\n\n` +
+            `👤 *Visitante:* ${guestName}\n` +
+            `📋 *Motivo:* ${purpose}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Recusado em:* ${currentTime}\n\n` +
+            `🔴 *Status:* NEGADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e o visitante foi informado que não pode subir.\n\n` +
+            `ℹ️ *Informações importantes:*\n` +
+            `• O visitante permanecerá na portaria\n` +
+            `• Esta decisão foi registrada no sistema\n` +
+            `• Caso mude de ideia, entre em contato com a portaria`;
+        } else if (entryType === 'vehicle') {
+          const licensePlate = visitorLog?.license_plate || 'Não informada';
+          
+          confirmationMessage = `❌ *ENTRADA DE VEÍCULO RECUSADA*\n\n` +
+            `🚗 *Proprietário:* ${guestName}\n` +
+            `🔢 *Placa:* ${licensePlate}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Recusado em:* ${currentTime}\n\n` +
+            `🔴 *Status:* NEGADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e o veículo não foi autorizado a entrar.\n\n` +
+            `ℹ️ *Informações importantes:*\n` +
+            `• O veículo deve aguardar na entrada\n` +
+            `• Esta decisão foi registrada no sistema\n` +
+            `• Para autorizar posteriormente, entre em contato com a portaria`;
+        } else {
+          confirmationMessage = `❌ *ENTRADA RECUSADA*\n\n` +
+            `👤 *Nome:* ${guestName}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Recusado em:* ${currentTime}\n\n` +
+            `🔴 *Status:* NEGADO\n` +
+            `📋 *Ação realizada:* O porteiro foi notificado e a entrada foi recusada.\n\n` +
+            `ℹ️ *Informações importantes:*\n` +
+            `• A pessoa deve aguardar na portaria\n` +
+            `• Esta decisão foi registrada no sistema\n` +
+            `• Caso mude de ideia, entre em contato com a portaria`;
+        }
         break;
       case 'elevator':
-        confirmationMessage = `📦 Encomenda será enviada pelo ELEVADOR.\n\nO porteiro foi instruído a enviar a encomenda.`;
+        if (entryType === 'delivery' || entryType === 'package') {
+          const deliverySender = visitorLog?.delivery_sender || guestName;
+          const deliveryCompany = visitorLog?.delivery_company || 'Não informada';
+          const deliveryDescription = visitorLog?.delivery_description || 'Encomenda';
+          
+          confirmationMessage = `🛗 *ENCOMENDA SERÁ ENVIADA PELO ELEVADOR*\n\n` +
+            `📦 *Encomenda:* ${deliveryDescription}\n` +
+            `🚚 *Remetente/Empresa:* ${deliverySender}\n` +
+            `📋 *Transportadora:* ${deliveryCompany}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Confirmado em:* ${currentTime}\n\n` +
+            `🟡 *Status:* ENVIO PELO ELEVADOR\n` +
+            `📋 *Ação realizada:* O porteiro foi instruído a enviar a encomenda pelo elevador.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• A encomenda será enviada pelo elevador\n` +
+            `• Aguarde a chegada em seu andar\n` +
+            `• Esta instrução foi registrada no sistema`;
+        } else {
+          confirmationMessage = `🛗 *ENVIO PELO ELEVADOR CONFIRMADO*\n\n` +
+            `👤 *Nome:* ${guestName}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Confirmado em:* ${currentTime}\n\n` +
+            `🟡 *Status:* ENVIO PELO ELEVADOR\n` +
+            `📋 *Ação realizada:* O porteiro foi instruído a enviar pelo elevador.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• O item será enviado pelo elevador\n` +
+            `• Aguarde a chegada em seu andar\n` +
+            `• Esta instrução foi registrada no sistema`;
+        }
         break;
       case 'portaria':
-        confirmationMessage = `📦 Encomenda ficará na PORTARIA.\n\nVocê pode retirar quando desejar.`;
+        if (entryType === 'delivery' || entryType === 'package') {
+          const deliverySender = visitorLog?.delivery_sender || guestName;
+          const deliveryCompany = visitorLog?.delivery_company || 'Não informada';
+          const deliveryDescription = visitorLog?.delivery_description || 'Encomenda';
+          
+          confirmationMessage = `🏢 *ENCOMENDA FICARÁ NA PORTARIA*\n\n` +
+            `📦 *Encomenda:* ${deliveryDescription}\n` +
+            `🚚 *Remetente/Empresa:* ${deliverySender}\n` +
+            `📋 *Transportadora:* ${deliveryCompany}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Confirmado em:* ${currentTime}\n\n` +
+            `🟠 *Status:* AGUARDANDO RETIRADA\n` +
+            `📋 *Ação realizada:* A encomenda ficará disponível na portaria para retirada.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• Dirija-se à portaria para retirar a encomenda\n` +
+            `• Leve um documento de identificação\n` +
+            `• Horário de funcionamento: 24 horas\n` +
+            `• Esta instrução foi registrada no sistema`;
+        } else {
+          confirmationMessage = `🏢 *AGUARDANDO NA PORTARIA*\n\n` +
+            `👤 *Nome:* ${guestName}\n` +
+            `🏠 *Apartamento:* ${tokenData.apartment_number}\n` +
+            `⏰ *Confirmado em:* ${currentTime}\n\n` +
+            `🟠 *Status:* AGUARDANDO RETIRADA\n` +
+            `📋 *Ação realizada:* O item ficará disponível na portaria.\n\n` +
+            `ℹ️ *Próximos passos:*\n` +
+            `• Dirija-se à portaria para retirar\n` +
+            `• Leve um documento de identificação\n` +
+            `• Esta instrução foi registrada no sistema`;
+        }
         break;
     }
     

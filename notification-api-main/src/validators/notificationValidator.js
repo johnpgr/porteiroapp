@@ -105,7 +105,8 @@ const visitorAuthorizationSchema = z.object({
   residentEmail: z.string().email('Email do morador deve ter um formato válido'),
   residentPhone: z.string().optional(), // Telefone agora é opcional
   building: z.string().min(1, 'Prédio é obrigatório'),
-  apartment: z.string().min(1, 'Apartamento é obrigatório')
+  apartment: z.string().min(1, 'Apartamento é obrigatório'),
+  type: z.enum(['visitor', 'delivery']).optional().default('visitor') // Tipo da notificação
 });
 
 // Esquema específico para notificações de regularização

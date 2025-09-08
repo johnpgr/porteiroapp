@@ -437,14 +437,12 @@ async function checkWhatsAppNumber(number) {
 
 // Função para gerar mensagem de autorização de visitante
 function generateVisitorAuthorizationMessage(visitorName, residentName, building, apartment, authorizationLink) {
-  return `📢 James Avisa\nPrezado(a) ${residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
-    `👤 *Visitante:* ${visitorName}\n` +
-    `🏠 *Apartamento:* ${apartment}${building ? ` - ${building}` : ''}\n\n` +
-    `*RESPONDA RAPIDAMENTE:*\n` +
-    `• Digite *1* para AUTORIZAR\n` +
-    `• Digite *2* para RECUSAR\n\n` +
-    `Ou acesse: ${authorizationLink}\n\n` +
-    `⏰ Esta autorização expira em 30 minutos.`;
+  return `📢 James Avisa\n` +
+         `Prezado(a) ${residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+         `Visitante: ${visitorName}\n` +
+         `Prédio: ${building}\n` +
+         `Apartamento: ${apartment}\n\n` +
+         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 
 // Gerar mensagem de autorização com botões interativos

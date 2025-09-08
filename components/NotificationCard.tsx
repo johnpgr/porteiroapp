@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image } from 'react-native';
+import { Info, Eye, X } from 'lucide-react-native';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
 // Legacy notification interface for backward compatibility
@@ -132,6 +133,8 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
   const [responding, setResponding] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
   const getTimeAgo = (dateString: string) => {
@@ -152,11 +155,11 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
   const getNotificationTitle = () => {
     switch (notification.entry_type) {
       case 'visitor':
-        return `🚶 ${notification.guest_name || 'Visitante'}`;
+        return notification.guest_name ? `🚶 ${notification.guest_name}` : '🚶 Nova visita';
       case 'delivery':
-        return `📦 Encomenda de ${notification.delivery_sender || 'Remetente não informado'}`;
+        return '📦 Nova encomenda';
       case 'vehicle':
-        return `🚗 Veículo ${notification.license_plate || 'sem placa'}`;
+        return '🚗 Novo veículo';
       default:
         return '🔔 Nova notificação';
     }
@@ -165,13 +168,29 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
   const getNotificationDetails = () => {
     switch (notification.entry_type) {
       case 'visitor':
-        return notification.purpose || 'Motivo não informado';
+        const visitorDetails = [];
+        if (notification.purpose) visitorDetails.push(`📋 ${notification.purpose}`);
+        if (notification.guest_name) visitorDetails.push(`👤 ${notification.guest_name}`);
+        if (notification.phone) visitorDetails.push(`📞 ${notification.phone}`);
+        return visitorDetails.length > 0 ? visitorDetails.join('\n') : 'Informações do visitante não disponíveis';
+      
       case 'delivery':
-        return notification.delivery_description || 'Descrição não informada';
+        const deliveryDetails = [];
+        if (notification.delivery_description) deliveryDetails.push(`📦 ${notification.delivery_description}`);
+        if (notification.delivery_sender) deliveryDetails.push(`🚚 Remetente: ${notification.delivery_sender}`);
+        if (notification.delivery_company) deliveryDetails.push(`🏢 Empresa: ${notification.delivery_company}`);
+        return deliveryDetails.length > 0 ? deliveryDetails.join('\n') : 'Informações da encomenda não disponíveis';
+      
       case 'vehicle':
-        return `${notification.vehicle_brand || ''} ${notification.vehicle_model || ''} ${notification.vehicle_color || ''} - quer entrar`.trim();
+        const vehicleDetails = [];
+        if (notification.guest_name) vehicleDetails.push(`👤 Proprietário: ${notification.guest_name}`);
+        if (notification.license_plate) vehicleDetails.push(`🔢 Placa: ${notification.license_plate}`);
+        const vehicleInfo = [notification.vehicle_brand, notification.vehicle_model, notification.vehicle_color].filter(Boolean).join(' ');
+        if (vehicleInfo) vehicleDetails.push(`🚗 Veículo: ${vehicleInfo}`);
+        return vehicleDetails.length > 0 ? vehicleDetails.join('\n') : 'Informações do veículo não disponíveis';
+      
       default:
-        return 'Detalhes não disponíveis';
+        return notification.guest_name ? `👤 ${notification.guest_name}` : 'Detalhes não disponíveis';
     }
   };
 
@@ -229,16 +248,28 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
     <View style={[styles.notificationCard, isDelivery && styles.deliveryCard]}>
       <View style={styles.notificationHeader}>
         <Text style={[styles.notificationTitle, isDelivery && styles.deliveryTitle]}>
-          {isDelivery ? '📦 ' : ''}{getNotificationTitle()}
+          {getNotificationTitle()}
         </Text>
-        <Text style={styles.notificationTime}>
-          {getTimeAgo(notification.notification_sent_at)}
-        </Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.infoButton}
+            onPress={() => setShowInfoModal(true)}
+          >
+            <Info size={16} color="#2196F3" />
+          </TouchableOpacity>
+          {notification.photo_url && (
+            <TouchableOpacity
+              style={styles.infoButton}
+              onPress={() => setShowImageModal(true)}
+            >
+              <Eye size={16} color="#2196F3" />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.notificationTime}>
+            {getTimeAgo(notification.notification_sent_at)}
+          </Text>
+        </View>
       </View>
-      
-      {getNotificationDetails() && (
-        <Text style={styles.notificationDetails}>{getNotificationDetails()}</Text>
-      )}
       
       {isDelivery && (
         <View style={styles.deliveryInfo}>
@@ -292,6 +323,127 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         )}
       </View>
 
+      {/* Modal de informações */}
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Info size={24} color="#2196F3" />
+                <Text style={styles.modalTitle}>Detalhes da Notificação</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowInfoModal(false)}
+              >
+                <X size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.photoSection}>
+              <TouchableOpacity 
+                style={styles.viewPhotoButton}
+                onPress={() => setShowImageModal(true)}
+              >
+                <Eye size={18} color="#2196F3" />
+                <Text style={styles.viewPhotoText}>Ver Imagem</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.infoContent}>
+              {notification.guest_name && (
+                <Text style={styles.infoItem}>👤 Nome: {notification.guest_name}</Text>
+              )}
+              {notification.phone && (
+                <Text style={styles.infoItem}>📞 Telefone: {notification.phone}</Text>
+              )}
+              {notification.purpose && (
+                <Text style={styles.infoItem}>📋 Motivo: {notification.purpose}</Text>
+              )}
+              {notification.delivery_sender && (
+                <Text style={styles.infoItem}>🚚 Remetente: {notification.delivery_sender}</Text>
+              )}
+              {notification.delivery_company && (
+                <Text style={styles.infoItem}>🏢 Empresa: {notification.delivery_company}</Text>
+              )}
+              {notification.delivery_description && (
+                <Text style={styles.infoItem}>📦 Descrição: {notification.delivery_description}</Text>
+              )}
+              {notification.license_plate && (
+                <Text style={styles.infoItem}>🔢 Placa: {notification.license_plate}</Text>
+              )}
+              {notification.vehicle_brand && (
+                <Text style={styles.infoItem}>🚗 Veículo: {[notification.vehicle_brand, notification.vehicle_model, notification.vehicle_color].filter(Boolean).join(' ')}</Text>
+              )}
+              <Text style={styles.infoItem}>🕐 Solicitado em: {new Date(notification.notification_sent_at).toLocaleString('pt-BR')}</Text>
+            </View>
+            <View style={styles.modalActions}>
+              {isDelivery ? (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.porterButton]}
+                    onPress={() => {
+                      setShowInfoModal(false);
+                      handleDeliveryPortaria();
+                    }}
+                    disabled={responding}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {responding ? 'Processando...' : 'Deixar na portaria'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.elevatorButton]}
+                    onPress={() => {
+                      setShowInfoModal(false);
+                      handleDeliveryElevador();
+                    }}
+                    disabled={responding}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {responding ? 'Processando...' : 'Subir no elevador'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.denyButton]}
+                    onPress={() => {
+                      setShowInfoModal(false);
+                      handleReject();
+                    }}
+                    disabled={responding}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {responding ? 'Processando...' : 'Recusar'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.approveButton]}
+                    onPress={() => {
+                      setShowInfoModal(false);
+                      handleApprove();
+                    }}
+                    disabled={responding}
+                  >
+                    <Text style={styles.actionButtonText}>
+                      {responding ? 'Processando...' : 'Aceitar'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+           
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de rejeição */}
       <Modal
         visible={showRejectModal}
@@ -324,6 +476,46 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
                 <Text style={styles.confirmButtonText}>Recusar</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de visualização de imagem */}
+      <Modal
+        visible={showImageModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <View style={styles.imageModalOverlay}>
+          <View style={styles.imageModalContent}>
+            <View style={styles.imageModalHeader}>
+              <Text style={styles.imageModalTitle}>Foto do Visitante</Text>
+              <TouchableOpacity
+                style={styles.closeImageButton}
+                onPress={() => setShowImageModal(false)}
+              >
+                <X size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            {notification.photo_url ? (
+              <Image 
+                source={{ uri: notification.photo_url }} 
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.noImageContainer}>
+                <Text style={styles.noImageText}>Nenhuma imagem disponível</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.closeImageButtonBottom}
+              onPress={() => setShowImageModal(false)}
+            >
+              <X size={16} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.closeImageButtonText}>Fechar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -434,6 +626,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#e3f2fd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  infoButtonText: {
+    fontSize: 14,
+    color: '#2196F3',
+  },
   notificationTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -514,16 +725,67 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 16,
+    padding: 24,
     width: '90%',
-    maxWidth: 400,
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
+    color: '#333',
+    marginLeft: 8,
+  },
+  photoSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  viewPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e3f2fd',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  viewPhotoText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2196F3',
+    marginLeft: 8,
   },
   textInput: {
     borderWidth: 1,
@@ -557,6 +819,30 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  closeModalButton: {
+    backgroundColor: '#f5f5f5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeModalButtonText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  infoContent: {
+    marginBottom: 20,
+  },
+  infoItem: {
+    fontSize: 15,
+    color: '#444',
+    marginBottom: 12,
+    lineHeight: 22,
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
   },
   deliveryOption: {
     paddingVertical: 16,
@@ -602,5 +888,77 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#E65100',
     fontWeight: '600',
+  },
+  // Estilos do modal de imagem
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalContent: {
+    width: '95%',
+    height: '90%',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    position: 'absolute',
+    top: 0,
+    zIndex: 1,
+  },
+  imageModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  closeImageButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '80%',
+    borderRadius: 8,
+  },
+  noImageContainer: {
+    width: '100%',
+    height: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+  },
+  noImageText: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  closeImageButtonBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    position: 'absolute',
+    bottom: 30,
+  },
+  closeImageButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
