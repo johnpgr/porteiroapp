@@ -138,6 +138,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   };
 
   const handlePhotoSelected = (uri: string) => {
+    console.log('📸 DEBUG FirstLoginModal - Foto selecionada:', uri);
     updateFormData('photoUri', uri);
   };
 
@@ -223,13 +224,28 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
   // Complete profile
   const handleComplete = async () => {
+    console.log('🚀 DEBUG FirstLoginModal - Iniciando handleComplete');
+    console.log('📋 DEBUG FirstLoginModal - Form data:', formData);
+    
     if (!validateCurrentStep()) return;
 
     const cleanCpf = CPFValidationService.clean(formData.cpf);
     
+    console.log('📋 DEBUG FirstLoginModal - Dados que serão enviados:', {
+      cpf: cleanCpf,
+      photoUri: formData.photoUri,
+      full_name: formData.full_name,
+      phone: formData.phone,
+      birth_date: formData.birth_date,
+      address: formData.address,
+      emergency_contact_name: formData.emergency_contact_name,
+      emergency_contact_phone: formData.emergency_contact_phone,
+    });
+    
     setIsLoading(true);
     
     try {
+      console.log('🔄 DEBUG FirstLoginModal - Chamando completeFirstLogin...');
       const result = await completeFirstLogin({
         cpf: cleanCpf,
         photoUri: formData.photoUri,
@@ -241,17 +257,21 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         emergency_contact_phone: formData.emergency_contact_phone,
       });
 
+      console.log('📊 DEBUG FirstLoginModal - Resultado recebido:', result);
+
       if (result.success) {
+        console.log('✅ DEBUG FirstLoginModal - Sucesso!');
         Alert.alert(
           'Sucesso!',
           'Seu perfil foi completado com sucesso.',
           [{ text: 'OK', onPress: onComplete }]
         );
       } else {
+        console.log('❌ DEBUG FirstLoginModal - Erro:', result.error);
         Alert.alert('Erro', result.error || 'Erro ao completar perfil');
       }
     } catch (error) {
-      console.error('Error completing first login:', error);
+      console.error('❌ DEBUG FirstLoginModal - Erro capturado:', error);
       Alert.alert('Erro', 'Erro inesperado ao completar perfil');
     } finally {
       setIsLoading(false);
@@ -433,7 +453,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
       <PhotoUpload
         onPhotoSelected={handlePhotoSelected}
-        currentPhotoUrl={formData.photoUri}
+        photoUri={formData.photoUri}
         style={styles.photoUpload}
       />
 

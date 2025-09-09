@@ -66,11 +66,6 @@ export default function MoradorProfile() {
   // Hook para gerenciar primeiro login
   const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
 
-  useEffect(() => {
-    fetchProfile();
-    checkFirstLoginStatus();
-  }, [fetchProfile]);
-
   const fetchProfile = useCallback(async () => {
     try {
       console.log('🔍 DEBUG - User obtido:', user?.id);
@@ -84,7 +79,7 @@ export default function MoradorProfile() {
       console.log('🔍 DEBUG - Buscando todos os perfis para debug...');
       const { data: allProfiles, error: allProfilesError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, email');
+        .select('id, full_name, email');
       
       console.log('📊 DEBUG - Todos os perfis na tabela:', allProfiles);
       console.log('📊 DEBUG - Erro ao buscar todos os perfis:', allProfilesError);
@@ -94,7 +89,7 @@ export default function MoradorProfile() {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .maybeSingle();
 
       console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
@@ -145,7 +140,7 @@ export default function MoradorProfile() {
 
       const profileDataMapped: MoradorProfileData = {
         id: data.id,
-        user_id: data.user_id,
+        user_id: data.id, // Na tabela profiles, id é a chave primária que representa o user
         full_name: data.full_name || '',
         email: data.email || '',
         phone: data.phone || '',
@@ -184,6 +179,13 @@ export default function MoradorProfile() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchProfile();
+      checkFirstLoginStatus();
+    }
+  }, [user?.id, fetchProfile, checkFirstLoginStatus]);
 
   // Formatador de data de nascimento para padrão dd/mm/yyyy
   const formatBirthDate = (text: string) => {

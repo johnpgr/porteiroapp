@@ -119,33 +119,11 @@ export const useFirstLogin = () => {
         .eq('id', user.id);
 
       if (updateError) {
-        throw updateError;
+        console.error('❌ Erro ao atualizar perfil:', updateError);
+        return { success: false, error: updateError.message || 'Erro ao atualizar perfil' };
       }
 
-      // Buscar o profile_id para registrar na tabela de verificações
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-
-      if (profileData) {
-        // Registrar na tabela de verificações
-        const { error: verificationError } = await supabase
-          .from('profile_verifications')
-          .insert({
-            profile_id: profileData.id,
-            verification_type: 'complete',
-            status: 'approved',
-            verified_by: profileData.id,
-            notes: `Primeiro login completado - CPF: ${!!data.cpf ? 'fornecido' : 'não fornecido'}, Foto: ${!!data.photoUri ? 'enviada' : 'não enviada'}`
-          });
-
-        if (verificationError) {
-          console.warn('Erro ao registrar verificação:', verificationError);
-          // Não falhar por causa do log de verificação
-        }
-      }
+      console.log('✅ Perfil atualizado com sucesso');
 
       // Atualizar status local
       setStatus(prev => ({
@@ -161,14 +139,15 @@ export const useFirstLogin = () => {
         }
       }));
 
-      return true;
+      return { success: true };
     } catch (error: any) {
+      console.error('❌ Erro no completeFirstLogin:', error);
       setStatus(prev => ({
         ...prev,
         isLoading: false,
         error: error.message || 'Erro ao completar primeiro login'
       }));
-      throw error;
+      return { success: false, error: error.message || 'Erro ao completar primeiro login' };
     }
   };
 
