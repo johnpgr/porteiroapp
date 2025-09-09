@@ -7,9 +7,8 @@ import {
   ScrollView,
   TextInput,
   SafeAreaView,
-  Alert,
+  Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { router } from 'expo-router';
 
@@ -89,11 +88,10 @@ const validateDate = (dateString: string): boolean => {
 };
 
 export default function SystemLogs() {
-  const [activeTab, setActiveTab] = useState('logs');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
-  const [logSearchType, setLogSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
+  const [logSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
   const [logMovementFilter, setLogMovementFilter] = useState('all');
@@ -109,6 +107,9 @@ export default function SystemLogs() {
   // Estados de paginação
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+  
+  // Estados dos modais dos pickers
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -124,6 +125,12 @@ export default function SystemLogs() {
     logDateFilter,
     logs,
   ]);
+
+  // Função helper para obter label do prédio
+  const getBuildingLabel = (buildingName: string) => {
+    if (!buildingName) return 'Todos os Prédios';
+    return buildingName;
+  };
 
   const fetchData = async () => {
     try {
@@ -304,15 +311,15 @@ export default function SystemLogs() {
             </View>
 
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={logBuildingFilter}
-                onValueChange={setLogBuildingFilter}
-                style={styles.picker}>
-                <Picker.Item label="Todos os Prédios" value="" />
-                {buildings.map((building) => (
-                  <Picker.Item key={building.id} label={building.name} value={building.name} />
-                ))}
-              </Picker>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowBuildingPicker(true)}
+              >
+                <Text style={styles.pickerButtonText}>
+                  {getBuildingLabel(logBuildingFilter)}
+                </Text>
+                <Text style={styles.pickerChevron}>▼</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.dateFilterContainer}>
@@ -561,6 +568,70 @@ export default function SystemLogs() {
             })()}
           </View>
         </ScrollView>
+
+        {/* Modal para Prédio */}
+        <Modal
+          visible={showBuildingPicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowBuildingPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+                <TouchableOpacity onPress={() => setShowBuildingPicker(false)}>
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    logBuildingFilter === '' && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setLogBuildingFilter('');
+                    setShowBuildingPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    logBuildingFilter === '' && styles.modalOptionTextSelected
+                  ]}>
+                    Todos os Prédios
+                  </Text>
+                  {logBuildingFilter === '' && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+                {buildings.map((building) => (
+                  <TouchableOpacity
+                    key={building.id}
+                    style={[
+                      styles.modalOption,
+                      logBuildingFilter === building.name && styles.modalOptionSelected
+                    ]}
+                    onPress={() => {
+                      setLogBuildingFilter(building.name);
+                      setShowBuildingPicker(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      logBuildingFilter === building.name && styles.modalOptionTextSelected
+                    ]}>
+                      {building.name}
+                    </Text>
+                    {logBuildingFilter === building.name && (
+                      <Text style={styles.modalCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
   );
 }
@@ -681,8 +752,84 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     justifyContent: 'center',
   },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 44,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  pickerChevron: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
   picker: {
     height: 50,
+  },
+  // Estilos dos modais dos pickers
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: '70%',
+    minWidth: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  modalScrollView: {
+    maxHeight: 300,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  modalCheckmark: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: 'bold',
   },
   tabsContainer: {
     flexDirection: 'row',
