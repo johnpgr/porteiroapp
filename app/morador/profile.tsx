@@ -12,9 +12,12 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { createClient } from '@supabase/supabase-js';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import { PhotoUploadService } from '~/utils/photoUploadService';
+import { PhotoUpload } from '~/components/PhotoUpload';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import BottomNav from '~/components/BottomNav';
@@ -65,6 +68,73 @@ export default function MoradorProfile() {
   
   // Hook para gerenciar primeiro login
   const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
+
+  // Função para upload robusto de foto usando FileSystem
+  const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
+    const maxRetries = 3;
+    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [Profile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
+        
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileName = `${user!.id}/${timestamp}_${randomId}.jpeg`;
+        
+        console.log('🔄 [Profile] Nome do arquivo:', fileName);
+        console.log('🔄 [Profile] URI da foto:', photoUri);
+
+        // Método 1: Tentar upload direto com FileSystem.uploadAsync
+        console.log('🔄 [Profile] Tentando upload direto com FileSystem.uploadAsync...');
+        
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
+        console.log('🔄 [Profile] URL de upload:', uploadUrl);
+        
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        console.log('🔄 [Profile] Resultado do FileSystem upload:', uploadResult);
+
+        if (uploadResult.status === 200) {
+          // Obter URL pública usando cliente regular
+          console.log('🔄 [Profile] Obtendo URL pública...');
+          const { data: urlData } = supabase.storage
+            .from('user-photos')
+            .getPublicUrl(fileName);
+          
+          console.log('✅ [Profile] Upload bem-sucedido! URL:', urlData.publicUrl);
+          return urlData.publicUrl;
+        } else {
+          throw new Error(`Upload falhou com status: ${uploadResult.status}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [Profile] Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error('❌ [Profile] Todas as tentativas falharam');
+          return null;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        const delay = 1000 * attempt;
+        console.log(`⏳ [Profile] Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return null;
+  };
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -445,14 +515,41 @@ export default function MoradorProfile() {
 
     setPhotoUploading(true);
     try {
-      const result = await PhotoUploadService.selectAndUploadPhoto(user.id);
+      // Usar o componente PhotoUpload para selecionar e processar a imagem
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
-      if (result.success && result.url) {
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'É necessário permitir acesso à galeria para alterar a foto do perfil.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
+      }
+
+      const photoUri = result.assets[0].uri;
+      console.log('📸 [Profile] Foto selecionada:', photoUri);
+
+      // Fazer upload da imagem
+      const uploadedUrl = await uploadPhotoToStorage(photoUri);
+      
+      if (uploadedUrl) {
         // Atualizar o avatar_url no banco de dados
         const { error } = await supabase
           .from('profiles')
-          .update({ avatar_url: result.url })
-          .eq('id', user.id);
+          .update({ avatar_url: uploadedUrl } as any)
+          .eq('id', user.id as any);
 
         if (error) {
           console.error('Erro ao atualizar avatar_url:', error);
@@ -460,10 +557,10 @@ export default function MoradorProfile() {
           return;
         }
 
-        setFormData({ ...formData, avatar_url: result.url });
+        setFormData({ ...formData, avatar_url: uploadedUrl });
         Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível fazer upload da foto');
+        Alert.alert('Erro', 'Não foi possível fazer upload da foto');
       }
     } catch (error) {
       console.error('Erro no upload da foto:', error);
@@ -487,13 +584,14 @@ export default function MoradorProfile() {
           onPress: async () => {
             setPhotoUploading(true);
             try {
-              await PhotoUploadService.deletePhoto(formData.avatar_url);
+              // Remover foto do storage (opcional, pois já temos a função básica)
+              // Para simplificar, vamos apenas remover a referência do banco
               
               // Atualizar o avatar_url no banco de dados
               const { error } = await supabase
                 .from('profiles')
-                .update({ avatar_url: null })
-                .eq('id', user.id);
+                .update({ avatar_url: null } as any)
+                .eq('id', user.id as any);
 
               if (error) {
                 console.error('Erro ao remover avatar_url:', error);

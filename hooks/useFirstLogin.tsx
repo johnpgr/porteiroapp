@@ -99,6 +99,18 @@ export const useFirstLogin = () => {
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: null }));
 
+      console.log('🔄 DEBUG useFirstLogin - Iniciando atualização do perfil para user:', user.id);
+      console.log('📋 DEBUG useFirstLogin - Dados recebidos:', {
+        cpf: data.cpf,
+        full_name: data.full_name,
+        phone: data.phone,
+        birth_date: data.birth_date,
+        address: data.address,
+        emergency_contact_name: data.emergency_contact_name,
+        emergency_contact_phone: data.emergency_contact_phone,
+        hasPhoto: !!data.photoUri
+      });
+
       // Atualizar perfil com todos os campos
       const { error: updateError } = await supabase
         .from('profiles')
@@ -120,6 +132,24 @@ export const useFirstLogin = () => {
 
       if (updateError) {
         console.error('❌ Erro ao atualizar perfil:', updateError);
+        
+        // Tratamento específico para erro de CPF duplicado
+        if (updateError.code === '23505' && updateError.message.includes('profiles_cpf_key')) {
+          return { 
+            success: false, 
+            error: 'Este CPF já está cadastrado no sistema. Por favor, verifique se você já possui uma conta ou entre em contato com o administrador.' 
+          };
+        }
+        
+        // Outros erros de constraint
+        if (updateError.code === '23505') {
+          return { 
+            success: false, 
+            error: 'Dados duplicados encontrados. Verifique se as informações não estão já cadastradas no sistema.' 
+          };
+        }
+        
+        // Erros gerais
         return { success: false, error: updateError.message || 'Erro ao atualizar perfil' };
       }
 

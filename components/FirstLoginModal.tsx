@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFirstLogin } from '../hooks/useFirstLogin';
+import { useAuth } from '../hooks/useAuth';
 import { CPFValidationService } from '../services/CPFValidationService';
 import { PhotoUpload } from './PhotoUpload';
 import { supabase } from '../utils/supabase';
@@ -56,6 +57,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   });
   
   const { completeFirstLogin, profileData, isLoading: hookLoading, error: hookError } = useFirstLogin();
+  const { user } = useAuth();
 
   // Verificação de segurança para dados nulos
   useEffect(() => {
@@ -245,7 +247,34 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     setIsLoading(true);
     
     try {
-      console.log('🔄 DEBUG FirstLoginModal - Chamando completeFirstLogin...');
+      // Verificar se o CPF já existe no sistema antes de tentar salvar
+      console.log('🔍 DEBUG FirstLoginModal - Verificando se CPF já existe:', cleanCpf);
+      
+      if (user?.id) {
+        const { data: existingProfile, error: checkError } = await supabase
+          .from('profiles')
+          .select('id, cpf')
+          .eq('cpf', cleanCpf)
+          .neq('id', user.id) // Excluir o próprio usuário
+          .maybeSingle();
+        
+        if (checkError) {
+          console.warn('⚠️ DEBUG FirstLoginModal - Erro ao verificar CPF:', checkError);
+        }
+        
+        if (existingProfile) {
+          console.log('❌ DEBUG FirstLoginModal - CPF já existe:', existingProfile);
+          Alert.alert(
+            'CPF Já Cadastrado',
+            'Este CPF já está cadastrado no sistema. Por favor, verifique se você já possui uma conta ou entre em contato com o administrador.',
+            [{ text: 'OK', style: 'default' }]
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+      
+      console.log('🔄 DEBUG FirstLoginModal - CPF disponível, chamando completeFirstLogin...');
       const result = await completeFirstLogin({
         cpf: cleanCpf,
         photoUri: formData.photoUri,
@@ -268,7 +297,19 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         );
       } else {
         console.log('❌ DEBUG FirstLoginModal - Erro:', result.error);
-        Alert.alert('Erro', result.error || 'Erro ao completar perfil');
+        
+        // Verificar se é erro específico de CPF duplicado
+        if (result.error && result.error.includes('CPF já está cadastrado')) {
+          Alert.alert(
+            'CPF Já Cadastrado', 
+            result.error,
+            [
+              { text: 'OK', style: 'default' }
+            ]
+          );
+        } else {
+          Alert.alert('Erro', result.error || 'Erro ao completar perfil');
+        }
       }
     } catch (error) {
       console.error('❌ DEBUG FirstLoginModal - Erro capturado:', error);
