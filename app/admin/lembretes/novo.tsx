@@ -8,21 +8,19 @@ import {
   Alert,
   StyleSheet,
   SafeAreaView,
-  Platform,
+  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
 import { adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface FormData {
   titulo: string;
   descricao: string;
-  tipo: 'manutencao' | 'reuniao' | 'vencimento' | 'outros';
+  tipo: 'manutencao' | 'reuniao' | 'pagamento' | 'assembleia' | 'outros';
   prioridade: 'baixa' | 'media' | 'alta';
   data_vencimento: Date;
   notificar_antes: number;
@@ -42,6 +40,9 @@ export default function NovoLembrete() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showTipoPicker, setShowTipoPicker] = useState(false);
+  const [showPrioridadePicker, setShowPrioridadePicker] = useState(false);
+  const [showNotificacaoPicker, setShowNotificacaoPicker] = useState(false);
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
   useEffect(() => {
@@ -114,54 +115,57 @@ export default function NovoLembrete() {
   };
 
   const showDatePickerModal = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: formData.data_vencimento,
-        onChange: (event, selectedDate) => {
-          if (selectedDate) {
-            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
-          }
-        },
-        mode: 'date',
-        minimumDate: new Date(),
-      });
-    } else {
-      setShowDatePicker(true);
-    }
+    setShowDatePicker(true);
   };
 
   const showTimePickerModal = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: formData.data_vencimento,
-        onChange: (event, selectedDate) => {
-          if (selectedDate) {
-            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
-          }
-        },
-        mode: 'time',
-        is24Hour: true,
-      });
-    } else {
-      setShowTimePicker(true);
-    }
+    setShowTimePicker(true);
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'ios') {
-      if (selectedDate) {
-        setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
+  const generateDateOptions = () => {
+    const options = [];
+    const today = new Date();
+    
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      options.push({
+        label: format(date, 'dd/MM/yyyy - EEEE', { locale: ptBR }),
+        value: date,
+        shortLabel: format(date, 'dd/MM/yyyy', { locale: ptBR })
+      });
+    }
+    return options;
+  };
+
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push({
+          label: timeString,
+          value: { hour, minute }
+        });
       }
     }
+    return options;
+  };
+
+  const updateDate = (selectedDate: Date) => {
+    const newDate = new Date(formData.data_vencimento);
+    newDate.setFullYear(selectedDate.getFullYear());
+    newDate.setMonth(selectedDate.getMonth());
+    newDate.setDate(selectedDate.getDate());
+    setFormData(prev => ({ ...prev, data_vencimento: newDate }));
     setShowDatePicker(false);
   };
 
-  const onTimeChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'ios') {
-      if (selectedDate) {
-        setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
-      }
-    }
+  const updateTime = (time: { hour: number; minute: number }) => {
+    const newDate = new Date(formData.data_vencimento);
+    newDate.setHours(time.hour);
+    newDate.setMinutes(time.minute);
+    setFormData(prev => ({ ...prev, data_vencimento: newDate }));
     setShowTimePicker(false);
   };
 
@@ -175,6 +179,26 @@ export default function NovoLembrete() {
       const days = Math.floor(minutes / 1440);
       return `${days} dia${days > 1 ? 's' : ''} antes`;
     }
+  };
+
+  const getTipoLabel = (tipo: string) => {
+    const tipos: {[key: string]: string} = {
+      manutencao: 'Manutenção',
+      reuniao: 'Reunião',
+      pagamento: 'Pagamento',
+      assembleia: 'Assembleia',
+      outros: 'Outros'
+    };
+    return tipos[tipo] || 'Outros';
+  };
+
+  const getPrioridadeLabel = (prioridade: string) => {
+    const prioridades: {[key: string]: string} = {
+      baixa: 'Baixa',
+      media: 'Média',
+      alta: 'Alta'
+    };
+    return prioridades[prioridade] || 'Média';
   };
 
   return (
@@ -222,33 +246,28 @@ export default function NovoLembrete() {
           <View style={styles.formRow}>
             <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
               <Text style={styles.label}>Tipo</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.tipo}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Manutenção" value="manutencao" />
-                  <Picker.Item label="Reunião" value="reuniao" />
-                  <Picker.Item label="Vencimento" value="vencimento" />
-                  <Picker.Item label="Outros" value="outros" />
-                </Picker>
-              </View>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowTipoPicker(true)}
+              >
+                <Text style={styles.pickerButtonText}>
+                  {getTipoLabel(formData.tipo)}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#6b7280" />
+              </TouchableOpacity>
             </View>
 
             <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
               <Text style={styles.label}>Prioridade</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.prioridade}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, prioridade: value }))}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Baixa" value="baixa" />
-                  <Picker.Item label="Média" value="media" />
-                  <Picker.Item label="Alta" value="alta" />
-                </Picker>
-              </View>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowPrioridadePicker(true)}
+              >
+                <Text style={styles.pickerButtonText}>
+                  {getPrioridadeLabel(formData.prioridade)}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#6b7280" />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -282,40 +301,16 @@ export default function NovoLembrete() {
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>Notificar Antes</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.notificar_antes}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, notificar_antes: value }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="15 minutos antes" value={15} />
-                <Picker.Item label="30 minutos antes" value={30} />
-                <Picker.Item label="1 hora antes" value={60} />
-                <Picker.Item label="2 horas antes" value={120} />
-                <Picker.Item label="1 dia antes" value={1440} />
-                <Picker.Item label="2 dias antes" value={2880} />
-                <Picker.Item label="1 semana antes" value={10080} />
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.pickerButton}
+              onPress={() => setShowNotificacaoPicker(true)}
+            >
+              <Text style={styles.pickerButtonText}>
+                {getNotificationText(formData.notificar_antes)}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#6b7280" />
+            </TouchableOpacity>
           </View>
-
-          {formData.recorrente && (
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Frequência de Recorrência</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.frequencia_recorrencia || 'mensal'}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, frequencia_recorrencia: value }))}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Diária" value="diaria" />
-                  <Picker.Item label="Semanal" value="semanal" />
-                  <Picker.Item label="Mensal" value="mensal" />
-                  <Picker.Item label="Anual" value="anual" />
-                </Picker>
-              </View>
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -338,29 +333,237 @@ export default function NovoLembrete() {
         </TouchableOpacity>
       </View>
 
-      {showDatePicker && Platform.OS === 'ios' && (
-        <View style={styles.datePickerContainer}>
-          <DateTimePicker
-            value={formData.data_vencimento}
-            mode="date"
-            display="default"
-            onChange={onDateChange}
-            minimumDate={new Date()}
-          />
+      {/* Modal para Data */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Data</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {generateDateOptions().map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.modalOption,
+                    format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && styles.modalOptionSelected
+                  ]}
+                  onPress={() => updateDate(item.value)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
-      )}
+      </Modal>
 
-      {showTimePicker && Platform.OS === 'ios' && (
-        <View style={styles.datePickerContainer}>
-          <DateTimePicker
-            value={formData.data_vencimento}
-            mode="time"
-            display="default"
-            onChange={onTimeChange}
-            is24Hour={true}
-          />
+      {/* Modal para Hora */}
+      <Modal
+        visible={showTimePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Hora</Text>
+              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {generateTimeOptions().map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.modalOption,
+                    format(formData.data_vencimento, 'HH:mm') === item.label && styles.modalOptionSelected
+                  ]}
+                  onPress={() => updateTime(item.value)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    format(formData.data_vencimento, 'HH:mm') === item.label && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {format(formData.data_vencimento, 'HH:mm') === item.label && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
-      )}
+      </Modal>
+
+      {/* Modal para Tipo */}
+      <Modal
+        visible={showTipoPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTipoPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Tipo</Text>
+              <TouchableOpacity onPress={() => setShowTipoPicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[
+                { label: 'Manutenção', value: 'manutencao' },
+                { label: 'Reunião', value: 'reuniao' },
+                { label: 'Pagamento', value: 'pagamento' },
+                { label: 'Assembleia', value: 'assembleia' },
+                { label: 'Outros', value: 'outros' }
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.modalOption,
+                    formData.tipo === item.value && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, tipo: item.value as any }));
+                    setShowTipoPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    formData.tipo === item.value && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {formData.tipo === item.value && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Prioridade */}
+      <Modal
+        visible={showPrioridadePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPrioridadePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Prioridade</Text>
+              <TouchableOpacity onPress={() => setShowPrioridadePicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[
+                { label: 'Baixa', value: 'baixa' },
+                { label: 'Média', value: 'media' },
+                { label: 'Alta', value: 'alta' }
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.modalOption,
+                    formData.prioridade === item.value && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, prioridade: item.value as any }));
+                    setShowPrioridadePicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    formData.prioridade === item.value && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {formData.prioridade === item.value && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Notificação */}
+      <Modal
+        visible={showNotificacaoPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowNotificacaoPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Notificar Antes</Text>
+              <TouchableOpacity onPress={() => setShowNotificacaoPicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[
+                { label: '15 minutos antes', value: 15 },
+                { label: '30 minutos antes', value: 30 },
+                { label: '1 hora antes', value: 60 },
+                { label: '2 horas antes', value: 120 },
+                { label: '1 dia antes', value: 1440 },
+                { label: '2 dias antes', value: 2880 },
+                { label: '1 semana antes', value: 10080 }
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.modalOption,
+                    formData.notificar_antes === item.value && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, notificar_antes: item.value }));
+                    setShowNotificacaoPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    formData.notificar_antes === item.value && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {formData.notificar_antes === item.value && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -534,5 +737,69 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: '70%',
+    minWidth: '80%',
+  },
+  modalScrollView: {
+    maxHeight: 300,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '600',
   },
 });
