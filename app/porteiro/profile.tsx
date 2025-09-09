@@ -10,10 +10,11 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import { PhotoUploadService } from '~/utils/photoUploadService';
 import { useAuth } from '~/hooks/useAuth';
 
 export default function PorteiroProfile() {
@@ -41,6 +42,73 @@ export default function PorteiroProfile() {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Função para upload robusto de foto usando FileSystem
+  const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
+    const maxRetries = 3;
+    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [PorteiroProfile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
+        
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileName = `porteiro_${timestamp}_${randomId}.jpeg`;
+        
+        console.log('🔄 [PorteiroProfile] Nome do arquivo:', fileName);
+        console.log('🔄 [PorteiroProfile] URI da foto:', photoUri);
+
+        // Upload direto com FileSystem.uploadAsync
+        console.log('🔄 [PorteiroProfile] Tentando upload direto com FileSystem.uploadAsync...');
+        
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
+        console.log('🔄 [PorteiroProfile] URL de upload:', uploadUrl);
+        
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        console.log('🔄 [PorteiroProfile] Resultado do FileSystem upload:', uploadResult);
+
+        if (uploadResult.status === 200) {
+          // Obter URL pública usando cliente regular
+          console.log('🔄 [PorteiroProfile] Obtendo URL pública...');
+          const { data: urlData } = supabase.storage
+            .from('user-photos')
+            .getPublicUrl(fileName);
+          
+          console.log('✅ [PorteiroProfile] Upload bem-sucedido! URL:', urlData.publicUrl);
+          return urlData.publicUrl;
+        } else {
+          throw new Error(`Upload falhou com status: ${uploadResult.status}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [PorteiroProfile] Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error('❌ [PorteiroProfile] Todas as tentativas falharam');
+          return null;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        const delay = 1000 * attempt;
+        console.log(`⏳ [PorteiroProfile] Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -252,12 +320,54 @@ export default function PorteiroProfile() {
       }
 
       setPhotoUploading(true);
-      const result = await PhotoUploadService.selectAndUploadPhoto(user.id);
-      if (result.success && result.url) {
-        setFormData({ ...formData, avatar_url: result.url });
+      
+      // Solicitar permissão para acessar a galeria
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'É necessário permitir acesso à galeria para alterar a foto do perfil.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
+      }
+
+      const photoUri = result.assets[0].uri;
+      console.log('📸 [PorteiroProfile] Foto selecionada:', photoUri);
+
+      // Fazer upload da imagem
+      const uploadedUrl = await uploadPhotoToStorage(photoUri);
+      
+      if (uploadedUrl) {
+        // Atualizar o avatar_url no banco de dados
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: uploadedUrl } as any)
+          .eq('user_id', user.id as any)
+          .eq('user_type', 'porteiro' as any);
+
+        if (error) {
+          console.error('Erro ao atualizar avatar_url:', error);
+          Alert.alert('Erro', 'Não foi possível salvar a foto no perfil');
+          return;
+        }
+
+        setFormData({ ...formData, avatar_url: uploadedUrl });
         Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
       } else {
-        Alert.alert('Erro', result.error || 'Não foi possível fazer upload da foto');
+        Alert.alert('Erro', 'Não foi possível fazer upload da foto');
       }
     } catch (error) {
       console.error('Erro ao fazer upload da foto:', error);
@@ -269,13 +379,36 @@ export default function PorteiroProfile() {
 
   const handleRemovePhoto = async () => {
     try {
-      if (formData.avatar_url) {
-        await PhotoUploadService.deletePhoto(formData.avatar_url);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
       }
+
+      setPhotoUploading(true);
+      
+      // Remover a referência da foto do banco de dados
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null } as any)
+        .eq('user_id', user.id as any)
+        .eq('user_type', 'porteiro' as any);
+
+      if (error) {
+        console.error('Erro ao remover avatar_url:', error);
+        Alert.alert('Erro', 'Não foi possível remover a foto do perfil');
+        return;
+      }
+
       setFormData({ ...formData, avatar_url: '' });
+      Alert.alert('Sucesso', 'Foto removida com sucesso!');
     } catch (error) {
       console.error('Erro ao remover foto:', error);
       Alert.alert('Erro', 'Falha ao remover foto');
+    } finally {
+      setPhotoUploading(false);
     }
   };
 
@@ -302,8 +435,8 @@ export default function PorteiroProfile() {
               const { error } = await supabase
                 .from('profiles')
                 .delete()
-                .eq('user_id', user.id)
-                .eq('user_type', 'porteiro');
+                .eq('user_id', user.id as any)
+                .eq('user_type', 'porteiro' as any);
 
               if (error) {
                 console.error('❌ Erro ao excluir perfil:', error);
