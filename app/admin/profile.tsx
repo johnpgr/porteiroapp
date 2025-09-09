@@ -968,22 +968,6 @@ export default function AdminProfilePage() {
             )}
 
             <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Ionicons name="notifications" size={20} color="#666" />
-              <Text style={styles.actionButtonText}>Configurações de Notificação</Text>
-              <Text style={styles.actionButtonArrow}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Ionicons name="shield" size={20} color="#666" />
-              <Text style={styles.actionButtonText}>Privacidade e Segurança</Text>
-              <Text style={styles.actionButtonArrow}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#ffebee' }]}
               onPress={handleDeleteProfile}>
               <Ionicons name="trash" size={20} color="#f44336" />
