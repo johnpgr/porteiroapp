@@ -19,6 +19,8 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
+import { useFirstLogin } from '~/hooks/useFirstLogin';
+import { FirstLoginModal } from '~/components/FirstLoginModal';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
 
@@ -57,6 +59,14 @@ export default function MoradorDashboard() {
     error: notificationsError,
     respondToNotification
   } = usePendingNotifications();
+
+  // Hook para gerenciar primeiro login
+  const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
+
+  // Debug log para verificar o estado
+  useEffect(() => {
+    console.log('🚀 DEBUG MoradorDashboard - isFirstLogin:', isFirstLogin);
+  }, [isFirstLogin]);
 
   // Handle tab parameter from navigation
   useEffect(() => {
@@ -154,8 +164,9 @@ export default function MoradorDashboard() {
   useEffect(() => {
     if (user?.id) {
       fetchVisitorsHistory();
+      checkFirstLoginStatus();
     }
-  }, [user?.id]);
+  }, [user?.id, checkFirstLoginStatus]);
 
   // Função para formatar data em português
   const formatDate = (dateString: string) => {
@@ -561,6 +572,14 @@ export default function MoradorDashboard() {
           {renderBottomNavigation()}
           {renderAvatarMenu()}
         </View>
+        
+        <FirstLoginModal
+          visible={isFirstLogin}
+          onClose={() => {}}
+          onComplete={() => {
+            checkFirstLoginStatus();
+          }}
+        />
       </SafeAreaView>
     </ProtectedRoute>
   );

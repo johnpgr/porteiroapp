@@ -262,6 +262,153 @@ export const uploadVisitorPhoto = async (
 };
 
 /**
+ * Main function to upload a photo for residents (first login)
+ */
+export const uploadResidentPhoto = async (
+  photoUri: string,
+  userId: string,
+  options: PhotoUploadOptions = {}
+): Promise<PhotoUploadResult> => {
+  console.log('🔧 uploadResidentPhoto iniciado');
+  console.log('🔧 photoUri recebido:', photoUri);
+  console.log('🔧 userId:', userId);
+  
+  const finalOptions = { ...DEFAULT_OPTIONS, ...options };
+
+  try {
+    // Validate photo
+    console.log('🔧 Iniciando validação da foto...');
+    const validation = await validatePhoto(photoUri, finalOptions);
+    console.log('🔧 Resultado da validação:', validation);
+    
+    if (!validation.valid) {
+      console.log('❌ Validação falhou:', validation.error);
+      return { success: false, error: validation.error };
+    }
+
+    // Generate unique filename for resident
+    const filename = generateUniqueFilename(`resident_${userId}`);
+    const filePath = `${userId}/${filename}`;
+    console.log('🔧 Filename gerado:', filename);
+    console.log('🔧 FilePath:', filePath);
+
+    // Upload with retry using resident-photos bucket
+    console.log('🔧 Iniciando upload com retry para bucket resident-photos...');
+    const result = await uploadResidentWithRetry(filePath, photoUri, finalOptions);
+    console.log('🔧 Resultado final do upload:', result);
+    return result;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no upload';
+    console.error('❌ Error in uploadResidentPhoto:', errorMessage);
+    console.error('❌ Stack trace:', error);
+    return { success: false, error: errorMessage };
+  }
+};
+
+/**
+ * Upload function specifically for resident-photos bucket
+ */
+const uploadResidentWithRetry = async (
+  filePath: string,
+  photoUri: string,
+  options: Required<PhotoUploadOptions>
+): Promise<PhotoUploadResult> => {
+  let lastError: string = '';
+
+  for (let attempt = 1; attempt <= options.maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Resident upload attempt ${attempt}/${options.maxRetries} for ${filePath}`);
+      console.log(`🔄 Photo URI: ${photoUri}`);
+
+      // Method 1: Try direct upload using FileSystem.uploadAsync
+      console.log('🔄 Trying direct upload with FileSystem.uploadAsync...');
+      
+      const uploadUrl = `${supabaseUrl}/storage/v1/object/resident-photos/${filePath}`;
+      console.log('🔄 Upload URL:', uploadUrl);
+      
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('🔄 FileSystem upload result:', uploadResult);
+
+      if (uploadResult.status === 200) {
+        // Get public URL using regular client
+        console.log('🔄 Getting public URL...');
+        const { data: urlData } = supabase.storage
+          .from('resident-photos')
+          .getPublicUrl(filePath);
+
+        console.log('🔄 Public URL data:', urlData);
+        console.log(`✅ Resident upload successful on attempt ${attempt}! URL: ${urlData.publicUrl}`);
+        return { success: true, url: urlData.publicUrl };
+      } else {
+        lastError = `HTTP ${uploadResult.status}: ${uploadResult.body || 'Upload failed'}`;
+        console.log(`❌ Resident upload attempt ${attempt} failed:`, lastError);
+      }
+
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.log(`Resident upload attempt ${attempt} failed with exception:`, lastError);
+      
+      // Try fallback method with blob conversion
+      if (attempt === options.maxRetries) {
+        console.log('🔄 Trying fallback method with blob conversion...');
+        try {
+          // Read file as base64
+          const base64Data = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: FileSystem.EncodingType.Base64
+          });
+          
+          // Convert base64 to blob
+          const response = await fetch(`data:image/jpeg;base64,${base64Data}`);
+          const blob = await response.blob();
+          
+          // Upload to Supabase Storage using admin client
+          const { data, error } = await supabaseAdmin.storage
+            .from('resident-photos')
+            .upload(filePath, blob, {
+              contentType: 'image/jpeg',
+              upsert: false
+            });
+
+          if (!error) {
+            const { data: urlData } = supabase.storage
+              .from('resident-photos')
+              .getPublicUrl(filePath);
+            
+            console.log(`✅ Resident fallback upload successful! URL: ${urlData.publicUrl}`);
+            return { success: true, url: urlData.publicUrl };
+          } else {
+            lastError = error.message;
+          }
+        } catch (fallbackError) {
+          lastError = fallbackError instanceof Error ? fallbackError.message : 'Erro no método fallback';
+          console.log('❌ Resident fallback method also failed:', lastError);
+        }
+      }
+      
+      if (attempt === options.maxRetries) {
+        return { success: false, error: `Falha no upload após ${options.maxRetries} tentativas: ${lastError}` };
+      }
+      
+      // Wait before retrying
+      console.log(`⏳ Waiting ${options.retryDelay * attempt}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, options.retryDelay * attempt));
+    }
+  }
+
+  return { success: false, error: `Falha no upload após ${options.maxRetries} tentativas: ${lastError}` };
+};
+
+/**
  * Deletes a photo from Supabase Storage
  */
 export const deletePhoto = async (photoUrl: string): Promise<{ success: boolean; error?: string }> => {

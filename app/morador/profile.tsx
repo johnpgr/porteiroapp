@@ -18,6 +18,8 @@ import { PhotoUploadService } from '~/utils/photoUploadService';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import BottomNav from '~/components/BottomNav';
+import { useFirstLogin } from '~/hooks/useFirstLogin';
+import { FirstLoginModal } from '~/components/FirstLoginModal';
 
 interface MoradorProfileData {
   id: string;
@@ -60,9 +62,13 @@ export default function MoradorProfile() {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  
+  // Hook para gerenciar primeiro login
+  const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
 
   useEffect(() => {
     fetchProfile();
+    checkFirstLoginStatus();
   }, [fetchProfile]);
 
   const fetchProfile = useCallback(async () => {
@@ -88,7 +94,7 @@ export default function MoradorProfile() {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
@@ -924,6 +930,19 @@ export default function MoradorProfile() {
           </ScrollView>
         </View>
         <BottomNav activeTab="profile" />
+        
+        {/* Modal de Primeiro Login */}
+        <FirstLoginModal 
+          visible={isFirstLogin} 
+          onClose={() => {
+            // Não permitir fechar o modal até completar o primeiro login
+            console.log('Tentativa de fechar modal de primeiro login bloqueada');
+          }}
+          onComplete={() => {
+            checkFirstLoginStatus();
+            fetchProfile();
+          }}
+        />
       </SafeAreaView>
     </ProtectedRoute>
   );
