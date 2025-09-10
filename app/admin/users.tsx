@@ -15,7 +15,7 @@ import {
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
+import { Ionicons } from '@expo/vector-icons';
 import { notificationService } from '~/services/notificationService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -248,6 +248,13 @@ export default function UsersManagement() {
   const [showUserListModal, setShowUserListModal] = useState(false);
   const [userListFilter, setUserListFilter] = useState<'morador' | 'porteiro'>('morador');
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  
+  // Estados para modais de seleção de prédios
+  const [showBuildingModal, setShowBuildingModal] = useState(false);
+  const [buildingModalContext, setBuildingModalContext] = useState<{
+    type: 'newUser' | 'multipleResident';
+    residentIndex?: number;
+  } | null>(null);
 
   // Controle de abertura única dos modais
   const closeAllModals = () => {
@@ -256,6 +263,27 @@ export default function UsersManagement() {
     setShowVehicleForm(false);
     setShowBulkForm(false);
     setShowUserListModal(false);
+    setShowBuildingModal(false);
+  };
+
+  // Função para abrir modal de seleção de prédio
+  const openBuildingModal = (context: { type: 'newUser' | 'multipleResident'; residentIndex?: number }) => {
+    setBuildingModalContext(context);
+    setShowBuildingModal(true);
+  };
+
+  // Função para selecionar prédio
+  const handleBuildingSelect = (buildingId: string) => {
+    if (!buildingModalContext) return;
+    
+    if (buildingModalContext.type === 'newUser') {
+      setNewUser((prev) => ({ ...prev, selectedBuildingId: buildingId }));
+    } else if (buildingModalContext.type === 'multipleResident' && buildingModalContext.residentIndex !== undefined) {
+      updateMultipleResident(buildingModalContext.residentIndex, 'selectedBuildingId', buildingId);
+    }
+    
+    setShowBuildingModal(false);
+    setBuildingModalContext(null);
   };
 
   const openAddUserModal = () => {
@@ -2015,20 +2043,18 @@ export default function UsersManagement() {
               <>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Prédio *</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={newUser.selectedBuildingId}
-                      style={styles.picker}
-                      itemStyle={styles.pickerItem}
-                      onValueChange={(itemValue) =>
-                        setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
-                      }>
-                      <Picker.Item label="Selecione um prédio" value="" />
-                      {buildings.map((building) => (
-                        <Picker.Item key={building.id} label={building.name} value={building.id} />
-                      ))}
-                    </Picker>
-                  </View>
+                  <TouchableOpacity 
+                    style={styles.dropdownButton}
+                    onPress={() => openBuildingModal({ type: 'newUser' })}
+                  >
+                    <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
+                      {newUser.selectedBuildingId 
+                        ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
+                        : 'Selecione um prédio'
+                      }
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#666" />
+                  </TouchableOpacity>
                 </View>
 
                 {newUser.selectedBuildingId && (
@@ -2225,21 +2251,6 @@ export default function UsersManagement() {
                   </View>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Foto (Opcional)</Text>
-                  <TouchableOpacity
-                    style={styles.photoButton}
-                    onPress={handleSelectPhoto}>
-                    {newUser.photoUri ? (
-                      <View style={styles.photoPreview}>
-                        <Image source={{ uri: newUser.photoUri }} style={styles.photoImage} />
-                        <Text style={styles.photoButtonText}>Alterar Foto</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.photoButtonText}>📷 Selecionar Foto</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
               </>
             )}
 
@@ -2247,20 +2258,18 @@ export default function UsersManagement() {
             {newUser.type === 'porteiro' && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Prédio *</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={newUser.selectedBuildingId}
-                    style={styles.picker}
-                    itemStyle={styles.pickerItem}
-                    onValueChange={(itemValue) =>
-                      setNewUser((prev) => ({ ...prev, selectedBuildingId: itemValue }))
-                    }>
-                    <Picker.Item label="Selecione um prédio" value="" />
-                    {buildings.map((building) => (
-                      <Picker.Item key={building.id} label={building.name} value={building.id} />
-                    ))}
-                  </Picker>
-                </View>
+                <TouchableOpacity 
+                  style={styles.dropdownButton}
+                  onPress={() => openBuildingModal({ type: 'newUser' })}
+                >
+                  <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
+                    {newUser.selectedBuildingId 
+                      ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
+                      : 'Selecione um prédio'
+                    }
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
               </View>
             )}
 
@@ -2357,41 +2366,53 @@ export default function UsersManagement() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Prédio *</Text>
-                  <Picker
-                    selectedValue={resident.selectedBuildingId}
-                    style={styles.picker}
-                    itemStyle={styles.pickerItem}
-                    onValueChange={(value) =>
-                      updateMultipleResident(index, 'selectedBuildingId', value)
-                    }>
-                    <Picker.Item label="Selecione um prédio" value="" />
-                    {buildings.map((building) => (
-                      <Picker.Item key={building.id} label={building.name} value={building.id} />
-                    ))}
-                  </Picker>
+                  <TouchableOpacity 
+                    style={styles.dropdownButton}
+                    onPress={() => openBuildingModal({ type: 'multipleResident', residentIndex: index })}
+                  >
+                    <Text style={[styles.dropdownText, !resident.selectedBuildingId && styles.placeholderText]}>
+                      {resident.selectedBuildingId 
+                        ? buildings.find(b => b.id === resident.selectedBuildingId)?.name || 'Selecione um prédio'
+                        : 'Selecione um prédio'
+                      }
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#666" />
+                  </TouchableOpacity>
                 </View>
 
                 {resident.selectedBuildingId && (
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Apartamento *</Text>
-                    <Picker
-                      selectedValue={resident.selectedApartmentId}
-                      style={styles.picker}
-                      itemStyle={styles.pickerItem}
-                      onValueChange={(value) =>
-                        updateMultipleResident(index, 'selectedApartmentId', value)
-                      }>
-                      <Picker.Item label="Selecione um apartamento" value="" />
-                      {apartments
-                        .filter((apt) => apt.building_id === resident.selectedBuildingId)
-                        .map((apartment) => (
-                          <Picker.Item
-                            key={apartment.id}
-                            label={apartment.number}
-                            value={apartment.id}
-                          />
-                        ))}
-                    </Picker>
+                    <TouchableOpacity 
+                      style={styles.dropdownButton}
+                      onPress={() => {
+                        const filteredApartments = apartments.filter((apt) => apt.building_id === resident.selectedBuildingId);
+                        const apartmentOptions = filteredApartments.map(apartment => ({
+                          text: apartment.number,
+                          onPress: () => updateMultipleResident(index, 'selectedApartmentId', apartment.id)
+                        }));
+                        apartmentOptions.unshift({
+                          text: 'Cancelar',
+                          onPress: () => {}
+                        });
+                        
+                        Alert.alert(
+                          'Selecione um Apartamento',
+                          '',
+                          apartmentOptions,
+                          { cancelable: true }
+                        );
+                      }}
+                      disabled={!resident.selectedBuildingId}
+                    >
+                      <Text style={[styles.dropdownText, !resident.selectedApartmentId && styles.placeholderText]}>
+                        {resident.selectedApartmentId 
+                          ? apartments.find(a => a.id === resident.selectedApartmentId)?.number || 'Selecione um apartamento'
+                          : 'Selecione um apartamento'
+                        }
+                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#666" />
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -2491,22 +2512,58 @@ export default function UsersManagement() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Tipo do Veículo</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={newVehicle.type}
-                style={styles.picker}
-                itemStyle={styles.pickerItem}
-                onValueChange={(itemValue) =>
-                  setNewVehicle((prev) => ({ ...prev, type: itemValue }))
-                }>
-                <Picker.Item label="Carro" value="car" />
-                <Picker.Item label="Moto" value="motorcycle" />
-                <Picker.Item label="Caminhão" value="truck" />
-                <Picker.Item label="Van" value="van" />
-                <Picker.Item label="Ônibus" value="bus" />
-                <Picker.Item label="Outro" value="other" />
-              </Picker>
-            </View>
+            <TouchableOpacity 
+              style={styles.dropdownButton}
+              onPress={() => {
+                Alert.alert(
+                  'Selecione o Tipo do Veículo',
+                  '',
+                  [
+                    {
+                      text: 'Carro',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'car' }))
+                    },
+                    {
+                      text: 'Moto',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'motorcycle' }))
+                    },
+                    {
+                      text: 'Caminhão',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'truck' }))
+                    },
+                    {
+                      text: 'Van',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'van' }))
+                    },
+                    {
+                      text: 'Ônibus',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'bus' }))
+                    },
+                    {
+                      text: 'Outro',
+                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'other' }))
+                    },
+                    {
+                      text: 'Cancelar',
+                      onPress: () => {}
+                    }
+                  ],
+                  { cancelable: true }
+                );
+              }}
+            >
+              <Text style={[styles.dropdownText, !newVehicle.type && styles.placeholderText]}>
+                {newVehicle.type === 'car' ? 'Carro' :
+                 newVehicle.type === 'motorcycle' ? 'Moto' :
+                 newVehicle.type === 'truck' ? 'Caminhão' :
+                 newVehicle.type === 'van' ? 'Van' :
+                 newVehicle.type === 'bus' ? 'Ônibus' :
+                 newVehicle.type === 'other' ? 'Outro' :
+                 'Selecione o tipo'
+                }
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
 
 
@@ -2606,6 +2663,32 @@ export default function UsersManagement() {
               )}
             </ScrollView>
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Seleção de Prédios */}
+      <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowBuildingModal(false)}>
+              <Text style={styles.closeButton}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            {buildings.map((building) => (
+              <TouchableOpacity
+                key={building.id}
+                style={styles.buildingOption}
+                onPress={() => handleBuildingSelect(building.id)}
+              >
+                <Text style={styles.buildingOptionText}>{building.name}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -2832,15 +2915,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  pickerContainer: {
+  dropdownButton: {
     borderWidth: 2,
     borderColor: '#e9ecef',
     borderRadius: 10,
     marginBottom: 15,
     backgroundColor: '#fff',
     paddingHorizontal: 12,
-    overflow: 'hidden',
+    paddingVertical: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     minHeight: 60,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#999',
   },
   pickerLabel: {
     fontSize: 16,
@@ -3437,16 +3531,18 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-  deleteButton: {
-    backgroundColor: '#ff4444',
-    borderRadius: 8,
-    padding: 8,
+  buildingOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
   },
-  deleteButtonText: {
+  buildingOptionText: {
     fontSize: 16,
-    color: '#fff',
+    color: '#333',
+    flex: 1,
   },
 });

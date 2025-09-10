@@ -60,16 +60,51 @@ export const useFirstLogin = () => {
       console.log('📊 DEBUG useFirstLogin - Profile encontrado:', profile);
       
       // Se não existe perfil, é definitivamente primeiro login
+      if (!profile) {
+        console.log('🔍 DEBUG useFirstLogin - Perfil não existe, é primeiro login');
+        setStatus({
+          isFirstLogin: true,
+          isLoading: false,
+          error: null,
+          profileData: null
+        });
+        return;
+      }
+
       // Verificar se o CPF está preenchido E não é apenas espaços em branco
-      const hasCpf = profile?.cpf && profile.cpf.trim().length > 0;
-      const hasFirstLoginCompleted = profile?.first_login_completed === true;
-      const profileExists = !!profile;
+      const hasCpf = (profile as any)?.cpf && (profile as any).cpf.trim().length > 0;
+      const hasFirstLoginCompleted = (profile as any)?.first_login_completed === true;
       
-      const isFirstLogin = !profileExists || !hasFirstLoginCompleted || !hasCpf;
-      
-      console.log('🔍 DEBUG useFirstLogin - Profile exists:', profileExists);
-      console.log('🔍 DEBUG useFirstLogin - Has CPF:', hasCpf, 'CPF value:', profile?.cpf);
+      console.log('🔍 DEBUG useFirstLogin - Has CPF:', hasCpf, 'CPF value:', (profile as any)?.cpf);
       console.log('🔍 DEBUG useFirstLogin - First login completed:', hasFirstLoginCompleted);
+
+      // NOVA LÓGICA: Se tem CPF mas first_login_completed é false, corrigir no banco
+      if (hasCpf && !hasFirstLoginCompleted) {
+        console.log('� DEBUG useFirstLogin - CPF existe mas first_login_completed é false, corrigindo...');
+        try {
+          await supabase
+            .from('profiles')
+            .update({ 
+              first_login_completed: true,
+              profile_complete: true,
+              profile_completion_date: new Date().toISOString()
+            } as any)
+            .eq('id', user.id as any);
+          
+          console.log('✅ DEBUG useFirstLogin - Campo first_login_completed corrigido');
+          
+          // Atualizar o profile local
+          (profile as any).first_login_completed = true;
+          (profile as any).profile_complete = true;
+          (profile as any).profile_completion_date = new Date().toISOString();
+        } catch (updateError) {
+          console.error('❌ Erro ao corrigir first_login_completed:', updateError);
+        }
+      }
+
+      // Lógica principal: é primeiro login apenas se não tem CPF
+      const isFirstLogin = !hasCpf;
+      
       console.log('🔍 DEBUG useFirstLogin - Final isFirstLogin:', isFirstLogin);
       console.log('📋 DEBUG useFirstLogin - Profile data que será retornado:', profile);
 
@@ -77,7 +112,7 @@ export const useFirstLogin = () => {
         isFirstLogin,
         isLoading: false,
         error: null,
-        profileData: profile || null // Garantir que seja null se não existir
+        profileData: profile
       });
     } catch (error: any) {
       console.error('❌ Erro no checkFirstLoginStatus:', error);
@@ -127,8 +162,8 @@ export const useFirstLogin = () => {
           profile_complete: true,
           profile_completion_date: new Date().toISOString(),
           photo_verification_status: data.photoUri ? 'pending' : null
-        })
-        .eq('id', user.id);
+        } as any)
+        .eq('id', user.id as any);
 
       if (updateError) {
         console.error('❌ Erro ao atualizar perfil:', updateError);

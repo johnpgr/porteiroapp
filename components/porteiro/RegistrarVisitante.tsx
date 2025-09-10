@@ -663,7 +663,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         if (tipoVisita === 'entrega') {
           entryType = 'delivery';
         } else if (tipoVisita === 'prestador') {
-          entryType = 'service';
+          entryType = 'visitor'; // Prestador de serviço é considerado visitor no banco
         }
 
         console.log('🖼️ Estado atual do photoUrl no RegistrarVisitante:', photoUrl);

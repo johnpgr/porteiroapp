@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
@@ -51,7 +50,7 @@ interface Person {
 }
 
 const relationOptions = {
-  familiar: ['Cônjuge', 'Filho(a)', 'Pai/Mãe', 'Irmão/Irmã', 'Outro familiar'],
+  familiar: ['Cônjuge', 'Familia', 'Funcionário'],
   funcionario: ['Empregada doméstica', 'Babá', 'Cuidador(a)', 'Outro funcionário'],
   autorizado: ['Amigo', 'Prestador de serviço', 'Outro autorizado']
 };
@@ -234,11 +233,6 @@ export default function CadastroTab() {
       return;
     }
     
-    if (!formData.relation.trim()) {
-      Alert.alert('Erro', 'Relação é obrigatória');
-      return;
-    }
-
     try {
       setLoading(true);
       
@@ -674,34 +668,42 @@ export default function CadastroTab() {
             {/* Tipo de Pessoa */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tipo de Pessoa *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.person_type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, person_type: value, relation: '' }))}
-                  enabled={!loading}
-                >
-                  <Picker.Item label="Familiar" value="familiar" />
-                  <Picker.Item label="Funcionário" value="funcionario" />
-                  <Picker.Item label="Autorizado" value="autorizado" />
-                </Picker>
-              </View>
-            </View>
-
-            {/* Relação */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Relação *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.relation}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, relation: value }))}
-                  enabled={!loading}
-                >
-                  <Picker.Item label="Selecione a relação" value="" />
-                  {relationOptions[formData.person_type].map((option) => (
-                    <Picker.Item key={option} label={option} value={option} />
-                  ))}
-                </Picker>
-              </View>
+              <TouchableOpacity 
+                style={styles.dropdownButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Selecione o Tipo de Pessoa',
+                    '',
+                    [
+                      {
+                        text: 'Familiar',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'familiar', relation: '' }))
+                      },
+                      {
+                        text: 'Funcionário',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'funcionario', relation: '' }))
+                      },
+                      {
+                        text: 'Autorizado',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'autorizado', relation: '' }))
+                      },
+                      {
+                        text: 'Cancelar',
+                        onPress: () => {}
+                      }
+                    ],
+                    { cancelable: true }
+                  );
+                }}
+                disabled={loading}
+              >
+                <Text style={[styles.dropdownText, !formData.person_type && styles.placeholderText]}>
+                  {formData.person_type === 'familiar' ? 'Familiar' :
+                   formData.person_type === 'funcionario' ? 'Funcionário' :
+                   formData.person_type === 'autorizado' ? 'Autorizado' : 'Selecione o tipo'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
             </View>
 
             {/* CPF */}
@@ -975,11 +977,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  pickerContainer: {
+  dropdownButton: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
+    padding: 12,
     backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#999',
   },
   checkboxGroup: {
     marginTop: 16,
