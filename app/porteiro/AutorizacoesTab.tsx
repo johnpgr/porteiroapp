@@ -15,8 +15,7 @@ import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { v4 as uuidv4 } from 'uuid';
-// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-// import { usePorteiroNotifications } from '~/hooks/usePorteiroNotifications';
+import { usePorteiroNotifications } from '~/hooks/usePorteiroNotifications';
 import * as Notifications from 'expo-notifications';
 
 console.log('🚀 AUTORIZACOES TAB LOADED');
@@ -112,30 +111,20 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
   const [visitorLogsSubscription, setVisitorLogsSubscription] = useState<any>(null);
   const [activeSection, setActiveSection] = useState<'visitors' | 'preauthorized'>('visitors');
   
-  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-  // console.log('🚀 [AutorizacoesTab] Iniciando hook usePorteiroNotifications com buildingId:', buildingId);
+  console.log('🚀 [AutorizacoesTab] Iniciando hook usePorteiroNotifications com buildingId:', buildingId);
   
   // Hook de notificações em tempo real
-  // const {
-  //   notifications,
-  //   unreadCount,
-  //   isListening,
-  //   startListening,
-  //   stopListening,
-  //   error: notificationsError,
-  //   refreshNotifications
-  // } = usePorteiroNotifications(buildingId, user?.id);
+  const {
+    notifications,
+    unreadCount,
+    isListening,
+    startListening,
+    stopListening,
+    error: notificationsError,
+    refreshNotifications
+  } = usePorteiroNotifications(buildingId, user?.id);
   
-  // Valores padrão para substituir o hook desativado
-  const notifications = [];
-  const unreadCount = 0;
-  const isListening = false;
-  const startListening = () => {};
-  const stopListening = () => {};
-  const notificationsError = null;
-  const refreshNotifications = () => {};
-  
-  // console.log('🔍 [AutorizacoesTab] Hook carregado - isListening:', isListening, 'notifications:', notifications.length, 'unreadCount:', unreadCount, 'error:', notificationsError);
+  console.log('🔍 [AutorizacoesTab] Hook carregado - isListening:', isListening, 'notifications:', notifications.length, 'unreadCount:', unreadCount, 'error:', notificationsError);
   
 
 
@@ -317,117 +306,112 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     }
   };
 
-  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Função para enviar notificação push
   const sendPushNotification = async (logData: any, eventType: string) => {
-    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS - apenas log
-    console.log('📱 Push notifications desativadas - evento de visitante registrado sem notificação');
-    return;
-    
-    // try {
-    //   // Verificar se as notificações estão habilitadas
-    //   const { status } = await Notifications.getPermissionsAsync();
-    //   if (status !== 'granted') {
-    //     console.warn('⚠️ Permissões de notificação não concedidas');
-    //     return;
-    //   }
+    try {
+      // Verificar se as notificações estão habilitadas
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('⚠️ Permissões de notificação não concedidas');
+        return;
+      }
 
-    //   // Verificar horário de trabalho antes de enviar notificação
-    //   const currentHour = new Date().getHours();
-    //   const isWorkingHours = currentHour >= 8 && currentHour <= 18;
-    //   
-    //   if (!isWorkingHours) {
-    //     console.log('🕐 Fora do horário de trabalho (08:00-18:00), notificação não enviada');
-    //     return;
-    //   }
+      // Verificar horário de trabalho antes de enviar notificação
+      const currentHour = new Date().getHours();
+      const isWorkingHours = currentHour >= 8 && currentHour <= 18;
+      
+      if (!isWorkingHours) {
+        console.log('🕐 Fora do horário de trabalho (08:00-18:00), notificação não enviada');
+        return;
+      }
 
-    //   // Buscar informações completas do visitante se necessário
-    //   let visitorName = logData?.visitor_name || logData?.guest_name || 'Visitante';
-    //   let apartmentNumber = logData?.apartment_number;
-    //   
-    //   // Se não temos o nome do visitante e temos visitor_id, buscar no Supabase
-    //   if ((!visitorName || visitorName === 'Visitante') && logData?.visitor_id) {
-    //     try {
-    //       const { data: visitorData } = await supabase
-    //         .from('visitors')
-    //         .select('name')
-    //         .eq('id', logData.visitor_id)
-    //         .single();
-    //       
-    //       visitorName = visitorData?.name || logData?.guest_name || 'Visitante';
-    //     } catch (error) {
-    //       console.warn('⚠️ Erro ao buscar nome do visitante:', error);
-    //     }
-    //   }
-    //   
-    //   // Se não temos o número do apartamento, buscar no Supabase
-    //   if (!apartmentNumber || apartmentNumber === 'N/A') {
-    //     try {
-    //       const { data: apartmentData } = await supabase
-    //         .from('apartments')
-    //         .select('number')
-    //         .eq('id', logData?.apartment_id)
-    //         .single();
-    //       
-    //       apartmentNumber = apartmentData?.number || 'N/A';
-    //     } catch (error) {
-    //       console.warn('⚠️ Erro ao buscar número do apartamento:', error);
-    //       apartmentNumber = 'N/A';
-    //     }
-    //   }
-    //   
-    //   // Formatar número do apartamento para exibição
-    //   const displayApartment = apartmentNumber && apartmentNumber !== 'N/A' 
-    //     ? `apartamento ${apartmentNumber}` 
-    //     : 'apartamento não identificado';
+      // Buscar informações completas do visitante se necessário
+      let visitorName = logData?.visitor_name || logData?.guest_name || 'Visitante';
+      let apartmentNumber = logData?.apartment_number;
+      
+      // Se não temos o nome do visitante e temos visitor_id, buscar no Supabase
+      if ((!visitorName || visitorName === 'Visitante') && logData?.visitor_id) {
+        try {
+          const { data: visitorData } = await supabase
+            .from('visitors')
+            .select('name')
+            .eq('id', logData.visitor_id)
+            .single();
+          
+          visitorName = visitorData?.name || logData?.guest_name || 'Visitante';
+        } catch (error) {
+          console.warn('⚠️ Erro ao buscar nome do visitante:', error);
+        }
+      }
+      
+      // Se não temos o número do apartamento, buscar no Supabase
+      if (!apartmentNumber || apartmentNumber === 'N/A') {
+        try {
+          const { data: apartmentData } = await supabase
+            .from('apartments')
+            .select('number')
+            .eq('id', logData?.apartment_id)
+            .single();
+          
+          apartmentNumber = apartmentData?.number || 'N/A';
+        } catch (error) {
+          console.warn('⚠️ Erro ao buscar número do apartamento:', error);
+          apartmentNumber = 'N/A';
+        }
+      }
+      
+      // Formatar número do apartamento para exibição
+      const displayApartment = apartmentNumber && apartmentNumber !== 'N/A' 
+        ? `apartamento ${apartmentNumber}` 
+        : 'apartamento não identificado';
 
-    //   // Criar mensagens personalizadas e amigáveis
-    //   let title = '';
-    //   let body = '';
-    //   
-    //   if (eventType === 'INSERT') {
-    //     // Nova entrada de visitante
-    //     title = '🔔 Novo Visitante Registrado';
-    //     body = `${visitorName} foi registrado para visita ao ${displayApartment}.`;
-    //   } else if (eventType === 'UPDATE') {
-    //     // Atualização do status do visitante
-    //     const status = logData?.notification_status;
-    //     
-    //     if (status === 'approved') {
-    //       title = '✅ Visitante Autorizado';
-    //       body = `O visitante ${visitorName} foi autorizado a entrar no ${displayApartment}.`;
-    //     } else if (status === 'rejected') {
-    //       title = '❌ Visitante Não Autorizado';
-    //       body = `A entrada do visitante ${visitorName} no ${displayApartment} foi negada.`;
-    //     } else {
-    //       title = '🔄 Status do Visitante Atualizado';
-    //       body = `O status do visitante ${visitorName} para o ${displayApartment} foi atualizado.`;
-    //     }
-    //   }
-    //   
-    //   await Notifications.scheduleNotificationAsync({
-    //     content: {
-    //       title,
-    //       body,
-    //       data: {
-    //         logId: logData?.id || 'unknown',
-    //         buildingId: buildingId,
-    //         eventType,
-    //         visitorName: logData?.visitor_name,
-    //         apartmentNumber: logData?.apartment_number,
-    //         notificationStatus: logData?.notification_status,
-    //         timestamp: new Date().toISOString(),
-    //         workingHours: '08:00-18:00'
-    //       },
-    //     },
-    //     trigger: null, // Enviar imediatamente
-    //   });
-    //   
-    //   console.log('📱 Push notification enviada:', { title, body, eventType, workingHours: isWorkingHours });
-    // } catch (error) {
-    //   console.error('❌ Erro ao enviar push notification:', error);
-    //   // Não interromper o fluxo em caso de erro de notificação
-    // }
+      // Criar mensagens personalizadas e amigáveis
+      let title = '';
+      let body = '';
+      
+      if (eventType === 'INSERT') {
+        // Nova entrada de visitante
+        title = '🔔 Novo Visitante Registrado';
+        body = `${visitorName} foi registrado para visita ao ${displayApartment}.`;
+      } else if (eventType === 'UPDATE') {
+        // Atualização do status do visitante
+        const status = logData?.notification_status;
+        
+        if (status === 'approved') {
+          title = '✅ Visitante Autorizado';
+          body = `O visitante ${visitorName} foi autorizado a entrar no ${displayApartment}.`;
+        } else if (status === 'rejected') {
+          title = '❌ Visitante Não Autorizado';
+          body = `A entrada do visitante ${visitorName} no ${displayApartment} foi negada.`;
+        } else {
+          title = '🔄 Status do Visitante Atualizado';
+          body = `O status do visitante ${visitorName} para o ${displayApartment} foi atualizado.`;
+        }
+      }
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: {
+            logId: logData?.id || 'unknown',
+            buildingId: buildingId,
+            eventType,
+            visitorName: logData?.visitor_name,
+            apartmentNumber: logData?.apartment_number,
+            notificationStatus: logData?.notification_status,
+            timestamp: new Date().toISOString(),
+            workingHours: '08:00-18:00'
+          },
+        },
+        trigger: null, // Enviar imediatamente
+      });
+      
+      console.log('📱 Push notification enviada:', { title, body, eventType, workingHours: isWorkingHours });
+    } catch (error) {
+      console.error('❌ Erro ao enviar push notification:', error);
+      // Não interromper o fluxo em caso de erro de notificação
+    }
   };
 
   // Função para configurar subscription em tempo real para visitor_logs
