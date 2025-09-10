@@ -32,7 +32,6 @@ export const useFirstLogin = () => {
   // Verificar se é primeiro login
   const checkFirstLoginStatus = useCallback(async () => {
     if (!user) {
-      console.log('🔍 DEBUG useFirstLogin - Usuário não encontrado, mantendo loading');
       setStatus({
         isFirstLogin: false,
         isLoading: true, // Manter loading até ter usuário
@@ -44,7 +43,6 @@ export const useFirstLogin = () => {
 
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: null }));
-      console.log('🔍 DEBUG useFirstLogin - Buscando perfil para usuário:', user.id);
 
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -56,12 +54,9 @@ export const useFirstLogin = () => {
         console.error('❌ Erro ao buscar perfil no useFirstLogin:', error);
         throw error;
       }
-
-      console.log('📊 DEBUG useFirstLogin - Profile encontrado:', profile);
       
       // Se não existe perfil, é definitivamente primeiro login
       if (!profile) {
-        console.log('🔍 DEBUG useFirstLogin - Perfil não existe, é primeiro login');
         setStatus({
           isFirstLogin: true,
           isLoading: false,
@@ -75,8 +70,6 @@ export const useFirstLogin = () => {
       const hasCpf = (profile as any)?.cpf && (profile as any).cpf.trim().length > 0;
       const hasFirstLoginCompleted = (profile as any)?.first_login_completed === true;
       
-      console.log('🔍 DEBUG useFirstLogin - Has CPF:', hasCpf, 'CPF value:', (profile as any)?.cpf);
-      console.log('🔍 DEBUG useFirstLogin - First login completed:', hasFirstLoginCompleted);
 
       // NOVA LÓGICA: Se tem CPF mas first_login_completed é false, corrigir no banco
       if (hasCpf && !hasFirstLoginCompleted) {
@@ -105,9 +98,6 @@ export const useFirstLogin = () => {
       // Lógica principal: é primeiro login apenas se não tem CPF
       const isFirstLogin = !hasCpf;
       
-      console.log('🔍 DEBUG useFirstLogin - Final isFirstLogin:', isFirstLogin);
-      console.log('📋 DEBUG useFirstLogin - Profile data que será retornado:', profile);
-
       setStatus({
         isFirstLogin,
         isLoading: false,
