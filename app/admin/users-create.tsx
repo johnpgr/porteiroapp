@@ -103,9 +103,11 @@ const validateDate = (date: string): boolean => {
 interface ResidentData {
   name: string;
   phone: string;
+  email: string;
   building: string;
   apartment: string;
-  temporaryPassword?: string; // Senha temporária para moradores
+  profile_id: string;
+  temporary_password?: string; // Senha temporária para moradores
 }
 
 // Função para gerar senha temporária aleatória de 6 dígitos numéricos
@@ -357,9 +359,11 @@ export default function UsersCreate() {
       const success = await notificationService.sendResidentWhatsApp({
         name: residentData.name,
         phone: residentData.phone,
+        email: residentData.email,
         building: residentData.building,
         apartment: residentData.apartment,
-        temporaryPassword: residentData.temporaryPassword || ''
+        profile_id: residentData.profile_id,
+        temporary_password: residentData.temporary_password || ''
       });
 
       if (success) {
@@ -505,9 +509,11 @@ export default function UsersCreate() {
           const residentData: ResidentData = {
             name: newUser.name,
             phone: newUser.phone,
+            email: newUser.email,
             building: building.name,
             apartment: selectedApartments.map(apt => apt.number).join(', '),
-            temporaryPassword: temporaryPassword
+            profile_id: insertedUser.id,
+            temporary_password: temporaryPassword
           };
 
           await handleSingleUserWhatsApp(residentData);
@@ -593,9 +599,11 @@ export default function UsersCreate() {
                 const residentData: ResidentData = {
                   name: newUser.name,
                   phone: newUser.phone,
+                  email: newUser.email,
                   building: building.name,
                   apartment: selectedApartments.map(apt => apt.number).join(', '),
-                  temporaryPassword: temporaryPassword
+                  profile_id: insertedUser.id,
+                  temporary_password: temporaryPassword
                 };
 
                 await handleSingleUserWhatsApp(residentData);

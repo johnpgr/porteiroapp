@@ -202,7 +202,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const handleNext = () => {
     if (!validateCurrentStep()) return;
 
-    const steps: Array<'personal' | 'contact' | 'emergency' | 'photo'> = [
+    const steps: ('personal' | 'contact' | 'emergency' | 'photo')[] = [
       'personal', 'contact', 'emergency', 'photo'
     ];
     const currentIndex = steps.indexOf(step);
@@ -213,7 +213,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
   // Navigate to previous step
   const handleBack = () => {
-    const steps: Array<'personal' | 'contact' | 'emergency' | 'photo'> = [
+    const steps: ('personal' | 'contact' | 'emergency' | 'photo')[] = [
       'personal', 'contact', 'emergency', 'photo'
     ];
     const currentIndex = steps.indexOf(step);
@@ -488,7 +488,10 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         <Ionicons name="camera-outline" size={48} color="#007AFF" />
         <Text style={styles.title}>Foto do Perfil</Text>
         <Text style={styles.subtitle}>
-          Adicione uma foto para completar seu perfil
+          Adicione uma foto para completar seu perfil. Ela será usada para sua identificação no condomínio.
+        </Text>
+        <Text style={styles.photoHint}>
+          📱 Você pode tirar uma nova foto ou escolher uma da sua galeria. As permissões serão solicitadas quando necessário.
         </Text>
       </View>
 
@@ -574,7 +577,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         <View style={[styles.container, styles.centerContent]}>
           <Ionicons name="alert-circle" size={48} color="#FF3B30" />
           <Text style={styles.errorTitle}>Erro ao carregar dados</Text>
-          <Text style={styles.errorText}>{hookError}</Text>
+          <Text style={styles.errorDescription}>{hookError}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => window.location.reload()}>
             <Text style={styles.retryButtonText}>Tentar Novamente</Text>
           </TouchableOpacity>
@@ -682,6 +685,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
   },
+  backButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
   progressContainer: {
     flex: 1,
     alignItems: 'center',
@@ -774,6 +783,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  photoHint: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: 12,
+    paddingHorizontal: 20,
+  },
   inputContainer: {
     marginBottom: 24,
   },
@@ -852,7 +869,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  errorText: {
+  errorDescription: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',

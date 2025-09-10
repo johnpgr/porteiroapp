@@ -209,7 +209,7 @@ export default function UsersManagement() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
+
   const [activeTab, setActiveTab] = useState('users');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -242,7 +242,7 @@ export default function UsersManagement() {
   const [multipleResidents, setMultipleResidents] = useState([
     { name: '', phone: '', email: '', selectedBuildingId: '', selectedApartmentId: '' },
   ]);
-  const [showMultipleForm, setShowMultipleForm] = useState(false);
+
   
   // Estados para o modal de listagem de usuários
   const [showUserListModal, setShowUserListModal] = useState(false);
@@ -258,8 +258,6 @@ export default function UsersManagement() {
 
   // Controle de abertura única dos modais
   const closeAllModals = () => {
-    setShowAddForm(false);
-    setShowMultipleForm(false);
     setShowVehicleForm(false);
     setShowBulkForm(false);
     setShowUserListModal(false);
@@ -287,13 +285,11 @@ export default function UsersManagement() {
   };
 
   const openAddUserModal = () => {
-    closeAllModals();
-    setShowAddForm(true);
+    router.push('/admin/users-create');
   };
 
   const openMultipleModal = () => {
-    closeAllModals();
-    setShowMultipleForm(true);
+    router.push('/admin/multiple-dispatches');
   };
 
   const openUserListModal = () => {
@@ -1243,7 +1239,6 @@ export default function UsersManagement() {
         setMultipleResidents([
           { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
         ]);
-        setShowMultipleForm(false);
         fetchUsers();
       }
     } catch (error) {
@@ -1490,9 +1485,7 @@ export default function UsersManagement() {
         photoUri: '',
         selectedBuildingId: '',
         selectedApartmentIds: [],
-      });
-      setShowAddForm(false);
-      fetchUsers();
+      });      fetchUsers();
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
       
@@ -1965,479 +1958,9 @@ export default function UsersManagement() {
 
       </View>
 
-      {/* Modal de Novo Usuário */}
-      <Modal visible={showAddForm} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>✨ Novo Usuário</Text>
-            <TouchableOpacity onPress={() => setShowAddForm(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView
-            style={styles.modalContent}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.roleSelector}>
-              <Text style={styles.roleLabel}>Tipo de usuário:</Text>
-              <View style={styles.roleButtons}>
-                {['morador', 'porteiro'].map((role) => (
-                  <TouchableOpacity
-                    key={role}
-                    style={[
-                      styles.roleButton,
-                      newUser.type === role && styles.roleButtonActive,
-                      { borderColor: getRoleColor(role) },
-                    ]}
-                    onPress={() => setNewUser((prev) => ({ ...prev, type: role as any }))}>
-                    <Text
-                      style={[
-                        styles.roleButtonText,
-                        newUser.type === role && { color: getRoleColor(role) },
-                      ]}>
-                      {getRoleIcon(role)} {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Indefinido'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome Completo *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Digite o nome completo"
-                value={newUser.name}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, name: text }))}
-                autoCapitalize="words"
-              />
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Telefone {newUser.type === 'morador' ? 'WhatsApp ' : ''}*</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="(11) 99999-9999"
-                value={newUser.phone}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, phone: text }))}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>E-mail *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="email@exemplo.com"
-                value={newUser.email}
-                onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            {/* Campos de prédio e apartamento para moradores */}
-            {newUser.type === 'morador' && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Prédio *</Text>
-                  <TouchableOpacity 
-                    style={styles.dropdownButton}
-                    onPress={() => openBuildingModal({ type: 'newUser' })}
-                  >
-                    <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
-                      {newUser.selectedBuildingId 
-                        ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
-                        : 'Selecione um prédio'
-                      }
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#666" />
-                  </TouchableOpacity>
-                </View>
-
-                {newUser.selectedBuildingId && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Apartamentos *</Text>
-                    <Text style={styles.sublabel}>Selecione os apartamentos do morador</Text>
-                    <View style={styles.apartmentContainer}>
-                      {filteredApartments.length > 0 ? (
-                        filteredApartments.map((apartment) => (
-                          <TouchableOpacity
-                            key={apartment.id}
-                            style={[
-                              styles.apartmentOption,
-                              newUser.selectedApartmentIds.includes(apartment.id) &&
-                                styles.apartmentOptionSelected,
-                            ]}
-                            onPress={() => {
-                              const isSelected = newUser.selectedApartmentIds.includes(apartment.id);
-                              if (isSelected) {
-                                setNewUser((prev) => ({
-                                  ...prev,
-                                  selectedApartmentIds: prev.selectedApartmentIds.filter(
-                                    (id) => id !== apartment.id
-                                  ),
-                                }));
-                              } else {
-                                setNewUser((prev) => ({
-                                  ...prev,
-                                  selectedApartmentIds: [...prev.selectedApartmentIds, apartment.id],
-                                }));
-                              }
-                            }}>
-                            <Text
-                              style={[
-                                styles.apartmentOptionText,
-                                newUser.selectedApartmentIds.includes(apartment.id) &&
-                                  styles.apartmentOptionTextSelected,
-                              ]}>
-                              {newUser.selectedApartmentIds.includes(apartment.id) ? '✅' : '🏠'}{' '}
-                              Apartamento {apartment.number}
-                            </Text>
-                          </TouchableOpacity>
-                        ))
-                      ) : (
-                        <Text style={styles.noApartmentsText}>
-                          Nenhum apartamento disponível para este prédio
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                )}
-              </>
-            )}
-
-            {newUser.type === 'porteiro' && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>CPF *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="000.000.000-00"
-                    value={newUser.cpf}
-                    onChangeText={(text) => {
-                      const formatted = formatCPF(text);
-                      setNewUser((prev) => ({ ...prev, cpf: formatted }));
-                    }}
-                    keyboardType="numeric"
-                    maxLength={14}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>E-mail *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="email@exemplo.com"
-                    value={newUser.email}
-                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, email: text }))}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Data de Nascimento *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="DD/MM/AAAA"
-                    value={newUser.birthDate}
-                    onChangeText={(text) => {
-                      const formatted = formatDate(text);
-                      setNewUser((prev) => ({ ...prev, birthDate: formatted }));
-                    }}
-                    keyboardType="numeric"
-                    maxLength={10}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Endereço *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Rua, número, bairro, cidade"
-                    value={newUser.address}
-                    onChangeText={(text) => setNewUser((prev) => ({ ...prev, address: text }))}
-                    multiline
-                    numberOfLines={2}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Dias da Semana *</Text>
-                  <Text style={styles.sublabel}>Selecione os dias de trabalho</Text>
-                  <View style={styles.daysContainer}>
-                    {[
-                      { key: 'monday', label: 'Segunda' },
-                      { key: 'tuesday', label: 'Terça' },
-                      { key: 'wednesday', label: 'Quarta' },
-                      { key: 'thursday', label: 'Quinta' },
-                      { key: 'friday', label: 'Sexta' },
-                      { key: 'saturday', label: 'Sábado' },
-                      { key: 'sunday', label: 'Domingo' },
-                    ].map((day) => (
-                      <TouchableOpacity
-                        key={day.key}
-                        style={[
-                          styles.dayOption,
-                          newUser.workDays[day.key as keyof typeof newUser.workDays] &&
-                            styles.dayOptionSelected,
-                        ]}
-                        onPress={() => {
-                          setNewUser((prev) => ({
-                            ...prev,
-                            workDays: {
-                              ...prev.workDays,
-                              [day.key]: !prev.workDays[day.key as keyof typeof prev.workDays],
-                            },
-                          }));
-                        }}>
-                        <Text
-                          style={[
-                            styles.dayOptionText,
-                            newUser.workDays[day.key as keyof typeof newUser.workDays] &&
-                              styles.dayOptionTextSelected,
-                          ]}>
-                          {newUser.workDays[day.key as keyof typeof newUser.workDays] ? '✅' : '⭕'}{' '}
-                          {day.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Horário de Trabalho *</Text>
-                  <View style={styles.timeContainer}>
-                    <View style={styles.timeInputContainer}>
-                      <Text style={styles.timeLabel}>Início</Text>
-                      <TextInput
-                        style={styles.timeInput}
-                        placeholder="08:00"
-                        value={newUser.workStartTime}
-                        onChangeText={(text) => {
-                          const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
-                          if (formatted.length === 2 && !formatted.includes(':')) {
-                            setNewUser((prev) => ({ ...prev, workStartTime: formatted + ':' }));
-                          } else {
-                            setNewUser((prev) => ({ ...prev, workStartTime: formatted }));
-                          }
-                        }}
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                    <Text style={styles.timeSeparator}>às</Text>
-                    <View style={styles.timeInputContainer}>
-                      <Text style={styles.timeLabel}>Fim</Text>
-                      <TextInput
-                        style={styles.timeInput}
-                        placeholder="18:00"
-                        value={newUser.workEndTime}
-                        onChangeText={(text) => {
-                          const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
-                          if (formatted.length === 2 && !formatted.includes(':')) {
-                            setNewUser((prev) => ({ ...prev, workEndTime: formatted + ':' }));
-                          } else {
-                            setNewUser((prev) => ({ ...prev, workEndTime: formatted }));
-                          }
-                        }}
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-              </>
-            )}
-
-            {/* Campo de prédio apenas para porteiros */}
-            {newUser.type === 'porteiro' && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Prédio *</Text>
-                <TouchableOpacity 
-                  style={styles.dropdownButton}
-                  onPress={() => openBuildingModal({ type: 'newUser' })}
-                >
-                  <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
-                    {newUser.selectedBuildingId 
-                      ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
-                      : 'Selecione um prédio'
-                    }
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#666" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Campos de prédio e apartamentos removidos para moradores - serão configurados posteriormente */}
-
-            {/* Seção de WhatsApp removida para simplificar o cadastro inicial de moradores */}
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={() => setShowAddForm(false)}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
-              onPress={handleAddUser}
-              disabled={loading}>
-              {loading ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.saveButtonText}>✅ Criar Usuário</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Modal de Múltiplos Disparos */}
-      <Modal visible={showMultipleForm} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>👥 Múltiplos Disparos</Text>
-            <TouchableOpacity onPress={() => setShowMultipleForm(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.modalContent}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}>
-
-            {/* Lista de moradores */}
-            {multipleResidents.map((resident, index) => (
-              <View key={index} style={styles.residentCard}>
-                <View style={styles.residentHeader}>
-                  <Text style={styles.residentTitle}>Morador {index + 1}</Text>
-                  <View style={styles.residentActions}>
-                    {multipleResidents.length > 1 && (
-                      <TouchableOpacity onPress={() => removeMultipleResident(index)}>
-                        <Text style={styles.removeButton}>➖</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity onPress={addMultipleResident}>
-                      <Text style={styles.addButton}>➕</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Nome Completo *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={resident.name}
-                    onChangeText={(value) => updateMultipleResident(index, 'name', value)}
-                    placeholder="Nome completo do morador"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Telefone WhatsApp *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={resident.phone}
-                    onChangeText={(value) => updateMultipleResident(index, 'phone', value)}
-                    placeholder="(11) 99999-9999"
-                    keyboardType="phone-pad"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Email *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={resident.email}
-                    onChangeText={(value) => updateMultipleResident(index, 'email', value)}
-                    placeholder="email@exemplo.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Prédio *</Text>
-                  <TouchableOpacity 
-                    style={styles.dropdownButton}
-                    onPress={() => openBuildingModal({ type: 'multipleResident', residentIndex: index })}
-                  >
-                    <Text style={[styles.dropdownText, !resident.selectedBuildingId && styles.placeholderText]}>
-                      {resident.selectedBuildingId 
-                        ? buildings.find(b => b.id === resident.selectedBuildingId)?.name || 'Selecione um prédio'
-                        : 'Selecione um prédio'
-                      }
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#666" />
-                  </TouchableOpacity>
-                </View>
-
-                {resident.selectedBuildingId && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Apartamento *</Text>
-                    <TouchableOpacity 
-                      style={styles.dropdownButton}
-                      onPress={() => {
-                        const filteredApartments = apartments.filter((apt) => apt.building_id === resident.selectedBuildingId);
-                        const apartmentOptions = filteredApartments.map(apartment => ({
-                          text: apartment.number,
-                          onPress: () => updateMultipleResident(index, 'selectedApartmentId', apartment.id)
-                        }));
-                        apartmentOptions.unshift({
-                          text: 'Cancelar',
-                          onPress: () => {}
-                        });
-                        
-                        Alert.alert(
-                          'Selecione um Apartamento',
-                          '',
-                          apartmentOptions,
-                          { cancelable: true }
-                        );
-                      }}
-                      disabled={!resident.selectedBuildingId}
-                    >
-                      <Text style={[styles.dropdownText, !resident.selectedApartmentId && styles.placeholderText]}>
-                        {resident.selectedApartmentId 
-                          ? apartments.find(a => a.id === resident.selectedApartmentId)?.number || 'Selecione um apartamento'
-                          : 'Selecione um apartamento'
-                        }
-                      </Text>
-                      <Ionicons name="chevron-down" size={20} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={() => setShowMultipleForm(false)}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton, isProcessing && styles.disabledButton]}
-              onPress={handleMultipleResidents}
-              disabled={isProcessing}>
-              {isProcessing ? (
-                <ActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={styles.saveButtonText}>📤 Enviar Todos os Disparos</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
 
       {/* Modal de Status de Processamento */}
       <Modal visible={isProcessing} transparent animationType="fade">

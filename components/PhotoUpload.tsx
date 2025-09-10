@@ -25,22 +25,6 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
 
-  const requestPermissions = async () => {
-    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
-    const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
-      Alert.alert(
-        'Permissões Necessárias',
-        'Precisamos de acesso à câmera e galeria para continuar.',
-        [{ text: 'OK' }]
-      );
-      return false;
-    }
-    
-    return true;
-  };
-
   const processImage = async (uri: string): Promise<string> => {
     try {
       // Resize and compress the image
@@ -63,8 +47,33 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
   };
 
   const takePhoto = async () => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
+    // Verificar permissão específica da câmera
+    const { status: cameraStatus } = await ImagePicker.getCameraPermissionsAsync();
+    
+    if (cameraStatus !== 'granted') {
+      const { status: newCameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (newCameraStatus !== 'granted') {
+        Alert.alert(
+          'Permissão da Câmera Necessária',
+          'Para tirar fotos, precisamos de acesso à câmera. Por favor, vá nas configurações do aplicativo e conceda a permissão para câmera.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { 
+              text: 'Configurações',
+              onPress: () => {
+                Alert.alert(
+                  'Como habilitar',
+                  'Vá em Configurações > Privacidade > Câmera > PorteiroApp e ative a permissão.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          ]
+        );
+        return;
+      }
+    }
 
     setIsLoading(true);
     
@@ -89,8 +98,33 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
   };
 
   const pickFromGallery = async () => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
+    // Verificar permissão específica da galeria
+    const { status: libraryStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+    
+    if (libraryStatus !== 'granted') {
+      const { status: newLibraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (newLibraryStatus !== 'granted') {
+        Alert.alert(
+          'Permissão da Galeria Necessária',
+          'Para selecionar fotos da galeria, precisamos de acesso às suas fotos. Por favor, vá nas configurações do aplicativo e conceda a permissão para galeria de fotos.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { 
+              text: 'Configurações',
+              onPress: () => {
+                Alert.alert(
+                  'Como habilitar',
+                  'Vá em Configurações > Privacidade > Fotos > PorteiroApp e ative a permissão.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          ]
+        );
+        return;
+      }
+    }
 
     setIsLoading(true);
     
