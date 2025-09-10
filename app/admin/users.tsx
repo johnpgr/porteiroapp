@@ -1980,8 +1980,11 @@ export default function UsersManagement() {
             contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.vehicleHeader}>
             <Text style={styles.vehicleTitle}>🚗 Novo Veículo</Text>
-            <TouchableOpacity onPress={() => setShowVehicleForm(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+            <TouchableOpacity 
+              style={styles.closeButtonContainer}
+              onPress={() => setShowVehicleForm(false)}
+            >
+              <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
 
@@ -2048,22 +2051,6 @@ export default function UsersManagement() {
                     {
                       text: 'Moto',
                       onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'motorcycle' }))
-                    },
-                    {
-                      text: 'Caminhão',
-                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'truck' }))
-                    },
-                    {
-                      text: 'Van',
-                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'van' }))
-                    },
-                    {
-                      text: 'Ônibus',
-                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'bus' }))
-                    },
-                    {
-                      text: 'Outro',
-                      onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'other' }))
                     },
                     {
                       text: 'Cancelar',
@@ -2821,6 +2808,16 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
+  },
+  closeButtonContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   emptyState: {
     flex: 1,

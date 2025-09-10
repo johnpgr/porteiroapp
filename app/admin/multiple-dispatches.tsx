@@ -123,8 +123,7 @@ export default function MultipleDispatchesScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   
-  // Estados para WhatsApp
-  const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  // Estados para WhatsApp (sempre ativado)
   const [whatsappBaseUrl] = useState('https://jamesavisa.jamesconcierge.com');
 
   // Estados para múltiplos residentes
@@ -135,6 +134,12 @@ export default function MultipleDispatchesScreen() {
   // Estados para modais de seleção de prédios
   const [showBuildingModal, setShowBuildingModal] = useState(false);
   const [buildingModalContext, setBuildingModalContext] = useState<{
+    residentIndex: number;
+  } | null>(null);
+
+  // Estados para modais de seleção de apartamentos
+  const [showApartmentModal, setShowApartmentModal] = useState(false);
+  const [apartmentModalContext, setApartmentModalContext] = useState<{
     residentIndex: number;
   } | null>(null);
 
@@ -187,6 +192,26 @@ export default function MultipleDispatchesScreen() {
     }
     setShowBuildingModal(false);
     setBuildingModalContext(null);
+  };
+
+  // Função para abrir modal de seleção de apartamento
+  const openApartmentModal = (residentIndex: number) => {
+    setApartmentModalContext({ residentIndex });
+    setShowApartmentModal(true);
+  };
+
+  // Função para selecionar apartamento
+  const handleApartmentSelect = (apartmentId: string) => {
+    if (apartmentModalContext) {
+      const updated = [...multipleResidents];
+      updated[apartmentModalContext.residentIndex] = {
+        ...updated[apartmentModalContext.residentIndex],
+        selectedApartmentId: apartmentId,
+      };
+      setMultipleResidents(updated);
+    }
+    setShowApartmentModal(false);
+    setApartmentModalContext(null);
   };
 
   const addMultipleResident = () => {
@@ -473,8 +498,8 @@ export default function MultipleDispatchesScreen() {
         });
       }
 
-      // Quarta fase: Envio de WhatsApp em lote (se habilitado)
-      if (sendWhatsApp && successfulUsers.length > 0) {
+      // Quarta fase: Envio de WhatsApp em lote (sempre ativado)
+      if (successfulUsers.length > 0) {
         setProcessingStatus('Preparando notificações WhatsApp em lote...');
         
         try {
@@ -572,17 +597,7 @@ export default function MultipleDispatchesScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}>
 
-        {/* Configurações de WhatsApp */}
-        <View style={styles.whatsappSection}>
-          <View style={styles.whatsappToggle}>
-            <Text style={styles.whatsappLabel}>📱 Enviar WhatsApp automaticamente</Text>
-            <TouchableOpacity
-              style={[styles.toggleSwitch, sendWhatsApp && styles.toggleSwitchActive]}
-              onPress={() => setSendWhatsApp(!sendWhatsApp)}>
-              <View style={[styles.toggleThumb, sendWhatsApp && styles.toggleThumbActive]} />
-            </TouchableOpacity>
-          </View>
-        </View>
+
 
         {/* Lista de moradores */}
         {multipleResidents.map((resident, index) => (
@@ -655,25 +670,7 @@ export default function MultipleDispatchesScreen() {
                 <Text style={styles.label}>Apartamento *</Text>
                 <TouchableOpacity 
                   style={styles.dropdownButton}
-                  onPress={() => {
-                    const filteredApartments = apartments.filter((apt) => apt.building_id === resident.selectedBuildingId);
-                    const apartmentOptions = filteredApartments.map(apartment => ({
-                      text: apartment.number,
-                      onPress: () => updateMultipleResident(index, 'selectedApartmentId', apartment.id)
-                    }));
-                    apartmentOptions.unshift({
-                      text: 'Cancelar',
-                      onPress: () => {}
-                    });
-                    
-                    Alert.alert(
-                      'Selecione um Apartamento',
-                      '',
-                      apartmentOptions,
-                      { cancelable: true }
-                    );
-                  }}
-                  disabled={!resident.selectedBuildingId}
+                  onPress={() => openApartmentModal(index)}
                 >
                   <Text style={[styles.dropdownText, !resident.selectedApartmentId && styles.placeholderText]}>
                     {resident.selectedApartmentId 
@@ -737,6 +734,38 @@ export default function MultipleDispatchesScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Modal de Seleção de Apartamentos */}
+      <Modal visible={showApartmentModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowApartmentModal(false)}>
+              <Text style={styles.closeButton}>Cancelar</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Selecionar Apartamento</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <ScrollView style={styles.modalContent}>
+            {apartmentModalContext && apartments
+              .filter(apartment => {
+                const resident = multipleResidents[apartmentModalContext.residentIndex];
+                return apartment.building_id === resident.selectedBuildingId;
+              })
+              .map((apartment) => (
+                <TouchableOpacity
+                  key={apartment.id}
+                  style={styles.buildingOption}
+                  onPress={() => handleApartmentSelect(apartment.id)}
+                >
+                  <Text style={styles.buildingOptionText}>Apartamento {apartment.number}</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#666" />
+                </TouchableOpacity>
+              ))
+            }
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -779,48 +808,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  whatsappSection: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  whatsappToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  whatsappLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  toggleSwitch: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#ddd',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleSwitchActive: {
-    backgroundColor: '#007AFF',
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    alignSelf: 'flex-start',
-  },
-  toggleThumbActive: {
-    alignSelf: 'flex-end',
-  },
+
   residentCard: {
     backgroundColor: '#fff',
     padding: 16,

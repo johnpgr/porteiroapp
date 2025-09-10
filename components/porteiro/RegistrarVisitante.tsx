@@ -233,7 +233,6 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                   setCurrentStep('tipo');
                 }}>
                 <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                <Text style={styles.apartmentId}>ID: {apartment.id}</Text>
                 <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
               </TouchableOpacity>
             ))}
@@ -658,18 +657,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           purpose = `entrega - ${empresaEntrega.replace('_', ' ')}`;
         }
 
-        // Determinar entry_type baseado no tipo de visita
-        let entryType = 'visitor'; // padrão
+        let entryType = 'visitor'; 
         if (tipoVisita === 'entrega') {
           entryType = 'delivery';
         } else if (tipoVisita === 'prestador') {
-          entryType = 'visitor'; // Prestador de serviço é considerado visitor no banco
+          entryType = 'visitor';
         }
 
-        console.log('🖼️ Estado atual do photoUrl no RegistrarVisitante:', photoUrl);
-        console.log('📸 Estado atual do fotoTirada no RegistrarVisitante:', fotoTirada);
         
-        // Inserir log de entrada na tabela visitor_logs
         const visitorLogData = {
           visitor_id: visitorId,
           apartment_id: selectedApartment.id,
