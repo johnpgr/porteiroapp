@@ -646,7 +646,6 @@ export default function UsersManagement() {
       const { data, error } = await supabase.from('apartments').select('*').order('number');
 
       if (error) throw error;
-      console.log('🏠 Apartamentos carregados do banco:', data?.length || 0);
       setApartments(data || []);
     } catch (error) {
       console.error('Erro ao carregar apartamentos:', error);
