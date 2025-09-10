@@ -582,6 +582,7 @@ export default function Communications() {
       });
     } catch (error) {
       Alert.alert('Erro', 'Falha ao enviar comunicado: ' + error.message);
+      console.log('Erro', 'Falha ao enviar comunicado: ' + error.message);
     }
   };
 
@@ -647,7 +648,7 @@ export default function Communications() {
         pollData.id
       );
 
-      Alert.alert('Sucesso', `Enquete criada com sucesso e enviada para ${notificationsSent} usuários`);
+      Alert.alert('Sucesso', `Enquete criada com sucesso e enviada para moradores`);
       setPoll({
         title: '',
         description: '',

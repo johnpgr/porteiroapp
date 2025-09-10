@@ -92,14 +92,6 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs?: number): Promise<T> => 
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     
-    // Log detalhado para iOS
-    if (Platform.OS === 'ios') {
-      console.log('⏱️ Iniciando operação com timeout iOS:', {
-        timeoutMs: actualTimeout,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
     const timer = setTimeout(() => {
       const elapsedTime = Date.now() - startTime;
       
@@ -129,15 +121,6 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs?: number): Promise<T> => 
     promise
       .then((result) => {
         clearTimeout(timer);
-        
-        if (Platform.OS === 'ios') {
-          const elapsedTime = Date.now() - startTime;
-          console.log('✅ Operação iOS concluída com sucesso:', {
-            elapsedTime,
-            timeoutMs: actualTimeout,
-            timestamp: new Date().toISOString()
-          });
-        }
         
         resolve(result);
       })
