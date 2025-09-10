@@ -176,9 +176,7 @@ interface Visitor {
 interface PreRegistrationData {
   name: string;
   phone: string;
-  visitor_type: 'comum' | 'frequente';
   visit_type: 'pontual' | 'frequente';
-  access_type?: 'direto' | 'com_aprovacao';
   visit_date?: string;
   visit_start_time?: string;
   visit_end_time?: string;
@@ -198,9 +196,7 @@ export default function VisitantesTab() {
   const [preRegistrationData, setPreRegistrationData] = useState<PreRegistrationData>({
     name: '',
     phone: '',
-    visitor_type: 'comum',
     visit_type: 'pontual',
-    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
@@ -225,9 +221,7 @@ export default function VisitantesTab() {
   const [editData, setEditData] = useState<PreRegistrationData>({
     name: '',
     phone: '',
-    visitor_type: 'comum',
     visit_type: 'pontual',
-    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
@@ -841,8 +835,8 @@ export default function VisitantesTab() {
       const registrationToken = generateRegistrationToken();
       const tokenExpiresAt = getTokenExpirationDate();
 
-      // Determinar status inicial baseado no tipo de visitante
-      const initialStatus = preRegistrationData.visitor_type === 'frequente' ? 'aprovado' : 'pendente';
+      // Determinar status inicial sempre como 'pendente' já que agora sempre requer aprovação
+      const initialStatus = 'pendente';
 
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
@@ -862,8 +856,8 @@ export default function VisitantesTab() {
       let visitData: any = {
         name: sanitizedName,
         phone: sanitizedPhone.replace(/\D/g, ''),
-        visitor_type: preRegistrationData.visitor_type,
         status: initialStatus,
+        access_type: 'com_aprovacao', // Sempre com aprovação
         apartment_id: currentApartmentId,
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
@@ -990,9 +984,6 @@ export default function VisitantesTab() {
             setPreRegistrationData({ 
               name: '', 
               phone: '', 
-              visit_reason: '',
-              access_type: 'direct',
-              visitor_type: 'comum',
               visit_type: 'pontual',
               visit_date: '',
               visit_start_time: '',
@@ -1040,9 +1031,7 @@ export default function VisitantesTab() {
     setEditData({
       name: visitor.name,
       phone: visitor.phone || '',
-      visitor_type: visitor.visitor_type as 'comum' | 'frequente',
       visit_type: 'pontual', // Valor padrão, pode ser ajustado conforme necessário
-      access_type: visitor.access_type || 'com_aprovacao', // Carregar valor real do banco
       visit_date: '',
       visit_start_time: '',
       visit_end_time: '',
@@ -1441,87 +1430,6 @@ export default function VisitantesTab() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Motivo da Visita *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={preRegistrationData.visit_reason}
-                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, visit_reason: text }))}
-                  placeholder="Ex: Entrega, Manutenção, Visita social..."
-                  placeholderTextColor="#999"
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.access_type === 'direct' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'direct' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.access_type === 'direct' && styles.visitorTypeButtonTextActive
-                    ]}>Direto</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.access_type === 'approval' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'approval' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.access_type === 'approval' && styles.visitorTypeButtonTextActive
-                    ]}>Com Aprovação</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.helpText}>
-                  {preRegistrationData.access_type === 'direct' 
-                    ? 'Visitante pode entrar diretamente no horário permitido'
-                    : 'Porteiro deve confirmar entrada mesmo no horário permitido'
-                  }
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Visitante *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visitor_type === 'comum' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visitor_type: 'comum' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visitor_type === 'comum' && styles.visitorTypeButtonTextActive
-                    ]}>Comum</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visitor_type === 'frequente' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visitor_type: 'frequente' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visitor_type === 'frequente' && styles.visitorTypeButtonTextActive
-                    ]}>Frequente</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tipo de Visita *</Text>
                 <View style={styles.visitorTypeSelector}>
                   <TouchableOpacity
@@ -1694,9 +1602,9 @@ export default function VisitantesTab() {
 
               <View style={styles.infoBox}>
                 <Text style={styles.infoText}>
-                  {preRegistrationData.visitor_type === 'frequente' 
-                    ? '• Visitantes frequentes mantêm acesso aprovado permanentemente\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)'
-                    : '• Visitantes comuns precisam de aprovação a cada visita\n• Status retorna a "não permitido" após cada verificação\n• O horário define o período em que podem entrar (ex: das 15h às 18h)'
+                  {preRegistrationData.visit_type === 'frequente' 
+                    ? '• Visitantes frequentes têm acesso liberado nos dias e horários definidos\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)\n• Acesso sempre requer aprovação do porteiro'
+                    : '• Visitantes pontuais têm acesso apenas na data específica\n• Status retorna a "não permitido" após a visita\n• O horário define o período em que podem entrar (ex: das 15h às 18h)\n• Acesso sempre requer aprovação do porteiro'
                   }
                 </Text>
               </View>
