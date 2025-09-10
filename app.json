@@ -59,6 +59,9 @@
       "statusBar": {
         "barStyle": "light-content",
         "backgroundColor": "#ffffff"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
