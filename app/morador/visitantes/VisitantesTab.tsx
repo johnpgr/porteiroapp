@@ -177,6 +177,7 @@ interface PreRegistrationData {
   name: string;
   phone: string;
   visit_type: 'pontual' | 'frequente';
+  access_type?: 'com_aprovacao' | 'direto';
   visit_date?: string;
   visit_start_time?: string;
   visit_end_time?: string;
@@ -197,6 +198,7 @@ export default function VisitantesTab() {
     name: '',
     phone: '',
     visit_type: 'pontual',
+    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
@@ -376,7 +378,7 @@ export default function VisitantesTab() {
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'approved',
+        status: visitor.status || 'aprovado',
         visitor_type: visitor.visitor_type || 'comum',
         access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
@@ -835,8 +837,8 @@ export default function VisitantesTab() {
       const registrationToken = generateRegistrationToken();
       const tokenExpiresAt = getTokenExpirationDate();
 
-      // Determinar status inicial sempre como 'pendente' já que agora sempre requer aprovação
-      const initialStatus = 'pendente';
+      // Determinar status inicial baseado no tipo de acesso selecionado
+      const initialStatus = preRegistrationData.access_type === 'direto' ? 'aprovado' : 'pendente';
 
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
@@ -857,7 +859,7 @@ export default function VisitantesTab() {
         name: sanitizedName,
         phone: sanitizedPhone.replace(/\D/g, ''),
         status: initialStatus,
-        access_type: 'com_aprovacao', // Sempre com aprovação
+        access_type: preRegistrationData.access_type || 'com_aprovacao', // Usar tipo selecionado pelo morador
         apartment_id: currentApartmentId,
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
@@ -985,6 +987,7 @@ export default function VisitantesTab() {
               name: '', 
               phone: '', 
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
@@ -1005,13 +1008,15 @@ export default function VisitantesTab() {
             setPreRegistrationData({ 
               name: '', 
               phone: '', 
-              visitor_type: 'comum',
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
               allowed_days: [],
-              max_simultaneous_visits: 1
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
             });
             fetchVisitors();
           }}]
@@ -1456,6 +1461,37 @@ export default function VisitantesTab() {
                       styles.visitorTypeButtonText,
                       preRegistrationData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive
                     ]}>Frequente</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Aprovação *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
+                    ]}>Com Aprovação</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'direto' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonTextActive
+                    ]}>Liberação Direta</Text>
                   </TouchableOpacity>
                 </View>
               </View>

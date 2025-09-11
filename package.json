@@ -13,9 +13,9 @@
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
     "@react-native-async-storage/async-storage": "2.1.2",
-    "@react-native-community/datetimepicker": "^8.4.1",
+    "@react-native-community/datetimepicker": "8.4.1",
     "@react-native-community/netinfo": "^11.4.1",
-    "@react-native-picker/picker": "^2.11.1",
+    "@react-native-picker/picker": "2.11.1",
     "@react-navigation/native": "^7.0.3",
     "@supabase/supabase-js": "^2.38.4",
     "@types/bcrypt": "^6.0.0",

@@ -374,7 +374,7 @@ export default function MoradorDashboard() {
 
                     <View style={styles.notificationDetailItem}>
                       <Text style={styles.detailLabel}>Documento:</Text>
-                      <Text style={styles.detailValue}>{notification.visitor_document || 'Não informado'}</Text>
+                      <Text style={styles.detailValue}>{notification.visitors?.document || 'Não informado'}</Text>
                     </View>
 
                     <View style={styles.notificationDetailItem}>

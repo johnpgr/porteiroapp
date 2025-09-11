@@ -205,7 +205,7 @@ export default function SystemLogs() {
           visit_session_id: log.visit_session_id,
           purpose: log.purpose,
           notification_status: log.notification_status || 'pending',
-          authorized_by_name: null,
+          authorized_by_name: log.authorized_by_name || null,
           created_at: log.created_at
         }))
       );
@@ -253,7 +253,8 @@ export default function SystemLogs() {
           log.building_name?.toLowerCase().includes(query) ||
           log.purpose?.toLowerCase().includes(query) ||
           log.notification_status?.toLowerCase().includes(query) ||
-          log.authorized_by_name?.toLowerCase().includes(query)
+          log.authorized_by_name?.toLowerCase().includes(query) ||
+          log.tipo_log?.toLowerCase().includes(query)
       );
     }
 

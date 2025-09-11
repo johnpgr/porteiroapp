@@ -1176,6 +1176,141 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     }
   };
 
+  // Função para avisar morador
+  const handleNotifyResident = async (activityId: string) => {
+    try {
+      const activity = activities.find(a => a.id === activityId);
+      if (!activity) return;
+
+      // Buscar dados do visitante para verificar o access_type
+      const { data: visitorData, error: visitorError } = await supabase
+        .from('visitors')
+        .select('*, apartments(number)')
+        .eq('id', activityId)
+        .single();
+
+      if (visitorError) {
+        console.error('Erro ao buscar dados do visitante:', visitorError);
+        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        return;
+      }
+
+      // Função para gerar UUID compatível com React Native
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Criar automaticamente um novo registro no visitor_logs
+      const logData = {
+        visitor_id: activityId,
+        building_id: buildingId,
+        apartment_id: visitorData.apartment_id,
+        guest_name: visitorData.name || activity.title.replace('👤 ', ''),
+        entry_type: 'visitor',
+        notification_status: 'pending',
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: generateUUID(),
+        authorized_by: user?.id || 'Porteiro',
+        purpose: `Notificação de chegada do visitante - Aguardando aprovação do morador`,
+        photo_url: visitorData.photo_url
+      };
+
+      const { error: insertError } = await supabase
+        .from('visitor_logs')
+        .insert(logData);
+
+      if (insertError) {
+        console.error('Erro ao criar registro no visitor_logs:', insertError);
+        Alert.alert('Erro', 'Não foi possível criar o registro de visita');
+        return;
+      }
+
+      // Enviar notificação push para o morador
+      // TODO: Implementar envio de push notification
+      console.log('Enviando notificação push para o morador...');
+
+      const statusMessage = visitorData.access_type === 'com_aprovacao' 
+        ? 'Morador notificado! Aguardando aprovação.' 
+        : 'Visitante autorizado e morador notificado!';
+
+      Alert.alert('Sucesso', statusMessage);
+      fetchActivities(); // Recarregar atividades
+      fetchVisitorLogs(); // Recarregar logs
+    } catch (error) {
+      console.error('Erro ao notificar morador:', error);
+      Alert.alert('Erro', 'Não foi possível notificar o morador');
+    }
+  };
+
+  // Função para check de entrada
+  const handleCheckIn = async (activityId: string) => {
+    try {
+      const activity = activities.find(a => a.id === activityId);
+      if (!activity) return;
+
+      // Buscar dados completos do visitante
+      const { data: visitorData, error: visitorError } = await supabase
+        .from('visitors')
+        .select('*')
+        .eq('id', activityId)
+        .single();
+
+      if (visitorError || !visitorData) {
+        console.error('Erro ao buscar dados do visitante:', visitorError);
+        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        return;
+      }
+
+      // Função para gerar UUID compatível com React Native
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Criar dados do log baseado no access_type
+      const logData = {
+        visitor_id: activityId,
+        building_id: buildingId,
+        apartment_id: visitorData.apartment_id,
+        guest_name: visitorData.name || activity.title.replace('👤 ', ''),
+        entry_type: 'visitor',
+        notification_status: 'approved',
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: generateUUID(),
+        authorized_by: user?.id || 'Porteiro',
+        purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${user?.email || porteiroData?.full_name || 'Porteiro'}`,
+        photo_url: visitorData.photo_url
+      };
+
+      // Registrar entrada aprovada no visitor_logs
+      const { error } = await supabase
+        .from('visitor_logs')
+        .insert(logData);
+
+      if (error) {
+        console.error('Erro ao registrar entrada:', error);
+        Alert.alert('Erro', 'Não foi possível registrar a entrada');
+        return;
+      }
+
+      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador será notificado.');
+      fetchActivities(); // Recarregar atividades
+      fetchVisitorLogs(); // Recarregar logs
+    } catch (error) {
+      console.error('Erro ao registrar entrada:', error);
+      Alert.alert('Erro', 'Não foi possível registrar a entrada');
+    }
+  };
+
   // Componente LogCard
   const LogCard = ({ log }: { log: any }) => {
     const isExpanded = expandedCards.has(log.id);
@@ -1223,8 +1358,8 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         
         {isExpanded && (
           <View style={styles.logDetails}>
-            {log.visitor_document && (
-              <Text style={styles.detailText}>📄 Documento: {log.visitor_document}</Text>
+            {log.visitors?.document && (
+              <Text style={styles.detailText}>📄 Documento: {log.visitors.document}</Text>
             )}
             {log.visitor_phone && (
               <Text style={styles.detailText}>📞 Telefone: {log.visitor_phone}</Text>
@@ -1400,6 +1535,26 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
                       📷 Ver Foto
                     </Text>
                   </TouchableOpacity>
+
+                  {/* Botão Avisar Morador */}
+                  <TouchableOpacity 
+                    style={styles.notifyResidentButton}
+                    onPress={() => handleNotifyResident(activity.id)}>
+                    <Text style={styles.notifyResidentButtonText}>
+                      🔔 Avisar Morador
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Botão Check de Entrada (para visitas diretas) */}
+                  {activity.status === 'direto' && (
+                    <TouchableOpacity 
+                      style={styles.checkInButton}
+                      onPress={() => handleCheckIn(activity.id)}>
+                      <Text style={styles.checkInButtonText}>
+                        ✅ Check de Entrada
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   
                   {/* Botões de ação */}
                   {activity.actions && (
@@ -1964,6 +2119,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2196F3',
     fontWeight: '500',
+  },
+  // Estilos para os novos botões
+  notifyResidentButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#FF9800',
+    marginTop: 8,
+  },
+  notifyResidentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  checkInButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    marginTop: 8,
+  },
+  checkInButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

@@ -436,7 +436,7 @@ class NotificationService {
 
     try {
       // Configuração da API - usando endpoint de visitantes
-      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-visitor-whatsapp`;
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-visitor-whatsapp`;
       
       // Preparar dados para a API - usando endpoint de visitantes
       const apiData = {
@@ -517,7 +517,7 @@ class NotificationService {
 
     try {
       // Configuração da API
-      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-regularization-whatsapp`;
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-regularization-whatsapp`;
       
       // Preparar dados para a API
       const apiData = {

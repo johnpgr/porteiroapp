@@ -6,7 +6,7 @@ import { Alert } from 'react-native';
  * Deve apontar para a API remota em produção
  */
 const API_CONFIG = {
-  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com',
+  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com',
 };
 
 // Logs de debug para configuração
