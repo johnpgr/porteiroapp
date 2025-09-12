@@ -569,17 +569,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   );
 
   const handleConfirm = async () => {
-    Alert.alert('DEBUG', 'Função handleConfirm foi chamada!');
-    console.log('🚀🚀🚀 [RegistrarVeiculo] FUNÇÃO HANDLECONFIRM CHAMADA! 🚀🚀🚀');
-    console.log('📱 [RegistrarVeiculo] Dados atuais:', {
-      placa,
-      selectedApartment,
-      nomeConvidado,
-      empresaSelecionada,
-      marcaSelecionada,
-      corSelecionada,
-      modelo
-    });
     try {
       // Validar se apartamento foi selecionado
       if (!selectedApartment || !selectedApartment.id) {
@@ -710,7 +699,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         const visitorInsertData = {
           name: nomeConvidado,
           apartment_id: selectedApartment.id,
-          building_id: doormanBuildingId,
           access_type: 'com_aprovacao'
         };
         console.log('📝 [RegistrarVeiculo] Dados do visitante para inserção:', visitorInsertData);
@@ -765,41 +753,42 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           console.log('📱 [RegistrarVeiculo] Enviando notificação WhatsApp...');
           console.log('🆔 [RegistrarVeiculo] Visitor log ID:', visitorLogData.id);
           
-          // Buscar dados do morador proprietário e do prédio
-          const { data: residentData } = await supabase
-            .from('residents')
+          // Buscar dados do morador para notificação
+          const { data: residentData, error: residentError } = await supabase
+            .from('apartments')
             .select(`
-              id,
-              name,
-              phone,
-              apartment:apartments!inner(
-                id,
-                number,
-                building:buildings!inner(
-                  id,
-                  name,
-                  address
-                )
+              number,
+              apartment_residents!inner(
+                profiles!inner(
+                  full_name,
+                  phone,
+                  email
+                ),
+                is_owner
+              ),
+              buildings!inner(
+                name
               )
             `)
-            .eq('apartment.id', apartmentData.id)
+            .eq('id', apartmentData.id)
+            .eq('apartment_residents.is_owner', true)
             .single();
 
-          if (residentData && residentData.phone) {
-            const notificationData = {
-              visitor_log_id: visitorLogData.id,
-              resident_phone: residentData.phone,
-              visitor_name: nomeConvidado,
-              apartment_number: apartmentData.number,
-              building_name: residentData.apartment.building.name,
-              vehicle_info: vehicleData,
-              message_type: 'vehicle_arrival'
-            };
-
-            const response = await notificationApi.sendVehicleNotification(notificationData);
+          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+            const resident = residentData.apartment_residents[0];
+            const building = residentData.buildings;
             
-            if (response.success) {
-              console.log('✅ [RegistrarVeiculo] Notificação enviada com sucesso');
+            if (resident.profiles.phone && building) {
+              await notificationApi.sendVisitorAuthorization({
+                visitorName: nomeConvidado,
+                residentName: resident.profiles.full_name,
+                residentPhone: resident.profiles.phone,
+                residentEmail: resident.profiles.email || '',
+                building: building.name,
+                apartment: residentData.number
+              });
+              
+              console.log('✅ [RegistrarVeiculo] Mensagem de autorização WhatsApp enviada com sucesso');
               
               // Atualizar status da notificação
               await supabase
@@ -807,7 +796,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
                 .update({ notification_status: 'sent' })
                 .eq('id', visitorLogData.id);
             } else {
-              console.error('❌ [RegistrarVeiculo] Erro ao enviar notificação:', response.error);
+              console.warn('⚠️ [RegistrarVeiculo] Dados insuficientes para enviar notificação via API');
             }
           } else {
             console.log('⚠️ [RegistrarVeiculo] Morador não encontrado ou sem telefone cadastrado');
