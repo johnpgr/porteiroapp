@@ -216,6 +216,53 @@ export default function CadastroTab() {
   };
 
   // Função para cadastrar nova pessoa
+  // Função para validar email
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Função para validar CPF
+  const isValidCPF = (cpf: string): boolean => {
+    if (!cpf) return true; // CPF é opcional
+    
+    // Remove caracteres não numéricos
+    const numericOnly = cpf.replace(/\D/g, '');
+    
+    // Verifica se tem exatamente 11 dígitos
+    if (numericOnly.length !== 11) return false;
+    
+    // Verifica se todos os dígitos são iguais (CPF inválido)
+    if (/^(\d)\1{10}$/.test(numericOnly)) return false;
+    
+    // Validação do primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(numericOnly.charAt(i)) * (10 - i);
+    }
+    let remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numericOnly.charAt(9))) return false;
+    
+    // Validação do segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(numericOnly.charAt(i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numericOnly.charAt(10))) return false;
+    
+    return true;
+  };
+
+  // Função para validar telefone
+  const isValidPhone = (phone: string): boolean => {
+    if (!phone) return true; // Telefone é opcional
+    const numericOnly = phone.replace(/\D/g, '');
+    return numericOnly.length >= 10 && numericOnly.length <= 11;
+  };
+
   const handleSubmit = async () => {
     if (!user?.id) {
       Alert.alert('Erro', 'Informações do usuário não encontradas');
@@ -230,6 +277,26 @@ export default function CadastroTab() {
     
     if (!formData.email.trim()) {
       Alert.alert('Erro', 'Email é obrigatório');
+      return;
+    }
+
+    if (!isValidEmail(formData.email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido');
+      return;
+    }
+
+    if (!formData.person_type) {
+      Alert.alert('Erro', 'Tipo de pessoa é obrigatório');
+      return;
+    }
+
+    if (formData.cpf && !isValidCPF(formData.cpf)) {
+      Alert.alert('Erro', 'CPF inválido. Verifique os dados inseridos.');
+      return;
+    }
+
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      Alert.alert('Erro', 'Telefone deve ter entre 10 e 11 dígitos');
       return;
     }
     

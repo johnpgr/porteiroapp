@@ -374,8 +374,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                           setIsUploadingPhoto(true);
                           console.log('🎯 TESTE: Iniciando captura de foto...');
                           const photo = await cameraRef.current.takePictureAsync({
-                            quality: 0.8,
-                            base64: true,
+                            quality: 0.8
                           });
                           
                           if (photo?.uri) {
@@ -386,6 +385,9 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                             });
                             setPhotoUri(photo.uri);
                             setFotoTirada(true);
+
+                            // Pequena espera para garantir que o arquivo foi totalmente gravado antes do upload
+                            await new Promise(resolve => setTimeout(resolve, 200));
                             
                             // Teste simples primeiro
                             console.log('🎯 TESTE: Verificando se a função uploadDeliveryPhoto existe:', typeof uploadDeliveryPhoto);
@@ -405,7 +407,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                                 console.log('🎯 TESTE: PhotoUrl state atualizado para:', uploadResult.url);
                               } else {
                                 console.error('🎯 TESTE: Erro no upload:', uploadResult.error);
-                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
                                 setFotoTirada(false);
                                 setPhotoUri(null);
                               }

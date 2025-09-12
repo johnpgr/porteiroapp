@@ -192,4 +192,6 @@ export class FirstLoginService {
    * Remove formatação do CPF
    */
   static cleanCPF(cpf: string): string {
-    return cpf.replace(/
+    return cpf.replace(/[^\d]/g, '');
+  }
+}

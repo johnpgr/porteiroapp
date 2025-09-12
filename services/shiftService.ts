@@ -115,12 +115,18 @@ class ShiftService {
         return { success: false, error: 'Erro ao buscar turno ativo' };
       }
 
-      // Finalizar turno
+      // Verificar se activeShift existe
+      if (!activeShift) {
+        return { success: false, error: 'Nenhum turno ativo encontrado' };
+      }
+
+      // Atualizar o turno para finalizado
       const { data: updatedShift, error: updateError } = await supabase
         .from('porteiro_shifts')
         .update({
+          status: 'ended',
           shift_end: new Date().toISOString(),
-          status: 'completed'
+          updated_at: new Date().toISOString()
         })
         .eq('id', activeShift.id)
         .select()

@@ -59,4 +59,13 @@ export function TestePage() {
               <h4 className="font-medium mb-1">🛡️ Validação Constante</h4>
               <ul className="space-y-1 ml-4">
                 <li>• Regras de validação por lembrete</li>
-                <li>• Verificação crítica pró
+                <li>• Verificação crítica proativa</li>
+                <li>• Prevenção de falhas silenciosas</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

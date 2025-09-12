@@ -18,7 +18,8 @@
           "color": "#ffffff",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -29,21 +30,6 @@
     "userInterfaceStyle": "light",
     "primaryColor": "#ffffff",
     "backgroundColor": "#F9FAFB",
-    "theme": {
-      "primary": "#ffffff",
-      "secondary": "#2196F3",
-      "accent": "#FF9800",
-      "error": "#F44336",
-      "warning": "#FF9800",
-      "info": "#2196F3",
-      "success": "#ffffff",
-      "surface": "#FFFFFF",
-      "background": "#F9FAFB",
-      "onPrimary": "#FFFFFF",
-      "onSecondary": "#FFFFFF",
-      "onSurface": "#333333",
-      "onBackground": "#333333"
-    },
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
@@ -56,10 +42,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
       "buildNumber": "1.0.1",
-      "statusBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#ffffff"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -71,14 +53,14 @@
       },
       "package": "com.porteiroapp.notifications",
       "googleServicesFile": "./google-services.json",
-      "edgeToEdgeEnabled": true,
-      "statusBar": {
-        "backgroundColor": "#388E3C",
-        "barStyle": "light-content"
-      },
-      "navigationBar": {
-        "backgroundColor": "#ffffff"
-      }
+      "edgeToEdgeEnabled": true
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#388E3C",
+      "barStyle": "light-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#ffffff"
     },
     "notification": {
       "color": "#ffffff",

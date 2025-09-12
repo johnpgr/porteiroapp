@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { supabase } from '~/utils/supabase';
+import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
 

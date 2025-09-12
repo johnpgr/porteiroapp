@@ -12,9 +12,9 @@ import {
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase, adminAuth } from '~/utils/supabase';
+import { supabase, adminAuth } from '../../utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { notificationService } from '~/services/notificationService';
+import { notificationService } from '../../services/notificationService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 

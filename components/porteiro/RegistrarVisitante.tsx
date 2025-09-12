@@ -16,7 +16,6 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-// Removido import incorreto do notificationService
 import { notificationApi } from '../../services/notificationApi';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
@@ -45,7 +44,30 @@ const isValidCPF = (cpf: string): boolean => {
   const numericOnly = cpf.replace(/\D/g, '');
   
   // Verifica se tem exatamente 11 dígitos
-  return numericOnly.length === 11;
+  if (numericOnly.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais (CPF inválido)
+  if (/^(\d)\1{10}$/.test(numericOnly)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numericOnly.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numericOnly.charAt(9))) return false;
+  
+  // Validação do segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(numericOnly.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numericOnly.charAt(10))) return false;
+  
+  return true;
 };
 
 type FlowStep =
@@ -474,8 +496,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                         setIsUploadingPhoto(true);
                         console.log('🎯 TESTE VISITANTE: Iniciando captura de foto...');
                         const photo = await cameraRef.current.takePictureAsync({
-                          quality: 0.8,
-                          base64: true,
+                          quality: 0.8
                         });
                         
                         if (photo?.uri) {
@@ -486,6 +507,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                           });
                           setPhotoUri(photo.uri);
                           setFotoTirada(true);
+
+                          // Pequena espera para garantir que o arquivo foi totalmente gravado antes de validar/upload
+                          await new Promise(resolve => setTimeout(resolve, 200));
                           
                           // Teste simples primeiro
                           console.log('🎯 TESTE VISITANTE: Verificando se a função uploadVisitorPhoto existe:', typeof uploadVisitorPhoto);
@@ -506,7 +530,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                               Alert.alert('Sucesso', 'Foto enviada com sucesso!');
                             } else {
                               console.error('🎯 TESTE VISITANTE: Erro no upload:', uploadResult.error);
-                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
                               setFotoTirada(false);
                               setPhotoUri(null);
                             }
