@@ -66,6 +66,76 @@ const relationOptions = {
   autorizado: ['Amigo', 'Prestador de serviço', 'Outro autorizado']
 };
 
+// Função utilitária para formatação de placa de veículo
+const formatLicensePlate = (input: string): string => {
+  // Remove todos os caracteres que não são letras ou números
+  const cleanInput = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  
+  if (cleanInput.length === 0) return '';
+  
+  // Detecta o formato baseado no padrão de entrada
+  if (cleanInput.length <= 3) {
+    // Apenas letras iniciais
+    return cleanInput.replace(/[^A-Z]/g, '');
+  } else if (cleanInput.length === 4) {
+    // 3 letras + 1 caractere - pode ser formato antigo (número) ou Mercosul (número)
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const fourthChar = cleanInput.slice(3, 4);
+    return `${letters}-${fourthChar}`;
+  } else if (cleanInput.length === 5) {
+    // Detecta se é formato Mercosul (AAA-1A) ou antigo (AAA-11)
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const fourthChar = cleanInput.slice(3, 4);
+    const fifthChar = cleanInput.slice(4, 5);
+    
+    // Se o 5º caractere é letra, é formato Mercosul
+    if (/[A-Z]/.test(fifthChar)) {
+      return `${letters}-${fourthChar}${fifthChar}`;
+    } else {
+      // Formato antigo
+      return `${letters}-${fourthChar}${fifthChar}`;
+    }
+  } else if (cleanInput.length === 6) {
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const numbers = cleanInput.slice(3, 6);
+    
+    // Verifica se é formato Mercosul (AAA-1A1)
+    if (/^[0-9][A-Z][0-9]$/.test(numbers)) {
+      return `${letters}-${numbers}`;
+    } else {
+      // Formato antigo (AAA-111)
+      return `${letters}-${numbers.replace(/[^0-9]/g, '')}`;
+    }
+  } else if (cleanInput.length >= 7) {
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const remaining = cleanInput.slice(3);
+    
+    // Verifica se é formato Mercosul (AAA-1A11)
+    if (/^[0-9][A-Z][0-9]{2}/.test(remaining)) {
+      return `${letters}-${remaining.slice(0, 4)}`;
+    } else {
+      // Formato antigo (AAA-1111)
+      const numbers = remaining.replace(/[^0-9]/g, '').slice(0, 4);
+      return `${letters}-${numbers}`;
+    }
+  }
+  
+  return cleanInput;
+};
+
+// Função para validar placa brasileira
+const isValidLicensePlate = (plate: string): boolean => {
+  const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  
+  // Formato antigo: AAA1111
+  const oldFormat = /^[A-Z]{3}[0-9]{4}$/.test(cleanPlate);
+  
+  // Formato Mercosul: AAA1A11
+  const mercosulFormat = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate);
+  
+  return oldFormat || mercosulFormat;
+};
+
 export default function CadastroTab() {
   const { user } = useAuth();
   
@@ -829,7 +899,7 @@ export default function CadastroTab() {
                 ) : (
                   vehicles.map((vehicle) => (
                     <View key={vehicle.id} style={styles.vehicleCard}>
-                      <Text style={styles.vehiclePlate}>{vehicle.license_plate}</Text>
+                      <Text style={styles.vehiclePlate}>{formatLicensePlate(vehicle.license_plate || '')}</Text>
                       <Text style={styles.vehicleInfo}>
                         {vehicle.type === 'car' ? '🚗' : vehicle.type === 'motorcycle' ? '🏍️' : '🚚'} 
                         {vehicle.type === 'car' ? 'Carro' : 
@@ -1047,8 +1117,11 @@ export default function CadastroTab() {
               <TextInput
                 style={styles.input}
                 value={newVehicle.license_plate}
-                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, license_plate: text.toUpperCase() }))}
-                placeholder="ABC-1234"
+                onChangeText={(text) => {
+                  const formattedPlate = formatLicensePlate(text);
+                  setNewVehicle(prev => ({ ...prev, license_plate: formattedPlate }));
+                }}
+                placeholder="ABC-1234 ou ABC-1A23"
                 autoCapitalize="characters"
                 maxLength={8}
                 editable={!loading}
