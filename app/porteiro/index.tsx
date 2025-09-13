@@ -147,7 +147,6 @@ export default function PorteiroDashboard() {
     porteiroId: user?.id || '',
     buildingId: porteiroData?.building_id || '',
     onShiftChange: (shift) => {
-      console.log('🔄 Shift changed:', shift);
     }
   });
   
@@ -688,18 +687,19 @@ export default function PorteiroDashboard() {
     }
   }, [user?.id, authLoading]);
   
-  // Abrir modal de controle de turno automaticamente quando o porteiro fizer login
+  // Modal de controle de turno - abre automaticamente quando o turno estiver desligado
   useEffect(() => {
-    if (!authLoading && user?.id && porteiroData && !showShiftModal) {
-      // Verificar se o turno não está ativo
+    if (!authLoading && user?.id && porteiroData) {
+      // Definir a aba padrão como chegada
+      setActiveTab('chegada');
+      
+      // Verificar se não há turno ativo e abrir o modal automaticamente
       if (!currentShift) {
-        // Forçar a aba de chegada e abrir modal obrigatório
-        setActiveTab('chegada');
-        setIsModalMandatory(true);
         setShowShiftModal(true);
+        setIsModalMandatory(true);
       }
     }
-  }, [user?.id, authLoading, porteiroData, currentShift, showShiftModal]);
+  }, [user?.id, authLoading, porteiroData, currentShift]);
   
   // Atualizar se o modal deve ser obrigatório baseado no status do turno
   useEffect(() => {

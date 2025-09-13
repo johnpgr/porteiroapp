@@ -304,6 +304,44 @@ export default function UsersManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 1. Obter o perfil do administrador atual
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admin_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (adminError || !adminProfile) {
+        console.error('Erro ao obter perfil do admin:', adminError);
+        return;
+      }
+
+      console.log('🔍 [DEBUG] Admin Profile ID:', adminProfile.id);
+
+      // 2. Consultar building_admins para obter os prédios gerenciados pelo admin
+      const { data: buildingAdmins, error: buildingAdminsError } = await supabase
+        .from('building_admins')
+        .select('building_id')
+        .eq('admin_profile_id', adminProfile.id);
+
+      if (buildingAdminsError) {
+        console.error('Erro ao carregar prédios do admin:', buildingAdminsError);
+        return;
+      }
+
+      console.log('🔍 [DEBUG] Building Admins data:', buildingAdmins);
+
+      if (!buildingAdmins || buildingAdmins.length === 0) {
+        console.log('Admin não possui prédios associados');
+        setAdminUsers([]);
+        return;
+      }
+
+      // 3. Extrair os IDs dos prédios gerenciados
+      const managedBuildingIds = buildingAdmins.map(ba => ba.building_id);
+      console.log('🔍 [DEBUG] Managed Building IDs:', managedBuildingIds);
+
+      // 4. Buscar usuários (porteiros e moradores) vinculados aos prédios gerenciados
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -314,6 +352,7 @@ export default function UsersManagement() {
           email,
           cpf,
           created_at,
+          building_id,
           apartments:apartment_residents(
             apartment:apartments(
               id,
@@ -326,11 +365,50 @@ export default function UsersManagement() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Erro ao carregar usuários do admin:', error);
+        console.error('Erro ao carregar usuários:', error);
         return;
       }
 
-      setAdminUsers(data || []);
+      console.log('🔍 [DEBUG] Dados retornados da consulta:', data);
+      console.log('🔍 [DEBUG] Total de usuários encontrados:', data?.length || 0);
+      
+      // Separar porteiros e moradores para debug
+      const porteiros = (data || []).filter(user => user.role === 'porteiro');
+      const moradores = (data || []).filter(user => user.role === 'morador');
+      
+      console.log('🔍 [DEBUG] Porteiros encontrados:', porteiros.length);
+      console.log('🔍 [DEBUG] Dados dos porteiros:', porteiros);
+      console.log('🔍 [DEBUG] Moradores encontrados:', moradores.length);
+
+      // 5. Filtrar usuários baseado na lógica de negócio
+      const filteredUsers = (data || []).filter(user => {
+        // Para porteiros: verificar se building_id está nos prédios gerenciados
+        if (user.role === 'porteiro') {
+          const isIncluded = user.building_id && managedBuildingIds.includes(user.building_id);
+          console.log(`🔍 [DEBUG] Porteiro ${user.full_name} - building_id: ${user.building_id}, incluído: ${isIncluded}`);
+          return isIncluded;
+        }
+        
+        // Para moradores: verificar se têm apartamentos nos prédios gerenciados
+        if (user.role === 'morador') {
+          const hasValidApartment = user.apartments && user.apartments.some(apt => 
+            apt.apartment && managedBuildingIds.includes(apt.apartment.building_id)
+          );
+          console.log(`🔍 [DEBUG] Morador ${user.full_name} - apartamentos: ${user.apartments?.length || 0}, incluído: ${hasValidApartment}`);
+          return hasValidApartment;
+        }
+        
+        return false;
+      });
+
+      const filteredPorteiros = filteredUsers.filter(user => user.role === 'porteiro');
+      const filteredMoradores = filteredUsers.filter(user => user.role === 'morador');
+      
+      console.log('🔍 [DEBUG] Porteiros após filtragem:', filteredPorteiros.length);
+      console.log('🔍 [DEBUG] Moradores após filtragem:', filteredMoradores.length);
+      console.log('🔍 [DEBUG] Total de usuários filtrados:', filteredUsers.length);
+
+      setAdminUsers(filteredUsers);
     } catch (error) {
       console.error('Erro ao carregar usuários do admin:', error);
     }
@@ -2134,7 +2212,24 @@ export default function UsersManagement() {
             {/* Lista de usuários filtrados */}
             <ScrollView style={styles.userListContainer}>
               {adminUsers
-                .filter(user => user.role === userListFilter)
+                .filter(user => {
+                  // Filter users based on role
+                  if (user.role !== userListFilter) return false;
+                  
+                  // For residents, check if they have apartments in admin's buildings
+                  if (user.role === 'morador') {
+                    return user.apartments && user.apartments.some(apt => 
+                      buildings.some(building => building.id === apt.apartment?.building_id)
+                    );
+                  }
+                  
+                  // For doormen, check if they are assigned to admin's buildings
+                  if (user.role === 'porteiro') {
+                    return buildings.some(building => building.id === user.building_id);
+                  }
+                  
+                  return false;
+                })
                 .map((user) => (
                   <View key={user.id} style={styles.userListItem}>
                     <View style={styles.userListInfo}>
@@ -2146,7 +2241,11 @@ export default function UsersManagement() {
                         {user.cpf && <Text style={styles.userListCpf}>🆔 {user.cpf}</Text>}
                         {user.apartments && user.apartments.length > 0 && (
                           <Text style={styles.userListApartments}>
-                            🏠 Apartamentos: {user.apartments.map((apt: any) => apt.apartment?.number).filter(Boolean).join(', ')}
+                            🏠 Apartamentos: {user.apartments
+                              .filter(apt => buildings.some(building => building.id === apt.apartment?.building_id))
+                              .map(apt => apt.apartment?.number)
+                              .filter(Boolean)
+                              .join(', ')}
                           </Text>
                         )}
                         <Text style={styles.userListDate}>

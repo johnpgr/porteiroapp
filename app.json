@@ -2,7 +2,7 @@
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "1.0.1",
+    "version": "1.0.8",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
@@ -41,9 +41,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
-      "buildNumber": "1.0.1",
+      "buildNumber": "1.0.8",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Precisamos acessar a câmera para tirar fotos de visitantes, entregas e documentos dentro do condomínio.",
+        "NSMicrophoneUsageDescription": "Precisamos acessar o microfone para gravar áudios e registrar mensagens e ocorrências.",
+        "NSPhotoLibraryUsageDescription": "Precisamos acessar sua biblioteca de fotos para selecionar e enviar imagens.",
+        "NSPhotoLibraryAddUsageDescription": "Precisamos salvar imagens na sua biblioteca quando você optar por baixar ou salvar fotos."
       }
     },
     "android": {

@@ -7,7 +7,7 @@ export interface PorteiroShift {
   building_id: string;
   shift_start: string;
   shift_end: string | null;
-  status: 'active' | 'ended';
+  status: 'active' | 'ended' | 'finished' | 'completed' | 'inactive' | 'closed';
   created_at: string;
   updated_at: string;
 }
@@ -121,20 +121,60 @@ class ShiftService {
       }
 
       // Atualizar o turno para finalizado
-      const { data: updatedShift, error: updateError } = await supabase
+      const nowIso = new Date().toISOString();
+      let updatedShift: PorteiroShift | null = null;
+      let lastError: any = null;
+
+      // Tentativa inicial com 'ended'
+      const initialAttempt = await supabase
         .from('porteiro_shifts')
         .update({
           status: 'ended',
-          shift_end: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          shift_end: nowIso,
+          updated_at: nowIso
         })
         .eq('id', activeShift.id)
         .select()
         .single();
 
-      if (updateError) {
-        console.error('Erro ao finalizar turno:', updateError);
-        return { success: false, error: 'Erro ao finalizar turno' };
+      if (!initialAttempt.error) {
+        updatedShift = initialAttempt.data as PorteiroShift;
+      } else {
+        lastError = initialAttempt.error;
+        // Se violar a constraint de status, tentar valores alternativos
+        const isStatusConstraint =
+          (initialAttempt.error.code === '23514') ||
+          (typeof initialAttempt.error.message === 'string' && initialAttempt.error.message.includes('status'));
+
+        if (isStatusConstraint) {
+          const alternativeStatuses: PorteiroShift['status'][] = ['inactive', 'closed', 'finished', 'completed'];
+          for (const altStatus of alternativeStatuses) {
+            const altAttempt = await supabase
+              .from('porteiro_shifts')
+              .update({
+                status: altStatus,
+                shift_end: nowIso,
+                updated_at: nowIso
+              })
+              .eq('id', activeShift.id)
+              .select()
+              .single();
+
+            if (!altAttempt.error) {
+              updatedShift = altAttempt.data as PorteiroShift;
+              lastError = null;
+              break;
+            } else {
+              lastError = altAttempt.error;
+              // Continua tentando os próximos valores
+            }
+          }
+        }
+      }
+
+      if (!updatedShift) {
+        console.error('Erro ao finalizar turno:', lastError);
+        return { success: false, error: 'Erro ao finalizar turno (status inválido para a tabela). Contate o administrador.' };
       }
 
       console.log('✅ Turno finalizado com sucesso:', updatedShift);
