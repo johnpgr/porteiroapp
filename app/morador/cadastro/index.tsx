@@ -65,6 +65,7 @@ export default function CadastroTab() {
   const [people, setPeople] = useState<Person[]>([]);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [userIsOwner, setUserIsOwner] = useState(false);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   
   // Estados do formulário
   const [formData, setFormData] = useState<PersonForm>({
@@ -824,20 +825,86 @@ export default function CadastroTab() {
   );
   };
 
+  // Função para renderizar o cabeçalho
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
+        <Ionicons name="warning" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      <View style={styles.headerCenter}>
+        <Text style={styles.title}>🏠 Morador</Text>
+        <Text style={styles.subtitle}>Apartamento 101</Text>
+      </View>
+
+      <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
+        <Ionicons name="person-circle" size={32} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Modal do menu do avatar
+  const renderAvatarMenu = () => (
+    <Modal
+      visible={showAvatarMenu}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowAvatarMenu(false)}
+    >
+      <TouchableOpacity 
+        style={styles.avatarMenuOverlay} 
+        activeOpacity={1} 
+        onPress={() => setShowAvatarMenu(false)}
+      >
+        <View style={styles.avatarMenuContainer}>
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              router.push('/morador/profile');
+            }}
+          >
+            <Ionicons name="person" size={20} color="#333" />
+            <Text style={styles.avatarMenuText}>Perfil</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              router.push('/morador/configuracoes');
+            }}
+          >
+            <Ionicons name="settings" size={20} color="#333" />
+            <Text style={styles.avatarMenuText}>Configurações</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.avatarMenuSeparator} />
+          
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              // Implementar logout
+            }}
+          >
+            <Ionicons name="log-out" size={20} color="#f44336" />
+            <Text style={[styles.avatarMenuText, { color: '#f44336' }]}>Sair</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <SafeAreaView style={styles.container}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.push('/morador')}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👨‍👩‍👧‍👦 Cadastro</Text>
-            <View style={styles.placeholder} />
-          </View>
+          {renderHeader()}
           {renderCadastroTab()}
         </View>
         <BottomNav activeTab="cadastro" />
+        {renderAvatarMenu()}
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -860,15 +927,72 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
-  title: {
+   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    flex: 1,
-    textAlign: 'center',
+    marginBottom: 1,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
   },
   placeholder: {
     width: 40,
+  },
+  alertButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    marginTop: 2,
+  },
+  avatarButton: {
+    padding: 4,
+  },
+  avatarMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 80,
+    paddingRight: 20,
+  },
+  avatarMenuContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  avatarMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  avatarMenuText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
+  },
+  avatarMenuSeparator: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 4,
   },
   content: {
     flex: 1,
