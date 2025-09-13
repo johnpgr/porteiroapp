@@ -19,12 +19,6 @@
         "buildType": "apk"
       },
       "distribution": "internal"
-    },
-    "ios-prod": {
-      "distribution": "store",
-      "env": {
-        "EAS_SKIP_AUTO_FINGERPRINT": "1"
-      }
     }
   },
   "submit": {
