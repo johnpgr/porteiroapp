@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
 
 interface AuthFormProps {
   onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -178,7 +178,10 @@ export default function AuthForm({
         style={[styles.button, isLoading && styles.buttonDisabled]}
         onPress={handleSubmit}
         disabled={isLoading}>
-        <Text style={styles.buttonText}>{isLoading ? '⏳ Entrando...' : submitText}</Text>
+        <View style={styles.buttonContent}>
+          {isLoading && <ActivityIndicator size="small" color="#fff" style={styles.spinner} />}
+          <Text style={styles.buttonText}>{isLoading ? 'Entrando...' : submitText}</Text>
+        </View>
       </TouchableOpacity>
 
       {isLoading && <Text style={styles.loadingHint}>Aguarde, processando sua solicitação...</Text>}
@@ -226,6 +229,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    marginRight: 8,
   },
   buttonDisabled: {
     backgroundColor: '#ccc',

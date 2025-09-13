@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
 import { adminAuth } from '../../utils/supabase';
@@ -95,22 +95,33 @@ export default function AdminLogin() {
   // Removida verificação de loading inicial - não há mais verificação automática
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.push('/')}
-        disabled={isLoading}>
-        <Text style={[styles.backButtonText, isLoading && styles.disabledText]}>← Voltar</Text>
-      </TouchableOpacity>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push('/')}
+          disabled={isLoading}>
+          <Text style={[styles.backButtonText, isLoading && styles.disabledText]}>← Voltar</Text>
+        </TouchableOpacity>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>🔐 Login Administrador</Text>
-        <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
-        {isLoading && <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>}
-      </View>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>🔐 Login Administrador</Text>
+            <Text style={styles.subtitle}>Acesse o painel administrativo</Text>
+            {isLoading && <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>}
+          </View>
 
-      <AuthForm onSubmit={handleLogin} submitText="Entrar como Admin" loading={isLoading} />
-    </View>
+          <AuthForm onSubmit={handleLogin} submitText="Entrar como Admin" loading={isLoading} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -118,7 +129,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
     padding: 20,
+    minHeight: '100%',
+  },
+  content: {
+    flex: 1,
     justifyContent: 'center',
   },
   // Removidos estilos de loading da verificação automática

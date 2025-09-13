@@ -76,7 +76,7 @@ const validateDate = (dateString: string): boolean => {
     return false;
   }
   
-  // Permite datas a partir de hoje (data atual)
+  // Permite datas a partir de hoje (data atual) - incluindo hoje
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Remove horas para comparar apenas a data
   date.setHours(0, 0, 0, 0);
@@ -508,10 +508,14 @@ export default function VisitantesTab() {
     
     const [, day, month, year] = match;
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    
     return date.getDate() == parseInt(day) && 
            date.getMonth() == parseInt(month) - 1 && 
            date.getFullYear() == parseInt(year) &&
-           date >= new Date(); // Data deve ser futura
+           date >= today; // Data deve ser atual ou futura
   };
 
   // Função para validar formato de horário (HH:MM)
@@ -775,30 +779,43 @@ export default function VisitantesTab() {
 
     // Validações específicas para agendamento
     if (preRegistrationData.visit_type === 'pontual') {
-      if (!preRegistrationData.visit_date || !preRegistrationData.visit_start_time || !preRegistrationData.visit_end_time) {
-        Alert.alert('Erro', 'Para visitas pontuais, data e horários são obrigatórios.');
+      if (!preRegistrationData.visit_date) {
+        Alert.alert('Erro', 'Para visitas pontuais, a data é obrigatória.');
         return;
       }
       
       if (!validateDate(preRegistrationData.visit_date)) {
-        Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA e uma data futura.');
+        Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA e uma data atual ou futura.');
         return;
       }
       
-      if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-        Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+      // Verificar horários apenas se ambos estiverem preenchidos
+      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
+      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+      
+      // Se um horário está preenchido, ambos devem estar
+      if (hasStartTime !== hasEndTime) {
+        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
         return;
       }
       
-      // Verificar se horário de início é anterior ao de fim
-      const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-      const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
-      if (startMinutes >= endMinutes) {
-        Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
-        return;
+      // Se ambos os horários estão preenchidos, validar formato e sequência
+      if (hasStartTime && hasEndTime) {
+        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
+          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+          return;
+        }
+        
+        // Verificar se horário de início é anterior ao de fim
+        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        if (startMinutes >= endMinutes) {
+          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+          return;
+        }
       }
     } else if (preRegistrationData.visit_type === 'frequente') {
       if (!preRegistrationData.allowed_days || preRegistrationData.allowed_days.length === 0) {
@@ -806,25 +823,33 @@ export default function VisitantesTab() {
         return;
       }
       
-      if (!preRegistrationData.visit_start_time || !preRegistrationData.visit_end_time) {
-        Alert.alert('Erro', 'Para visitas frequentes, horários são obrigatórios.');
+      // Verificar horários apenas se ambos estiverem preenchidos
+      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
+      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+      
+      // Se um horário está preenchido, ambos devem estar
+      if (hasStartTime !== hasEndTime) {
+        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
         return;
       }
       
-      if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-        Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
-        return;
-      }
-      
-      // Verificar se horário de início é anterior ao de fim
-      const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-      const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
-      if (startMinutes >= endMinutes) {
-        Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
-        return;
+      // Se ambos os horários estão preenchidos, validar formato e sequência
+      if (hasStartTime && hasEndTime) {
+        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
+          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+          return;
+        }
+        
+        // Verificar se horário de início é anterior ao de fim
+        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        if (startMinutes >= endMinutes) {
+          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+          return;
+        }
       }
     }
 
@@ -864,8 +889,9 @@ export default function VisitantesTab() {
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
         visit_type: preRegistrationData.visit_type,
-        visit_start_time: preRegistrationData.visit_start_time,
-        visit_end_time: preRegistrationData.visit_end_time,
+        // Se os horários estão em branco, definir como liberação 24h (00:00 - 23:59)
+        visit_start_time: preRegistrationData.visit_start_time || '00:00',
+        visit_end_time: preRegistrationData.visit_end_time || '23:59',
         max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
         is_recurring: preRegistrationData.visit_type === 'frequente'
       };
@@ -1189,12 +1215,7 @@ export default function VisitantesTab() {
   // Função para aprovar visitante
   const handleApproveVisitor = async (visitor: Visitor) => {
     try {
-      // Validar se CPF e nome estão completos
-      if (!visitor.document || visitor.document.trim() === '') {
-        Alert.alert('Validação', 'O CPF do visitante deve estar preenchido para aprovação.');
-        return;
-      }
-
+      // Validar se nome está completo
       if (!visitor.name || visitor.name.trim() === '' || visitor.name.trim().split(' ').length < 2) {
         Alert.alert('Validação', 'O nome completo do visitante deve estar preenchido para aprovação.');
         return;
@@ -1517,7 +1538,7 @@ export default function VisitantesTab() {
 
                   <View style={styles.timeInputRow}>
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_start_time}
@@ -1533,7 +1554,7 @@ export default function VisitantesTab() {
                     </View>
 
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_end_time}
@@ -1547,6 +1568,12 @@ export default function VisitantesTab() {
                         maxLength={5}
                       />
                     </View>
+                  </View>
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
                   </View>
                 </>
               )}
@@ -1587,7 +1614,7 @@ export default function VisitantesTab() {
 
                   <View style={styles.timeInputRow}>
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_start_time}
@@ -1603,7 +1630,7 @@ export default function VisitantesTab() {
                     </View>
 
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_end_time}
@@ -1618,21 +1645,13 @@ export default function VisitantesTab() {
                       />
                     </View>
                   </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Máximo de Visitas Simultâneas</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.max_simultaneous_visits?.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 1;
-                        setPreRegistrationData(prev => ({ ...prev, max_simultaneous_visits: num }));
-                      }}
-                      placeholder="1"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                    />
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
                   </View>
+
                 </>
               )}
 

@@ -90,7 +90,7 @@ const AvisosTab = () => {
     //     stopListening();
     //   }
     // };
-  }, [user?.id]);
+  }, [user?.id, userApartment?.building_id]);
 
   useEffect(() => {
     if (userApartment) {
@@ -158,14 +158,14 @@ const AvisosTab = () => {
 
   // Buscar enquetes ativas
   const fetchPolls = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !userApartment?.building_id) return;
 
     try {
       setPollsLoading(true);
       setPollsError(null);
       setRealtimeError(null);
 
-      // Buscar todas as enquetes
+      // Buscar enquetes do prédio do morador
       const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
         .select(`
@@ -174,6 +174,7 @@ const AvisosTab = () => {
           description,
           created_at
         `)
+        .eq('building_id', userApartment.building_id)
         .order('created_at', { ascending: false });
 
       if (pollsError) {
@@ -251,7 +252,7 @@ const AvisosTab = () => {
     } finally {
       setPollsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, userApartment?.building_id]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
