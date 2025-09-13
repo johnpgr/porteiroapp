@@ -671,24 +671,17 @@ export default function CadastroTab() {
         >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity 
+            <Text style={styles.modalTitle}>
+              {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => {
                 resetForm();
                 setShowModal(false);
               }}
             >
-              <Text style={styles.cancelButton}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
-            </Text>
-            <TouchableOpacity 
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              <Text style={[styles.saveButton, loading && styles.disabledButton]}>
-                {loading ? 'Salvando...' : 'Salvar'}
-              </Text>
+              <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -803,20 +796,28 @@ export default function CadastroTab() {
               />
             </View>
 
-            {/* Checkboxes */}
-            <View style={styles.checkboxGroup}>
-              <TouchableOpacity 
-                style={styles.checkboxRow}
-                onPress={() => setFormData(prev => ({ ...prev, is_app_user: !prev.is_app_user }))}
-                disabled={loading}
-              >
-                <View style={[styles.checkbox, formData.is_app_user && styles.checkboxChecked]}>
-                  {formData.is_app_user && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>É usuário do aplicativo</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
+          
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                resetForm();
+                setShowModal(false);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabledButton]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Salvando...' : 'Salvar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1004,19 +1005,53 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  submitButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    flex: 1,
+    marginLeft: 8,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    textAlign: 'center',
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
   cancelButton: {
-    color: '#666',
-    fontSize: 16,
-  },
-  saveButton: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: 'bold',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    flex: 1,
+    marginRight: 8,
   },
   disabledButton: {
     color: '#ccc',
