@@ -49,6 +49,17 @@ interface Person {
   resident_id?: string;
 }
 
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  type: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other';
+  apartment_id: string;
+  created_at: string;
+}
+
 const relationOptions = {
   familiar: ['Cônjuge', 'Familia', 'Funcionário'],
   funcionario: ['Empregada doméstica', 'Babá', 'Cuidador(a)', 'Outro funcionário'],
@@ -67,6 +78,18 @@ export default function CadastroTab() {
   const [userIsOwner, setUserIsOwner] = useState(false);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   
+  // Estados para veículos
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [newVehicle, setNewVehicle] = useState({
+    license_plate: '',
+    brand: '',
+    model: '',
+    color: '',
+    type: '' as 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other' | ''
+  });
+  
   // Estados do formulário
   const [formData, setFormData] = useState<PersonForm>({
     full_name: '',
@@ -81,6 +104,7 @@ export default function CadastroTab() {
   useEffect(() => {
     if (user?.building_id) {
       fetchPeople();
+      fetchVehicles();
     }
   }, [user?.building_id]);
 
@@ -202,6 +226,123 @@ export default function CadastroTab() {
     } finally {
       setLoadingPeople(false);
     }
+  };
+
+  const fetchVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      
+      if (!user?.id) {
+        console.error('User ID não encontrado');
+        return;
+      }
+
+      // Buscar apartment_id do usuário
+      const { data: userResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (residentError || !userResident?.apartment_id) {
+        console.error('Erro ao buscar apartment_id do usuário:', residentError);
+        return;
+      }
+
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('apartment_id', userResident.apartment_id)
+        .order('created_at', { ascending: false });
+
+      if (vehiclesError) {
+        console.error('Erro ao buscar veículos:', vehiclesError);
+        return;
+      }
+
+      setVehicles(vehiclesData || []);
+    } catch (error) {
+      console.error('Erro ao buscar veículos:', error);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const handleAddVehicle = async () => {
+    try {
+      setLoading(true);
+      
+      if (!user?.id) {
+        alert('Usuário não encontrado');
+        return;
+      }
+
+      if (!newVehicle.license_plate.trim()) {
+        alert('Placa do veículo é obrigatória');
+        return;
+      }
+
+      if (!newVehicle.type) {
+        alert('Tipo do veículo é obrigatório');
+        return;
+      }
+
+      // Buscar apartment_id do usuário
+      const { data: userResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (residentError || !userResident?.apartment_id) {
+        console.error('Erro ao buscar apartment_id do usuário:', residentError);
+        alert('Erro ao encontrar informações do apartamento. Tente novamente.');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('vehicles')
+        .insert({
+          license_plate: newVehicle.license_plate.trim().toUpperCase(),
+          brand: newVehicle.brand.trim() || null,
+          model: newVehicle.model.trim() || null,
+          color: newVehicle.color.trim() || null,
+          type: newVehicle.type,
+          apartment_id: userResident.apartment_id
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao cadastrar veículo:', error);
+        alert('Erro ao cadastrar veículo. Tente novamente.');
+        return;
+      }
+
+      // Atualizar lista de veículos
+      setVehicles(prev => [data, ...prev]);
+      
+      // Limpar formulário e fechar modal
+      resetVehicleForm();
+      setShowVehicleForm(false);
+      
+      alert('Veículo cadastrado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao cadastrar veículo:', error);
+      alert('Erro ao cadastrar veículo. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetVehicleForm = () => {
+    setNewVehicle({
+      license_plate: '',
+      brand: '',
+      model: '',
+      color: '',
+      type: ''
+    });
   };
 
   // Função para validar email único
@@ -573,20 +714,32 @@ export default function CadastroTab() {
       <View style={styles.container}>
         <ScrollView style={styles.content}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
+            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas e Veículos</Text>
             <Text style={styles.sectionDescription}>
-              Cadastre familiares, funcionários e pessoas autorizadas
+              Cadastre familiares, funcionários, pessoas autorizadas e veículos
             </Text>
 
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => {
-                resetForm();
-                setShowModal(true);
-              }}>
-              <Ionicons name="person-add" size={24} color="#fff" />
-              <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.halfButton]}
+                onPress={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}>
+                <Ionicons name="person-add" size={24} color="#fff" />
+                <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.halfButton]}
+                onPress={() => {
+                  resetVehicleForm();
+                  setShowVehicleForm(true);
+                }}>
+                <Ionicons name="car" size={24} color="#fff" />
+                <Text style={styles.primaryButtonText}>Cadastrar Novo Veículo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -654,6 +807,47 @@ export default function CadastroTab() {
                       </View>
                     );
                   })
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🚙 Veículos Cadastrados</Text>
+            
+            {loadingVehicles ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Carregando veículos...</Text>
+              </View>
+            ) : (
+              <>
+                {vehicles.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Nenhum veículo cadastrado</Text>
+                  </View>
+                ) : (
+                  vehicles.map((vehicle) => (
+                    <View key={vehicle.id} style={styles.vehicleCard}>
+                      <Text style={styles.vehiclePlate}>{vehicle.license_plate}</Text>
+                      <Text style={styles.vehicleInfo}>
+                        {vehicle.type === 'car' ? '🚗' : vehicle.type === 'motorcycle' ? '🏍️' : '🚚'} 
+                        {vehicle.type === 'car' ? 'Carro' : 
+                         vehicle.type === 'motorcycle' ? 'Moto' : 
+                         vehicle.type === 'truck' ? 'Caminhão' : 
+                         vehicle.type === 'van' ? 'Van' : 
+                         vehicle.type === 'bus' ? 'Ônibus' : 'Outro'}
+                      </Text>
+                      {(vehicle.brand || vehicle.model) && (
+                        <Text style={styles.vehicleDetails}>
+                          {vehicle.brand} {vehicle.model}
+                        </Text>
+                      )}
+                      {vehicle.color && (
+                        <Text style={styles.vehicleColor}>🎨 {vehicle.color}</Text>
+                      )}
+                    </View>
+                  ))
                 )}
               </>
             )}
@@ -816,6 +1010,137 @@ export default function CadastroTab() {
             >
               <Text style={styles.submitButtonText}>
                 {loading ? 'Salvando...' : 'Salvar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Cadastro de Veículo */}
+      <Modal
+        visible={showVehicleForm}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          resetVehicleForm();
+          setShowVehicleForm(false);
+        }}
+      >
+        <View style={styles.vehicleForm}>
+          <View style={styles.vehicleHeader}>
+            <Text style={styles.vehicleTitle}>Cadastrar Novo Veículo</Text>
+            <TouchableOpacity
+              style={styles.closeButtonContainer}
+              onPress={() => {
+                resetVehicleForm();
+                setShowVehicleForm(false);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.vehicleContent}>
+            {/* Placa do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Placa do Veículo *</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.license_plate}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, license_plate: text.toUpperCase() }))}
+                placeholder="ABC-1234"
+                autoCapitalize="characters"
+                maxLength={8}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Marca do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Marca do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.brand}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, brand: text }))}
+                placeholder="Ex: Toyota, Honda, Ford"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Modelo do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Modelo do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.model}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, model: text }))}
+                placeholder="Ex: Corolla, Civic, Focus"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Cor do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Cor do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.color}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, color: text }))}
+                placeholder="Ex: Branco, Preto, Prata"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Tipo do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tipo do Veículo *</Text>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Selecionar Tipo',
+                    'Escolha o tipo do veículo:',
+                    [
+                      { text: 'Carro', onPress: () => setNewVehicle(prev => ({ ...prev, type: 'car' })) },
+                      { text: 'Moto', onPress: () => setNewVehicle(prev => ({ ...prev, type: 'motorcycle' })) },
+                      { text: 'Cancelar', style: 'cancel' }
+                    ]
+                  );
+                }}
+                disabled={loading}
+              >
+                <Text style={newVehicle.type ? styles.dropdownText : styles.placeholderText}>
+                  {newVehicle.type ? 
+                    (newVehicle.type === 'car' ? 'Carro' : 
+                     newVehicle.type === 'motorcycle' ? 'Moto' : 
+                     newVehicle.type === 'truck' ? 'Caminhão' : 
+                     newVehicle.type === 'van' ? 'Van' : 
+                     newVehicle.type === 'bus' ? 'Ônibus' : 'Outro') : 
+                    'Selecione o tipo do veículo'
+                  }
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                resetVehicleForm();
+                setShowVehicleForm(false);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabledButton]}
+              onPress={handleAddVehicle}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Salvando...' : 'Salvar Veículo'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1142,6 +1467,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingVertical: 20,
+    marginBottom: 10,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
@@ -1252,5 +1578,74 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     color: '#333',
+  },
+  // Estilos para veículos
+  vehicleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  vehiclePlate: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vehicleInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  vehicleDetails: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  vehicleColor: {
+    fontSize: 14,
+    color: '#666',
+  },
+  // Estilos para modal de veículo
+  vehicleForm: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+  },
+  vehicleTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButtonContainer: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  vehicleContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfButton: {
+    flex: 1,
   },
 });

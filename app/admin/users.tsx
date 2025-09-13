@@ -2053,11 +2053,16 @@ export default function UsersManagement() {
       {/* Modal de Cadastro de Veículos */}
       <Modal visible={showVehicleForm} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalContainer}>
-          <ScrollView
-            style={[styles.vehicleForm, { paddingVertical: 20 }]}
-            contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.vehicleHeader}>
-            <Text style={styles.vehicleTitle}>🚗 Novo Veículo</Text>
+            <View style={styles.vehicleHeaderContent}>
+              <View style={styles.vehicleIconContainer}>
+                <Ionicons name="car-sport" size={28} color="#4CAF50" />
+              </View>
+              <View style={styles.vehicleHeaderText}>
+                <Text style={styles.vehicleTitle}>Cadastrar Novo Veículo</Text>
+                <Text style={styles.vehicleSubtitle}>Preencha os dados do veículo</Text>
+              </View>
+            </View>
             <TouchableOpacity 
               style={styles.closeButtonContainer}
               onPress={() => setShowVehicleForm(false)}
@@ -2065,12 +2070,25 @@ export default function UsersManagement() {
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
+          <ScrollView
+            style={styles.vehicleForm}
+            contentContainerStyle={styles.vehicleScrollContent}
+            showsVerticalScrollIndicator={false}>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Placa do Veículo *</Text>
+            <View style={styles.labelContainer}>
+              <Ionicons name="car" size={16} color="#4CAF50" />
+              <Text style={styles.label}>Placa do Veículo</Text>
+              <Text style={styles.requiredIndicator}>*</Text>
+            </View>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                newVehicle.license_plate ? styles.inputFilled : null,
+                !newVehicle.license_plate && styles.inputRequired
+              ]}
               placeholder="ABC-1234"
+              placeholderTextColor="#999"
               value={newVehicle.license_plate}
               onChangeText={(text) =>
                 setNewVehicle((prev) => ({ ...prev, license_plate: text.toUpperCase() }))
@@ -2081,10 +2099,17 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Marca do Veículo</Text>
+            <View style={styles.labelContainer}>
+              <Ionicons name="business" size={16} color="#2196F3" />
+              <Text style={styles.label}>Marca do Veículo</Text>
+            </View>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                newVehicle.brand ? styles.inputFilled : null
+              ]}
               placeholder="Ex: Honda, Toyota, Volkswagen"
+              placeholderTextColor="#999"
               value={newVehicle.brand}
               onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, brand: text }))}
               autoCapitalize="words"
@@ -2092,10 +2117,17 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Modelo do Veículo</Text>
+            <View style={styles.labelContainer}>
+              <Ionicons name="car-sport-outline" size={16} color="#FF9800" />
+              <Text style={styles.label}>Modelo do Veículo</Text>
+            </View>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                newVehicle.model ? styles.inputFilled : null
+              ]}
               placeholder="Ex: Civic, Corolla, Gol"
+              placeholderTextColor="#999"
               value={newVehicle.model}
               onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, model: text }))}
               autoCapitalize="words"
@@ -2103,10 +2135,17 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Cor do Veículo</Text>
+            <View style={styles.labelContainer}>
+              <Ionicons name="color-palette" size={16} color="#9C27B0" />
+              <Text style={styles.label}>Cor do Veículo</Text>
+            </View>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                newVehicle.color ? styles.inputFilled : null
+              ]}
               placeholder="Ex: Branco, Preto, Prata"
+              placeholderTextColor="#999"
               value={newVehicle.color}
               onChangeText={(text) => setNewVehicle((prev) => ({ ...prev, color: text }))}
               autoCapitalize="words"
@@ -2114,24 +2153,31 @@ export default function UsersManagement() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Tipo do Veículo</Text>
+            <View style={styles.labelContainer}>
+              <Ionicons name="options" size={16} color="#FF5722" />
+              <Text style={styles.label}>Tipo do Veículo</Text>
+            </View>
             <TouchableOpacity 
-              style={styles.dropdownButton}
+              style={[
+                styles.dropdownButton,
+                newVehicle.type ? styles.dropdownFilled : null
+              ]}
               onPress={() => {
                 Alert.alert(
                   'Selecione o Tipo do Veículo',
-                  '',
+                  'Escolha uma das opções abaixo:',
                   [
                     {
-                      text: 'Carro',
+                      text: '🚗 Carro',
                       onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'car' }))
                     },
                     {
-                      text: 'Moto',
+                      text: '🏍️ Moto',
                       onPress: () => setNewVehicle((prev) => ({ ...prev, type: 'motorcycle' }))
                     },
                     {
                       text: 'Cancelar',
+                      style: 'cancel',
                       onPress: () => {}
                     }
                   ],
@@ -2139,32 +2185,52 @@ export default function UsersManagement() {
                 );
               }}
             >
-              <Text style={[styles.dropdownText, !newVehicle.type && styles.placeholderText]}>
-                {newVehicle.type === 'car' ? 'Carro' :
-                 newVehicle.type === 'motorcycle' ? 'Moto' :
-                 newVehicle.type === 'truck' ? 'Caminhão' :
-                 newVehicle.type === 'van' ? 'Van' :
-                 newVehicle.type === 'bus' ? 'Ônibus' :
-                 newVehicle.type === 'other' ? 'Outro' :
-                 'Selecione o tipo'
-                }
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+              <View style={styles.dropdownContent}>
+                <Text style={[styles.dropdownText, !newVehicle.type && styles.placeholderText]}>
+                  {newVehicle.type === 'car' ? '🚗 Carro' :
+                   newVehicle.type === 'motorcycle' ? '🏍️ Moto' :
+                   newVehicle.type === 'truck' ? '🚛 Caminhão' :
+                   newVehicle.type === 'van' ? '🚐 Van' :
+                   newVehicle.type === 'bus' ? '🚌 Ônibus' :
+                   newVehicle.type === 'other' ? '🚙 Outro' :
+                   'Selecione o tipo do veículo'
+                  }
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={newVehicle.type ? "#4CAF50" : "#999"} />
+              </View>
             </TouchableOpacity>
           </View>
 
 
 
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.disabledButton]}
-            onPress={handleAddVehicle}
-            disabled={loading}>
-            {loading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.submitButtonText}>🚗 Cadastrar Veículo</Text>
+          <View style={styles.submitContainer}>
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                loading && styles.disabledButton,
+                !newVehicle.license_plate && styles.submitButtonDisabled
+              ]}
+              onPress={handleAddVehicle}
+              disabled={loading || !newVehicle.license_plate}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="white" />
+                  <Text style={styles.loadingText}>Cadastrando...</Text>
+                </View>
+              ) : (
+                <View style={styles.submitContent}>
+                  <Ionicons name="checkmark-circle" size={20} color="white" />
+                  <Text style={styles.submitButtonText}>Cadastrar Veículo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            
+            {!newVehicle.license_plate && (
+              <Text style={styles.validationText}>
+                ⚠️ A placa do veículo é obrigatória
+              </Text>
             )}
-          </TouchableOpacity>
+          </View>
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -3162,5 +3228,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     flex: 1,
+  },
+  // Novos estilos otimizados para o modal de veículos
+  vehicleHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  vehicleIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E8F5E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  vehicleHeaderText: {
+    flex: 1,
+  },
+  vehicleSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  vehicleScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  requiredIndicator: {
+    color: '#f44336',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  inputFilled: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#f8fff8',
+  },
+  inputRequired: {
+    borderColor: '#ffcdd2',
+    backgroundColor: '#fff5f5',
+  },
+  dropdownFilled: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#f8fff8',
+  },
+  dropdownContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  submitContainer: {
+    marginTop: 20,
+  },
+  submitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  validationText: {
+    fontSize: 14,
+    color: '#f44336',
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
   },
 });
