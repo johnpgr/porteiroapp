@@ -337,7 +337,7 @@ export default function PorteiroDashboard() {
         return;
       }
       
-      // Buscar visitantes diretamente da tabela 'visitors' com status aprovado
+      // Buscar visitantes diretamente da tabela 'visitors' com status aprovado (excluindo rejeitados)
       const { data: visitors, error: visitorsError } = await supabase
         .from('visitors')
         .select(`
@@ -356,6 +356,8 @@ export default function PorteiroDashboard() {
         `)
         .eq('apartments.building_id', profile.building_id)
         .eq('status', 'aprovado')
+        .neq('status', 'rejected')
+        .neq('status', 'não autorizado')
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -1903,9 +1905,9 @@ export default function PorteiroDashboard() {
             </View>
             
             <View style={styles.photoContainer}>
-              {profileResult?.photo_url ? (
+              {profileResult?.avatar_url ? (
                 <Image 
-                  source={{ uri: profileResult.photo_url }}
+                  source={{ uri: profileResult.avatar_url }}
                   style={styles.photoModalImage}
                   resizeMode="contain"
                 />

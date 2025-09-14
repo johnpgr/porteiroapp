@@ -233,27 +233,17 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       if (fetchError) {
         console.error('Erro ao buscar visitas antigas:', fetchError);
       } else if (oldVisits && oldVisits.length > 0) {
-        // Remover visitor_logs relacionados
+        // Atualizar status dos visitantes antigos para 'não autorizado' em vez de deletar
         const visitorIds = oldVisits.map(v => v.id);
-        const { error: cleanupLogsError } = await supabase
-          .from('visitor_logs')
-          .delete()
-          .in('visitor_id', visitorIds);
-
-        if (cleanupLogsError) {
-          console.error('Erro ao limpar logs de visitas antigas:', cleanupLogsError);
-        }
-
-        // Remover visitantes antigos
         const { error: cleanupVisitorsError } = await supabase
           .from('visitors')
-          .delete()
+          .update({ status: 'nao_permitido' })
           .in('id', visitorIds);
 
         if (cleanupVisitorsError) {
-          console.error('Erro ao limpar visitantes antigos:', cleanupVisitorsError);
+          console.error('Erro ao atualizar status de visitantes antigos:', cleanupVisitorsError);
         } else {
-          console.log(`🧹 Limpeza de ${oldVisits.length} visitas pontuais antigas (24h) executada`);
+          console.log(`🧹 Status de ${oldVisits.length} visitas pontuais antigas (24h) atualizado para 'nao_permitido'`);
         }
       }
 
@@ -404,11 +394,17 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       }
 
       // Processar dados para incluir número do apartamento e nome do visitante
-      const processedLogs = (data || []).map(log => ({
-        ...log,
-        apartment_number: log.apartments?.number || 'N/A',
-        visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante'
-      }));
+      const processedLogs = (data || []).map((log) => {
+        // Para authorized_by, usar o valor direto (pode ser 'Porteiro' ou um nome)
+        const authorizedByName = log.authorized_by || 'Sistema';
+        
+        return {
+          ...log,
+          apartment_number: log.apartments?.number || 'N/A',
+          visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante',
+          authorized_by_name: authorizedByName
+        };
+      });
 
       setVisitorLogs(processedLogs);
       console.log('✅ Visitor logs carregados:', processedLogs?.length || 0, `registros (filtro: ${timeFilter})`);
@@ -874,6 +870,33 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         return;
       }
 
+      // Debug: Verificar dados do visitante antes da remoção
+      console.log('🔍 DEBUG: Dados completos do visitante:', JSON.stringify(autorizacao, null, 2));
+      console.log('🔍 DEBUG: visitor_type:', autorizacao.visitor_type);
+      console.log('🔍 DEBUG: visit_type:', autorizacao.visit_type);
+      console.log('🔍 DEBUG: typeof visit_type:', typeof autorizacao.visit_type);
+      console.log('🔍 DEBUG: visit_type === "pontual":', autorizacao.visit_type === 'pontual');
+      console.log('🔍 DEBUG: visit_type === "frequente":', autorizacao.visit_type === 'frequente');
+      
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (autorizacao.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${autorizacao.name || autorizacao.nomeConvidado} (ID: ${autorizacao.id}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'nao_permitido' })
+          .eq('id', autorizacao.id);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${autorizacao.name || autorizacao.nomeConvidado} atualizado para 'nao_permitido'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${autorizacao.name || autorizacao.nomeConvidado} é do tipo '${autorizacao.visit_type}', mantendo status atual`);
+      }
+
       // Mostrar modal de confirmação
       setSelectedAuth(autorizacao);
       showConfirmationModal(
@@ -1002,6 +1025,8 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             apartments!inner(number, building_id)
           `)
           .eq('apartments.building_id', buildingId)
+          .neq('status', 'rejected')
+          .neq('status', 'nao_permitido')
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo para visitas
@@ -1118,7 +1143,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           id: visit.id,
           type: 'visit',
           title: `👤 ${visitorName}`,
-          subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+          subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
           status: isApproved ? 'Aprovado' : isPending ? 'Aguardando aprovação' : 'Negado',
           time: formatDate(visit.visit_date || visit.created_at),
           icon: isApproved ? '✅' : isPending ? '⏳' : '❌',
@@ -1127,7 +1152,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
-            `Tipo: ${visit.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+            `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
             ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
             ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
@@ -1349,6 +1374,25 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         return;
       }
 
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (visitorData.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'nao_permitido' })
+          .eq('id', activityId);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'nao_permitido'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+      }
+
       // Enviar notificação push para o morador
       // TODO: Implementar envio de push notification
       console.log('Enviando notificação push para o morador...');
@@ -1419,6 +1463,25 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         console.error('Erro ao registrar entrada:', error);
         Alert.alert('Erro', 'Não foi possível registrar a entrada');
         return;
+      }
+
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (visitorData.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'não autorizado' })
+          .eq('id', activityId);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'não autorizado'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
       }
 
       Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador será notificado.');
@@ -1494,7 +1557,9 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             )}
             {/* Exibir "Autorizado por" apenas quando status for aprovado */}
             {log.notification_status === 'approved' && log.authorized_by && (
-              <Text style={styles.detailText}>✅ Autorizado por: {log.authorized_by}</Text>
+              <Text style={styles.detailText}>
+                ✅ Autorizado por: {log.authorized_by_name || log.authorized_by}
+              </Text>
             )}
             <Text style={styles.detailText}>🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às {formatLogTime(log.log_time || log.created_at)}</Text>
           </View>

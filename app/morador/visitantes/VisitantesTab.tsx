@@ -1257,7 +1257,7 @@ export default function VisitantesTab() {
       const { error } = await supabase
         .from('visitors')
         .update({
-          status: 'negado',
+          status: 'nao_permitido',
           updated_at: new Date().toISOString()
         })
         .eq('id', visitor.id);
