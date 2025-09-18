@@ -700,7 +700,7 @@ export default function Communications() {
           resizeMode="contain"
         />
         <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
-          Esta função está temporariamente indisponível
+          Este recurso não está disponível neste plano
         </Text>
       </View>
     </View>
