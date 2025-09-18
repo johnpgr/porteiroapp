@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import BottomNav from '~/components/BottomNav';
 
@@ -138,6 +139,7 @@ const isValidLicensePlate = (plate: string): boolean => {
 
 export default function CadastroTab() {
   const { user } = useAuth();
+  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   
   // Estados do formulário
   const [showModal, setShowModal] = useState(false);
@@ -1232,7 +1234,10 @@ export default function CadastroTab() {
 
       <View style={styles.headerCenter}>
         <Text style={styles.title}>🏠 Morador</Text>
-        <Text style={styles.subtitle}>Apartamento 101</Text>
+        <Text style={styles.subtitle}>
+          {apartmentLoading ? 'Carregando...' : 
+           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
+        </Text>
       </View>
 
       <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>

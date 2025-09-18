@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
@@ -39,6 +40,7 @@ interface VisitorHistory {
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
+  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   const { tab } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('inicio');
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
@@ -240,7 +242,10 @@ export default function MoradorDashboard() {
 
       <View style={styles.headerCenter}>
         <Text style={styles.title}>🏠 Morador</Text>
-        <Text style={styles.subtitle}>Apartamento 101</Text>
+        <Text style={styles.subtitle}>
+          {apartmentLoading ? 'Carregando...' : 
+           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
+        </Text>
       </View>
 
       <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>

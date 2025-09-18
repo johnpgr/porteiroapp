@@ -764,7 +764,6 @@ export default function Communications() {
       visible={showCommunicationsModal}
       animationType="slide"
       presentationStyle="fullScreen">
-      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity
             style={styles.modalCloseButton}
@@ -815,7 +814,6 @@ export default function Communications() {
             }
           />
         )}
-      </SafeAreaView>
     </Modal>
   );
 
@@ -824,7 +822,6 @@ export default function Communications() {
       visible={showPollsModal}
       animationType="slide"
       presentationStyle="fullScreen">
-      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity
             style={styles.modalCloseButton}
@@ -898,7 +895,6 @@ export default function Communications() {
             }
           />
         )}
-      </SafeAreaView>
     </Modal>
   );
 
@@ -1746,7 +1742,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     margin: 20,
     borderRadius: 12,
-    maxHeight: '70%',
+    maxHeight: '90%',
     minWidth: '80%',
   },
   modalHeader: {
@@ -1768,74 +1764,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalScrollView: {
-    maxHeight: 300,
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  modalOptionSelected: {
-    backgroundColor: '#eff6ff',
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  modalOptionTextSelected: {
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  modalCheckmark: {
-    fontSize: 16,
-    color: '#3b82f6',
-    fontWeight: 'bold',
-  },
-  modalSeparator: {
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  // Estilos dos modais dos pickers
-  modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 12,
-    maxHeight: '70%',
-    minWidth: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  modalCloseText: {
-    fontSize: 18,
-    color: '#6b7280',
-    fontWeight: '600',
-  },
-  modalScrollView: {
-    maxHeight: 300,
   },
   modalOption: {
     flexDirection: 'row',
@@ -1869,6 +1798,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
+
   modalSeparatorText: {
     fontSize: 14,
     fontWeight: '600',
