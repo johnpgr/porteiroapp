@@ -1189,14 +1189,7 @@ export default function PorteiroDashboard() {
         // Buscar o perfil do morador
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select(`
-            id,
-            full_name,
-            cpf,
-            phone,
-            user_type,
-            building_id
-          `)
+          .select(`*`)
           .eq('cpf', cleanCPF)
           .single();
 
@@ -1366,7 +1359,8 @@ export default function PorteiroDashboard() {
         if (searchType === 'cpf') {
           const result = await searchByCPF(query);
           if (result) {
-            setProfileResult(result);
+            setProfileResult(result)
+            console.log("RESULTADOOOO:", result)
           } else {
             setSearchError('CPF não encontrado no sistema');
           }

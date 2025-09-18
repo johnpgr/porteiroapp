@@ -1027,6 +1027,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           .eq('apartments.building_id', buildingId)
           .neq('status', 'rejected')
           .neq('status', 'nao_permitido')
+          .neq('status', 'não autorizado')
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo para visitas

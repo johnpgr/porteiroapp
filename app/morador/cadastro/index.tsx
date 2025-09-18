@@ -796,7 +796,7 @@ export default function CadastroTab() {
                   resetForm();
                   setShowModal(true);
                 }}>
-                <Ionicons name="person-add" size={24} color="#fff" />
+                <Ionicons name="person-add" size={18} color="#fff" />
                 <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
               </TouchableOpacity>
 
@@ -806,7 +806,7 @@ export default function CadastroTab() {
                   resetVehicleForm();
                   setShowVehicleForm(true);
                 }}>
-                <Ionicons name="car" size={24} color="#fff" />
+                <Ionicons name="car" size={18} color="#fff" />
                 <Text style={styles.primaryButtonText}>Cadastrar Novo Veículo</Text>
               </TouchableOpacity>
             </View>
@@ -1416,14 +1416,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: '#4CAF50',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     marginLeft: 8,
   },
