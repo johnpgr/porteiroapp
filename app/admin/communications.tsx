@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
@@ -691,72 +692,18 @@ export default function Communications() {
   );
 
   const renderCommunications = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.communicationsHeader}>
-        <TouchableOpacity
-          style={styles.listCommunicationsButton}
-          onPress={() => {
-            setShowCommunicationsModal(true);
-            fetchCommunications();
-          }}>
-          <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.communicationForm}>
-        <Text style={styles.formTitle}>Enviar Comunicado</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Título do comunicado"
-          value={communication.title}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, title: text }))}
+    <View style={[styles.content, { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+      <View style={{ alignItems: 'center' }}>
+        <Image 
+          source={require('../../assets/logo-james-fundo.png')} 
+          style={{ width: 120, height: 120, marginBottom: 20 }}
+          resizeMode="contain"
         />
-
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Conteúdo detalhado"
-          value={communication.content}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, content: text }))}
-          multiline
-          numberOfLines={4}
-        />
-
-        <TouchableOpacity
-          style={styles.pickerButton}
-          onPress={() => setShowCommunicationTypePicker(true)}
-        >
-          <Text style={styles.pickerButtonText}>
-            Tipo: {getCommunicationTypeLabel(communication.type)}
-          </Text>
-          <Text style={styles.pickerChevron}>▼</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.pickerButton}
-          onPress={() => setShowCommunicationPriorityPicker(true)}
-        >
-          <Text style={styles.pickerButtonText}>
-            Prioridade: {getCommunicationPriorityLabel(communication.priority)}
-          </Text>
-          <Text style={styles.pickerChevron}>▼</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.pickerButton}
-          onPress={() => setShowCommunicationBuildingPicker(true)}
-        >
-          <Text style={styles.pickerButtonText}>
-            {getBuildingLabel(communication.building_id)}
-          </Text>
-          <Text style={styles.pickerChevron}>▼</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
-          <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
-        </TouchableOpacity>
+        <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
+          Esta função está temporariamente indisponível
+        </Text>
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderCommunicationsModal = () => (
@@ -1842,5 +1789,87 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  // Estilos da mensagem de manutenção
+  maintenanceContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 32,
+    maxWidth: 400,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  logoContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2563eb',
+    letterSpacing: 1,
+  },
+  maintenanceIcon: {
+    marginBottom: 20,
+    backgroundColor: '#fef3c7',
+    borderRadius: 50,
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  maintenanceIconText: {
+    fontSize: 36,
+  },
+  maintenanceTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 32,
+  },
+  maintenanceMessage: {
+    fontSize: 16,
+    color: '#4b5563',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  maintenanceSubMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  maintenanceFooter: {
+    alignItems: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    width: '100%',
+  },
+  maintenanceFooterText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+    marginBottom: 8,
+  },
+  maintenanceTime: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
   },
 });
