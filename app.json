@@ -2,7 +2,7 @@
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "1.0.8",
+    "version": "2.0.0",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
@@ -41,7 +41,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
-      "buildNumber": "1.0.8",
+      "buildNumber": "2.0.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Precisamos acessar a câmera para tirar fotos de visitantes, entregas e documentos dentro do condomínio.",
