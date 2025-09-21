@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -70,35 +70,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await loadUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkSession = async () => {
+  const signOut = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserProfile(session.user);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro no logout:', error);
       }
+      setUser(null);
+      router.push('/login');
     } catch (error) {
-      console.error('Erro ao verificar sessão:', error);
-    } finally {
-      setLoading(false);
+      console.error('Erro no logout:', error);
+      setUser(null);
+      router.push('/login');
     }
-  };
+  }, [router]);
 
-  const loadUserProfile = async (authUser: User) => {
+  const loadUserProfile = useCallback(async (authUser: User) => {
     try {
       // Primeiro verifica se é um admin
       const { data: adminProfile, error: adminError } = await supabase
@@ -113,10 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData: AuthUser = {
           id: authUser.id,
           email: adminProfile.email,
-          user_type: adminProfile.admin_type === 'super_admin' ? 'super_admin' : 'admin',
-          admin_type: adminProfile.admin_type,
-          is_active: adminProfile.is_active,
-          profile: adminProfile
+          user_type: adminProfile.role === 'super_admin' ? 'super_admin' : 'admin',
+          admin_type: adminProfile.role as 'super_admin' | 'admin',
+          is_active: adminProfile.is_active ?? true,
+          profile: {
+            id: adminProfile.id,
+            full_name: adminProfile.name,
+            email: adminProfile.email,
+            admin_type: adminProfile.role
+          } as unknown as AdminProfile
         };
         setUser(userData);
         return;
@@ -147,7 +139,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Erro ao carregar perfil:', error);
       await signOut();
     }
-  };
+  }, [signOut]);
+
+  const checkSession = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar sessão:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadUserProfile]);
+
+  useEffect(() => {
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        await loadUserProfile(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [checkSession, loadUserProfile]);
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -178,21 +198,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Erro interno do servidor' };
     } finally {
       setLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Erro no logout:', error);
-      }
-      setUser(null);
-      router.push('/login');
-    } catch (error) {
-      console.error('Erro no logout:', error);
-      setUser(null);
-      router.push('/login');
     }
   };
 

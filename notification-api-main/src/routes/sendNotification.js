@@ -52,9 +52,6 @@ router.post('/send-resident-whatsapp', async (req, res) => {
     
     console.log('Dados para WhatsApp:', { name, email, phone, building, apartment, temporary_password });
 
-    // Send WhatsApp notification with credentials (no user creation)
-    const siteUrl = process.env.SITE_URL || 'porteiroapp://login';
-  const completarCadastroUrl = 'porteiroapp://login';
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!
@@ -74,6 +71,8 @@ Você foi convidado(a) para se cadastrar no JamesAvisa.
 🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
 
 💡 IMPORTANTE: Use seu email como usuário para fazer login!
+
+Acesse jamesavisa.jamesconcierge.com para saber mais e baixar nosso app para completar seu cadastro.
 
 Com o JamesAvisa você pode:
 
@@ -193,6 +192,8 @@ Você foi cadastrado(a) como porteiro no JamesAvisa.
 🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
 
 💡 IMPORTANTE: Use seu email como usuário para fazer login!
+
+Acesse jamesavisa.jamesconcierge.com para saber mais e baixar nosso app.
 
 Como porteiro no JamesAvisa você pode:
 

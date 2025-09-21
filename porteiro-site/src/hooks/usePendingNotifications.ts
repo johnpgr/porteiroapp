@@ -94,10 +94,28 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
       
       if (error) throw error;
       
-      const mappedNotifications = data.map(item => ({
-        ...item,
-        guest_name: item.guest_name || item.visitors?.name || 'Visitante não identificado'
-      }));
+      const mappedNotifications = (data as unknown as Record<string, unknown>[]).map(item => ({
+        id: item.id,
+        entry_type: item.entry_type,
+        notification_status: item.notification_status,
+        notification_sent_at: item.notification_sent_at,
+        expires_at: item.expires_at,
+        apartment_id: item.apartment_id,
+        guest_name: item.guest_name || 'Visitante não identificado',
+        purpose: item.purpose,
+        visitor_id: item.visitor_id,
+        delivery_sender: item.delivery_sender,
+        delivery_description: item.delivery_description,
+        delivery_tracking_code: item.delivery_tracking_code,
+        license_plate: item.license_plate,
+        vehicle_model: item.vehicle_model,
+        vehicle_color: item.vehicle_color,
+        vehicle_brand: item.vehicle_brand,
+        building_id: item.building_id,
+        created_at: item.created_at,
+        log_time: item.log_time,
+        visitors: item.visitors
+      } as PendingNotification));
       
       setNotifications(mappedNotifications);
     } catch (err) {
@@ -116,7 +134,12 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
     try {
       setError(null);
       
-      const updateData: any = {
+      const updateData: {
+        notification_status: 'approved' | 'rejected';
+        resident_response_at: string;
+        rejection_reason?: string;
+        delivery_destination?: 'portaria' | 'elevador' | 'apartamento';
+      } = {
         notification_status: response.action === 'approve' ? 'approved' : 'rejected',
         resident_response_at: new Date().toISOString(),
       };
@@ -131,7 +154,7 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
       
       const { error } = await supabase
         .from('visitor_logs')
-        .update(updateData)
+        .update(updateData as Record<string, unknown>)
         .eq('id', notificationId);
       
       if (error) throw error;
@@ -164,13 +187,13 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
           console.log('Mudança detectada:', payload);
           
           if (payload.eventType === 'INSERT') {
-            const newLog = payload.new as any;
+            const newLog = payload.new as Record<string, unknown>;
             if (newLog.notification_status === 'pending' && newLog.requires_resident_approval) {
               // Buscar dados completos da nova notificação
               fetchPendingNotifications();
             }
           } else if (payload.eventType === 'UPDATE') {
-            const updatedLog = payload.new as any;
+            const updatedLog = payload.new as Record<string, unknown>;
             if (updatedLog.notification_status !== 'pending') {
               // Remover da lista se não for mais pendente
               setNotifications(prev => prev.filter(n => n.id !== updatedLog.id));

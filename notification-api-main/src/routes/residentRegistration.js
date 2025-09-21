@@ -198,9 +198,6 @@ router.post('/register-resident', async (req, res) => {
 
     console.log('Usuário criado com sucesso. ProfileId real:', profile.id);
 
-    // Step 4: Send WhatsApp notification with REAL profileId
-    const siteUrl = process.env.SITE_URL || 'porteiroapp://login';
-    const completarCadastroUrl = `porteiroapp://cadastro/morador/completar?profileId=${profile.id}`;
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!
@@ -220,6 +217,8 @@ Você foi convidado(a) para se cadastrar no JamesAvisa.
 🔑 Senha temporária: ${finalTemporaryPassword}
 
 💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!
+
+Acesse jamesavisa.jamesconcierge.com para saber mais e baixar nosso app para completar seu cadastro.
 
 Com o JamesAvisa você pode:
 

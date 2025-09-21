@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Configuração para resolver warning do workspace root
+  outputFileTracingRoot: process.cwd(),
+  
   // Otimizações para rotas dinâmicas
   experimental: {
     // Melhor performance para rotas dinâmicas

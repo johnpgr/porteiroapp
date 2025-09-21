@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { supabase } from '../lib/supabase';
 
 interface PhotoUploadProps {
@@ -73,7 +74,7 @@ export default function PhotoUpload({
       const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
       // Fazer upload para o Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('user-photos')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -90,9 +91,9 @@ export default function PhotoUpload({
         .getPublicUrl(fileName);
 
       onPhotoUpload(publicUrl);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no upload:', error);
-      alert('Erro ao fazer upload da foto. Tente novamente.'); // Fallback para mostrar erro ao usuário
+      alert(error instanceof Error ? error.message : 'Erro ao fazer upload da foto. Tente novamente.'); // Fallback para mostrar erro ao usuário
       setPreviewUrl(initialPhotoUrl || null);
     } finally {
       setIsUploading(false);
@@ -124,10 +125,12 @@ export default function PhotoUpload({
           onClick={handleClick}
         >
           {previewUrl ? (
-            <img 
+            <Image 
               src={previewUrl} 
               alt="Preview" 
               className="w-full h-full object-cover"
+              width={128}
+              height={128}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

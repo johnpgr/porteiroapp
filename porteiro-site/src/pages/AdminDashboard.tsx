@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building, Users, UserPlus, Settings, LogOut, Home, Phone, Mail, Calendar, MapPin } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Building, Users, UserPlus, LogOut, Home, Phone, Mail, Calendar, MapPin } from 'lucide-react';
+import { useRouter } from 'next/router';
 
 interface Building {
   id: string;
@@ -28,22 +28,18 @@ interface AdminProfile {
 }
 
 const AdminDashboard: React.FC = () => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
-  useEffect(() => {
-    loadAdminData();
-  }, []);
-
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        navigate('/login');
+        router.push('/login');
         return;
       }
 
@@ -55,11 +51,16 @@ const AdminDashboard: React.FC = () => {
         .single();
 
       if (!profile) {
-        navigate('/login');
+        router.push('/login');
         return;
       }
 
-      setAdminProfile(profile);
+      setAdminProfile({
+        id: profile.id,
+        full_name: profile.name,
+        email: profile.email,
+        admin_type: profile.role
+      });
 
       // Carregar prédios gerenciados pelo admin
       const { data: adminBuildings } = await supabase
@@ -117,11 +118,15 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    loadAdminData();
+  }, [loadAdminData]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/login');
+    router.push('/login');
   };
 
   if (loading) {
