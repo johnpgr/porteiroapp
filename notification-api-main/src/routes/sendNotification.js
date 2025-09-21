@@ -17,12 +17,12 @@ router.post('/send-resident-whatsapp', async (req, res) => {
   try {
     console.log('Enviando notificação WhatsApp para morador:', req.body);
 
-    const { name, phone, building, apartment, building_id, profile_id } = req.body;
+    const { name, email, phone, building, apartment, building_id, profile_id } = req.body;
 
-    if (!name || !phone || !building || !apartment || !profile_id) {
+    if (!name || !email || !building || !apartment || !profile_id) {
       return res.status(400).json({
         success: false,
-        error: 'Campos obrigatórios: name, phone, building, apartment, profile_id'
+        error: 'Campos obrigatórios: name, email, building, apartment, profile_id'
       });
     }
 
@@ -50,11 +50,8 @@ router.post('/send-resident-whatsapp', async (req, res) => {
       // Continua com a mensagem padrão
     }
     
-    console.log('Dados para WhatsApp:', { name, phone, building, apartment, temporary_password });
+    console.log('Dados para WhatsApp:', { name, email, phone, building, apartment, temporary_password });
 
-    // Send WhatsApp notification with credentials (no user creation)
-    const siteUrl = process.env.SITE_URL || 'https://jamesavisa.jamesconcierge.com/login';
-  const completarCadastroUrl = 'https://jamesavisa.jamesconcierge.com/login';
     const whatsappMessage = `🏢 JamesAvisa - Cadastro de Morador
 
 Olá *${name}*!
@@ -67,17 +64,15 @@ Você foi convidado(a) para se cadastrar no JamesAvisa.
 
 🚪 Apartamento: ${apartment}
 
-Para completar seu cadastro, clique no link abaixo:
-
-${completarCadastroUrl}
-
 🔐 SUAS CREDENCIAIS DE ACESSO:
 
-📱 Usuário (Celular): ${phone}
+📧 Usuário (Email): ${email}
 
 🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
 
-💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!
+💡 IMPORTANTE: Use seu email como usuário para fazer login!
+
+Acesse jamesavisa.jamesconcierge.com para saber mais e baixar nosso app para completar seu cadastro.
 
 Com o JamesAvisa você pode:
 
@@ -92,11 +87,16 @@ Com o JamesAvisa você pode:
 Mensagem enviada automaticamente pelo sistema JamesAvisa`
 
     try {
-      await sendWhatsApp({
-        to: phone,
-        message: whatsappMessage
-      });
-      console.log('WhatsApp enviado com sucesso para:', phone);
+      // Se houver telefone, envia por WhatsApp, senão apenas registra o sucesso
+      if (phone) {
+        await sendWhatsApp({
+          to: phone,
+          message: whatsappMessage
+        });
+        console.log('WhatsApp enviado com sucesso para:', phone);
+      } else {
+        console.log('Cadastro realizado sem envio de WhatsApp (telefone não fornecido)');
+      }
     } catch (whatsappError) {
       console.error('Erro ao enviar WhatsApp:', whatsappError.message);
       // Don't fail the registration if WhatsApp fails
@@ -122,6 +122,121 @@ Mensagem enviada automaticamente pelo sistema JamesAvisa`
         details: error.errors
       });
     }
+
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// POST /api/send-porteiro-whatsapp - Endpoint específico para envio de mensagens WhatsApp para porteiros
+router.post('/send-porteiro-whatsapp', async (req, res) => {
+  try {
+    console.log('Enviando notificação WhatsApp para porteiro:', req.body);
+
+    const { name, email, phone, building, cpf, work_schedule, profile_id } = req.body;
+
+    if (!name || !email || !building || !profile_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: name, email, building, profile_id'
+      });
+    }
+
+    // Buscar senha temporária no Supabase
+    let temporary_password = 'Senha será enviada em breve';
+    try {
+      const { data: passwordData, error: passwordError } = await supabase
+        .from('temporary_passwords')
+        .select('plain_password')
+        .eq('profile_id', profile_id)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (passwordError) {
+        console.log('Nenhuma senha temporária encontrada para profile_id:', profile_id);
+      } else if (passwordData) {
+        temporary_password = passwordData.plain_password;
+        console.log('Senha temporária encontrada para profile_id:', profile_id);
+      }
+    } catch (supabaseError) {
+      console.error('Erro ao buscar senha temporária:', supabaseError.message);
+      // Continua com a mensagem padrão
+    }
+    
+    console.log('Dados para WhatsApp:', { name, email, phone, building, cpf, work_schedule, temporary_password });
+
+    // Formatação do horário de trabalho
+    const workScheduleText = work_schedule ? 
+      `\n🕐 Horário de trabalho: ${work_schedule}` : '';
+
+    // Send WhatsApp notification with credentials for porteiro
+    const whatsappMessage = `🏢 JamesAvisa - Cadastro de Porteiro
+
+Olá *${name}*!
+
+Você foi cadastrado(a) como porteiro no JamesAvisa.
+
+📍 Dados do seu trabalho:
+
+🏢 Prédio: ${building}${workScheduleText}
+
+🔐 SUAS CREDENCIAIS DE ACESSO:
+
+📧 Usuário (Email): ${email}
+
+🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
+
+💡 IMPORTANTE: Use seu email como usuário para fazer login!
+
+Acesse jamesavisa.jamesconcierge.com para saber mais e baixar nosso app.
+
+Como porteiro no JamesAvisa você pode:
+
+✅ Gerenciar visitantes e entregas
+
+✅ Autorizar acessos remotamente
+
+✅ Comunicar-se com os moradores
+
+✅ Registrar ocorrências
+
+✅ Controlar entrada e saída de veículos
+
+Mensagem enviada automaticamente pelo sistema JamesAvisa`;
+
+    try {
+      // Se houver telefone, envia por WhatsApp, senão apenas registra o sucesso
+      if (phone) {
+        await sendWhatsApp({
+          to: phone,
+          message: whatsappMessage
+        });
+        console.log('WhatsApp enviado com sucesso para porteiro:', phone);
+      } else {
+        console.log('Cadastro de porteiro realizado sem envio de WhatsApp (telefone não fornecido)');
+      }
+    } catch (whatsappError) {
+      console.error('Erro ao enviar WhatsApp para porteiro:', whatsappError.message);
+      // Don't fail the registration if WhatsApp fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Cadastro de porteiro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
+      data: {
+        profile_id: profile_id,
+        building_name: building,
+        work_schedule: work_schedule
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro no cadastro de porteiro:', error);
 
     res.status(500).json({
       success: false,
@@ -175,10 +290,13 @@ router.post('/send-regularization-whatsapp', async (req, res) => {
     }
 
     const regularizationData = validation.parsed;
-    regularizationData.phone = regularizationData.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+    if (regularizationData.phone) {
+      regularizationData.phone = regularizationData.phone.replace(/\D/g, ''); // Remove caracteres não numéricos
+    }
 
     console.log('✅ Dados de regularização validados:', {
       name: regularizationData.name,
+      email: regularizationData.email,
       phone: regularizationData.phone,
       building: regularizationData.building,
       apartment: regularizationData.apartment,
@@ -193,14 +311,19 @@ router.post('/send-regularization-whatsapp', async (req, res) => {
     const whatsappMessage = generateRegularizationMessage(regularizationData, regularizationLink);
     console.log('📝 Mensagem de regularização formatada:', whatsappMessage.substring(0, 100) + '...');
 
-    // Enviar mensagem via WhatsApp
-    const whatsappResult = await sendWhatsApp({
-      to: regularizationData.phone,
-      message: whatsappMessage
-    });
+    // Enviar mensagem via WhatsApp (se telefone estiver disponível)
+    let whatsappResult = null;
+    if (regularizationData.phone) {
+      whatsappResult = await sendWhatsApp({
+        to: regularizationData.phone,
+        message: whatsappMessage
+      });
+      console.log(`✅ Mensagem de regularização WhatsApp enviada com sucesso para:`, regularizationData.phone);
+    } else {
+      console.log('✅ Regularização processada sem envio de WhatsApp (telefone não fornecido)');
+    }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ Mensagem de regularização WhatsApp enviada com sucesso em ${duration}ms para:`, regularizationData.phone);
 
     res.json({
       success: true,
@@ -209,6 +332,7 @@ router.post('/send-regularization-whatsapp', async (req, res) => {
       regularizationLink,
       recipient: {
         name: regularizationData.name,
+        email: regularizationData.email,
         phone: regularizationData.phone,
         building: regularizationData.building,
         apartment: regularizationData.apartment,
@@ -253,11 +377,14 @@ router.post('/send-visitor-authorization-whatsapp', async (req, res) => {
     }
 
     const authorizationData = validation.parsed;
-    authorizationData.residentPhone = authorizationData.residentPhone.replace(/\D/g, ''); // Remove caracteres não numéricos
+    if (authorizationData.residentPhone) {
+      authorizationData.residentPhone = authorizationData.residentPhone.replace(/\D/g, ''); // Remove caracteres não numéricos
+    }
 
     console.log('✅ Dados de autorização de visitante validados:', {
       visitorName: authorizationData.visitorName,
       residentName: authorizationData.residentName,
+      residentEmail: authorizationData.residentEmail,
       residentPhone: authorizationData.residentPhone,
       building: authorizationData.building,
       apartment: authorizationData.apartment
@@ -271,14 +398,19 @@ router.post('/send-visitor-authorization-whatsapp', async (req, res) => {
     const whatsappMessage = generateVisitorAuthorizationMessage(authorizationData, authorizationLink);
     console.log('📝 Mensagem de autorização formatada:', whatsappMessage);
 
-    // Enviar mensagem via WhatsApp
-    const whatsappResult = await sendWhatsApp({
-      to: authorizationData.residentPhone,
-      message: whatsappMessage
-    });
+    // Enviar mensagem via WhatsApp (se telefone estiver disponível)
+    let whatsappResult = null;
+    if (authorizationData.residentPhone) {
+      whatsappResult = await sendWhatsApp({
+        to: authorizationData.residentPhone,
+        message: whatsappMessage
+      });
+      console.log(`✅ Mensagem de autorização WhatsApp enviada com sucesso para:`, authorizationData.residentPhone);
+    } else {
+      console.log('✅ Autorização processada sem envio de WhatsApp (telefone não fornecido)');
+    }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ Mensagem de autorização WhatsApp enviada com sucesso em ${duration}ms para:`, authorizationData.residentPhone);
 
     res.json({
       success: true,
@@ -288,6 +420,7 @@ router.post('/send-visitor-authorization-whatsapp', async (req, res) => {
       recipient: {
         visitorName: authorizationData.visitorName,
         residentName: authorizationData.residentName,
+        residentEmail: authorizationData.residentEmail,
         residentPhone: authorizationData.residentPhone,
         building: authorizationData.building,
         apartment: authorizationData.apartment

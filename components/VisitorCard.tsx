@@ -35,9 +35,9 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
   const [loadingResident, setLoadingResident] = useState(false);
   const getStatusColor = () => {
     switch (visitor.notification_status) {
-      case 'approved':
+      case 'aprovado':
         return '#4CAF50';
-      case 'rejected':
+      case 'nao_permitido':
         return '#F44336';
       case 'entrada':
         return '#2196F3';
@@ -50,9 +50,9 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
 
   const getStatusText = () => {
     switch (visitor.notification_status) {
-      case 'approved':
+      case 'aprovado':
         return '✅ Aprovado';
-      case 'rejected':
+      case 'nao_permitido':
         return '❌ Negado';
       case 'entrada':
         return '🏢 No prédio';
@@ -181,7 +181,7 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
           )}
           
           {/* Botões para visitantes aprovados */}
-          {visitor.notification_status === 'approved' && (
+          {visitor.notification_status === 'aprovado' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.entryButton]}
               onPress={() => onAction?.(visitor.id, 'entrada')}>

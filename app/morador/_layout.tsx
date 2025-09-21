@@ -27,6 +27,7 @@ export default function MoradorLayout() {
       <Stack.Screen name="cadastro/foto" />
       <Stack.Screen name="cadastro/dias" />
       <Stack.Screen name="cadastro/horarios" />
+      <Stack.Screen name="testes" />
     </Stack>
   );
 }

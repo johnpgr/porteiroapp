@@ -11,6 +11,8 @@ const residentRegistrationRouter = require('./routes/residentRegistration');
 const sendVisitorNotificationRouter = require('./routes/sendVisitorNotification');
 const sendVisitorWaitingNotificationRouter = require('./routes/sendVisitorWaitingNotification');
 const whatsappWebhookRouter = require('./routes/whatsappWebhook');
+const lembretesNotificationsRouter = require('./routes/lembretesNotifications');
+const reminderJobService = require('./services/reminderJobService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -31,10 +33,14 @@ app.use('/api', residentRegistrationRouter);
 app.use('/api', sendVisitorNotificationRouter);
 app.use('/api', sendVisitorWaitingNotificationRouter);
 app.use('/api', whatsappWebhookRouter);
+app.use('/api', lembretesNotificationsRouter);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  
+  // Iniciar o job de lembretes
+  reminderJobService.start();
 });

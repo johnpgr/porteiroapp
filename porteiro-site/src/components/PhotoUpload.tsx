@@ -93,7 +93,7 @@ export default function PhotoUpload({
       onPhotoUpload(publicUrl);
     } catch (error: unknown) {
       console.error('Erro no upload:', error);
-      alert('Erro ao fazer upload da foto. Tente novamente.'); // Fallback para mostrar erro ao usuário
+      alert(error instanceof Error ? error.message : 'Erro ao fazer upload da foto. Tente novamente.'); // Fallback para mostrar erro ao usuário
       setPreviewUrl(initialPhotoUrl || null);
     } finally {
       setIsUploading(false);
@@ -131,6 +131,8 @@ export default function PhotoUpload({
               width={128}
               height={128}
               className="w-full h-full object-cover"
+              width={128}
+              height={128}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

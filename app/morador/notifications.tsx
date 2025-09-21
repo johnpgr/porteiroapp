@@ -11,15 +11,22 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useNotifications } from '../../hooks/useNotifications';
+// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+// import { useNotifications } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationCard } from '../../components/NotificationCard';
 import BottomNav from '../../components/BottomNav';
 
 export default function NotificationsScreen() {
   const {} = useAuth();
-  const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
-    useNotifications();
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+  // const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
+  //   useNotifications();
+  const notifications = [];
+  const loading = false;
+  const markAsRead = async () => {};
+  const markAllAsRead = async () => {};
+  const refreshNotifications = async () => {};
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -29,12 +36,14 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllAsRead = async () => {
-    try {
-      await markAllAsRead();
-      Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas');
-    } catch {
-      Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas');
-    }
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+    Alert.alert('Aviso', 'Notificações push estão temporariamente desativadas');
+    // try {
+    //   await markAllAsRead();
+    //   Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas');
+    // } catch {
+    //   Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas');
+    // }
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;

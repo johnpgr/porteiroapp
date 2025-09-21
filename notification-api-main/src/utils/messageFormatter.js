@@ -10,10 +10,10 @@
  * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/cadastro/morador/completar'] - URL base para cadastro
  * @returns {string} Link de cadastro personalizado
  */
-function generateRegistrationLink(residentDataOrToken, baseUrl = 'https://jamesavisa.jamesconcierge.com/cadastro/morador/completar') {
+function generateRegistrationLink(residentDataOrToken, baseUrl = 'porteiroapp://cadastro/morador/completar') {
   // Se o primeiro parâmetro é uma string, é um token
   if (typeof residentDataOrToken === 'string') {
-    // Link com token: https://jamesavisa.jamesconcierge.com/cadastro/morador/{token}
+    // Link com token: porteiroapp://cadastro/morador/{token}
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     return `${cleanBaseUrl}/${residentDataOrToken}`;
   }
@@ -102,7 +102,7 @@ function validateResidentData(residentData) {
  * @param {string} [baseUrl='https://regularizacao.JamesAvisa.com'] - URL base para regularização
  * @returns {string} Link de regularização personalizado
  */
-function generateRegularizationLink(regularizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/regularizacao') {
+function generateRegularizationLink(regularizationData, baseUrl = 'porteiroapp://regularizacao') {
   const params = new URLSearchParams({
     name: regularizationData.name,
     phone: regularizationData.phone,
@@ -161,7 +161,7 @@ function generateRegularizationMessage(regularizationData, regularizationLink) {
  * @param {string} [baseUrl='https://jamesavisa.jamesconcierge.com/morador/'] - URL base para autorização
  * @returns {string} Link de autorização personalizado
  */
-function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://jamesavisa.jamesconcierge.com/login') {
+function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'porteiroapp://login') {
   // Sempre retorna o link padronizado de login
   return baseUrl;
 }
@@ -173,12 +173,16 @@ function generateVisitorAuthorizationLink(authorizationData, baseUrl = 'https://
  * @param {string} authorizationData.residentName - Nome do morador
  * @param {string} authorizationData.building - Prédio
  * @param {string} authorizationData.apartment - Apartamento
+ * @param {string} authorizationData.type - Tipo da notificação (visitor ou delivery)
  * @param {string} authorizationLink - Link de autorização personalizado
  * @returns {string} Mensagem formatada para WhatsApp
  */
 function generateVisitorAuthorizationMessage(authorizationData, authorizationLink) {
   return `📢 James Avisa\n` +
-         `Prezado(a), informamos que há um visitante aguardando na portaria.\n\n` +
+         `Prezado(a) ${authorizationData.residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+         `Visitante: ${authorizationData.visitorName}\n` +
+         `Prédio: ${authorizationData.building}\n` +
+         `Apartamento: ${authorizationData.apartment}\n\n` +
          `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 

@@ -62,8 +62,21 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
         .from('visitor_logs')
         .select(`
           id,
+          entry_type,
+          notification_status,
+          notification_sent_at,
+          expires_at,
           apartment_id,
+          guest_name,
           purpose,
+          visitor_id,
+          delivery_sender,
+          delivery_description,
+          delivery_tracking_code,
+          license_plate,
+          vehicle_model,
+          vehicle_color,
+          vehicle_brand,
           building_id,
           created_at,
           log_time,
@@ -74,40 +87,35 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
           )
         `)
         .eq('apartment_id', apartmentId)
-        .order('created_at', { ascending: false });
+        .eq('notification_status', 'pending')
+        .eq('requires_resident_approval', true)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .order('notification_sent_at', { ascending: false });
       
       if (error) throw error;
       
-      // Tipagem dos itens retornados com base no schema real
-      interface DbLog {
-        id: string;
-        apartment_id: string;
-        purpose?: string | null;
-        building_id: string;
-        created_at: string;
-        log_time: string;
-        visitors?: { name: string; document: string; phone?: string } | null;
-      }
-
-      const rows = (data ?? []) as DbLog[];
-      const mappedNotifications: PendingNotification[] = rows.map((item) => ({
+      const mappedNotifications = (data as unknown as Record<string, unknown>[]).map(item => ({
         id: item.id,
-        entry_type: 'visitor',
-        notification_status: 'pending',
-        // Usar created_at como horário de envio; fallback para log_time
-        notification_sent_at: item.created_at || item.log_time,
-        // Sem coluna de expiração no schema atual; usar created_at como placeholder
-        expires_at: item.created_at,
+        entry_type: item.entry_type,
+        notification_status: item.notification_status,
+        notification_sent_at: item.notification_sent_at,
+        expires_at: item.expires_at,
         apartment_id: item.apartment_id,
-        guest_name: item.visitors?.name || 'Visitante não identificado',
-        purpose: item.purpose || undefined,
+        guest_name: item.guest_name || 'Visitante não identificado',
+        purpose: item.purpose,
+        visitor_id: item.visitor_id,
+        delivery_sender: item.delivery_sender,
+        delivery_description: item.delivery_description,
+        delivery_tracking_code: item.delivery_tracking_code,
+        license_plate: item.license_plate,
+        vehicle_model: item.vehicle_model,
+        vehicle_color: item.vehicle_color,
+        vehicle_brand: item.vehicle_brand,
         building_id: item.building_id,
         created_at: item.created_at,
         log_time: item.log_time,
         visitors: item.visitors
-          ? { name: item.visitors.name, document: item.visitors.document, phone: item.visitors.phone }
-          : undefined,
-      }));
+      } as PendingNotification));
       
       setNotifications(mappedNotifications);
     } catch (err) {
@@ -146,12 +154,12 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
       
       const { error } = await supabase
         .from('visitor_logs')
-        .update(updateData as unknown as Record<string, unknown>)
+        .update(updateData as Record<string, unknown>)
         .eq('id', notificationId);
       
       if (error) throw error;
       
-      // Atualizar lista local removendo a notificação processada
+      // Remover a notificação da lista local
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       
     } catch (err) {
@@ -175,9 +183,22 @@ export const usePendingNotifications = (apartmentId?: string): UsePendingNotific
           table: 'visitor_logs',
           filter: `apartment_id=eq.${apartmentId}`,
         },
-        () => {
-          // Em qualquer mudança relevante, recarregar a lista
-          fetchPendingNotifications();
+        (payload) => {
+          console.log('Mudança detectada:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            const newLog = payload.new as Record<string, unknown>;
+            if (newLog.notification_status === 'pending' && newLog.requires_resident_approval) {
+              // Buscar dados completos da nova notificação
+              fetchPendingNotifications();
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedLog = payload.new as Record<string, unknown>;
+            if (updatedLog.notification_status !== 'pending') {
+              // Remover da lista se não for mais pendente
+              setNotifications(prev => prev.filter(n => n.id !== updatedLog.id));
+            }
+          }
         }
       )
       .subscribe();

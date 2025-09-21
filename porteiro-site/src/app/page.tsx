@@ -57,43 +57,109 @@ export default function HomePage() {
       </header>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-50 to-white py-20">
-        <div className="max-w-7xl mx-auto px-4 text-center">
+      <section className="bg-gradient-to-br from-blue-50 via-white to-blue-50 py-16 md:py-24 relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-green-500/5"></div>
+        <div className="absolute top-10 right-10 w-32 h-32 bg-blue-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-10 left-10 w-40 h-40 bg-green-200/20 rounded-full blur-3xl"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
           <div className="mb-8">
             <Image 
               src="/logo-james.png" 
               alt="Logo JAMES AVISA" 
               width={80} 
               height={80}
-              className="h-20 w-auto mx-auto"
+              className="h-16 md:h-20 w-auto mx-auto animate-pulse"
             />
           </div>
-          <h2 className="text-5xl font-bold text-gray-900 mb-6">
+          <h2 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
            <span className="text-blue-600">James Avisa</span>
           </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+          <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto mb-12 leading-relaxed">
             Tecnologia de ponta para gestão inteligente de visitantes, entregas e moradores.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
-              <Image 
-                src="/disponivel-app-store-badge.png" 
-                alt="Disponível na App Store" 
-                width={200} 
-                height={60}
-                className="h-15"
-              />
-            </a> */}
-            <a target='_blank' href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" className="inline-block hover:opacity-80 transition-opacity">
-              <Image 
-                src="/disponivel-google-play-badge.png" 
-                alt="Disponível no Google Play" 
-                width={200} 
-                height={60}
-                className="h-15"
-              />
-            </a>
-
+          
+          {/* Enhanced CTA Section */}
+          <div className="bg-gradient-to-r from-blue-600 to-green-600 rounded-3xl p-8 md:p-12 shadow-2xl mb-8 transform transition-all duration-300">
+            <div className="flex flex-col items-center space-y-6">
+              {/* Prominent CTA Text */}
+              <div className="text-center">
+                <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 animate-bounce">
+                  📱 BAIXE AGORA
+                </h3>
+                <p className="text-blue-100 text-lg md:text-xl font-medium">
+                  Disponível gratuitamente nas lojas de aplicativos
+                </p>
+              </div>
+              
+              {/* Arrow pointing down */}
+              <div className="animate-pulse">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+              
+              {/* Enhanced App Store Badges */}
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+                <a 
+                  target='_blank' 
+                  href="https://apps.apple.com/br/app/james-avisa/id6752514993" 
+                  className="group relative transform hover:scale-110 transition-all duration-300 hover:rotate-1 focus:outline-none focus:ring-4 focus:ring-white/50 rounded-2xl"
+                >
+                  <div className="absolute inset-0 bg-white/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  <div className="relative bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20">
+                    <Image 
+                      src="/disponivel-app-store-badge.png" 
+                      alt="Disponível na App Store" 
+                      width={220} 
+                      height={65}
+                      className="h-16 md:h-18 w-auto filter drop-shadow-lg"
+                    />
+                  </div>
+                  <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                    GRÁTIS
+                  </div>
+                </a>
+                
+                <a 
+                  target='_blank' 
+                  href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" 
+                  className="group relative transform hover:scale-110 transition-all duration-300 hover:-rotate-1 focus:outline-none focus:ring-4 focus:ring-white/50 rounded-2xl"
+                >
+                  <div className="absolute inset-0 bg-white/20 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  <div className="relative bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20">
+                    <Image 
+                      src="/disponivel-google-play-badge.png" 
+                      alt="Disponível no Google Play" 
+                      width={220} 
+                      height={65}
+                      className="h-16 md:h-18 w-auto filter drop-shadow-lg"
+                    />
+                  </div>
+                  <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">
+                    GRÁTIS
+                  </div>
+                </a>
+              </div>
+              
+            </div>
+          </div>
+          
+          {/* Trust indicators */}
+          <div className="flex flex-wrap justify-center items-center gap-4 md:gap-8 text-gray-500 text-sm">
+            <div className="flex items-center space-x-2">
+              <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+              </svg>
+              <span>100% Gratuito</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Seguro &amp; Confiável</span>
+            </div>
           </div>
         </div>
       </section>
@@ -412,34 +478,81 @@ export default function HomePage() {
       </section>
 
       {/* Call to Action */}
-      <section className="py-16 bg-gradient-to-r from-blue-500 to-blue-600">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h3 className="text-3xl font-bold text-white mb-4">
-            Pronto para modernizar sua portaria?
-          </h3>
-          <p className="text-xl text-blue-100 mb-8">
-            Baixe o James Avisa agora e transforme a gestão do seu condomínio!
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            {/* <a href="#" className="inline-block hover:opacity-80 transition-opacity">
-              <Image 
-                src="/disponivel-app-store-badge.png" 
-                alt="Disponível na App Store" 
-                width={200} 
-                height={60}
-                className="h-15"
-              />
-            </a> */}
-            <a target='_blank' href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" className="inline-block hover:opacity-80 transition-opacity">
-              <Image 
-                src="/disponivel-google-play-badge.png" 
-                alt="Disponível no Google Play" 
-                width={200} 
-                height={60}
-                className="h-15"
-              />
-            </a>
+      <section className="py-16 md:py-20 bg-gradient-to-r from-blue-600 via-blue-700 to-green-600 relative overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="absolute top-0 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-green-300/20 rounded-full blur-2xl"></div>
+        
+        <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
+          <div className="mb-8">
+            <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
+              Pronto para modernizar sua portaria?
+            </h3>
+            <p className="text-xl md:text-2xl text-blue-100 mb-2 font-medium">
+              Baixe o James Avisa agora e transforme a gestão do seu condomínio!
+            </p>
           </div>
+          
+          {/* Enhanced CTA with prominent "BAIXE AGORA" */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl mb-6">
+            <div className="flex flex-col items-center space-y-6">
+              {/* Prominent CTA Text */}
+              <div className="text-center">
+                <h4 className="text-2xl md:text-3xl font-bold text-white mb-2 animate-pulse">
+                  🚀 BAIXE AGORA - É GRÁTIS!
+                </h4>
+                <p className="text-blue-100 text-lg font-medium">
+                  Junte-se a milhares de condomínios que já usam
+                </p>
+              </div>
+              
+              {/* Enhanced App Store Badges */}
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+                <a 
+                  target='_blank' 
+                  href="https://apps.apple.com/br/app/james-avisa/id6752514993" 
+                  className="group relative transform hover:scale-110 transition-all duration-300 hover:rotate-2 focus:outline-none focus:ring-4 focus:ring-white/50 rounded-2xl"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  <div className="relative bg-white/20 backdrop-blur-sm rounded-2xl p-3 border border-white/30 shadow-xl">
+                    <Image 
+                      src="/disponivel-app-store-badge.png" 
+                      alt="Disponível na App Store" 
+                      width={240} 
+                      height={70}
+                      className="h-16 md:h-20 w-auto filter drop-shadow-2xl"
+                    />
+                  </div>
+                  <div className="absolute -top-3 -right-3 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-bounce shadow-lg">
+                    GRÁTIS
+                  </div>
+                </a>
+                
+                <a 
+                  target='_blank' 
+                  href="https://play.google.com/store/apps/details?id=com.porteiroapp.notifications&hl=pt_BR" 
+                  className="group relative transform hover:scale-110 transition-all duration-300 hover:-rotate-2 focus:outline-none focus:ring-4 focus:ring-white/50 rounded-2xl"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-white/10 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
+                  <div className="relative bg-white/20 backdrop-blur-sm rounded-2xl p-3 border border-white/30 shadow-xl">
+                    <Image 
+                      src="/disponivel-google-play-badge.png" 
+                      alt="Disponível no Google Play" 
+                      width={240} 
+                      height={70}
+                      className="h-16 md:h-20 w-auto filter drop-shadow-2xl"
+                    />
+                  </div>
+                  <div className="absolute -top-3 -right-3 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-bounce shadow-lg">
+                    GRÁTIS
+                  </div>
+                </a>
+              </div>
+              
+            </div>
+          </div>
+          
         </div>
       </section>
 

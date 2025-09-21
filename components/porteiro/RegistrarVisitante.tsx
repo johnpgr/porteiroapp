@@ -16,7 +16,6 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-// Removido import incorreto do notificationService
 import { notificationApi } from '../../services/notificationApi';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
@@ -45,7 +44,30 @@ const isValidCPF = (cpf: string): boolean => {
   const numericOnly = cpf.replace(/\D/g, '');
   
   // Verifica se tem exatamente 11 dígitos
-  return numericOnly.length === 11;
+  if (numericOnly.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais (CPF inválido)
+  if (/^(\d)\1{10}$/.test(numericOnly)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numericOnly.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numericOnly.charAt(9))) return false;
+  
+  // Validação do segundo dígito verificador
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(numericOnly.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numericOnly.charAt(10))) return false;
+  
+  return true;
 };
 
 type FlowStep =
@@ -96,6 +118,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
   const [empresaPrestador, setEmpresaPrestador] = useState<EmpresaPrestador | null>(null);
   const [empresaEntrega, setEmpresaEntrega] = useState<EmpresaEntrega | null>(null);
@@ -197,51 +220,93 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     </View>
   );
 
-  const renderApartamentoStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-      <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+  // Função para agrupar apartamentos por andar
+  const groupApartmentsByFloor = () => {
+    const grouped = availableApartments.reduce((acc, apartment) => {
+      const floor = apartment.floor;
+      if (!acc[floor]) {
+        acc[floor] = [];
+      }
+      acc[floor].push(apartment);
+      return acc;
+    }, {} as Record<number, Apartment[]>);
+    
+    return Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(floor => ({ floor, apartments: grouped[floor] }));
+  };
 
-      {isLoadingApartments ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2196F3" />
-          <Text style={styles.loadingText}>Carregando apartamentos...</Text>
-        </View>
-      ) : availableApartments.length === 0 ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-          <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.apartmentsGrid}>
-            {availableApartments.map((apartment) => (
-              <TouchableOpacity
-                key={apartment.id}
-                style={[
-                  styles.apartmentButton,
-                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
-                ]}
-                onPress={() => {
-                  if (!apartment.id) {
-                    Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
-                    return;
-                  }
-                  setSelectedApartment(apartment);
-                  setApartamento(apartment.number);
-                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                  setCurrentStep('tipo');
-                }}>
-                <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                <Text style={styles.apartmentId}>ID: {apartment.id}</Text>
-                <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-              </TouchableOpacity>
-            ))}
+  const renderApartamentoStep = () => {
+    const floorGroups = groupApartmentsByFloor();
+    
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>🏠 Apartamento</Text>
+        <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+
+        {isLoadingApartments ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2196F3" />
+            <Text style={styles.loadingText}>Carregando apartamentos...</Text>
           </View>
-        </ScrollView>
-      )}
-    </View>
-  );
+        ) : availableApartments.length === 0 ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
+            <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
+            {floorGroups.map(({ floor, apartments }) => (
+              <View key={floor} style={styles.floorSection}>
+                <TouchableOpacity
+                  style={[
+                    styles.floorButton,
+                    selectedFloor === floor && styles.floorButtonSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedFloor(selectedFloor === floor ? null : floor);
+                  }}>
+                  <Text style={styles.floorButtonText}>
+                    {floor}º andar ({apartments?.length || 0} apartamentos)
+                  </Text>
+                  <Text style={styles.floorButtonIcon}>
+                    {selectedFloor === floor ? '▼' : '▶'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {selectedFloor === floor && (
+                  <View style={styles.apartmentsGrid}>
+                    {apartments.map((apartment) => (
+                      <TouchableOpacity
+                        key={apartment.id}
+                        style={[
+                          styles.apartmentButton,
+                          selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                        ]}
+                        onPress={() => {
+                          if (!apartment.id) {
+                            Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+                            return;
+                          }
+                          setSelectedApartment(apartment);
+                          setApartamento(apartment.number);
+                          console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
+                          setCurrentStep('tipo');
+                        }}>
+                        <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
+                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
 
   const renderEmpresaPrestadorStep = () => {
     const empresas = [
@@ -260,20 +325,22 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <Text style={styles.stepTitle}>🔧 Empresa Prestadora</Text>
         <Text style={styles.stepSubtitle}>Qual empresa o prestador representa?</Text>
 
-        <View style={styles.optionsContainer}>
-          {empresas.map((empresa) => (
-            <TouchableOpacity
-              key={empresa.id}
-              style={flattenStyles([styles.optionButton, styles.prestadorButton])}
-              onPress={() => {
-                setEmpresaPrestador(empresa.id as EmpresaPrestador);
-                setCurrentStep('nome');
-              }}>
-              <Text style={styles.optionIcon}>{empresa.icon}</Text>
-              <Text style={styles.optionTitle}>{empresa.nome}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.optionsContainer}>
+            {empresas.map((empresa) => (
+              <TouchableOpacity
+                key={empresa.id}
+                style={flattenStyles([styles.optionButton, styles.prestadorButton])}
+                onPress={() => {
+                  setEmpresaPrestador(empresa.id as EmpresaPrestador);
+                  setCurrentStep('nome');
+                }}>
+                <Text style={styles.optionIcon}>{empresa.icon}</Text>
+                <Text style={styles.optionTitle}>{empresa.nome}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       </View>
     );
   };
@@ -294,20 +361,22 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <Text style={styles.stepTitle}>📦 Empresa de Entrega</Text>
         <Text style={styles.stepSubtitle}>Qual empresa de entrega?</Text>
 
-        <View style={styles.optionsContainer}>
-          {empresas.map((empresa) => (
-            <TouchableOpacity
-              key={empresa.id}
-              style={flattenStyles([styles.optionButton, styles.entregaButton])}
-              onPress={() => {
-                setEmpresaEntrega(empresa.id as EmpresaEntrega);
-                setCurrentStep('nome');
-              }}>
-              <Text style={styles.optionIcon}>{empresa.icon}</Text>
-              <Text style={styles.optionTitle}>{empresa.nome}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.optionsContainer}>
+            {empresas.map((empresa) => (
+              <TouchableOpacity
+                key={empresa.id}
+                style={flattenStyles([styles.optionButton, styles.entregaButton])}
+                onPress={() => {
+                  setEmpresaEntrega(empresa.id as EmpresaEntrega);
+                  setCurrentStep('nome');
+                }}>
+                <Text style={styles.optionIcon}>{empresa.icon}</Text>
+                <Text style={styles.optionTitle}>{empresa.nome}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       </View>
     );
   };
@@ -317,40 +386,42 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <Text style={styles.stepTitle}>👥 Tipo de Visita</Text>
       <Text style={styles.stepSubtitle}>Selecione o tipo de visita</Text>
 
-      <View style={styles.optionsContainer}>
-        <TouchableOpacity
-          style={flattenStyles([styles.optionButton, styles.socialButton])}
-          onPress={() => {
-            setTipoVisita('social');
-            setCurrentStep('nome');
-          }}>
-          <Text style={styles.optionIcon}>👨‍👩‍👧‍👦</Text>
-          <Text style={styles.optionTitle}>Social</Text>
-          <Text style={styles.optionDescription}>Visita familiar ou amigos</Text>
-        </TouchableOpacity>
+      <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.optionsContainer}>
+          <TouchableOpacity
+            style={flattenStyles([styles.optionButton, styles.socialButton])}
+            onPress={() => {
+              setTipoVisita('social');
+              setCurrentStep('nome');
+            }}>
+            <Text style={styles.optionIcon}>👨‍👩‍👧‍👦</Text>
+            <Text style={styles.optionTitle}>Social</Text>
+            <Text style={styles.optionDescription}>Visita familiar ou amigos</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={flattenStyles([styles.optionButton, styles.prestadorButton])}
-          onPress={() => {
-            setTipoVisita('prestador');
-            setCurrentStep('empresa_prestador');
-          }}>
-          <Text style={styles.optionIcon}>🔧</Text>
-          <Text style={styles.optionTitle}>Prestador de Serviço</Text>
-          <Text style={styles.optionDescription}>Técnico, encanador, etc.</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={flattenStyles([styles.optionButton, styles.prestadorButton])}
+            onPress={() => {
+              setTipoVisita('prestador');
+              setCurrentStep('empresa_prestador');
+            }}>
+            <Text style={styles.optionIcon}>🔧</Text>
+            <Text style={styles.optionTitle}>Prestador de Serviço</Text>
+            <Text style={styles.optionDescription}>Técnico, encanador, etc.</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={flattenStyles([styles.optionButton, styles.entregaButton])}
-          onPress={() => {
-            setTipoVisita('entrega');
-            setCurrentStep('empresa_entrega');
-          }}>
-          <Text style={styles.optionIcon}>📦</Text>
-          <Text style={styles.optionTitle}>Serviço de Entrega</Text>
-          <Text style={styles.optionDescription}>Entregador de comida, etc.</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={flattenStyles([styles.optionButton, styles.entregaButton])}
+            onPress={() => {
+              setTipoVisita('entrega');
+              setCurrentStep('empresa_entrega');
+            }}>
+            <Text style={styles.optionIcon}>📦</Text>
+            <Text style={styles.optionTitle}>Serviço de Entrega</Text>
+            <Text style={styles.optionDescription}>Entregador de comida, etc.</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 
@@ -475,8 +546,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                         setIsUploadingPhoto(true);
                         console.log('🎯 TESTE VISITANTE: Iniciando captura de foto...');
                         const photo = await cameraRef.current.takePictureAsync({
-                          quality: 0.8,
-                          base64: true,
+                          quality: 0.8
                         });
                         
                         if (photo?.uri) {
@@ -487,6 +557,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                           });
                           setPhotoUri(photo.uri);
                           setFotoTirada(true);
+
+                          // Pequena espera para garantir que o arquivo foi totalmente gravado antes de validar/upload
+                          await new Promise(resolve => setTimeout(resolve, 200));
                           
                           // Teste simples primeiro
                           console.log('🎯 TESTE VISITANTE: Verificando se a função uploadVisitorPhoto existe:', typeof uploadVisitorPhoto);
@@ -507,7 +580,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                               Alert.alert('Sucesso', 'Foto enviada com sucesso!');
                             } else {
                               console.error('🎯 TESTE VISITANTE: Erro no upload:', uploadResult.error);
-                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
                               setFotoTirada(false);
                               setPhotoUri(null);
                             }
@@ -658,18 +731,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           purpose = `entrega - ${empresaEntrega.replace('_', ' ')}`;
         }
 
-        // Determinar entry_type baseado no tipo de visita
-        let entryType = 'visitor'; // padrão
+        let entryType = 'visitor'; 
         if (tipoVisita === 'entrega') {
           entryType = 'delivery';
         } else if (tipoVisita === 'prestador') {
-          entryType = 'service';
+          entryType = 'visitor';
         }
 
-        console.log('🖼️ Estado atual do photoUrl no RegistrarVisitante:', photoUrl);
-        console.log('📸 Estado atual do fotoTirada no RegistrarVisitante:', fotoTirada);
         
-        // Inserir log de entrada na tabela visitor_logs
         const visitorLogData = {
           visitor_id: visitorId,
           apartment_id: selectedApartment.id,
@@ -710,7 +779,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               apartment_residents!inner(
                 profiles!inner(
                   full_name,
-                  phone
+                  phone,
+                  email
                 ),
                 is_owner
               ),
@@ -731,6 +801,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 visitorName: nomeVisitante,
                 residentName: resident.profiles.full_name,
                 residentPhone: resident.profiles.phone,
+                residentEmail: resident.profiles.email || '',
                 building: building.name,
                 apartment: selectedApartment.number
               });
@@ -1010,6 +1081,10 @@ const styles = StyleSheet.create({
   optionsContainer: {
     gap: 20,
   },
+  optionsScrollContainer: {
+    flex: 1,
+    marginTop: 20,
+  },
   optionButton: {
     backgroundColor: '#fff',
     padding: 20,
@@ -1213,13 +1288,11 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   apartmentsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
     gap: 15,
   },
   apartmentButton: {
-    width: '48%',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 12,
@@ -1232,6 +1305,38 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e0e0e0',
     marginBottom: 15,
+  },
+  floorSection: {
+    marginBottom: 20,
+  },
+  floorButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    marginBottom: 10,
+  },
+  floorButtonSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
+  },
+  floorButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  floorButtonIcon: {
+    fontSize: 16,
+    color: '#666',
   },
   apartmentButtonSelected: {
     borderColor: '#2196F3',

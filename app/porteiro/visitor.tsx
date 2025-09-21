@@ -58,10 +58,11 @@ export default function VisitorManagement() {
     try {
       console.log('🔍 fetchVisitors - Filtro atual:', filter);
       
-      // Query corrigida: buscar visitantes diretamente sem apartment join
+      // Query corrigida: buscar visitantes diretamente sem apartment join, excluindo os não autorizados
       let query = supabase
         .from('visitors')
         .select('*')
+        .neq('status', 'nao_permitido')
         .order('created_at', { ascending: false });
 
       // Filtro removido temporariamente - notification_status não existe na tabela visitors
@@ -178,7 +179,7 @@ export default function VisitorManagement() {
           // Não interromper o fluxo principal se a notificação falhar
         }
       } else if (action === 'negado') {
-        newStatus = 'rejected';
+        newStatus = 'nao_permitido';
       }
 
       // Update removido temporariamente - notification_status não existe na tabela visitors
@@ -354,6 +355,7 @@ export default function VisitorManagement() {
           photo_url: photoUrl,
           visitor_type: newVisitor.visitor_type,
           notification_status: 'approved', // Porteiro pode aprovar diretamente
+          access_type: 'com_aprovacao', // Tipo de acesso padrão
         });
 
         if (insertError) throw insertError;

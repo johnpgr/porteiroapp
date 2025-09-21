@@ -7,16 +7,13 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  Platform,
   SafeAreaView,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
-import { Picker } from '@react-native-picker/picker';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import * as Notifications from 'expo-notifications';
 
 interface Building {
   id: string;
@@ -78,8 +75,15 @@ export default function Communications() {
   });
   const [pollOptions, setPollOptions] = useState<PollOption[]>([{ id: '1', text: '' }, { id: '2', text: '' }]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [dateError, setDateError] = useState('');
+  
+  // Estados dos modais dos pickers
+  const [showCommunicationTypePicker, setShowCommunicationTypePicker] = useState(false);
+  const [showCommunicationPriorityPicker, setShowCommunicationPriorityPicker] = useState(false);
+  const [showCommunicationBuildingPicker, setShowCommunicationBuildingPicker] = useState(false);
+  const [showPollBuildingPicker, setShowPollBuildingPicker] = useState(false);
   
   // Modal states
   const [showCommunicationsModal, setShowCommunicationsModal] = useState(false);
@@ -93,6 +97,160 @@ export default function Communications() {
     fetchBuildings();
     fetchAdminId();
   }, []);
+
+  // Funções helper para obter labels
+  const getCommunicationTypeLabel = (type: string) => {
+    const types = {
+      notice: 'Aviso',
+      emergency: 'Emergência', 
+      maintenance: 'Manutenção',
+      event: 'Evento'
+    };
+    return types[type as keyof typeof types] || 'Aviso';
+  };
+
+  const getCommunicationPriorityLabel = (priority: string) => {
+    const priorities = {
+      low: 'Baixa',
+      normal: 'Normal',
+      high: 'Alta',
+      urgent: 'Urgente'
+    };
+    return priorities[priority as keyof typeof priorities] || 'Normal';
+  };
+
+  const getBuildingLabel = (buildingId: string) => {
+    const building = buildings.find(b => b.id === buildingId);
+    return building?.name || 'Selecione o Prédio';
+  };
+
+  // Funções para gerar opções de data e hora
+  const generateDateOptions = () => {
+    const options = [];
+    const today = new Date();
+    
+    // Adicionar "Hoje" se ainda há tempo
+    const todayEndOfDay = new Date(today);
+    todayEndOfDay.setHours(23, 59, 59, 999);
+    if (today.getHours() < 22) {
+      options.push({
+        label: 'Hoje',
+        value: today
+      });
+    }
+    
+    // Adicionar "Amanhã"
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    options.push({
+      label: 'Amanhã',
+      value: tomorrow
+    });
+    
+    // Adicionar próximos 7 dias da semana
+    for (let i = 2; i <= 8; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      
+      options.push({
+        label: date.toLocaleDateString('pt-BR', {
+          weekday: 'long',
+          day: '2-digit',
+          month: '2-digit'
+        }),
+        value: date
+      });
+    }
+    
+    // Adicionar próximas 4 semanas
+    for (let week = 2; week <= 5; week++) {
+      for (let day = 1; day <= 7; day++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + (week * 7) + day);
+        
+        options.push({
+          label: date.toLocaleDateString('pt-BR', {
+            weekday: 'short',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          }),
+          value: date
+        });
+      }
+    }
+    
+    // Adicionar próximos 3 meses (primeiros dias de cada mês)
+    for (let month = 1; month <= 3; month++) {
+      const date = new Date(today);
+      date.setMonth(today.getMonth() + month, 1);
+      
+      options.push({
+        label: `1° de ${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
+        value: date
+      });
+      
+      // Meio do mês
+      const midMonth = new Date(date);
+      midMonth.setDate(15);
+      options.push({
+        label: `15 de ${midMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
+        value: midMonth
+      });
+      
+      // Final do mês
+      const endMonth = new Date(date);
+      endMonth.setMonth(endMonth.getMonth() + 1, 0); // Último dia do mês
+      options.push({
+        label: `${endMonth.getDate()} de ${endMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
+        value: endMonth
+      });
+    }
+    
+    return options;
+  };
+
+  const generateTimeOptions = () => {
+    const options = [];
+    
+    // Todas as opções de 5 em 5 minutos das 6h às 23h55
+    for (let hour = 6; hour <= 23; hour++) {
+      for (let minute = 0; minute < 60; minute += 5) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        
+        options.push({
+          label: timeString,
+          value: { hour, minute },
+          isCommon: false
+        });
+      }
+    }
+    
+    return options;
+  };
+
+  // Funções para atualizar data e hora das enquetes
+  const updatePollDate = (newDate: Date) => {
+    const currentTime = poll.expires_at ? new Date(poll.expires_at) : new Date();
+    const updatedDate = new Date(newDate);
+    
+    if (poll.expires_at) {
+      updatedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
+    } else {
+      updatedDate.setHours(23, 59);
+    }
+    
+    setPoll(prev => ({ ...prev, expires_at: updatedDate.toISOString() }));
+    setShowDatePicker(false);
+  };
+
+  const updatePollTime = (timeValue: { hour: number; minute: number }) => {
+    const currentDate = poll.expires_at ? new Date(poll.expires_at) : new Date();
+    currentDate.setHours(timeValue.hour, timeValue.minute, 0, 0);
+    
+    setPoll(prev => ({ ...prev, expires_at: currentDate.toISOString() }));
+    setShowTimePicker(false);
+  };
 
   const fetchBuildings = async () => {
     try {
@@ -311,64 +469,69 @@ export default function Communications() {
     }
   };
 
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Função para enviar notificações push para moradores e porteiros
   const sendPushNotifications = async (buildingId: string, title: string, body: string, type: 'communication' | 'poll', itemId?: string) => {
-    try {
-      // Buscar moradores do prédio
-      const { data: residents, error: residentsError } = await supabase
-        .from('apartment_residents')
-        .select(`
-          profiles!inner(
-            id,
-            full_name,
-            expo_push_token
-          ),
-          apartments!inner(
-            building_id
-          )
-        `)
-        .eq('apartments.building_id', buildingId)
-        .not('profiles.expo_push_token', 'is', null);
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS - retorna 0 usuários notificados
+    console.log('📱 Push notifications desativadas - comunicado/enquete criado sem notificação');
+    return 0;
+    
+    // try {
+    //   // Buscar moradores do prédio
+    //   const { data: residents, error: residentsError } = await supabase
+    //     .from('apartment_residents')
+    //     .select(`
+    //       profiles!inner(
+    //         id,
+    //         full_name,
+    //         expo_push_token
+    //       ),
+    //       apartments!inner(
+    //         building_id
+    //       )
+    //     `)
+    //     .eq('apartments.building_id', buildingId)
+    //     .not('profiles.expo_push_token', 'is', null);
 
-      if (residentsError) {
-        console.error('Erro ao buscar moradores:', residentsError);
-      }
+    //   if (residentsError) {
+    //     console.error('Erro ao buscar moradores:', residentsError);
+    //   }
 
-      // Apenas moradores recebem comunicados - porteiros removidos conforme solicitado
-      const allUsers = [
-        ...(residents?.map(r => r.profiles) || [])
-      ].filter(user => user.expo_push_token);
+    //   // Apenas moradores recebem comunicados - porteiros removidos conforme solicitado
+    //   const allUsers = [
+    //     ...(residents?.map(r => r.profiles) || [])
+    //   ].filter(user => user.expo_push_token);
 
-      console.log(`Enviando notificações para ${allUsers.length} usuários`);
+    //   console.log(`Enviando notificações para ${allUsers.length} usuários`);
 
-      // Enviar notificação para cada usuário
-      for (const user of allUsers) {
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title,
-              body,
-              data: {
-                type,
-                building_id: buildingId,
-                item_id: itemId,
-                user_id: user.id
-              },
-            },
-            trigger: null, // Imediato
-          });
+    //   // Enviar notificação para cada usuário
+    //   for (const user of allUsers) {
+    //     try {
+    //       await Notifications.scheduleNotificationAsync({
+    //         content: {
+    //           title,
+    //           body,
+    //           data: {
+    //             type,
+    //             building_id: buildingId,
+    //             item_id: itemId,
+    //             user_id: user.id
+    //           },
+    //         },
+    //         trigger: null, // Imediato
+    //       });
 
-          console.log(`📱 Notificação enviada para ${user.full_name || user.id}`);
-        } catch (pushError) {
-          console.error(`❌ Erro ao enviar push para usuário ${user.id}:`, pushError);
-        }
-      }
+    //       console.log(`📱 Notificação enviada para ${user.full_name || user.id}`);
+    //     } catch (pushError) {
+    //       console.error(`❌ Erro ao enviar push para usuário ${user.id}:`, pushError);
+    //     }
+    //   }
 
-      return allUsers.length;
-    } catch (error) {
-      console.error('❌ Erro geral ao enviar notificações push:', error);
-      return 0;
-    }
+    //   return allUsers.length;
+    // } catch (error) {
+    //   console.error('❌ Erro geral ao enviar notificações push:', error);
+    //   return 0;
+    // }
   };
 
   const handleSendCommunication = async () => {
@@ -420,6 +583,7 @@ export default function Communications() {
       });
     } catch (error) {
       Alert.alert('Erro', 'Falha ao enviar comunicado: ' + error.message);
+      console.log('Erro', 'Falha ao enviar comunicado: ' + error.message);
     }
   };
 
@@ -485,7 +649,7 @@ export default function Communications() {
         pollData.id
       );
 
-      Alert.alert('Sucesso', `Enquete criada com sucesso e enviada para ${notificationsSent} usuários`);
+      Alert.alert('Sucesso', `Enquete criada com sucesso e enviada para moradores`);
       setPoll({
         title: '',
         description: '',
@@ -528,80 +692,18 @@ export default function Communications() {
   );
 
   const renderCommunications = () => (
-    <ScrollView style={styles.content}>
-      <View style={styles.communicationsHeader}>
-        <TouchableOpacity
-          style={styles.listCommunicationsButton}
-          onPress={() => {
-            setShowCommunicationsModal(true);
-            fetchCommunications();
-          }}>
-          <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.communicationForm}>
-        <Text style={styles.formTitle}>Enviar Comunicado</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Título do comunicado"
-          value={communication.title}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, title: text }))}
+    <View style={[styles.content, { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+      <View style={{ alignItems: 'center' }}>
+        <Image 
+          source={require('../../assets/logo-james-fundo.png')} 
+          style={{ width: 120, height: 120, marginBottom: 20 }}
+          resizeMode="contain"
         />
-
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Conteúdo detalhado"
-          value={communication.content}
-          onChangeText={(text) => setCommunication((prev) => ({ ...prev, content: text }))}
-          multiline
-          numberOfLines={4}
-        />
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={communication.type}
-            onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, type: value }))
-            }>
-            <Picker.Item label="Tipo: Aviso" value="notice" />
-            <Picker.Item label="Tipo: Emergência" value="emergency" />
-            <Picker.Item label="Tipo: Manutenção" value="maintenance" />
-            <Picker.Item label="Tipo: Evento" value="event" />
-          </Picker>
-        </View>
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={communication.priority}
-            onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, priority: value }))
-            }>
-            <Picker.Item label="Prioridade: Normal" value="normal" />
-            <Picker.Item label="Prioridade: Alta" value="high" />
-            <Picker.Item label="Prioridade: Baixa" value="low" />
-          </Picker>
-        </View>
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={communication.building_id}
-            onValueChange={(value) =>
-              setCommunication((prev) => ({ ...prev, building_id: value }))
-            }>
-            <Picker.Item label="Selecione o Prédio" value="" />
-            {buildings.map((building) => (
-              <Picker.Item key={building.id} label={building.name} value={building.id} />
-            ))}
-          </Picker>
-        </View>
-
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
-          <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
-        </TouchableOpacity>
+        <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
+          Este recurso não está disponível neste plano
+        </Text>
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderCommunicationsModal = () => (
@@ -609,14 +711,13 @@ export default function Communications() {
       visible={showCommunicationsModal}
       animationType="slide"
       presentationStyle="fullScreen">
-      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity
             style={styles.modalCloseButton}
             onPress={() => setShowCommunicationsModal(false)}>
-            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+            <Text style={styles.modalCloseText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>📋 Todos os Comunicados</Text>
+          <Text style={styles.modalTitle}>📋 Comunicados</Text>
         </View>
         
         {loadingCommunications ? (
@@ -660,7 +761,6 @@ export default function Communications() {
             }
           />
         )}
-      </SafeAreaView>
     </Modal>
   );
 
@@ -669,14 +769,13 @@ export default function Communications() {
       visible={showPollsModal}
       animationType="slide"
       presentationStyle="fullScreen">
-      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity
             style={styles.modalCloseButton}
             onPress={() => setShowPollsModal(false)}>
-            <Text style={styles.modalCloseText}>✕ Fechar</Text>
+            <Text style={styles.modalCloseText}>✕</Text>
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>📊 Todas as Enquetes</Text>
+          <Text style={styles.modalTitle}>📊 Enquetes</Text>
         </View>
         
         {loadingPolls ? (
@@ -743,7 +842,6 @@ export default function Communications() {
             }
           />
         )}
-      </SafeAreaView>
     </Modal>
   );
 
@@ -781,40 +879,47 @@ export default function Communications() {
 
         <View style={styles.datePickerContainer}>
           <Text style={styles.dateLabel}>Data de Expiração:</Text>
-          <TouchableOpacity style={styles.dateButton} onPress={showDatePickerModal}>
-            <Text style={styles.dateButtonText}>
-              {poll.expires_at ? formatDateForDisplay(new Date(poll.expires_at)) : 'Selecionar data e hora'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.dateTimePickerContainer}>
+            <TouchableOpacity 
+              style={[styles.pickerButton, { flex: 1, marginRight: 8 }]} 
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.pickerButtonText}>
+                {poll.expires_at 
+                  ? new Date(poll.expires_at).toLocaleDateString('pt-BR') 
+                  : 'Selecionar data'
+                }
+              </Text>
+              <Text style={styles.pickerChevron}>▼</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.pickerButton, { flex: 1, marginLeft: 8 }]} 
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Text style={styles.pickerButtonText}>
+                {poll.expires_at 
+                  ? new Date(poll.expires_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) 
+                  : 'Selecionar hora'
+                }
+              </Text>
+              <Text style={styles.pickerChevron}>▼</Text>
+            </TouchableOpacity>
+          </View>
           {dateError ? (
             <Text style={styles.errorText}>{dateError}</Text>
           ) : null}
         </View>
 
-        {Platform.OS === 'ios' && showDatePicker && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={poll.expires_at ? new Date(poll.expires_at) : new Date()}
-            mode="datetime"
-            is24Hour={true}
-            display="default"
-            onChange={onDateChange}
-            minimumDate={new Date()}
-          />
-        )}
-
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={poll.building_id}
-            onValueChange={(value) =>
-              setPoll((prev) => ({ ...prev, building_id: value }))
-            }>
-            <Picker.Item label="Selecione o Prédio" value="" />
-            {buildings.map((building) => (
-              <Picker.Item key={building.id} label={building.name} value={building.id} />
-            ))}
-          </Picker>
-        </View>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowPollBuildingPicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getBuildingLabel(poll.building_id)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
 
         <Text style={styles.optionsTitle}>Opções de Resposta:</Text>
         {pollOptions.map((option, index) => (
@@ -853,31 +958,280 @@ export default function Communications() {
       {renderCommunicationsModal()}
       {renderPollsModal()}
       
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => router.push('/admin')}>
-          <Text style={styles.navIcon}>📊</Text>
-          <Text style={styles.navLabel}>Dashboard</Text>
-        </TouchableOpacity>
+      {/* Modal para Tipo de Comunicação */}
+      <Modal
+        visible={showCommunicationTypePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCommunicationTypePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Tipo</Text>
+              <TouchableOpacity onPress={() => setShowCommunicationTypePicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {[
+                { label: 'Aviso', value: 'notice' },
+                { label: 'Emergência', value: 'emergency' },
+                { label: 'Manutenção', value: 'maintenance' },
+                { label: 'Evento', value: 'event' }
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.modalOption,
+                    communication.type === item.value && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setCommunication(prev => ({ ...prev, type: item.value }));
+                    setShowCommunicationTypePicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    communication.type === item.value && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {communication.type === item.value && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
-          <Text style={styles.navIcon}>👥</Text>
-          <Text style={styles.navLabel}>Usuários</Text>
-        </TouchableOpacity>
+      {/* Modal para Prioridade de Comunicação */}
+      <Modal
+        visible={showCommunicationPriorityPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCommunicationPriorityPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Prioridade</Text>
+              <TouchableOpacity onPress={() => setShowCommunicationPriorityPicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {[
+                { label: 'Baixa', value: 'low' },
+                { label: 'Normal', value: 'normal' },
+                { label: 'Alta', value: 'high' },
+                { label: 'Urgente', value: 'urgent' }
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.modalOption,
+                    communication.priority === item.value && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setCommunication(prev => ({ ...prev, priority: item.value }));
+                    setShowCommunicationPriorityPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    communication.priority === item.value && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {communication.priority === item.value && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/logs')}>
-          <Text style={styles.navIcon}>📋</Text>
-          <Text style={styles.navLabel}>Logs</Text>
-        </TouchableOpacity>
+      {/* Modal para Prédio de Comunicação */}
+      <Modal
+        visible={showCommunicationBuildingPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCommunicationBuildingPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+              <TouchableOpacity onPress={() => setShowCommunicationBuildingPicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {buildings.map((building) => (
+                <TouchableOpacity
+                  key={building.id}
+                  style={[
+                    styles.modalOption,
+                    communication.building_id === building.id && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setCommunication(prev => ({ ...prev, building_id: building.id }));
+                    setShowCommunicationBuildingPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    communication.building_id === building.id && styles.modalOptionTextSelected
+                  ]}>
+                    {building.name}
+                  </Text>
+                  {communication.building_id === building.id && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-        <TouchableOpacity
-          style={[styles.navItem, styles.navItemActive]}
-          onPress={() => router.push('/admin/communications')}>
-          <Text style={styles.navIcon}>📢</Text>
-          <Text style={styles.navLabel}>Avisos</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Modal para Prédio de Enquete */}
+      <Modal
+        visible={showPollBuildingPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPollBuildingPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+              <TouchableOpacity onPress={() => setShowPollBuildingPicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {buildings.map((building) => (
+                <TouchableOpacity
+                  key={building.id}
+                  style={[
+                    styles.modalOption,
+                    poll.building_id === building.id && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setPoll(prev => ({ ...prev, building_id: building.id }));
+                    setShowPollBuildingPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    poll.building_id === building.id && styles.modalOptionTextSelected
+                  ]}>
+                    {building.name}
+                  </Text>
+                  {poll.building_id === building.id && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Data */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Data</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {generateDateOptions().map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.modalOption,
+                    poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && styles.modalOptionSelected
+                  ]}
+                  onPress={() => updatePollDate(item.value)}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && styles.modalOptionTextSelected
+                  ]}>
+                    {item.label}
+                  </Text>
+                  {poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Hora */}
+      <Modal
+        visible={showTimePicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Hora</Text>
+              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalScrollView}>
+              {generateTimeOptions().map((item, index) => {
+                const currentTime = poll.expires_at ? new Date(poll.expires_at) : null;
+                const isSelected = currentTime && 
+                  currentTime.getHours() === item.value.hour && 
+                  currentTime.getMinutes() === item.value.minute;
+                
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.modalOption,
+                      isSelected && styles.modalOptionSelected
+                    ]}
+                    onPress={() => updatePollTime(item.value)}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      isSelected && styles.modalOptionTextSelected
+                    ]}>
+                      {item.label}
+                    </Text>
+                    {isSelected && (
+                      <Text style={styles.modalCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -890,6 +1244,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1105,10 +1461,13 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     backgroundColor: '#FF9800',
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingVertical: 20,
     paddingHorizontal: 20,
+    gap: 33,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
   modalCloseButton: {
@@ -1318,5 +1677,199 @@ const styles = StyleSheet.create({
   pollDate: {
     fontSize: 12,
     color: '#999',
+  },
+  // Estilos dos modais dos pickers
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: '90%',
+    minWidth: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  modalCheckmark: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: 'bold',
+  },
+  modalSeparator: {
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+
+  modalSeparatorText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modalOptionCommon: {
+    backgroundColor: '#fef3c7',
+    borderLeftWidth: 3,
+    borderLeftColor: '#f59e0b',
+  },
+  modalOptionTextCommon: {
+    color: '#92400e',
+    fontWeight: '600',
+  },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 44,
+    marginBottom: 15,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  pickerChevron: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
+  dateTimePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  // Estilos da mensagem de manutenção
+  maintenanceContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 32,
+    maxWidth: 400,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  logoContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2563eb',
+    letterSpacing: 1,
+  },
+  maintenanceIcon: {
+    marginBottom: 20,
+    backgroundColor: '#fef3c7',
+    borderRadius: 50,
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  maintenanceIconText: {
+    fontSize: 36,
+  },
+  maintenanceTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 32,
+  },
+  maintenanceMessage: {
+    fontSize: 16,
+    color: '#4b5563',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  maintenanceSubMessage: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  maintenanceFooter: {
+    alignItems: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    width: '100%',
+  },
+  maintenanceFooterText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+    marginBottom: 8,
+  },
+  maintenanceTime: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
   },
 });

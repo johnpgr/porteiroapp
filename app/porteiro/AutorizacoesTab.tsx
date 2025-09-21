@@ -161,6 +161,115 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     getBuildingId();
   }, [user?.id]);
   
+  // Effect para escutar mudanças em tempo real nos visitor_logs
+  useEffect(() => {
+    if (!buildingId) return;
+
+    const channel = supabase
+      .channel('visitor_logs_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'visitor_logs',
+          filter: `building_id=eq.${buildingId}`
+        },
+        (payload) => {
+          console.log('🔄 Visitor log atualizado:', payload);
+          const updatedLog = payload.new as any;
+          
+          // Se o status foi atualizado para approved ou rejected, recarregar atividades
+          if (updatedLog.notification_status === 'approved' || updatedLog.notification_status === 'rejected') {
+            console.log('✅ Status atualizado para:', updatedLog.notification_status);
+            fetchActivities();
+            fetchVisitorLogs();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [buildingId]);
+
+  // Função para limpeza automática de registros antigos
+  const cleanupOldRecords = useCallback(async () => {
+    if (!buildingId) return;
+
+    try {
+      const now = new Date();
+      const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000); // 4 horas atrás
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 horas atrás
+
+      // Remover registros pré-autorizados após 4 horas
+      const { error: cleanupPreAuthError } = await supabase
+        .from('visitor_logs')
+        .delete()
+        .eq('building_id', buildingId)
+        .eq('notification_status', 'approved')
+        .lt('resident_response_at', fourHoursAgo.toISOString());
+
+      if (cleanupPreAuthError) {
+        console.error('Erro ao limpar registros pré-autorizados:', cleanupPreAuthError);
+      } else {
+        console.log('🧹 Limpeza de registros pré-autorizados (4h) executada');
+      }
+
+      // Remover visitas pontuais após 24 horas da data agendada
+      const { data: oldVisits, error: fetchError } = await supabase
+        .from('visitors')
+        .select(`
+          id, 
+          visit_date, 
+          visitor_type,
+          apartments!inner(building_id)
+        `)
+        .eq('apartments.building_id', buildingId)
+        .eq('visitor_type', 'pontual')
+        .lt('visit_date', twentyFourHoursAgo.toISOString());
+
+      if (fetchError) {
+        console.error('Erro ao buscar visitas antigas:', fetchError);
+      } else if (oldVisits && oldVisits.length > 0) {
+        // Atualizar status dos visitantes antigos para 'não autorizado' em vez de deletar
+        const visitorIds = oldVisits.map(v => v.id);
+        const { error: cleanupVisitorsError } = await supabase
+          .from('visitors')
+          .update({ status: 'nao_permitido' })
+          .in('id', visitorIds);
+
+        if (cleanupVisitorsError) {
+          console.error('Erro ao atualizar status de visitantes antigos:', cleanupVisitorsError);
+        } else {
+          console.log(`🧹 Status de ${oldVisits.length} visitas pontuais antigas (24h) atualizado para 'nao_permitido'`);
+        }
+      }
+
+      // Recarregar dados após limpeza
+      fetchActivities();
+      fetchVisitorLogs();
+    } catch (error) {
+      console.error('Erro na limpeza automática:', error);
+    }
+  }, [buildingId]);
+
+  // Effect para executar limpeza automática a cada 30 minutos
+  useEffect(() => {
+    if (!buildingId) return;
+
+    // Executar limpeza imediatamente
+    cleanupOldRecords();
+
+    // Configurar intervalo para executar a cada 30 minutos
+    const cleanupInterval = setInterval(cleanupOldRecords, 30 * 60 * 1000);
+
+    return () => {
+      clearInterval(cleanupInterval);
+    };
+  }, [buildingId, cleanupOldRecords]);
+
   // Effect para recarregar atividades quando houver mudanças nas notificações
   // Movido para depois da definição de fetchActivities
 
@@ -285,11 +394,17 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       }
 
       // Processar dados para incluir número do apartamento e nome do visitante
-      const processedLogs = (data || []).map(log => ({
-        ...log,
-        apartment_number: log.apartments?.number || 'N/A',
-        visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante'
-      }));
+      const processedLogs = (data || []).map((log) => {
+        // Para authorized_by, usar o valor direto (pode ser 'Porteiro' ou um nome)
+        const authorizedByName = log.authorized_by || 'Sistema';
+        
+        return {
+          ...log,
+          apartment_number: log.apartments?.number || 'N/A',
+          visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante',
+          authorized_by_name: authorizedByName
+        };
+      });
 
       setVisitorLogs(processedLogs);
       console.log('✅ Visitor logs carregados:', processedLogs?.length || 0, `registros (filtro: ${timeFilter})`);
@@ -755,6 +870,33 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         return;
       }
 
+      // Debug: Verificar dados do visitante antes da remoção
+      console.log('🔍 DEBUG: Dados completos do visitante:', JSON.stringify(autorizacao, null, 2));
+      console.log('🔍 DEBUG: visitor_type:', autorizacao.visitor_type);
+      console.log('🔍 DEBUG: visit_type:', autorizacao.visit_type);
+      console.log('🔍 DEBUG: typeof visit_type:', typeof autorizacao.visit_type);
+      console.log('🔍 DEBUG: visit_type === "pontual":', autorizacao.visit_type === 'pontual');
+      console.log('🔍 DEBUG: visit_type === "frequente":', autorizacao.visit_type === 'frequente');
+      
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (autorizacao.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${autorizacao.name || autorizacao.nomeConvidado} (ID: ${autorizacao.id}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'nao_permitido' })
+          .eq('id', autorizacao.id);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${autorizacao.name || autorizacao.nomeConvidado} atualizado para 'nao_permitido'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${autorizacao.name || autorizacao.nomeConvidado} é do tipo '${autorizacao.visit_type}', mantendo status atual`);
+      }
+
       // Mostrar modal de confirmação
       setSelectedAuth(autorizacao);
       showConfirmationModal(
@@ -883,6 +1025,9 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             apartments!inner(number, building_id)
           `)
           .eq('apartments.building_id', buildingId)
+          .neq('status', 'rejected')
+          .neq('status', 'nao_permitido')
+          .neq('status', 'não autorizado')
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo para visitas
@@ -999,7 +1144,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           id: visit.id,
           type: 'visit',
           title: `👤 ${visitorName}`,
-          subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+          subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
           status: isApproved ? 'Aprovado' : isPending ? 'Aguardando aprovação' : 'Negado',
           time: formatDate(visit.visit_date || visit.created_at),
           icon: isApproved ? '✅' : isPending ? '⏳' : '❌',
@@ -1008,7 +1153,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
-            `Tipo: ${visit.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+            `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
             ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
             ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
@@ -1176,6 +1321,179 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     }
   };
 
+  // Função para avisar morador
+  const handleNotifyResident = async (activityId: string) => {
+    try {
+      const activity = activities.find(a => a.id === activityId);
+      if (!activity) return;
+
+      // Buscar dados do visitante para verificar o access_type
+      const { data: visitorData, error: visitorError } = await supabase
+        .from('visitors')
+        .select('*, apartments(number)')
+        .eq('id', activityId)
+        .single();
+
+      if (visitorError) {
+        console.error('Erro ao buscar dados do visitante:', visitorError);
+        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        return;
+      }
+
+      // Função para gerar UUID compatível com React Native
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Criar automaticamente um novo registro no visitor_logs
+      const logData = {
+        visitor_id: activityId,
+        building_id: buildingId,
+        apartment_id: visitorData.apartment_id,
+        guest_name: visitorData.name || activity.title.replace('👤 ', ''),
+        entry_type: 'visitor',
+        notification_status: 'pending',
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: generateUUID(),
+        authorized_by: user?.id || 'Porteiro',
+        purpose: `Notificação de chegada do visitante - Aguardando aprovação do morador`,
+        photo_url: visitorData.photo_url
+      };
+
+      const { error: insertError } = await supabase
+        .from('visitor_logs')
+        .insert(logData);
+
+      if (insertError) {
+        console.error('Erro ao criar registro no visitor_logs:', insertError);
+        Alert.alert('Erro', 'Não foi possível criar o registro de visita');
+        return;
+      }
+
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (visitorData.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'nao_permitido' })
+          .eq('id', activityId);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'nao_permitido'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+      }
+
+      // Enviar notificação push para o morador
+      // TODO: Implementar envio de push notification
+      console.log('Enviando notificação push para o morador...');
+
+      const statusMessage = visitorData.access_type === 'com_aprovacao' 
+        ? 'Morador notificado! Aguardando aprovação.' 
+        : 'Visitante autorizado e morador notificado!';
+
+      Alert.alert('Sucesso', statusMessage);
+      fetchActivities(); // Recarregar atividades
+      fetchVisitorLogs(); // Recarregar logs
+    } catch (error) {
+      console.error('Erro ao notificar morador:', error);
+      Alert.alert('Erro', 'Não foi possível notificar o morador');
+    }
+  };
+
+  // Função para check de entrada
+  const handleCheckIn = async (activityId: string) => {
+    try {
+      const activity = activities.find(a => a.id === activityId);
+      if (!activity) return;
+
+      // Buscar dados completos do visitante
+      const { data: visitorData, error: visitorError } = await supabase
+        .from('visitors')
+        .select('*')
+        .eq('id', activityId)
+        .single();
+
+      if (visitorError || !visitorData) {
+        console.error('Erro ao buscar dados do visitante:', visitorError);
+        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        return;
+      }
+
+      // Função para gerar UUID compatível com React Native
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Criar dados do log baseado no access_type
+      const logData = {
+        visitor_id: activityId,
+        building_id: buildingId,
+        apartment_id: visitorData.apartment_id,
+        guest_name: visitorData.name || activity.title.replace('👤 ', ''),
+        entry_type: 'visitor',
+        notification_status: 'approved',
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: generateUUID(),
+        authorized_by: user?.id || 'Porteiro',
+        purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${user?.email || porteiroData?.full_name || 'Porteiro'}`,
+        photo_url: visitorData.photo_url
+      };
+
+      // Registrar entrada aprovada no visitor_logs
+      const { error } = await supabase
+        .from('visitor_logs')
+        .insert(logData);
+
+      if (error) {
+        console.error('Erro ao registrar entrada:', error);
+        Alert.alert('Erro', 'Não foi possível registrar a entrada');
+        return;
+      }
+
+      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
+      if (visitorData.visit_type === 'pontual') {
+        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+        
+        const { error: updateError } = await supabase
+          .from('visitors')
+          .update({ status: 'não autorizado' })
+          .eq('id', activityId);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          // Não interromper o fluxo, apenas logar o erro
+        } else {
+          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'não autorizado'`);
+        }
+      } else {
+        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+      }
+
+      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador será notificado.');
+      fetchActivities(); // Recarregar atividades
+      fetchVisitorLogs(); // Recarregar logs
+    } catch (error) {
+      console.error('Erro ao registrar entrada:', error);
+      Alert.alert('Erro', 'Não foi possível registrar a entrada');
+    }
+  };
+
   // Componente LogCard
   const LogCard = ({ log }: { log: any }) => {
     const isExpanded = expandedCards.has(log.id);
@@ -1223,8 +1541,8 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         
         {isExpanded && (
           <View style={styles.logDetails}>
-            {log.visitor_document && (
-              <Text style={styles.detailText}>📄 Documento: {log.visitor_document}</Text>
+            {log.visitors?.document && (
+              <Text style={styles.detailText}>📄 Documento: {log.visitors.document}</Text>
             )}
             {log.visitor_phone && (
               <Text style={styles.detailText}>📞 Telefone: {log.visitor_phone}</Text>
@@ -1240,7 +1558,9 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             )}
             {/* Exibir "Autorizado por" apenas quando status for aprovado */}
             {log.notification_status === 'approved' && log.authorized_by && (
-              <Text style={styles.detailText}>✅ Autorizado por: {log.authorized_by}</Text>
+              <Text style={styles.detailText}>
+                ✅ Autorizado por: {log.authorized_by_name || log.authorized_by}
+              </Text>
             )}
             <Text style={styles.detailText}>🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às {formatLogTime(log.log_time || log.created_at)}</Text>
           </View>
@@ -1400,28 +1720,28 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
                       📷 Ver Foto
                     </Text>
                   </TouchableOpacity>
-                  
-                  {/* Botões de ação */}
-                  {activity.actions && (
-                    <View style={styles.activityActions}>
-                      {activity.actions.primary && (
-                        <TouchableOpacity
-                          style={[styles.actionButton, { backgroundColor: activity.actions.primary.color }]}
-                          onPress={activity.actions.primary.action}>
-                          <Text style={styles.actionButtonText}>{activity.actions.primary.label}</Text>
-                        </TouchableOpacity>
-                      )}
-                      {activity.actions.secondary && (
-                        <TouchableOpacity
-                          style={[styles.actionButton, styles.actionButtonSecondary, { borderColor: activity.actions.secondary.color }]}
-                          onPress={activity.actions.secondary.action}>
-                          <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary, { color: activity.actions.secondary.color }]}>
-                            {activity.actions.secondary.label}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+
+                  {/* Lógica condicional para botões de ação */}
+                  {activity.status === 'Aprovado' || activity.status === 'direto' ? (
+                    // Para visitantes aprovados ou visitas diretas: apenas botão Confirmar Entrada
+                    <TouchableOpacity 
+                      style={styles.checkInButton}
+                      onPress={() => handleCheckIn(activity.id)}>
+                      <Text style={styles.checkInButtonText}>
+                        ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    // Para outros status: botão Avisar Morador
+                    <TouchableOpacity 
+                      style={styles.notifyResidentButton}
+                      onPress={() => handleNotifyResident(activity.id)}>
+                      <Text style={styles.notifyResidentButtonText}>
+                        🔔 Avisar Morador
+                      </Text>
+                    </TouchableOpacity>
                   )}
+                  
                 </View>
               )}
             </TouchableOpacity>
@@ -1500,13 +1820,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
   },
   Subtitle: {
-    fontSize: 24,
+    fontSize: 18,
     marginVertical: 10,
     fontWeight: 'bold',
     color: '#000',
@@ -1964,6 +2284,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#2196F3',
     fontWeight: '500',
+  },
+  // Estilos para os novos botões
+  notifyResidentButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#FF9800',
+    marginTop: 8,
+  },
+  notifyResidentButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  checkInButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+    marginTop: 8,
+  },
+  checkInButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

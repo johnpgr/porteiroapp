@@ -6,7 +6,7 @@ import { Alert } from 'react-native';
  * Deve apontar para a API remota em produção
  */
 const API_CONFIG = {
-  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com',
+  baseUrl: process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com',
 };
 
 // Logs de debug para configuração
@@ -21,6 +21,7 @@ export interface ResidentData {
   phone: string;
   building: string;
   apartment: string;
+  email?: string;
   profile_id?: string;
   temporaryPassword?: string;
 }
@@ -135,9 +136,9 @@ export const generateWhatsAppMessage = (
 ): { message: string; registrationLink: string } => {
   const registrationLink = generateRegistrationLink(residentData, baseUrl);
   
-  // Incluir senha temporária na mensagem se disponível
+  // Incluir credenciais de acesso na mensagem se disponível
   const passwordInfo = residentData.temporaryPassword 
-    ? `\n\n🔐 SUAS CREDENCIAIS DE ACESSO:\n\n📱 Usuário (Celular): ${residentData.phone}\n🔑 Senha temporária: ${residentData.temporaryPassword}\n\n💡 IMPORTANTE: Use seu número de celular como usuário para fazer login!`
+    ? `\n\n🔐 SUAS CREDENCIAIS DE ACESSO:\n\n📧 E-mail: ${residentData.email || residentData.phone}\n🔑 Senha: ${residentData.temporaryPassword}\n\n💡 IMPORTANTE: Use essas credenciais para fazer login no aplicativo!`
     : '';
   
   const message = `🏢 JamesAvisa - Cadastro de Morador\n\nOlá *${residentData.name}*!\n\nVocê foi convidado(a) para se cadastrar no JamesAvisa.\n\n📍 Dados do seu apartamento:\n🏢 Prédio: ${residentData.building}\n🚪 Apartamento: ${residentData.apartment}\n\nPara completar seu cadastro, clique no link abaixo:\n\`${registrationLink}\`${passwordInfo}\n\nCom o JamesAvisa você pode:\n✅ Receber visitantes com mais segurança\n✅ Autorizar entregas remotamente\n✅ Comunicar-se diretamente com a portaria\n✅ Acompanhar movimentações do seu apartamento\n\nMensagem enviada automaticamente pelo sistema JamesAvisa`;
@@ -176,11 +177,15 @@ export const sendWhatsAppMessage = async (
       international: phoneNumber.international,
     });
 
-    // Prepara os dados para a API - incluindo profile_id e senha temporária
+    // Gera email automaticamente se não fornecido
+    const email = residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`;
+
+    // Prepara os dados para a API - incluindo profile_id, senha temporária e email
     const apiUrl = `${API_CONFIG.baseUrl}/api/send-resident-whatsapp`;
     const apiData = {
       name: residentData.name,
       phone: phoneNumber.clean,
+      email: email,
       building: residentData.building,
       apartment: residentData.apartment,
       profile_id: residentData.profile_id,

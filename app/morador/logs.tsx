@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import BottomNav from '../../components/BottomNav';
+
 
 interface LogEntry {
   id: string;
@@ -23,13 +23,44 @@ export default function LogsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'visitor' | 'communication'>('all');
+  const [apartmentId, setApartmentId] = useState<string | null>(null);
+
+  // Buscar apartment_id do usuário
+  useEffect(() => {
+    const fetchApartmentId = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { data: residentData, error } = await supabase
+          .from('apartment_residents')
+          .select('apartment_id')
+          .eq('profile_id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Erro ao buscar apartment_id:', error);
+          return;
+        }
+
+        if (residentData?.apartment_id) {
+          setApartmentId(residentData.apartment_id);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar apartment_id:', error);
+      }
+    };
+
+    fetchApartmentId();
+  }, [user?.id]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [user, filter, fetchLogs]);
+    if (apartmentId) {
+      fetchLogs();
+    }
+  }, [apartmentId, filter, fetchLogs]);
 
   const fetchLogs = useCallback(async () => {
-    if (!user?.apartment_number) return;
+    if (!apartmentId) return;
 
     try {
       const logEntries: LogEntry[] = [];
@@ -48,7 +79,8 @@ export default function LogsScreen() {
             )
           `
           )
-          .eq('visitors.apartment_number', user.apartment_number)
+          .eq('apartment_id', apartmentId)
+          .neq('notification_status', 'pending')
           .order('timestamp', { ascending: false })
           .limit(50);
 
@@ -105,7 +137,7 @@ export default function LogsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [apartmentId, filter]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -278,7 +310,7 @@ export default function LogsScreen() {
           </View>
         )}
       </ScrollView>
-      <BottomNav activeTab="logs" />
+
     </SafeAreaView>
   );
 }

@@ -87,7 +87,7 @@ function validateAuthorizationToken(token) {
  * @returns {string} Link fixo do site principal
  */
 function generateAuthorizationLink(token, baseUrl = null) {
-  return 'https://jamesavisa.jamesconcierge.com/login';
+  return 'porteiroapp://login';
 }
 
 /**

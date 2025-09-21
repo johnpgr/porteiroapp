@@ -12,8 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
-import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
-import BottomNav from '~/components/BottomNav';
+// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+// import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
+
 
 interface Communication {
   id: string;
@@ -38,6 +39,7 @@ interface Poll {
   description: string;
   building_id: string;
   created_at: string;
+  expires_at: string;
   is_active: boolean;
   options: PollOption[];
   total_votes: number;
@@ -66,8 +68,9 @@ const AvisosTab = () => {
   const votesChannelRef = useRef<any>(null);
   const isSubscribedRef = useRef(false);
   
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Ativar notificações automáticas para avisos e enquetes
-  const { startListening, stopListening, isListening } = useAvisosNotifications();
+  // const { startListening, stopListening, isListening } = useAvisosNotifications();
 
   useEffect(() => {
     fetchCommunications();
@@ -76,17 +79,19 @@ const AvisosTab = () => {
   useEffect(() => {
     if (user) {
       fetchUserApartment();
+      // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
       // Iniciar monitoramento de notificações
-      startListening();
+      // startListening();
     }
     
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
     // Cleanup: parar monitoramento quando componente for desmontado
-    return () => {
-      if (isListening) {
-        stopListening();
-      }
-    };
-  }, [user?.id, startListening, stopListening, isListening]);
+    // return () => {
+    //   if (isListening) {
+    //     stopListening();
+    //   }
+    // };
+  }, [user?.id, userApartment?.building_id]);
 
   useEffect(() => {
     if (userApartment) {
@@ -154,22 +159,24 @@ const AvisosTab = () => {
 
   // Buscar enquetes ativas
   const fetchPolls = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !userApartment?.building_id) return;
 
     try {
       setPollsLoading(true);
       setPollsError(null);
       setRealtimeError(null);
 
-      // Buscar todas as enquetes
+      // Buscar enquetes do prédio do morador
       const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
         .select(`
           id,
           title,
           description,
-          created_at
+          created_at,
+          expires_at
         `)
+        .eq('building_id', userApartment.building_id)
         .order('created_at', { ascending: false });
 
       if (pollsError) {
@@ -183,9 +190,16 @@ const AvisosTab = () => {
         return;
       }
 
+      // Filtrar enquetes que expiraram há mais de 30 dias
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const filteredPolls = pollsData.filter(poll => {
+        const expiresDate = new Date(poll.expires_at);
+        return expiresDate >= thirtyDaysAgo;
+      });
+
       // Para cada enquete, buscar opções e votos
       const pollsWithDetails = await Promise.all(
-        pollsData.map(async (poll) => {
+        filteredPolls.map(async (poll) => {
           // Buscar opções da enquete
           const { data: optionsData, error: optionsError } = await supabase
             .from('poll_options')
@@ -247,7 +261,7 @@ const AvisosTab = () => {
     } finally {
       setPollsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, userApartment?.building_id]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -442,7 +456,8 @@ const AvisosTab = () => {
   const renderPollOption = (poll: Poll, option: PollOption) => {
     const percentage = poll.total_votes > 0 ? (option.votes_count / poll.total_votes) * 100 : 0;
     const isUserVote = poll.user_vote_option_id === option.id;
-    const canVote = !poll.user_voted && poll.is_active;
+    const isExpired = new Date(poll.expires_at) < new Date();
+    const canVote = !poll.user_voted && !isExpired;
     const isVoting = votingPollId === poll.id;
 
     return (
@@ -458,7 +473,11 @@ const AvisosTab = () => {
       >
         <View style={styles.optionContent}>
           <View style={styles.optionHeader}>
-            <Text style={[styles.optionText, isUserVote && styles.userVoteText]}>
+            <Text style={[
+              styles.optionText, 
+              isUserVote && styles.userVoteText,
+              !canVote && styles.disabledOptionText
+            ]}>
               {option.option_text}
             </Text>
             {isUserVote && (
@@ -493,8 +512,8 @@ const AvisosTab = () => {
 
   // Renderizar enquete
   const renderPoll = (poll: Poll) => {
-    const isExpired = false; // Assumir que enquetes não expiram por enquanto
-    const expiresDate = new Date(); // Data atual como fallback
+    const isExpired = new Date(poll.expires_at) < new Date();
+    const expiresDate = new Date(poll.expires_at);
     
     return (
       <View key={poll.id} style={styles.pollCard}>
@@ -519,6 +538,9 @@ const AvisosTab = () => {
         
         <Text style={styles.pollExpiry}>
           Criada em: {new Date(poll.created_at).toLocaleDateString('pt-BR')} às {new Date(poll.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+        <Text style={styles.pollExpiry}>
+          {isExpired ? 'Expirou em' : 'Expira em'}: {expiresDate.toLocaleDateString('pt-BR')} às {expiresDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </Text>
         
         <View style={styles.pollOptions}>
@@ -817,7 +839,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
   },
   disabledOption: {
-    opacity: 0.7,
+    opacity: 0.5,
+    backgroundColor: '#F9FAFB',
+    borderColor: '#D1D5DB',
+    cursor: 'not-allowed',
+  },
+  disabledOptionText: {
+    color: '#9CA3AF',
   },
   optionContent: {
     flex: 1,

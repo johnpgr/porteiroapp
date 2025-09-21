@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
@@ -33,18 +33,29 @@ export default function PorteiroLogin() {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>
-        <Ionicons name="arrow-back" size={24} color="#2196F3" />
-      </TouchableOpacity>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        
+        <TouchableOpacity style={styles.backButton} onPress={() => router.push('/')}>  
+          <Ionicons name="arrow-back" size={24} color="#2196F3" />
+        </TouchableOpacity>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>🚪 Login Porteiro</Text>
-        <Text style={styles.subtitle}>Acesse o painel de controle da portaria</Text>
-      </View>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>🛡️ Login Porteiro</Text>
+            <Text style={styles.subtitle}>Acesse sua área de trabalho</Text>
+          </View>
 
-      <AuthForm onSubmit={handleLogin} submitText="Entrar como Porteiro" />
-    </View>
+          <AuthForm onSubmit={handleLogin} submitText="Entrar como Porteiro" />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -52,7 +63,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
     padding: 20,
+    minHeight: '100%',
+  },
+  content: {
+    flex: 1,
     justifyContent: 'center',
   },
   backButton: {

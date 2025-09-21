@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -41,19 +41,6 @@ interface Profile {
   profile_complete: boolean | null;
 }
 
-// Tipo para a linha real do banco admin_profiles
-interface DBAdminProfile {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  role: string;
-  created_at: string;
-  updated_at: string;
-  is_active?: boolean | null;
-}
-
 interface AuthUser {
   id: string;
   email: string;
@@ -83,8 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // checkSession é definido mais abaixo, após loadUserProfile
-
   const signOut = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -107,32 +92,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('admin_profiles')
         .select('*')
         .eq('user_id', authUser.id)
+        .eq('is_active', true)
         .maybeSingle();
 
       if (adminProfile && !adminError) {
         // É um admin (super-admin ou admin regular)
-        const ap = adminProfile as DBAdminProfile;
-        const adminType: 'super_admin' | 'admin' = (ap.role === 'super_admin' || ap.role === 'superadmin') ? 'super_admin' : 'admin';
-        const isActive: boolean = (ap.is_active ?? true) as boolean;
-        const mappedProfile: AdminProfile = {
-          id: ap.id,
-          user_id: ap.user_id,
-          name: ap.name,
-          email: ap.email,
-          phone: ap.phone,
-          role: ap.role,
-          admin_type: adminType,
-          is_active: isActive,
-          created_at: ap.created_at,
-          updated_at: ap.updated_at,
-        };
         const userData: AuthUser = {
           id: authUser.id,
-          email: mappedProfile.email,
-          user_type: adminType,
-          admin_type: adminType,
-          is_active: isActive,
-          profile: mappedProfile
+          email: adminProfile.email,
+          user_type: adminProfile.role === 'super_admin' ? 'super_admin' : 'admin',
+          admin_type: adminProfile.role as 'super_admin' | 'admin',
+          is_active: adminProfile.is_active ?? true,
+          profile: {
+            id: adminProfile.id,
+            full_name: adminProfile.name,
+            email: adminProfile.email,
+            admin_type: adminProfile.role
+          } as unknown as AdminProfile
         };
         setUser(userData);
         return;
@@ -224,8 +200,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
-
-
 
   const requireAuth = (redirectTo?: string) => {
     if (!loading && !user) {

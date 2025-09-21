@@ -10,10 +10,11 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '~/hooks/useAuth';
 
 export default function PorteiroProfile() {
@@ -40,6 +41,74 @@ export default function PorteiroProfile() {
   });
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Função para upload robusto de foto usando FileSystem
+  const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
+    const maxRetries = 3;
+    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [PorteiroProfile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
+        
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileName = `porteiro_${timestamp}_${randomId}.jpeg`;
+        
+        console.log('🔄 [PorteiroProfile] Nome do arquivo:', fileName);
+        console.log('🔄 [PorteiroProfile] URI da foto:', photoUri);
+
+        // Upload direto com FileSystem.uploadAsync
+        console.log('🔄 [PorteiroProfile] Tentando upload direto com FileSystem.uploadAsync...');
+        
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
+        console.log('🔄 [PorteiroProfile] URL de upload:', uploadUrl);
+        
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        console.log('🔄 [PorteiroProfile] Resultado do FileSystem upload:', uploadResult);
+
+        if (uploadResult.status === 200) {
+          // Obter URL pública usando cliente regular
+          console.log('🔄 [PorteiroProfile] Obtendo URL pública...');
+          const { data: urlData } = supabase.storage
+            .from('user-photos')
+            .getPublicUrl(fileName);
+          
+          console.log('✅ [PorteiroProfile] Upload bem-sucedido! URL:', urlData.publicUrl);
+          return urlData.publicUrl;
+        } else {
+          throw new Error(`Upload falhou com status: ${uploadResult.status}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [PorteiroProfile] Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error('❌ [PorteiroProfile] Todas as tentativas falharam');
+          return null;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        const delay = 1000 * attempt;
+        console.log(`⏳ [PorteiroProfile] Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -241,21 +310,105 @@ export default function PorteiroProfile() {
   };
 
   const handleChangePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Erro', 'Permissão para acessar galeria é necessária');
-      return;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
+
+      setPhotoUploading(true);
+      
+      // Solicitar permissão para acessar a galeria
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permissão Necessária',
+          'É necessário permitir acesso à galeria para alterar a foto do perfil.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
+      }
+
+      const photoUri = result.assets[0].uri;
+      console.log('📸 [PorteiroProfile] Foto selecionada:', photoUri);
+
+      // Fazer upload da imagem
+      const uploadedUrl = await uploadPhotoToStorage(photoUri);
+      
+      if (uploadedUrl) {
+        // Atualizar o avatar_url no banco de dados
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: uploadedUrl } as any)
+          .eq('user_id', user.id as any)
+          .eq('user_type', 'porteiro' as any);
+
+        if (error) {
+          console.error('Erro ao atualizar avatar_url:', error);
+          Alert.alert('Erro', 'Não foi possível salvar a foto no perfil');
+          return;
+        }
+
+        setFormData({ ...formData, avatar_url: uploadedUrl });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', 'Não foi possível fazer upload da foto');
+      }
+    } catch (error) {
+      console.error('Erro ao fazer upload da foto:', error);
+      Alert.alert('Erro', 'Falha ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
     }
+  };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+  const handleRemovePhoto = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Erro', 'Usuário não autenticado');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      setFormData({ ...formData, avatar_url: result.assets[0].uri });
+      setPhotoUploading(true);
+      
+      // Remover a referência da foto do banco de dados
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null } as any)
+        .eq('user_id', user.id as any)
+        .eq('user_type', 'porteiro' as any);
+
+      if (error) {
+        console.error('Erro ao remover avatar_url:', error);
+        Alert.alert('Erro', 'Não foi possível remover a foto do perfil');
+        return;
+      }
+
+      setFormData({ ...formData, avatar_url: '' });
+      Alert.alert('Sucesso', 'Foto removida com sucesso!');
+    } catch (error) {
+      console.error('Erro ao remover foto:', error);
+      Alert.alert('Erro', 'Falha ao remover foto');
+    } finally {
+      setPhotoUploading(false);
     }
   };
 
@@ -282,8 +435,8 @@ export default function PorteiroProfile() {
               const { error } = await supabase
                 .from('profiles')
                 .delete()
-                .eq('user_id', user.id)
-                .eq('user_type', 'porteiro');
+                .eq('user_id', user.id as any)
+                .eq('user_type', 'porteiro' as any);
 
               if (error) {
                 console.error('❌ Erro ao excluir perfil:', error);
@@ -438,9 +591,22 @@ export default function PorteiroProfile() {
                   </View>
                 )}
                 {isEditing && (
-                  <TouchableOpacity style={styles.changePhotoButton} onPress={handleChangePhoto}>
-                    <Text style={styles.changePhotoText}>Alterar Foto</Text>
-                  </TouchableOpacity>
+                  <View style={styles.photoActions}>
+                    <TouchableOpacity 
+                      style={[styles.changePhotoButton, photoUploading && styles.disabledButton]} 
+                      onPress={handleChangePhoto}
+                      disabled={photoUploading}
+                    >
+                      <Text style={styles.changePhotoText}>
+                        {photoUploading ? 'Enviando...' : 'Alterar Foto'}
+                      </Text>
+                    </TouchableOpacity>
+                    {formData.avatar_url && (
+                      <TouchableOpacity style={styles.removePhotoButton} onPress={handleRemovePhoto}>
+                        <Text style={styles.removePhotoText}>Remover Foto</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
 
@@ -464,12 +630,12 @@ export default function PorteiroProfile() {
                   <Text style={styles.label}>Email</Text>
                   {isEditing ? (
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, styles.readOnlyInput]}
                       value={formData.email}
-                      onChangeText={(text) => setFormData({ ...formData, email: text })}
-                      placeholder="Digite seu email"
+                      placeholder="Email não pode ser alterado"
                       keyboardType="email-address"
                       autoCapitalize="none"
+                      editable={false}
                     />
                   ) : (
                     <Text style={styles.value}>{formData.email || 'Não informado'}</Text>
@@ -753,9 +919,11 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#2196F3',
-    paddingTop: 50,
-    paddingBottom: 15,
+    paddingTop: 20,
+    paddingBottom: 20,
     paddingHorizontal: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -854,6 +1022,11 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+    color: '#666',
   },
   textArea: {
     height: 80,
@@ -996,5 +1169,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  photoActions: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  removePhotoButton: {
+    backgroundColor: '#ff5722',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  removePhotoText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

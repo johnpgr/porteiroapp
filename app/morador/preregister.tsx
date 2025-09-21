@@ -107,6 +107,7 @@ export default function PreregisterScreen() {
         document: formData.document.trim(),
         phone: formData.phone.trim() || null,
         photo_url: formData.photo_url || null,
+        access_type: 'com_aprovacao', // Tipo de acesso padrão
       });
 
       if (error) throw error;

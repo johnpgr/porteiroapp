@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/utils/useAuth';
 
-
+import { toast } from 'sonner';
 import NotificationCard from '../../components/NotificationCard';
 import { usePendingNotifications } from '../../hooks/usePendingNotifications';
 
@@ -21,9 +22,38 @@ interface VisitorHistory {
   delivery_destination?: string;
 }
 
+// Interface para notificações pendentes (removida - não utilizada)
+/*
+interface PendingNotification {
+  id: string;
+  entry_type: 'visitor' | 'delivery' | 'vehicle';
+  notification_status: 'pending' | 'approved' | 'rejected' | 'expired';
+  notification_sent_at: string;
+  expires_at: string;
+  apartment_id: string;
+  guest_name?: string;
+  purpose?: string;
+  visitor_id?: string;
+  delivery_sender?: string;
+  delivery_description?: string;
+  delivery_tracking_code?: string;
+  license_plate?: string;
+  vehicle_model?: string;
+  vehicle_color?: string;
+  vehicle_brand?: string;
+  building_id: string;
+  created_at: string;
+  log_time: string;
+  visitors?: {
+    name: string;
+    document: string;
+    phone?: string;
+  };
+}
+*/
+
 
 import {
-  UserIcon,
   Mail,
   Eye,
   EyeOff,
@@ -32,13 +62,18 @@ import {
   Building,
   Bell,
   Home,
+  Edit,
   Trash2,
   LogOut,
   RefreshCw,
   AlertCircle,
   CheckCircle,
   Clock,
-  AlertTriangle
+  User,
+  X,
+  Save,
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 
 // Tipos para o dashboard
@@ -51,39 +86,58 @@ interface FormErrors {
 
 interface UserProfile {
   id: string;
-  email: string;
-  name?: string;
+  user_id?: string;
+  full_name?: string;
+  avatar_url?: string;
   phone?: string;
-  apartment?: string;
-  building?: string;
-  profile_type?: string;
   created_at?: string;
-  // Novos campos da tabela profiles
+  updated_at?: string;
+  email?: string;
   cpf?: string;
-  address?: string;
-  birth_date?: string;
   work_schedule?: string;
+
+  birth_date?: string;
+  building_id?: string;
   role?: string;
   user_type?: string;
   relation?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  registration_token?: string;
+  token_expires_at?: string;
   profile_complete?: boolean;
+  temporary_password_used?: boolean;
+  expo_push_token?: string;
+  first_login_completed?: boolean;
+  profile_completion_date?: string;
+  photo_verification_status?: string;
+  address?: string;
+  // Campos relacionados (JOIN com buildings)
+  buildings?: {
+    id: string;
+    name: string;
+    address: string;
+  };
+  // Campos adicionais para compatibilidade
+  name?: string;
+  profile_type?: string;
   building_address?: string;
   floor?: number;
   is_owner?: boolean;
   relationship?: string;
+  is_primary?: boolean;
 }
 
 export default function LoginClient() {
   const router = useRouter();
-
   const { user, signIn, signOut, isSuperAdmin, isAdmin } = useAuth();
   
   // Estados do formulário
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -93,6 +147,22 @@ export default function LoginClient() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('home');
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    birth_date: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    avatar_url: '',
+    address: ''
+  });
+  const [profileErrors, setProfileErrors] = useState<{[key: string]: string}>({});
+  
+  // Estados adicionais para mensagens (removidos - já declarados acima)
   
   // Estados para o histórico de visitantes
   const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
@@ -111,28 +181,35 @@ export default function LoginClient() {
     respondToNotification
   } = usePendingNotifications(apartmentId || undefined);
   
+  // Estados adicionais para notificações (removidos - não utilizados)
+  // const [respondingToNotification, setRespondingToNotification] = useState<string | null>(null);
+  // const [showNotificationDetails, setShowNotificationDetails] = useState<string | null>(null);
+  // const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  // const [rejectReason, setRejectReason] = useState('');
+  
   // Estados para exclusão de conta
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Função para excluir conta
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== 'EXCLUIR') return;
-    
-    setIsDeleting(true);
-    try {
-      // Implementar lógica de exclusão de conta aqui
-      console.log('Excluindo conta...');
-      await signOut();
-    } catch (error) {
-      console.error('Erro ao excluir conta:', error);
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteModal(false);
-      setDeleteConfirmText('');
+  
+  // Estados para modal de detalhes do visitante
+  const [showVisitorDetails, setShowVisitorDetails] = useState(false);
+  const [selectedVisitor, setSelectedVisitor] = useState<VisitorHistory | null>(null);
+  
+  // Limpar mensagens após um tempo
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 5000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [successMessage]);
+  
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
 
   // Funções de validação
   const validateEmail = (email: string): string | undefined => {
@@ -197,214 +274,192 @@ export default function LoginClient() {
       
     } catch (error: unknown) {
       console.error('Erro no login:', error);
-      setError(error instanceof Error ? error.message : 'Erro ao fazer login. Verifique suas credenciais.');
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao fazer login. Verifique suas credenciais.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Função para buscar dados completos do usuário com JOIN
-  const fetchUserCompleteData = useCallback(async () => {
-    if (!user) return { 
-      apartment: '', 
-      building: '', 
-      fullName: '', 
-      phone: '', 
-      email: '', 
-      relationship: '',
-      isOwner: false,
-      floor: null,
-      cpf: '',
-      address: '',
-      birth_date: '',
-      work_schedule: '',
-      emergency_contact_name: '',
-      emergency_contact_phone: '',
-      buildingAddress: '',
-      userType: '',
-      role: '',
-      avatar_url: ''
-    };
+
+
+  // Função para carregar o perfil do usuário
+  const loadUserProfile = useCallback(async () => {
+    if (!user?.id) return;
     
+    setIsLoadingProfile(true);
     try {
-      // Buscar dados completos com JOIN entre todas as tabelas relevantes
-      const { data: userData, error: userError } = await supabase
-        .from('apartment_residents')
+      const { data, error } = await supabase
+        .from('profiles')
         .select(`
-          apartment_id,
-          relationship,
-          profiles (
+          id,
+          full_name,
+          phone,
+          email,
+          cpf,
+          address,
+          birth_date,
+          work_schedule,
+          emergency_contact_name,
+          emergency_contact_phone,
+          user_type,
+          role,
+          profile_complete,
+          avatar_url,
+          building_id,
+          buildings (
             id,
-            full_name,
-            phone,
-            email,
-            cpf,
-            address,
-            birth_date,
-            work_schedule,
-            emergency_contact_name,
-            emergency_contact_phone,
-            user_type,
-            role,
-            profile_complete,
-            avatar_url
-          ),
-          apartments (
-            id,
-            number,
-            floor,
-            buildings (
-              id,
-              name,
-              address
-            )
+            name,
+            address
           )
         `)
-        .eq('profile_id', user.id)
+        .eq('user_id', user.id)
         .single();
       
-      if (userError || !userData) {
-        console.warn('Usuário não possui apartamento associado:', userError?.message);
-        
-        // Tentar buscar dados diretamente da tabela profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select(`
-            id,
-            full_name,
-            phone,
-            email,
-            cpf,
-            address,
-            birth_date,
-            work_schedule,
-            emergency_contact_name,
-            emergency_contact_phone,
-            user_type,
-            role,
-            profile_complete,
-            avatar_url,
-            building_id,
-            buildings (
-              id,
-              name,
-              address
-            )
-          `)
-          .eq('user_id', user.id)
-          .single();
-        
-        if (profileError || !profileData) {
-          return { 
-            apartment: '', 
-            building: '', 
-            fullName: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
-            phone: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
-            email: user.email || '',
-            relationship: '',
-            isOwner: false,
-            floor: null,
-            cpf: '',
-            address: '',
-            birth_date: '',
-            work_schedule: '',
-            emergency_contact_name: '',
-            emergency_contact_phone: '',
-            buildingAddress: '',
-            userType: '',
-            role: '',
-            avatar_url: ''
-          };
-        }
-        
-        // Retornar dados apenas do perfil (sem apartamento)
-        return {
-          apartment: '',
-          building: profileData.buildings?.name || '',
-          buildingAddress: profileData.buildings?.address || '',
-          floor: null,
-          fullName: profileData.full_name || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
-          phone: profileData.phone || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
-          email: profileData.email || user.email || '',
-          cpf: profileData.cpf || '',
-          address: profileData.address || '',
-          birth_date: profileData.birth_date || '',
-          work_schedule: profileData.work_schedule || '',
-          emergency_contact_name: profileData.emergency_contact_name || '',
-          emergency_contact_phone: profileData.emergency_contact_phone || '',
-          relationship: '',
-          isOwner: false,
-          userType: profileData.user_type || '',
-          role: profileData.role || '',
-          avatar_url: profileData.avatar_url || ''
-        };
+      if (error) {
+        console.error('Erro ao carregar perfil:', error);
+        throw error;
       }
       
-      const apartment = userData.apartments?.number || '';
-      const building = userData.apartments?.buildings?.name || '';
-      const buildingAddress = userData.apartments?.buildings?.address || '';
-      const floor = userData.apartments?.floor;
-      const fullName = userData.profiles?.full_name || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '';
-      const phone = userData.profiles?.phone || (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '';
-      const email = userData.profiles?.email || user.email || '';
-      const cpf = userData.profiles?.cpf || '';
-      const address = userData.profiles?.address || '';
-      const birth_date = userData.profiles?.birth_date || '';
-      const work_schedule = userData.profiles?.work_schedule || '';
-      const emergency_contact_name = userData.profiles?.emergency_contact_name || '';
-      const emergency_contact_phone = userData.profiles?.emergency_contact_phone || '';
-      const relationship = userData.relationship || '';
-      const isOwner = false; // Default value since is_owner field was removed
-      const userType = userData.profiles?.user_type || '';
-      const role = userData.profiles?.role || '';
-      const avatar_url = userData.profiles?.avatar_url || '';
+      if (!data) {
+        console.error('Perfil não encontrado para o usuário:', user.id);
+        throw new Error('Perfil não encontrado');
+      }
       
-      return { 
-        apartment, 
-        building, 
-        buildingAddress,
-        floor,
-        fullName, 
-        phone,
-        email,
-        cpf,
-        address,
-        birth_date,
-        work_schedule,
-        emergency_contact_name,
-        emergency_contact_phone,
-        relationship,
-        isOwner,
-        userType,
-        role,
-        avatar_url
-      };
+      setUserProfile({
+        id: data.id,
+        full_name: data.full_name || undefined,
+        phone: data.phone || undefined,
+        email: data.email || undefined,
+        cpf: data.cpf || undefined,
+        birth_date: data.birth_date || undefined,
+        work_schedule: data.work_schedule || undefined,
+        emergency_contact_name: data.emergency_contact_name || undefined,
+        emergency_contact_phone: data.emergency_contact_phone || undefined,
+        buildings: data.buildings || undefined
+      });
+      
+      // Preencher o formulário de edição com os dados atuais
+      setProfileForm({
+        full_name: data.full_name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        cpf: data.cpf || '',
+        birth_date: data.birth_date || '',
+        emergency_contact_name: data.emergency_contact_name || '',
+        emergency_contact_phone: data.emergency_contact_phone || '',
+        avatar_url: data.avatar_url || '',
+        address: data.address || ''
+      });
     } catch (error) {
-      console.error('Erro ao buscar dados completos do usuário:', error);
-      return { 
-        apartment: '', 
-        building: '', 
-        fullName: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.name || '',
-        phone: (user as { user_metadata?: { name?: string; phone?: string } }).user_metadata?.phone || '',
-        email: user.email || '',
-        relationship: '',
-        isOwner: false,
-        floor: null,
-        cpf: '',
-        address: '',
-        birth_date: '',
-        work_schedule: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-        buildingAddress: '',
-        userType: '',
-        role: '',
-        avatar_url: ''
-      };
+      console.error('Erro ao carregar perfil:', error);
+    } finally {
+      setIsLoadingProfile(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
-  // Função removida: loadUserProfile não é mais necessária
+  // Função para validar o formulário de perfil
+  const validateProfileForm = () => {
+    const errors: {[key: string]: string} = {};
+    
+    if (!profileForm.full_name.trim()) {
+      errors.full_name = 'Nome completo é obrigatório';
+    }
+    
+    if (!profileForm.phone.trim()) {
+      errors.phone = 'Telefone é obrigatório';
+    } else if (!/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(profileForm.phone)) {
+      errors.phone = 'Formato de telefone inválido';
+    }
+    
+    if (!profileForm.cpf.trim()) {
+      errors.cpf = 'CPF é obrigatório';
+    } else if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(profileForm.cpf)) {
+      errors.cpf = 'Formato de CPF inválido';
+    }
+    
+
+    
+    setProfileErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Função para atualizar o perfil do usuário
+  const updateUserProfile = async () => {
+    if (!user?.id || !validateProfileForm()) return;
+    
+    setEditingProfile(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: profileForm.full_name,
+          phone: profileForm.phone,
+          cpf: profileForm.cpf,
+          birth_date: profileForm.birth_date,
+          emergency_contact_name: profileForm.emergency_contact_name,
+          emergency_contact_phone: profileForm.emergency_contact_phone,
+          avatar_url: profileForm.avatar_url,
+          address: profileForm.address,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id);
+      
+      if (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        throw error;
+      }
+      
+      // Recarregar o perfil
+      await loadUserProfile();
+      setShowEditProfileModal(false);
+      setSuccessMessage('Perfil atualizado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
+      setErrorMessage('Erro ao atualizar perfil. Tente novamente.');
+    } finally {
+      setEditingProfile(false);
+    }
+  };
+
+  // Função para excluir conta do usuário
+  const handleDeleteAccount = async () => {
+    if (!user?.id || deleteConfirmText !== 'EXCLUIR') return;
+    
+    setIsDeleting(true);
+    try {
+      // Primeiro, excluir dados relacionados do usuário
+      const { error: deleteUserError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', user.id);
+      
+      if (deleteUserError) {
+        console.error('Erro ao excluir perfil:', deleteUserError);
+        throw deleteUserError;
+      }
+      
+      // Depois, excluir a conta de autenticação
+      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(user.id);
+      
+      if (deleteAuthError) {
+        console.error('Erro ao excluir conta de autenticação:', deleteAuthError);
+        // Mesmo se houver erro na exclusão da auth, continuar com o logout
+      }
+      
+      // Fazer logout
+      await signOut();
+      
+      toast.success('Conta excluída com sucesso!');
+      setShowDeleteModal(false);
+      setDeleteConfirmText('');
+    } catch (error) {
+      console.error('Erro ao excluir conta:', error);
+      toast.error('Erro ao excluir conta. Tente novamente.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Função para buscar histórico de visitantes
   const fetchVisitorsHistory = useCallback(async () => {
@@ -414,10 +469,25 @@ export default function LoginClient() {
     setHistoryError(null);
     
     try {
+      // Primeiro, buscar o profile_id do usuário na tabela profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (profileError || !profileData) {
+        console.warn('Profile não encontrado para user_id:', user.id, profileError?.message);
+        setVisitorsHistory([]);
+        setApartmentId(null);
+        setHistoryError('Profile não encontrado. Entre em contato com a administração.');
+        return;
+      }
+      
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', profileData.id)
         .single();
       
       if (apartmentError || !apartmentData) {
@@ -457,55 +527,80 @@ export default function LoginClient() {
         visitor_document: log.visitors?.document || 'Documento não informado',
         log_time: log.log_time,
         purpose: log.purpose || 'Visita',
-        notification_status: 'pending' as 'approved' | 'rejected' | 'pending', // Default value since field was removed
+        notification_status: 'approved' as 'approved' | 'rejected' | 'pending',
         visitor_phone: log.visitors?.phone || undefined
       }));
       
       setVisitorsHistory(formattedHistory);
     } catch (error: unknown) {
       console.error('Erro ao buscar histórico:', error);
-      setHistoryError(error instanceof Error ? error.message : 'Erro desconhecido');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      setHistoryError(errorMessage);
     } finally {
       setLoadingHistory(false);
     }
   }, [user]);
 
-  // As funções fetchPendingNotifications e respondToNotification agora são fornecidas pelo hook usePendingNotifications
 
-  // O carregamento das notificações é agora gerenciado pelo hook usePendingNotifications
+
+  // Função para aprovar com destino de entrega
+
+
+  // Função para obter ícone do status
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'rejected':
+        return <X className="w-5 h-5 text-red-600" />;
+      case 'pending':
+        return <Clock className="w-5 h-5 text-yellow-600" />;
+      default:
+        return <AlertCircle className="w-5 h-5 text-gray-600" />;
+    }
+  };
+
+  // Função para obter texto do status
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'Aprovado';
+      case 'rejected':
+        return 'Rejeitado';
+      case 'pending':
+        return 'Pendente';
+      default:
+        return 'Desconhecido';
+    }
+  };
+
+  // Função para obter cor do status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'text-green-600 bg-green-50';
+      case 'rejected':
+        return 'text-red-600 bg-red-50';
+      case 'pending':
+        return 'text-yellow-600 bg-yellow-50';
+      default:
+        return 'text-gray-600 bg-gray-50';
+    }
+  };
 
   // Carregar dados do usuário quando fizer login
   useEffect(() => {
-    const loadUserData = async () => {
-      if (user && !userProfile) {
-        setIsLoadingProfile(true);
-        try {
-          const userData = await fetchUserCompleteData();
-          setUserProfile({
-            id: user.id,
-            email: userData.email,
-            name: userData.fullName,
-            phone: userData.phone,
-            apartment: userData.apartment,
-            building: userData.building
-          });
-        } catch (error) {
-          console.error('Erro ao carregar dados do usuário:', error);
-        } finally {
-          setIsLoadingProfile(false);
-        }
-      }
-    };
-    
-    loadUserData();
-  }, [user, userProfile, fetchUserCompleteData]);
+    if (user && !userProfile) {
+      loadUserProfile();
+    }
+  }, [user, userProfile, loadUserProfile]);
 
   // Carregar dados quando usuário fizer login (apenas uma vez)
   useEffect(() => {
     if (user && visitorsHistory.length === 0 && !loadingHistory) {
       fetchVisitorsHistory();
     }
-  }, [user, visitorsHistory.length, loadingHistory, fetchVisitorsHistory]);
+  }, [user, fetchVisitorsHistory, loadingHistory, visitorsHistory.length]);
 
   // Função para formatar data em português
   const formatDate = (dateString: string) => {
@@ -522,8 +617,10 @@ export default function LoginClient() {
   const handleLogout = async () => {
     try {
       await signOut();
+      console.log('Logout realizado com sucesso!');
     } catch (error: unknown) {
-      console.error('Erro ao fazer logout:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao fazer logout';
+      console.error('Erro ao fazer logout:', errorMessage);
     }
   };
 
@@ -534,7 +631,7 @@ export default function LoginClient() {
       <div className="bg-white rounded-xl shadow-sm p-6">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-            <UserIcon className="w-6 h-6 text-white" />
+            <User className="w-6 h-6 text-white" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900">Bem-vindo de volta!</h2>
@@ -571,7 +668,7 @@ export default function LoginClient() {
               </p>
             </div>
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <UserIcon className="w-5 h-5 text-green-600" />
+              <User className="w-5 h-5 text-green-600" />
             </div>
           </div>
         </div>
@@ -596,11 +693,11 @@ export default function LoginClient() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium text-gray-600">Email</label>
-              <p className="text-gray-900">{user?.email || 'N/A'}</p>
+              <p className="text-gray-900">{user?.email || 'Email não disponível'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Tipo de Perfil</label>
-              <p className="text-gray-900">{(user as { user_metadata?: { user_type?: string } })?.user_metadata?.user_type || 'Usuário'}</p>
+              <p className="text-gray-900">{user?.user_type || 'Usuário'}</p>
             </div>
           </div>
           <div className="space-y-3">
@@ -636,8 +733,261 @@ export default function LoginClient() {
                 Gerenciar Administradores
               </button>
             )}
-            <button
-              onClick={() => router.push('/admin/manage-buildings')}
+
+      {/* Modal de Edição de Perfil */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Editar Perfil</h3>
+              <button 
+                onClick={() => {
+                  setShowEditProfileModal(false);
+                  setProfileErrors({});
+                }}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={editingProfile}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={updateUserProfile} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nome Completo *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.full_name}
+                    onChange={(e) => setProfileForm({...profileForm, full_name: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      profileErrors.full_name ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Digite seu nome completo"
+                    disabled={editingProfile}
+                  />
+                  {profileErrors.full_name && (
+                    <p className="text-red-500 text-sm mt-1">{profileErrors.full_name}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Telefone *
+                  </label>
+                  <input
+                    type="tel"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      profileErrors.phone ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="(11) 99999-9999"
+                    disabled={editingProfile}
+                  />
+                  {profileErrors.phone && (
+                    <p className="text-red-500 text-sm mt-1">{profileErrors.phone}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CPF *
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.cpf}
+                    onChange={(e) => setProfileForm({...profileForm, cpf: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      profileErrors.cpf ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="000.000.000-00"
+                    disabled={editingProfile}
+                  />
+                  {profileErrors.cpf && (
+                    <p className="text-red-500 text-sm mt-1">{profileErrors.cpf}</p>
+                  )}
+                </div>
+                
+
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Endereço Completo
+                  </label>
+                  <textarea
+                    value={profileForm.address}
+                    onChange={(e) => setProfileForm({...profileForm, address: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Rua, número, bairro, cidade, CEP"
+                    rows={3}
+                    disabled={editingProfile}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-6 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditProfileModal(false);
+                    setProfileErrors({});
+                  }}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={editingProfile}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editingProfile}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+                >
+                  {editingProfile ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Salvar Alterações
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+       )}
+
+      {/* Modal de Detalhes do Visitante */}
+      {showVisitorDetails && selectedVisitor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Detalhes do Visitante</h3>
+              <button 
+                onClick={() => {
+                  setShowVisitorDetails(false);
+                  setSelectedVisitor(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Foto do visitante - Removido temporariamente pois visitor_photo não existe na interface */}
+              {/* {selectedVisitor.visitor_photo && (
+                <div className="flex justify-center mb-4">
+                  <Image 
+                    src={selectedVisitor.visitor_photo} 
+                    alt="Foto do visitante"
+                    className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                    width={96}
+                    height={96}
+                  />
+                </div>
+              )} */}
+              
+              {/* Informações básicas */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nome do Visitante
+                  </label>
+                  <p className="text-gray-900 font-medium">{selectedVisitor.visitor_name}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Documento
+                  </label>
+                  <p className="text-gray-900">{selectedVisitor.visitor_document || 'Não informado'}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefone
+                  </label>
+                  <p className="text-gray-900">{selectedVisitor.visitor_phone || 'Não informado'}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Data da Visita
+                  </label>
+                  <p className="text-gray-900">{formatDate(selectedVisitor.log_time)}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <div className="flex items-center">
+                    {getStatusIcon(selectedVisitor.notification_status)}
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                      getStatusColor(selectedVisitor.notification_status)
+                    }`}>
+                      {getStatusText(selectedVisitor.notification_status)}
+                    </span>
+                  </div>
+                </div>
+                
+                {selectedVisitor.delivery_destination && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Local de Entrega
+                    </label>
+                    <p className="text-gray-900">
+                      {selectedVisitor.delivery_destination === 'apartment' ? 'Apartamento' : 'Portaria'}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Motivo da recusa - Removido temporariamente pois rejection_reason não existe na interface */}
+                {/* {selectedVisitor.rejection_reason && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Motivo da Recusa
+                    </label>
+                    <p className="text-red-600">{selectedVisitor.rejection_reason}</p>
+                  </div>
+                )} */}
+                
+                {/* Observações - Removido temporariamente pois notes não existe na interface */}
+                {/* {selectedVisitor.notes && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Observações
+                    </label>
+                    <p className="text-gray-900">{selectedVisitor.notes}</p>
+                  </div>
+                )} */}
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowVisitorDetails(false);
+                  setSelectedVisitor(null);
+                }}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+             <button
+               onClick={() => router.push('/admin/manage-buildings')}
               className="flex items-center justify-center px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Building className="w-4 h-4 mr-2" />
@@ -647,7 +997,7 @@ export default function LoginClient() {
               onClick={() => router.push('/admin/manage-residents')}
               className="flex items-center justify-center px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <UserIcon className="w-4 h-4 mr-2" />
+              <User className="w-4 h-4 mr-2" />
               Gerenciar Moradores
             </button>
           </div>
@@ -777,7 +1127,14 @@ export default function LoginClient() {
               };
 
               return (
-                <div key={visit.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                <div 
+                  key={visit.id} 
+                  className="border border-gray-200 rounded-lg p-3 sm:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    setSelectedVisitor(visit);
+                    setShowVisitorDetails(true);
+                  }}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 mb-2">
@@ -799,6 +1156,9 @@ export default function LoginClient() {
                         <p><strong>Status:</strong> <span className={getStatusTextColor(visit.notification_status)}>{getStatusText(visit.notification_status)}</span></p>
                       </div>
                     </div>
+                    <div className="ml-2">
+                      <Eye className="w-4 h-4 text-gray-400" />
+                    </div>
                   </div>
                 </div>
               );
@@ -810,9 +1170,170 @@ export default function LoginClient() {
   );
 
   // Atualizar dados do perfil quando o usuário estiver disponível
-  // Função renderProfileTab removida - não é mais necessária
+  useEffect(() => {
+    if (user && userProfile) {
+      setProfileForm({
+        full_name: userProfile.full_name || '',
+        email: userProfile.email || user?.email || '',
+        phone: userProfile.phone || '',
+        cpf: userProfile.cpf || '',
+        birth_date: userProfile.birth_date || '',
+        emergency_contact_name: userProfile.emergency_contact_name || '',
+        emergency_contact_phone: userProfile.emergency_contact_phone || '',
+        avatar_url: userProfile.avatar_url || '',
+        address: userProfile.address || ''
+      });
+    }
+  }, [user, userProfile]);
+  
+  // Mostrar mensagens de sucesso/erro
+  useEffect(() => {
+    if (successMessage) {
+      toast.success(successMessage);
+    }
+  }, [successMessage]);
+  
+  useEffect(() => {
+    if (errorMessage) {
+      toast.error(errorMessage);
+    }
+  }, [errorMessage]);
+  // Renderizar aba de perfil
+  const renderProfileTab = () => {
+    const userData = userProfile || {
+      email: user?.email || '',
+      full_name: '',
+      phone: '',
+      cpf: '',
+      birth_date: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: ''
+    };
 
-  // Função renderSettingsTab removida - não é mais necessária
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Meu Perfil</h2>
+              <p className="text-gray-600">Gerencie suas informações pessoais</p>
+            </div>
+            <button
+              onClick={() => setShowEditProfileModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Editar</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Profile Information */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Nome Completo</label>
+                <p className="text-gray-900 mt-1">{userData.full_name || 'Não informado'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Email</label>
+                <p className="text-gray-900 mt-1">{userData.email}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Telefone</label>
+                <p className="text-gray-900 mt-1">{userData.phone || 'Não informado'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Data de Nascimento</label>
+                <p className="text-gray-900 mt-1">{userData.birth_date || 'Não informado'}</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">CPF</label>
+                <p className="text-gray-900 mt-1">{userData.cpf || 'Não informado'}</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Contato de Emergência</label>
+                <p className="text-gray-900 mt-1">{userData.emergency_contact_name || 'Não informado'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Telefone de Emergência</label>
+                <p className="text-gray-900 mt-1">{userData.emergency_contact_phone || 'Não informado'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Account Status */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Status da Conta</h3>
+          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div>
+                <p className="font-medium text-green-900">Conta Ativa</p>
+                <p className="text-sm text-green-700">Sua conta está funcionando normalmente</p>
+              </div>
+            </div>
+            <CheckCircle className="w-6 h-6 text-green-600" />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizar aba de configurações
+  const renderSettingsTab = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Configurações</h2>
+          <p className="text-gray-600">Gerencie suas preferências e configurações da conta</p>
+        </div>
+      </div>
+
+      {/* Privacy Settings */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Privacidade</h3>
+        <div className="space-y-4">
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <h4 className="font-medium text-gray-900 mb-2">Dados Pessoais</h4>
+            <p className="text-sm text-gray-600 mb-3">
+              Seus dados pessoais são protegidos e utilizados apenas para o funcionamento do sistema.
+            </p>
+            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              Ver Política de Privacidade
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
+        <h3 className="text-lg font-semibold text-red-900 mb-4">Zona de Perigo</h3>
+        <div className="space-y-4">
+          <div className="p-4 bg-red-50 rounded-lg">
+            <h4 className="font-medium text-red-900 mb-2">Excluir Conta</h4>
+            <p className="text-sm text-red-700 mb-3">
+              Uma vez excluída, sua conta não poderá ser recuperada. Esta ação é irreversível.
+            </p>
+            <button 
+              onClick={() => setShowDeleteModal(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              Excluir Conta
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // Renderizar dashboard completo
   const renderDashboard = () => (
@@ -823,16 +1344,31 @@ export default function LoginClient() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center relative">
-                <div className="w-full h-full flex items-center justify-center text-white font-semibold text-sm">
-                  {userProfile?.name ? 
-                    userProfile.name.split(' ').map(name => name[0]).join('').substring(0, 2).toUpperCase() :
+                {userProfile?.avatar_url ? (
+                  <Image 
+                    src={userProfile.avatar_url} 
+                    alt="Avatar do usuário" 
+                    className="w-full h-full object-cover"
+                    width={40}
+                    height={40}
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.style.display = 'none';
+                      const fallback = target.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div className={`w-full h-full flex items-center justify-center text-white font-semibold text-sm ${userProfile?.avatar_url ? 'hidden' : 'flex'}`}>
+                  {userProfile?.full_name ? 
+                    userProfile.full_name.split(' ').map(name => name[0]).join('').substring(0, 2).toUpperCase() :
                     (user?.email ? user.email.substring(0, 2).toUpperCase() : 'JA')
                   }
                 </div>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">
-                  {isLoadingProfile ? 'Carregando...' : (userProfile?.name || user?.email || 'Usuário')}
+                  {isLoadingProfile ? 'Carregando...' : (userProfile?.full_name || user?.email || 'Usuário')}
                 </h1>
                 <p className="text-sm text-gray-600">Portaria Virtual</p>
               </div>
@@ -890,6 +1426,32 @@ export default function LoginClient() {
                 <span className="text-xs sm:text-sm">Notificações</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`py-4 px-2 sm:px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'profile'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-1 sm:space-x-2">
+                <User className="w-4 h-4" />
+                <span className="text-xs sm:text-sm">Perfil</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`py-4 px-2 sm:px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'settings'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-1 sm:space-x-2">
+                <Settings className="w-4 h-4" />
+                <span className="text-xs sm:text-sm">Configurações</span>
+              </div>
+            </button>
           </nav>
         </div>
       </div>
@@ -898,7 +1460,175 @@ export default function LoginClient() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'home' && renderHomeTab()}
         {activeTab === 'notifications' && renderNotificationsTab()}
+        {activeTab === 'profile' && renderProfileTab()}
+        {activeTab === 'settings' && renderSettingsTab()}
       </div>
+
+      {/* Modal de Edição de Perfil */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Editar Perfil</h3>
+                <button
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <form onSubmit={(e) => { e.preventDefault(); updateUserProfile(); }} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.full_name}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, full_name: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        profileErrors.full_name ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="Digite seu nome completo"
+                      disabled={editingProfile}
+                    />
+                    {profileErrors.full_name && (
+                      <p className="text-sm text-red-600 mt-1">{profileErrors.full_name}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 bg-gray-50 cursor-not-allowed"
+                      placeholder="Email não pode ser alterado"
+                      disabled={true}
+                      readOnly
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Telefone *
+                    </label>
+                    <input
+                      type="tel"
+                      value={profileForm.phone}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        profileErrors.phone ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="(11) 99999-9999"
+                      disabled={editingProfile}
+                    />
+                    {profileErrors.phone && (
+                      <p className="text-sm text-red-600 mt-1">{profileErrors.phone}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      CPF *
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.cpf}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, cpf: e.target.value }))}
+                      className={`w-full px-3 py-2 border rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        profileErrors.cpf ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      placeholder="000.000.000-00"
+                      disabled={editingProfile}
+                    />
+                    {profileErrors.cpf && (
+                      <p className="text-sm text-red-600 mt-1">{profileErrors.cpf}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Data de Nascimento
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.birth_date}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, birth_date: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="DD/MM/AAAA"
+                      disabled={editingProfile}
+                    />
+                  </div>
+                  
+
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contato de Emergência
+                    </label>
+                    <input
+                      type="text"
+                      value={profileForm.emergency_contact_name}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, emergency_contact_name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Nome do contato de emergência"
+                      disabled={editingProfile}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Telefone de Emergência
+                    </label>
+                    <input
+                      type="tel"
+                      value={profileForm.emergency_contact_phone}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, emergency_contact_phone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="(11) 99999-9999"
+                      disabled={editingProfile}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditProfileModal(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                    disabled={editingProfile}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+                    disabled={editingProfile}
+                  >
+                    {editingProfile ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Confirmação de Exclusão */}
       {showDeleteModal && (
@@ -940,7 +1670,7 @@ export default function LoginClient() {
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   placeholder="Digite EXCLUIR"
                   disabled={isDeleting}
                 />
@@ -984,7 +1714,7 @@ export default function LoginClient() {
     <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border border-gray-100">
       <div className="text-center mb-8">
         <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mb-6 shadow-lg">
-          <UserIcon className="w-10 h-10 text-white" />
+          <User className="w-10 h-10 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           James Avisa
@@ -1008,7 +1738,7 @@ export default function LoginClient() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`block w-full pl-10 pr-3 py-3 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+              className={`block w-full pl-10 pr-3 py-3 border rounded-lg shadow-sm text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                 formErrors.email 
                   ? 'border-red-300 bg-red-50' 
                   : 'border-gray-300 hover:border-gray-400 focus:border-blue-500'
@@ -1039,7 +1769,7 @@ export default function LoginClient() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`block w-full pl-10 pr-12 py-3 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+              className={`block w-full pl-10 pr-12 py-3 border rounded-lg shadow-sm text-gray-900 placeholder:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
                 formErrors.password 
                   ? 'border-red-300 bg-red-50' 
                   : 'border-gray-300 hover:border-gray-400 focus:border-blue-500'

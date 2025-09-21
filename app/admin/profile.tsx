@@ -14,12 +14,11 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
-import { useAuth } from '~/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 
 export default function AdminProfilePage() {
-  const { signOut } = useAuth();
   const [profile, setProfile] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,6 +40,75 @@ export default function AdminProfilePage() {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Função para upload robusto de foto usando FileSystem
+  const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
+    const maxRetries = 3;
+    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [AdminProfile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
+        
+        // Obter usuário atual
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) {
+          throw new Error('Usuário não autenticado');
+        }
+        
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileName = `${user.id}/${timestamp}_${randomId}.jpeg`;
+        
+        console.log('🔄 [AdminProfile] Nome do arquivo:', fileName);
+        console.log('🔄 [AdminProfile] URI da foto:', photoUri);
+
+        // Upload direto com FileSystem.uploadAsync
+        console.log('🔄 [AdminProfile] Tentando upload direto com FileSystem.uploadAsync...');
+        
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
+        console.log('🔄 [AdminProfile] URL de upload:', uploadUrl);
+        
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        console.log('🔄 [AdminProfile] Resultado do FileSystem upload:', uploadResult);
+
+        if (uploadResult.status === 200) {
+          // Construir URL pública da imagem
+          const publicUrl = `${supabaseUrl}/storage/v1/object/public/user-photos/${fileName}`;
+          console.log('✅ [AdminProfile] Upload concluído com sucesso:', publicUrl);
+          return publicUrl;
+        } else {
+          throw new Error(`Upload falhou com status ${uploadResult.status}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [AdminProfile] Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt === maxRetries) {
+          throw new Error(`Falha no upload após ${maxRetries} tentativas: ${(error as any)?.message || 'Erro desconhecido'}`);
+        }
+        
+        // Aguardar antes da próxima tentativa
+        const delay = 1000 * attempt;
+        console.log(`⏳ [AdminProfile] Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return null;
+  };
 
   const fetchProfile = useCallback(async () => {
     console.log('🔄 [AdminProfile] Iniciando busca do perfil...');
@@ -69,8 +137,8 @@ export default function AdminProfilePage() {
       const { data, error } = await supabase
         .from('admin_profiles')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
+        .eq('user_id', user.id as any)
+        .eq('role', 'admin' as any)
         .single();
       
       if (error) {
@@ -87,15 +155,15 @@ export default function AdminProfilePage() {
       setProfile(data);
       
       setFormData({
-        full_name: data.full_name || '',
-        email: data.email || '',
-        phone: data.phone || '',
-        cpf: data.cpf || '',
-        birth_date: data.birth_date ? formatDateForInput(data.birth_date) : '',
-        address: data.address || '',
-        avatar_url: data.avatar_url || '',
-        emergency_contact_name: data.emergency_contact_name || '',
-        emergency_contact_phone: data.emergency_contact_phone || '',
+        full_name: (data as any).full_name || '',
+        email: (data as any).email || '',
+        phone: (data as any).phone || '',
+        cpf: (data as any).cpf || '',
+        birth_date: (data as any).birth_date ? formatDateForInput((data as any).birth_date) : '',
+        address: (data as any).address || '',
+        avatar_url: (data as any).avatar_url || '',
+        emergency_contact_name: (data as any).emergency_contact_name || '',
+        emergency_contact_phone: (data as any).emergency_contact_phone || '',
       });
       
     } catch (error: any) {
@@ -254,7 +322,7 @@ export default function AdminProfilePage() {
       
       const { data, error } = await supabase
         .from('admin_profiles')
-        .update(updateData)
+        .update(updateData as any)
         .eq('user_id', profile.user_id)
         .select()
         .single();
@@ -284,33 +352,113 @@ export default function AdminProfilePage() {
   };
 
   const handleImagePicker = async () => {
-    console.log('📷 [AdminProfile] Iniciando seleção de imagem...');
+    console.log('📷 [AdminProfile] Iniciando seleção de foto...');
     
+    // Obter usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    setPhotoUploading(true);
     try {
+      // Verificar permissões
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
-        Alert.alert('Permissão Negada', 'É necessário permitir acesso à galeria para alterar a foto do perfil.');
+        Alert.alert(
+          'Permissão Necessária',
+          'É necessário permitir acesso à galeria para alterar a foto do perfil.'
+        );
         return;
       }
-      
+
+      // Selecionar imagem
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
         base64: false,
       });
-      
-      if (!result.canceled && result.assets && result.assets[0]) {
-        console.log('✅ [AdminProfile] Imagem selecionada:', result.assets[0].uri);
-        setFormData({ ...formData, avatar_url: result.assets[0].uri });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
       }
+
+      const photoUri = result.assets[0].uri;
+      console.log('� [AdminProfile] Foto selecionada:', photoUri);
+
+      // Fazer upload da imagem
+      const uploadedUrl = await uploadPhotoToStorage(photoUri);
       
+      if (uploadedUrl) {
+        // Atualizar o avatar_url no banco de dados
+        const { error } = await supabase
+          .from('admin_profiles')
+          .update({ avatar_url: uploadedUrl } as any)
+          .eq('user_id', user.id as any);
+
+        if (error) {
+          console.error('❌ [AdminProfile] Erro ao atualizar avatar no banco:', error);
+          Alert.alert('Erro', 'Não foi possível atualizar a foto no perfil');
+          return;
+        }
+
+        setFormData({ ...formData, avatar_url: uploadedUrl });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', 'Não foi possível fazer upload da foto');
+      }
     } catch (error: any) {
-      console.error('❌ [AdminProfile] Erro ao selecionar imagem:', error);
-      Alert.alert('Erro', 'Falha ao selecionar imagem');
+      console.error('❌ [AdminProfile] Erro no upload da foto:', error);
+      Alert.alert('Erro', 'Erro interno ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
     }
+  };
+
+  const handleRemovePhoto = async () => {
+    // Obter usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id || !formData.avatar_url) return;
+
+    Alert.alert(
+      'Remover Foto',
+      'Tem certeza que deseja remover sua foto de perfil?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            setPhotoUploading(true);
+            try {
+              // Atualizar o avatar_url no banco de dados
+              const { error } = await supabase
+                .from('admin_profiles')
+                .update({ avatar_url: null } as any)
+                .eq('user_id', user.id as any);
+
+              if (error) {
+                console.error('❌ [AdminProfile] Erro ao remover avatar do banco:', error);
+                Alert.alert('Erro', 'Não foi possível remover a foto do perfil');
+                return;
+              }
+
+              setFormData({ ...formData, avatar_url: '' });
+              Alert.alert('Sucesso', 'Foto removida com sucesso!');
+            } catch (error: any) {
+              console.error('❌ [AdminProfile] Erro ao remover foto:', error);
+              Alert.alert('Erro', 'Erro interno ao remover foto');
+            } finally {
+              setPhotoUploading(false);
+            }
+          },
+        },
+      ]
+    );
   };
   
   const handleDeleteProfile = async () => {
@@ -543,9 +691,29 @@ export default function AdminProfilePage() {
                 </View>
               )}
               {isEditing && (
-                <TouchableOpacity style={styles.changePhotoButton} onPress={handleImagePicker}>
-                  <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity 
+                    style={[styles.changePhotoButton, photoUploading && styles.disabledButton]} 
+                    onPress={handleImagePicker}
+                    disabled={photoUploading}
+                  >
+                    {photoUploading ? (
+                      <ActivityIndicator size="small" color="#666" />
+                    ) : (
+                      <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
+                    )}
+                  </TouchableOpacity>
+                  
+                  {formData.avatar_url && (
+                    <TouchableOpacity 
+                      style={[styles.removePhotoButton, photoUploading && styles.disabledButton]} 
+                      onPress={handleRemovePhoto}
+                      disabled={photoUploading}
+                    >
+                      <Text style={styles.removePhotoText}>🗑️ Remover Foto</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
 
@@ -568,9 +736,9 @@ export default function AdminProfilePage() {
                 <Text style={styles.label}>E-mail</Text>
                 {isEditing ? (
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, styles.readOnlyInput]}
                     value={formData.email}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
+                    editable={false}
                     placeholder="Digite seu e-mail"
                     keyboardType="email-address"
                   />
@@ -800,22 +968,6 @@ export default function AdminProfilePage() {
             )}
 
             <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Ionicons name="notifications" size={20} color="#666" />
-              <Text style={styles.actionButtonText}>Configurações de Notificação</Text>
-              <Text style={styles.actionButtonArrow}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}>
-              <Ionicons name="shield" size={20} color="#666" />
-              <Text style={styles.actionButtonText}>Privacidade e Segurança</Text>
-              <Text style={styles.actionButtonArrow}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#ffebee' }]}
               onPress={handleDeleteProfile}>
               <Ionicons name="trash" size={20} color="#f44336" />
@@ -954,6 +1106,11 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+    color: '#666',
   },
   textArea: {
     height: 80,
@@ -1124,5 +1281,17 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#6c757d',
     opacity: 0.6,
+  },
+  removePhotoButton: {
+    backgroundColor: '#f44336',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  removePhotoText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

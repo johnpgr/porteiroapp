@@ -50,6 +50,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [empresaSelecionada, setEmpresaSelecionada] = useState<(typeof empresasEntrega)[0] | null>(
     null
   );
@@ -151,6 +152,23 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
     </View>
   );
 
+  // Função para agrupar apartamentos por andar
+  const groupApartmentsByFloor = () => {
+    const grouped = availableApartments.reduce((acc, apartment) => {
+      const floor = apartment.floor || 0;
+      if (!acc[floor]) {
+        acc[floor] = [];
+      }
+      acc[floor].push(apartment);
+      return acc;
+    }, {} as Record<number, typeof availableApartments>);
+    
+    return Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(floor => ({ floor, apartments: grouped[floor] }));
+  };
+
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
@@ -168,29 +186,51 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         </View>
       ) : (
         <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.apartmentsGrid}>
-            {availableApartments.map((apartment) => (
+          {groupApartmentsByFloor().map(({ floor, apartments }) => (
+            <View key={floor} style={styles.floorSection}>
               <TouchableOpacity
-                key={apartment.id}
                 style={[
-                  styles.apartmentButton,
-                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                  styles.floorButton,
+                  selectedFloor === floor && styles.floorButtonSelected,
                 ]}
                 onPress={() => {
-                  if (!apartment.id) {
-                    Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
-                    return;
-                  }
-                  setSelectedApartment(apartment);
-                  setApartamento(apartment.number);
-                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                  setCurrentStep('empresa');
+                  setSelectedFloor(selectedFloor === floor ? null : floor);
                 }}>
-                <Text style={styles.apartmentNumber}>{apartment.number}</Text>
-                <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+                <Text style={styles.floorButtonText}>
+                  {floor === 0 ? 'Térreo' : `${floor}º Andar`} ({apartments?.length || 0} apts)
+                </Text>
+                <Text style={styles.floorButtonIcon}>
+                  {selectedFloor === floor ? '▼' : '▶'}
+                </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              
+              {selectedFloor === floor && (
+                <View style={styles.apartmentsGrid}>
+                  {apartments.map((apartment) => (
+                    <TouchableOpacity
+                      key={apartment.id}
+                      style={[
+                        styles.apartmentButton,
+                        selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                      ]}
+                      onPress={() => {
+                        if (!apartment.id) {
+                          Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+                          return;
+                        }
+                        setSelectedApartment(apartment);
+                        setApartamento(apartment.number);
+                        console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
+                        setCurrentStep('empresa');
+                      }}>
+                      <Text style={styles.apartmentNumber}>{apartment.number}</Text>
+                      <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
         </ScrollView>
       )}
     </View>
@@ -374,8 +414,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                           setIsUploadingPhoto(true);
                           console.log('🎯 TESTE: Iniciando captura de foto...');
                           const photo = await cameraRef.current.takePictureAsync({
-                            quality: 0.8,
-                            base64: true,
+                            quality: 0.8
                           });
                           
                           if (photo?.uri) {
@@ -386,6 +425,9 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                             });
                             setPhotoUri(photo.uri);
                             setFotoTirada(true);
+
+                            // Pequena espera para garantir que o arquivo foi totalmente gravado antes do upload
+                            await new Promise(resolve => setTimeout(resolve, 200));
                             
                             // Teste simples primeiro
                             console.log('🎯 TESTE: Verificando se a função uploadDeliveryPhoto existe:', typeof uploadDeliveryPhoto);
@@ -405,7 +447,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                                 console.log('🎯 TESTE: PhotoUrl state atualizado para:', uploadResult.url);
                               } else {
                                 console.error('🎯 TESTE: Erro no upload:', uploadResult.error);
-                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error}`);
+                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
                                 setFotoTirada(false);
                                 setPhotoUri(null);
                               }
@@ -860,13 +902,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   apartmentsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
     gap: 15,
   },
   apartmentButton: {
-    width: '48%',
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
@@ -1391,5 +1431,37 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
+  },
+  floorSection: {
+    marginBottom: 20,
+  },
+  floorButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    marginBottom: 10,
+  },
+  floorButtonSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
+  },
+  floorButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  floorButtonIcon: {
+    fontSize: 16,
+    color: '#666',
   },
 });

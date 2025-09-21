@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import BottomNav from '~/components/BottomNav';
 
@@ -50,14 +50,96 @@ interface Person {
   resident_id?: string;
 }
 
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+  type: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other';
+  apartment_id: string;
+  created_at: string;
+}
+
 const relationOptions = {
-  familiar: ['Cônjuge', 'Filho(a)', 'Pai/Mãe', 'Irmão/Irmã', 'Outro familiar'],
+  familiar: ['Cônjuge', 'Familia', 'Funcionário'],
   funcionario: ['Empregada doméstica', 'Babá', 'Cuidador(a)', 'Outro funcionário'],
   autorizado: ['Amigo', 'Prestador de serviço', 'Outro autorizado']
 };
 
+// Função utilitária para formatação de placa de veículo
+const formatLicensePlate = (input: string): string => {
+  // Remove todos os caracteres que não são letras ou números
+  const cleanInput = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  
+  if (cleanInput.length === 0) return '';
+  
+  // Detecta o formato baseado no padrão de entrada
+  if (cleanInput.length <= 3) {
+    // Apenas letras iniciais
+    return cleanInput.replace(/[^A-Z]/g, '');
+  } else if (cleanInput.length === 4) {
+    // 3 letras + 1 caractere - pode ser formato antigo (número) ou Mercosul (número)
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const fourthChar = cleanInput.slice(3, 4);
+    return `${letters}-${fourthChar}`;
+  } else if (cleanInput.length === 5) {
+    // Detecta se é formato Mercosul (AAA-1A) ou antigo (AAA-11)
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const fourthChar = cleanInput.slice(3, 4);
+    const fifthChar = cleanInput.slice(4, 5);
+    
+    // Se o 5º caractere é letra, é formato Mercosul
+    if (/[A-Z]/.test(fifthChar)) {
+      return `${letters}-${fourthChar}${fifthChar}`;
+    } else {
+      // Formato antigo
+      return `${letters}-${fourthChar}${fifthChar}`;
+    }
+  } else if (cleanInput.length === 6) {
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const numbers = cleanInput.slice(3, 6);
+    
+    // Verifica se é formato Mercosul (AAA-1A1)
+    if (/^[0-9][A-Z][0-9]$/.test(numbers)) {
+      return `${letters}-${numbers}`;
+    } else {
+      // Formato antigo (AAA-111)
+      return `${letters}-${numbers.replace(/[^0-9]/g, '')}`;
+    }
+  } else if (cleanInput.length >= 7) {
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const remaining = cleanInput.slice(3);
+    
+    // Verifica se é formato Mercosul (AAA-1A11)
+    if (/^[0-9][A-Z][0-9]{2}/.test(remaining)) {
+      return `${letters}-${remaining.slice(0, 4)}`;
+    } else {
+      // Formato antigo (AAA-1111)
+      const numbers = remaining.replace(/[^0-9]/g, '').slice(0, 4);
+      return `${letters}-${numbers}`;
+    }
+  }
+  
+  return cleanInput;
+};
+
+// Função para validar placa brasileira
+const isValidLicensePlate = (plate: string): boolean => {
+  const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  
+  // Formato antigo: AAA1111
+  const oldFormat = /^[A-Z]{3}[0-9]{4}$/.test(cleanPlate);
+  
+  // Formato Mercosul: AAA1A11
+  const mercosulFormat = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate);
+  
+  return oldFormat || mercosulFormat;
+};
+
 export default function CadastroTab() {
   const { user } = useAuth();
+  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   
   // Estados do formulário
   const [showModal, setShowModal] = useState(false);
@@ -66,6 +148,19 @@ export default function CadastroTab() {
   const [people, setPeople] = useState<Person[]>([]);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [userIsOwner, setUserIsOwner] = useState(false);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  
+  // Estados para veículos
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [newVehicle, setNewVehicle] = useState({
+    license_plate: '',
+    brand: '',
+    model: '',
+    color: '',
+    type: '' as 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other' | ''
+  });
   
   // Estados do formulário
   const [formData, setFormData] = useState<PersonForm>({
@@ -81,6 +176,7 @@ export default function CadastroTab() {
   useEffect(() => {
     if (user?.building_id) {
       fetchPeople();
+      fetchVehicles();
     }
   }, [user?.building_id]);
 
@@ -204,6 +300,123 @@ export default function CadastroTab() {
     }
   };
 
+  const fetchVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      
+      if (!user?.id) {
+        console.error('User ID não encontrado');
+        return;
+      }
+
+      // Buscar apartment_id do usuário
+      const { data: userResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (residentError || !userResident?.apartment_id) {
+        console.error('Erro ao buscar apartment_id do usuário:', residentError);
+        return;
+      }
+
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('apartment_id', userResident.apartment_id)
+        .order('created_at', { ascending: false });
+
+      if (vehiclesError) {
+        console.error('Erro ao buscar veículos:', vehiclesError);
+        return;
+      }
+
+      setVehicles(vehiclesData || []);
+    } catch (error) {
+      console.error('Erro ao buscar veículos:', error);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const handleAddVehicle = async () => {
+    try {
+      setLoading(true);
+      
+      if (!user?.id) {
+        alert('Usuário não encontrado');
+        return;
+      }
+
+      if (!newVehicle.license_plate.trim()) {
+        alert('Placa do veículo é obrigatória');
+        return;
+      }
+
+      if (!newVehicle.type) {
+        alert('Tipo do veículo é obrigatório');
+        return;
+      }
+
+      // Buscar apartment_id do usuário
+      const { data: userResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (residentError || !userResident?.apartment_id) {
+        console.error('Erro ao buscar apartment_id do usuário:', residentError);
+        alert('Erro ao encontrar informações do apartamento. Tente novamente.');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('vehicles')
+        .insert({
+          license_plate: newVehicle.license_plate.trim().toUpperCase(),
+          brand: newVehicle.brand.trim() || null,
+          model: newVehicle.model.trim() || null,
+          color: newVehicle.color.trim() || null,
+          type: newVehicle.type,
+          apartment_id: userResident.apartment_id
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao cadastrar veículo:', error);
+        alert('Erro ao cadastrar veículo. Tente novamente.');
+        return;
+      }
+
+      // Atualizar lista de veículos
+      setVehicles(prev => [data, ...prev]);
+      
+      // Limpar formulário e fechar modal
+      resetVehicleForm();
+      setShowVehicleForm(false);
+      
+      alert('Veículo cadastrado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao cadastrar veículo:', error);
+      alert('Erro ao cadastrar veículo. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetVehicleForm = () => {
+    setNewVehicle({
+      license_plate: '',
+      brand: '',
+      model: '',
+      color: '',
+      type: ''
+    });
+  };
+
   // Função para validar email único
   const validateUniqueEmail = async (email: string, excludeId?: string) => {
     const { data, error } = await supabase
@@ -217,6 +430,53 @@ export default function CadastroTab() {
   };
 
   // Função para cadastrar nova pessoa
+  // Função para validar email
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  // Função para validar CPF
+  const isValidCPF = (cpf: string): boolean => {
+    if (!cpf) return true; // CPF é opcional
+    
+    // Remove caracteres não numéricos
+    const numericOnly = cpf.replace(/\D/g, '');
+    
+    // Verifica se tem exatamente 11 dígitos
+    if (numericOnly.length !== 11) return false;
+    
+    // Verifica se todos os dígitos são iguais (CPF inválido)
+    if (/^(\d)\1{10}$/.test(numericOnly)) return false;
+    
+    // Validação do primeiro dígito verificador
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(numericOnly.charAt(i)) * (10 - i);
+    }
+    let remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numericOnly.charAt(9))) return false;
+    
+    // Validação do segundo dígito verificador
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(numericOnly.charAt(i)) * (11 - i);
+    }
+    remainder = (sum * 10) % 11;
+    if (remainder === 10 || remainder === 11) remainder = 0;
+    if (remainder !== parseInt(numericOnly.charAt(10))) return false;
+    
+    return true;
+  };
+
+  // Função para validar telefone
+  const isValidPhone = (phone: string): boolean => {
+    if (!phone) return true; // Telefone é opcional
+    const numericOnly = phone.replace(/\D/g, '');
+    return numericOnly.length >= 10 && numericOnly.length <= 11;
+  };
+
   const handleSubmit = async () => {
     if (!user?.id) {
       Alert.alert('Erro', 'Informações do usuário não encontradas');
@@ -233,12 +493,27 @@ export default function CadastroTab() {
       Alert.alert('Erro', 'Email é obrigatório');
       return;
     }
-    
-    if (!formData.relation.trim()) {
-      Alert.alert('Erro', 'Relação é obrigatória');
+
+    if (!isValidEmail(formData.email)) {
+      Alert.alert('Erro', 'Por favor, insira um email válido');
       return;
     }
 
+    if (!formData.person_type) {
+      Alert.alert('Erro', 'Tipo de pessoa é obrigatório');
+      return;
+    }
+
+    if (formData.cpf && !isValidCPF(formData.cpf)) {
+      Alert.alert('Erro', 'CPF inválido. Verifique os dados inseridos.');
+      return;
+    }
+
+    if (formData.phone && !isValidPhone(formData.phone)) {
+      Alert.alert('Erro', 'Telefone deve ter entre 10 e 11 dígitos');
+      return;
+    }
+    
     try {
       setLoading(true);
       
@@ -511,20 +786,32 @@ export default function CadastroTab() {
       <View style={styles.container}>
         <ScrollView style={styles.content}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas</Text>
+            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas e Veículos</Text>
             <Text style={styles.sectionDescription}>
-              Cadastre familiares, funcionários e pessoas autorizadas
+              Cadastre familiares, funcionários, pessoas autorizadas e veículos
             </Text>
 
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => {
-                resetForm();
-                setShowModal(true);
-              }}>
-              <Ionicons name="person-add" size={24} color="#fff" />
-              <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.halfButton]}
+                onPress={() => {
+                  resetForm();
+                  setShowModal(true);
+                }}>
+                <Ionicons name="person-add" size={18} color="#fff" />
+                <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, styles.halfButton]}
+                onPress={() => {
+                  resetVehicleForm();
+                  setShowVehicleForm(true);
+                }}>
+                <Ionicons name="car" size={18} color="#fff" />
+                <Text style={styles.primaryButtonText}>Cadastrar Novo Veículo</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.section}>
@@ -596,6 +883,47 @@ export default function CadastroTab() {
               </>
             )}
           </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🚙 Veículos Cadastrados</Text>
+            
+            {loadingVehicles ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4CAF50" />
+                <Text style={styles.loadingText}>Carregando veículos...</Text>
+              </View>
+            ) : (
+              <>
+                {vehicles.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Nenhum veículo cadastrado</Text>
+                  </View>
+                ) : (
+                  vehicles.map((vehicle) => (
+                    <View key={vehicle.id} style={styles.vehicleCard}>
+                      <Text style={styles.vehiclePlate}>{formatLicensePlate(vehicle.license_plate || '')}</Text>
+                      <Text style={styles.vehicleInfo}>
+                        {vehicle.type === 'car' ? '🚗' : vehicle.type === 'motorcycle' ? '🏍️' : '🚚'} 
+                        {vehicle.type === 'car' ? 'Carro' : 
+                         vehicle.type === 'motorcycle' ? 'Moto' : 
+                         vehicle.type === 'truck' ? 'Caminhão' : 
+                         vehicle.type === 'van' ? 'Van' : 
+                         vehicle.type === 'bus' ? 'Ônibus' : 'Outro'}
+                      </Text>
+                      {(vehicle.brand || vehicle.model) && (
+                        <Text style={styles.vehicleDetails}>
+                          {vehicle.brand} {vehicle.model}
+                        </Text>
+                      )}
+                      {vehicle.color && (
+                        <Text style={styles.vehicleColor}>🎨 {vehicle.color}</Text>
+                      )}
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+          </View>
         </ScrollView>
         
         {/* Modal de Cadastro */}
@@ -610,24 +938,17 @@ export default function CadastroTab() {
         >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity 
+            <Text style={styles.modalTitle}>
+              {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => {
                 resetForm();
                 setShowModal(false);
               }}
             >
-              <Text style={styles.cancelButton}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
-            </Text>
-            <TouchableOpacity 
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              <Text style={[styles.saveButton, loading && styles.disabledButton]}>
-                {loading ? 'Salvando...' : 'Salvar'}
-              </Text>
+              <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -674,34 +995,42 @@ export default function CadastroTab() {
             {/* Tipo de Pessoa */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Tipo de Pessoa *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.person_type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, person_type: value, relation: '' }))}
-                  enabled={!loading}
-                >
-                  <Picker.Item label="Familiar" value="familiar" />
-                  <Picker.Item label="Funcionário" value="funcionario" />
-                  <Picker.Item label="Autorizado" value="autorizado" />
-                </Picker>
-              </View>
-            </View>
-
-            {/* Relação */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Relação *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.relation}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, relation: value }))}
-                  enabled={!loading}
-                >
-                  <Picker.Item label="Selecione a relação" value="" />
-                  {relationOptions[formData.person_type].map((option) => (
-                    <Picker.Item key={option} label={option} value={option} />
-                  ))}
-                </Picker>
-              </View>
+              <TouchableOpacity 
+                style={styles.dropdownButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Selecione o Tipo de Pessoa',
+                    '',
+                    [
+                      {
+                        text: 'Familiar',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'familiar', relation: '' }))
+                      },
+                      {
+                        text: 'Funcionário',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'funcionario', relation: '' }))
+                      },
+                      {
+                        text: 'Autorizado',
+                        onPress: () => setFormData(prev => ({ ...prev, person_type: 'autorizado', relation: '' }))
+                      },
+                      {
+                        text: 'Cancelar',
+                        onPress: () => {}
+                      }
+                    ],
+                    { cancelable: true }
+                  );
+                }}
+                disabled={loading}
+              >
+                <Text style={[styles.dropdownText, !formData.person_type && styles.placeholderText]}>
+                  {formData.person_type === 'familiar' ? 'Familiar' :
+                   formData.person_type === 'funcionario' ? 'Funcionário' :
+                   formData.person_type === 'autorizado' ? 'Autorizado' : 'Selecione o tipo'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
             </View>
 
             {/* CPF */}
@@ -734,40 +1063,251 @@ export default function CadastroTab() {
               />
             </View>
 
-            {/* Checkboxes */}
-            <View style={styles.checkboxGroup}>
-              <TouchableOpacity 
-                style={styles.checkboxRow}
-                onPress={() => setFormData(prev => ({ ...prev, is_app_user: !prev.is_app_user }))}
+          </ScrollView>
+          
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                resetForm();
+                setShowModal(false);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabledButton]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Salvando...' : 'Salvar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Cadastro de Veículo */}
+      <Modal
+        visible={showVehicleForm}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          resetVehicleForm();
+          setShowVehicleForm(false);
+        }}
+      >
+        <View style={styles.vehicleForm}>
+          <View style={styles.vehicleHeader}>
+            <Text style={styles.vehicleTitle}>Cadastrar Novo Veículo</Text>
+            <TouchableOpacity
+              style={styles.closeButtonContainer}
+              onPress={() => {
+                resetVehicleForm();
+                setShowVehicleForm(false);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.vehicleContent}>
+            {/* Placa do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Placa do Veículo *</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.license_plate}
+                onChangeText={(text) => {
+                  const formattedPlate = formatLicensePlate(text);
+                  setNewVehicle(prev => ({ ...prev, license_plate: formattedPlate }));
+                }}
+                placeholder="ABC-1234 ou ABC-1A23"
+                autoCapitalize="characters"
+                maxLength={8}
+                editable={!loading}
+              />
+            </View>
+
+            {/* Marca do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Marca do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.brand}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, brand: text }))}
+                placeholder="Ex: Toyota, Honda, Ford"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Modelo do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Modelo do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.model}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, model: text }))}
+                placeholder="Ex: Corolla, Civic, Focus"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Cor do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Cor do Veículo</Text>
+              <TextInput
+                style={styles.input}
+                value={newVehicle.color}
+                onChangeText={(text) => setNewVehicle(prev => ({ ...prev, color: text }))}
+                placeholder="Ex: Branco, Preto, Prata"
+                editable={!loading}
+              />
+            </View>
+
+            {/* Tipo do Veículo */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tipo do Veículo *</Text>
+              <TouchableOpacity
+                style={styles.dropdownButton}
+                onPress={() => {
+                  Alert.alert(
+                    'Selecionar Tipo',
+                    'Escolha o tipo do veículo:',
+                    [
+                      { text: 'Carro', onPress: () => setNewVehicle(prev => ({ ...prev, type: 'car' })) },
+                      { text: 'Moto', onPress: () => setNewVehicle(prev => ({ ...prev, type: 'motorcycle' })) },
+                      { text: 'Cancelar', style: 'cancel' }
+                    ]
+                  );
+                }}
                 disabled={loading}
               >
-                <View style={[styles.checkbox, formData.is_app_user && styles.checkboxChecked]}>
-                  {formData.is_app_user && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>É usuário do aplicativo</Text>
+                <Text style={newVehicle.type ? styles.dropdownText : styles.placeholderText}>
+                  {newVehicle.type ? 
+                    (newVehicle.type === 'car' ? 'Carro' : 
+                     newVehicle.type === 'motorcycle' ? 'Moto' : 
+                     newVehicle.type === 'truck' ? 'Caminhão' : 
+                     newVehicle.type === 'van' ? 'Van' : 
+                     newVehicle.type === 'bus' ? 'Ônibus' : 'Outro') : 
+                    'Selecione o tipo do veículo'
+                  }
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
             </View>
           </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                resetVehicleForm();
+                setShowVehicleForm(false);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.disabledButton]}
+              onPress={handleAddVehicle}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Salvando...' : 'Salvar Veículo'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
   );
   };
 
+  // Função para renderizar o cabeçalho
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
+        <Ionicons name="warning" size={24} color="#fff" />
+      </TouchableOpacity>
+
+      <View style={styles.headerCenter}>
+        <Text style={styles.title}>🏠 Morador</Text>
+        <Text style={styles.subtitle}>
+          {apartmentLoading ? 'Carregando...' : 
+           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
+        </Text>
+      </View>
+
+      <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
+        <Ionicons name="person-circle" size={32} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Modal do menu do avatar
+  const renderAvatarMenu = () => (
+    <Modal
+      visible={showAvatarMenu}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowAvatarMenu(false)}
+    >
+      <TouchableOpacity 
+        style={styles.avatarMenuOverlay} 
+        activeOpacity={1} 
+        onPress={() => setShowAvatarMenu(false)}
+      >
+        <View style={styles.avatarMenuContainer}>
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              router.push('/morador/profile');
+            }}
+          >
+            <Ionicons name="person" size={20} color="#333" />
+            <Text style={styles.avatarMenuText}>Perfil</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              router.push('/morador/configuracoes');
+            }}
+          >
+            <Ionicons name="settings" size={20} color="#333" />
+            <Text style={styles.avatarMenuText}>Configurações</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.avatarMenuSeparator} />
+          
+          <TouchableOpacity 
+            style={styles.avatarMenuItem}
+            onPress={() => {
+              setShowAvatarMenu(false);
+              // Implementar logout
+            }}
+          >
+            <Ionicons name="log-out" size={20} color="#f44336" />
+            <Text style={[styles.avatarMenuText, { color: '#f44336' }]}>Sair</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <SafeAreaView style={styles.container}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.push('/morador')}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👨‍👩‍👧‍👦 Cadastro</Text>
-            <View style={styles.placeholder} />
-          </View>
+          {renderHeader()}
           {renderCadastroTab()}
         </View>
         <BottomNav activeTab="cadastro" />
+        {renderAvatarMenu()}
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -781,6 +1321,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -788,15 +1330,72 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 8,
   },
-  title: {
+   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    flex: 1,
-    textAlign: 'center',
+    marginBottom: 1,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
   },
   placeholder: {
     width: 40,
+  },
+  alertButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    marginTop: 2,
+  },
+  avatarButton: {
+    padding: 4,
+  },
+  avatarMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 80,
+    paddingRight: 20,
+  },
+  avatarMenuContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  avatarMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  avatarMenuText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
+  },
+  avatarMenuSeparator: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 4,
   },
   content: {
     flex: 1,
@@ -822,14 +1421,14 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: '#4CAF50',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
     marginLeft: 8,
   },
@@ -933,19 +1532,54 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#666',
+    fontWeight: 'bold',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    marginBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  submitButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    flex: 1,
+    marginLeft: 8,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    textAlign: 'center',
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
   },
   cancelButton: {
-    color: '#666',
-    fontSize: 16,
-  },
-  saveButton: {
-    color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: 'bold',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    flex: 1,
+    marginRight: 8,
   },
   disabledButton: {
     color: '#ccc',
@@ -973,11 +1607,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  pickerContainer: {
+  dropdownButton: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
+    padding: 12,
     backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#999',
   },
   checkboxGroup: {
     marginTop: 16,
@@ -1009,5 +1656,74 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     color: '#333',
+  },
+  // Estilos para veículos
+  vehicleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  vehiclePlate: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vehicleInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  vehicleDetails: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  vehicleColor: {
+    fontSize: 14,
+    color: '#666',
+  },
+  // Estilos para modal de veículo
+  vehicleForm: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
+  },
+  vehicleTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButtonContainer: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  vehicleContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfButton: {
+    flex: 1,
   },
 });

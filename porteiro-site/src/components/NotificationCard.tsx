@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, User, Package, Car, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Clock, User, X, Package, Phone } from 'lucide-react';
 
 interface PendingNotification {
   id: string;
@@ -30,8 +30,8 @@ interface PendingNotification {
 
 interface NotificationResponse {
   action: 'approve' | 'reject';
+  delivery_destination?: 'portaria' | 'elevador';
   reason?: string;
-  delivery_destination?: 'portaria' | 'elevador' | 'apartamento';
 }
 
 interface NotificationCardProps {
@@ -41,207 +41,278 @@ interface NotificationCardProps {
 
 const NotificationCard: React.FC<NotificationCardProps> = ({ notification, onRespond }) => {
   const [responding, setResponding] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
-  const getIcon = () => {
-    switch (notification.entry_type) {
-      case 'visitor':
-        return <User className="w-5 h-5 text-blue-500" />;
-      case 'delivery':
-        return <Package className="w-5 h-5 text-green-500" />;
-      case 'vehicle':
-        return <Car className="w-5 h-5 text-purple-500" />;
-      default:
-        return <AlertCircle className="w-5 h-5 text-gray-500" />;
-    }
-  };
-
-  const getTitle = () => {
-    switch (notification.entry_type) {
-      case 'visitor':
-        return `Visitante: ${notification.guest_name || notification.visitors?.name || 'Não identificado'}`;
-      case 'delivery':
-        return `Entrega de: ${notification.delivery_sender || 'Remetente não informado'}`;
-      case 'vehicle':
-        return `Veículo: ${notification.license_plate || 'Placa não informada'}`;
-      default:
-        return 'Notificação';
-    }
-  };
-
-  const getDetails = () => {
-    switch (notification.entry_type) {
-      case 'visitor':
-        return notification.purpose ? `Motivo: ${notification.purpose}` : 'Sem motivo informado';
-      case 'delivery':
-        return notification.delivery_description || 'Descrição não informada';
-      case 'vehicle':
-        return `${notification.vehicle_brand || ''} ${notification.vehicle_model || ''} ${notification.vehicle_color || ''}`.trim() || 'Detalhes não informados';
-      default:
-        return '';
-    }
-  };
-
-  const formatTime = (dateString: string) => {
+  const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-
-    if (diffInMinutes < 1) return 'Agora';
-    if (diffInMinutes < 60) return `${diffInMinutes}min atrás`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h atrás`;
-    return `${Math.floor(diffInMinutes / 1440)}d atrás`;
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const handleApprove = async () => {
-    if (notification.entry_type === 'delivery') {
-      setShowDeliveryModal(true);
-    } else {
-      await handleResponse({ action: 'approve' });
-    }
-  };
-
-  const handleReject = () => {
-    setShowRejectModal(true);
-  };
-
-  const handleResponse = async (response: NotificationResponse) => {
+  const handleApprove = async (destination: 'portaria' | 'elevador') => {
+    setResponding(true);
     try {
-      setResponding(true);
-      await onRespond(notification.id, response);
-      setShowRejectModal(false);
-      setShowDeliveryModal(false);
-      setRejectReason('');
-    } catch (error) {
-      console.error('Erro ao responder notificação:', error);
+      await onRespond(notification.id, {
+        action: 'approve',
+        delivery_destination: destination
+      });
     } finally {
       setResponding(false);
     }
   };
 
-  const handleDeliveryDestination = async (destination: 'portaria' | 'elevador') => {
-    await handleResponse({ 
-      action: 'approve', 
-      delivery_destination: destination 
-    });
-  };
-
-  const handleRejectSubmit = async () => {
-    if (!rejectReason.trim()) return;
-    await handleResponse({ 
-      action: 'reject', 
-      reason: rejectReason.trim() 
-    });
+  const handleReject = async (reason: string) => {
+    setResponding(true);
+    try {
+      await onRespond(notification.id, {
+        action: 'reject',
+        reason: reason || 'Rejeitado pelo morador'
+      });
+      setShowRejectModal(false);
+      setRejectReason('');
+    } finally {
+      setResponding(false);
+    }
   };
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center space-x-3">
-            {getIcon()}
-            <div>
-              <h3 className="font-semibold text-gray-900 text-sm">
-                {getTitle()}
-              </h3>
-              <p className="text-xs text-gray-500 flex items-center mt-1">
-                <Clock className="w-3 h-3 mr-1" />
-                {formatTime(notification.notification_sent_at)}
-              </p>
+      <div className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              {notification.entry_type === 'delivery' ? (
+                <Package className="w-4 h-4 text-orange-500" />
+              ) : (
+                <User className="w-4 h-4 text-gray-500" />
+              )}
+              <span className="font-medium text-gray-900">{notification.guest_name || notification.visitors?.name || 'Visitante'}</span>
+              <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">
+                {notification.entry_type === 'delivery' ? 'Entrega' : 'Visita'}
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">{notification.purpose}</p>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDate(notification.created_at)}
+              </span>
+              {notification.visitors?.phone && (
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {notification.visitors.phone}
+                </span>
+              )}
             </div>
           </div>
-        </div>
-
-        <div className="mb-4">
-          <p className="text-sm text-gray-600">{getDetails()}</p>
-          {notification.delivery_tracking_code && (
-            <p className="text-xs text-gray-500 mt-1">
-              Código: {notification.delivery_tracking_code}
-            </p>
-          )}
-        </div>
-
-        <div className="flex space-x-2">
-          <button
-            onClick={handleApprove}
-            disabled={responding}
-            className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center"
-          >
-            <CheckCircle className="w-4 h-4 mr-1" />
-            {responding ? 'Processando...' : 'Aprovar'}
-          </button>
-          <button
-            onClick={handleReject}
-            disabled={responding}
-            className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center"
-          >
-            <XCircle className="w-4 h-4 mr-1" />
-            Rejeitar
-          </button>
+          <div className="flex flex-col gap-2 ml-4">
+            {notification.entry_type === 'delivery' ? (
+              <>
+                <button 
+                  onClick={() => handleApprove('elevador')}
+                  disabled={responding}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  Subir Elevador
+                </button>
+                <button 
+                  onClick={() => handleApprove('portaria')}
+                  disabled={responding}
+                  className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  Deixar Portaria
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={() => handleApprove('elevador')}
+                disabled={responding}
+                className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                Aprovar
+              </button>
+            )}
+            <button 
+              onClick={() => setShowRejectModal(true)}
+              disabled={responding}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              Rejeitar
+            </button>
+            <button 
+              onClick={() => setShowDetails(true)}
+              className="px-3 py-1 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+            >
+              Detalhes
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Modal de Rejeição */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Motivo da Rejeição</h3>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Digite o motivo da rejeição..."
-              className="w-full p-3 border border-gray-300 rounded-md resize-none h-24 text-sm"
-              maxLength={200}
-            />
-            <div className="flex space-x-3 mt-4">
-              <button
-                onClick={() => setShowRejectModal(false)}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+      {/* Modal de Detalhes */}
+      {showDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {notification.entry_type === 'delivery' ? 'Detalhes da Entrega' : 'Detalhes da Visita'}
+              </h3>
+              <button 
+                onClick={() => setShowDetails(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                Cancelar
+                <X className="w-5 h-5" />
               </button>
-              <button
-                onClick={handleRejectSubmit}
-                disabled={!rejectReason.trim() || responding}
-                className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            </div>
+            
+            <div className="space-y-4">
+              {/* Foto removida temporariamente - não disponível na interface atual */}
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Nome:</label>
+                  <p className="text-gray-900">{notification.guest_name || notification.visitors?.name || 'Visitante'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Documento:</label>
+                  <p className="text-gray-900">{notification.visitors?.document || 'Não informado'}</p>
+                </div>
+                
+                {notification.visitors?.phone && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Telefone:</label>
+                    <p className="text-gray-900">{notification.visitors.phone}</p>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Motivo:</label>
+                  <p className="text-gray-900">{notification.purpose || 'Não informado'}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Data/Hora:</label>
+                  <p className="text-gray-900">{formatDate(notification.created_at)}</p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Tipo:</label>
+                  <p className="text-gray-900">
+                    {notification.entry_type === 'delivery' ? 'Entrega' : 'Visita'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              {notification.entry_type === 'delivery' ? (
+                <>
+                  <button 
+                    onClick={() => {
+                      handleApprove('elevador');
+                      setShowDetails(false);
+                    }}
+                    disabled={responding}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    Subir Elevador
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleApprove('portaria');
+                      setShowDetails(false);
+                    }}
+                    disabled={responding}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    Deixar Portaria
+                  </button>
+                </>
+              ) : (
+                <button 
+                  onClick={() => {
+                    handleApprove('elevador');
+                    setShowDetails(false);
+                  }}
+                  disabled={responding}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  Aprovar Visita
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setShowDetails(false);
+                  setShowRejectModal(true);
+                }}
+                disabled={responding}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
               >
-                {responding ? 'Rejeitando...' : 'Rejeitar'}
+                Rejeitar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Destino da Entrega */}
-      {showDeliveryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Destino da Entrega</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Onde a entrega deve ser deixada?
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => handleDeliveryDestination('portaria')}
-                disabled={responding}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-4 py-3 rounded-md text-sm font-medium transition-colors"
+      {/* Modal de Rejeição */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Rejeitar Solicitação</h3>
+              <button 
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
               >
-                {responding ? 'Processando...' : 'Deixar na Portaria'}
+                <X className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => handleDeliveryDestination('elevador')}
-                disabled={responding}
-                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-4 py-3 rounded-md text-sm font-medium transition-colors"
-              >
-                {responding ? 'Processando...' : 'Enviar pelo Elevador'}
-              </button>
-              <button
-                onClick={() => setShowDeliveryModal(false)}
-                className="w-full bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-3 rounded-md text-sm font-medium transition-colors"
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-gray-600 mb-3">
+                Tem certeza que deseja rejeitar a solicitação de <strong>{notification.guest_name || notification.visitors?.name || 'Visitante'}</strong>?
+              </p>
+              
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo da rejeição (opcional):
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Digite o motivo da rejeição..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason('');
+                }}
+                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
               >
                 Cancelar
+              </button>
+              <button 
+                onClick={() => handleReject(rejectReason)}
+                disabled={responding}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {responding ? 'Rejeitando...' : 'Confirmar Rejeição'}
               </button>
             </div>
           </div>
@@ -252,4 +323,3 @@ const NotificationCard: React.FC<NotificationCardProps> = ({ notification, onRes
 };
 
 export default NotificationCard;
-export type { PendingNotification, NotificationResponse };

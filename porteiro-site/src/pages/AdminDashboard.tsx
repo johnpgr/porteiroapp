@@ -57,9 +57,9 @@ const AdminDashboard: React.FC = () => {
 
       setAdminProfile({
         id: profile.id,
-        full_name: profile.name ?? '',
-        email: profile.email ?? '',
-        admin_type: profile.role ?? ''
+        full_name: profile.name,
+        email: profile.email,
+        admin_type: profile.role
       });
 
       // Carregar prédios gerenciados pelo admin

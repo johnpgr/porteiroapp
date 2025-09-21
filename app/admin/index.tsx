@@ -40,6 +40,9 @@ export default function AdminDashboard() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalActivities, setTotalActivities] = useState(0);
+  const itemsPerPage = 5;
 
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
@@ -47,7 +50,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [currentPage]);
 
   const fetchData = async () => {
     try {
@@ -61,18 +64,47 @@ export default function AdminDashboard() {
 
       // Buscar apenas os prédios gerenciados pelo administrador atual
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
+      const buildingIds = adminBuildings?.map(b => b.id) || [];
+
+      if (buildingIds.length === 0) {
+        console.log('Nenhum prédio encontrado para este administrador');
+        setBuildings([]);
+        setApartments([]);
+        setActivities([]);
+        return;
+      }
 
       const [apartmentsData, activitiesData] = await Promise.all([
-        supabase.from('apartments').select('*').order('number'),
+        supabase
+          .from('apartments')
+          .select('*')
+          .in('building_id', buildingIds)
+          .order('number'),
         supabase
           .from('visitor_logs')
-          .select('*, apartments(number), buildings(name)')
-          .limit(10)
+          .select(`
+            *,
+            visitors(name),
+            apartments!inner(number, building_id),
+            buildings!inner(name)
+          `, { count: 'exact' })
+          .in('building_id', buildingIds)
+          .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
           .order('created_at', { ascending: false }),
       ]);
+      
       setBuildings(adminBuildings || []);
       setApartments(apartmentsData.data || []);
-      setActivities(activitiesData.data || []);
+      setTotalActivities(activitiesData.count || 0);
+      setActivities(
+        (activitiesData.data || []).map((activity) => ({
+          id: activity.id,
+          visitor_name: activity.visitors?.name || 'Não identificado',
+          apartment_number: activity.apartments?.number || 'N/A',
+          building_name: activity.buildings?.name || 'Não identificado',
+          created_at: activity.created_at
+        }))
+      );
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     }
@@ -142,6 +174,14 @@ export default function AdminDashboard() {
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
+        
+        <TouchableOpacity 
+          style={styles.statCard}
+          onPress={() => router.push('/admin/lembretes')}>
+          <Text style={styles.statIcon}>📝</Text>
+          <Text style={styles.statLabel}>Lembretes</Text>
+          <Text style={styles.statDescription}>Gerenciar lembretes</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.activitiesContainer}>
@@ -155,6 +195,28 @@ export default function AdminDashboard() {
             </Text>
           </View>
         ))}
+        
+        {totalActivities > itemsPerPage && (
+          <View style={styles.paginationContainer}>
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+              onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}>
+              <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>Anterior</Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.paginationInfo}>
+              Página {currentPage} de {Math.ceil(totalActivities / itemsPerPage)}
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage >= Math.ceil(totalActivities / itemsPerPage) && styles.paginationButtonDisabled]}
+              onPress={() => setCurrentPage(prev => Math.min(Math.ceil(totalActivities / itemsPerPage), prev + 1))}
+              disabled={currentPage >= Math.ceil(totalActivities / itemsPerPage)}>
+              <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(totalActivities / itemsPerPage) && styles.paginationButtonTextDisabled]}>Próximo</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -200,7 +262,7 @@ export default function AdminDashboard() {
       <SafeAreaView style={styles.container}>
         {renderHeader()}
         {renderContent()}
-        {renderBottomNavigation()}
+        {/* BottomNav fixa é renderizada no layout global */}
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -215,6 +277,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800',
     paddingBottom: 15,
     paddingTop: 15,
+    borderBottomEndRadius: 15,
+    borderBottomStartRadius: 15,
     paddingHorizontal: 20,
     zIndex: 50,
   },
@@ -252,7 +316,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 80,
+    paddingBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -272,10 +336,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  statIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
   statLabel: {
     fontSize: 12,
     color: '#666',
     marginBottom: 10,
+  },
+  statDescription: {
+    fontSize: 10,
+    color: '#999',
+    textAlign: 'center',
   },
   addButton: {
     width: 30,
@@ -559,6 +632,37 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: 14,
     color: '#333',
+    fontWeight: '500',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingHorizontal: 10,
+  },
+  paginationButton: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: '#666',
     fontWeight: '500',
   },
 

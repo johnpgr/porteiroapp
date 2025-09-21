@@ -141,7 +141,8 @@ const TestNotificationButton: React.FC<TestNotificationButtonProps> = ({ style }
 
       // 6. Chamar endpoint WhatsApp
       addLog('📞 Chamando endpoint WhatsApp...');
-      const whatsappResponse = await fetch('http://localhost:3001/api/send-visitor-waiting-notification', {
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-visitor-waiting-notification`;
+      const whatsappResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

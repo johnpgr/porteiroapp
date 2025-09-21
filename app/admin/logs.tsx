@@ -7,9 +7,8 @@ import {
   ScrollView,
   TextInput,
   SafeAreaView,
-  Alert,
+  Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { router } from 'expo-router';
 
@@ -26,7 +25,7 @@ interface Log {
   building_name: string;
   log_time: string;
   tipo_log: 'IN' | 'OUT';
-  visit_session_id: string;
+  visit_session_id: string | null;
   purpose?: string;
   notification_status: string;
   authorized_by_name?: string;
@@ -89,11 +88,10 @@ const validateDate = (dateString: string): boolean => {
 };
 
 export default function SystemLogs() {
-  const [activeTab, setActiveTab] = useState('logs');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<Log[]>([]);
-  const [logSearchType, setLogSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
+  const [logSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
   const [logMovementFilter, setLogMovementFilter] = useState('all');
@@ -106,6 +104,12 @@ export default function SystemLogs() {
   const [endTimeInput, setEndTimeInput] = useState('');
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
+  // Estados de paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  
+  // Estados dos modais dos pickers
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -122,28 +126,39 @@ export default function SystemLogs() {
     logs,
   ]);
 
+  // Função helper para obter label do prédio
+  const getBuildingLabel = (buildingName: string) => {
+    if (!buildingName) return 'Todos os Prédios';
+    return buildingName;
+  };
+
   const fetchData = async () => {
     try {
+      console.log('🔍 Iniciando busca de logs...');
+      
       // Obter o administrador atual
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
-        console.error('Administrador não encontrado');
+        console.error('❌ Administrador não encontrado');
         router.push('/');
         return;
       }
+      console.log('👤 Admin atual:', currentAdmin.id);
 
       // Buscar apenas os prédios gerenciados pelo administrador atual
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
       const buildingIds = adminBuildings?.map(b => b.id) || [];
+      console.log('🏢 Prédios do admin:', buildingIds);
 
       if (buildingIds.length === 0) {
-        console.log('Nenhum prédio encontrado para este administrador');
+        console.log('⚠️ Nenhum prédio encontrado para este administrador');
         setBuildings([]);
         setLogs([]);
         return;
       }
 
       // Buscar logs de visitantes com joins para obter informações completas
+      console.log('📊 Executando consulta de logs...');
       const logsData = await supabase
         .from('visitor_logs')
         .select(`
@@ -154,6 +169,7 @@ export default function SystemLogs() {
           purpose,
           notification_status,
           created_at,
+          building_id,
           visitors(
             name,
             document
@@ -164,13 +180,17 @@ export default function SystemLogs() {
           ),
           buildings!inner(
             name
-          ),
-          authorized_by_profile:profiles(
-            full_name
           )
         `)
         .in('building_id', buildingIds)
         .order('log_time', { ascending: false });
+      
+      console.log('📋 Resultado da consulta:', logsData.error ? 'ERRO' : 'SUCESSO');
+      if (logsData.error) {
+        console.error('❌ Erro na consulta:', logsData.error);
+      } else {
+        console.log('✅ Logs encontrados:', logsData.data?.length || 0);
+      }
 
       setBuildings(adminBuildings || []);
       setLogs(
@@ -185,7 +205,7 @@ export default function SystemLogs() {
           visit_session_id: log.visit_session_id,
           purpose: log.purpose,
           notification_status: log.notification_status || 'pending',
-          authorized_by_name: log.authorized_by_profile?.full_name || null,
+          authorized_by_name: log.authorized_by_name || null,
           created_at: log.created_at
         }))
       );
@@ -233,7 +253,8 @@ export default function SystemLogs() {
           log.building_name?.toLowerCase().includes(query) ||
           log.purpose?.toLowerCase().includes(query) ||
           log.notification_status?.toLowerCase().includes(query) ||
-          log.authorized_by_name?.toLowerCase().includes(query)
+          log.authorized_by_name?.toLowerCase().includes(query) ||
+          log.tipo_log?.toLowerCase().includes(query)
       );
     }
 
@@ -267,6 +288,8 @@ export default function SystemLogs() {
       });
     }
 
+    // Resetar página atual quando filtros mudarem
+    setCurrentPage(1);
     setFilteredLogs(filtered);
   };
 
@@ -289,15 +312,15 @@ export default function SystemLogs() {
             </View>
 
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={logBuildingFilter}
-                onValueChange={setLogBuildingFilter}
-                style={styles.picker}>
-                <Picker.Item label="Todos os Prédios" value="" />
-                {buildings.map((building) => (
-                  <Picker.Item key={building.id} label={building.name} value={building.name} />
-                ))}
-              </Picker>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowBuildingPicker(true)}
+              >
+                <Text style={styles.pickerButtonText}>
+                  {getBuildingLabel(logBuildingFilter)}
+                </Text>
+                <Text style={styles.pickerChevron}>▼</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.dateFilterContainer}>
@@ -439,12 +462,20 @@ export default function SystemLogs() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.logsList}>
-            {filteredLogs.map((log) => (
-              <View key={log.id} style={[
-                styles.logItem,
-                log.tipo_log === 'IN' ? styles.logItemEntry : styles.logItemExit
-              ]}>
+          <View style={styles.logsContainer}>
+            <ScrollView style={styles.logsList}>
+              {(() => {
+                // Calcular paginação
+                const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const currentLogs = filteredLogs.slice(startIndex, endIndex);
+                
+                return currentLogs.map((log) => (
+                  <View key={log.id} style={[
+                    styles.logItem,
+                    log.tipo_log === 'IN' ? styles.logItemEntry : styles.logItemExit
+                  ]}>
                 <View style={styles.logHeader}>
                   <Text style={styles.logTime}>
                     {new Date(log.log_time).toLocaleString('pt-BR')}
@@ -490,44 +521,118 @@ export default function SystemLogs() {
                   ]}>
                     {log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}: {new Date(log.log_time).toLocaleString('pt-BR')}
                   </Text>
-                  <Text style={styles.sessionId}>Sessão: {log.visit_session_id.slice(0, 8)}</Text>
+                  <Text style={styles.sessionId}>Sessão: {log.visit_session_id ? log.visit_session_id.slice(0, 8) : 'N/A'}</Text>
                 </View>
                 
                 {log.authorized_by_name && (
-                  <Text style={styles.authorizedBy}>
-                    Autorizado por: {log.authorized_by_name}
+                    <Text style={styles.authorizedBy}>
+                      Autorizado por: {log.authorized_by_name}
+                    </Text>
+                  )}
+                </View>
+              ));
+              })()}
+            </ScrollView>
+            
+            {/* UI de Paginação */}
+            {(() => {
+              const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+              if (totalPages <= 1) return null;
+              
+              return (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                    onPress={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>
+                      Anterior
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.paginationInfo}>
+                    Página {currentPage} de {totalPages}
                   </Text>
-                )}
-              </View>
-            ))}
+                  
+                  <TouchableOpacity
+                    style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                    onPress={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <Text style={[styles.paginationButtonText, currentPage === totalPages && styles.paginationButtonTextDisabled]}>
+                      Próximo
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
           </View>
         </ScrollView>
-        
-        <View style={styles.bottomNav}>
-          <TouchableOpacity 
-            style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]} 
-            onPress={() => setActiveTab('dashboard')}>
-            <Text style={styles.navIcon}>📊</Text>
-            <Text style={styles.navLabel}>Dashboard</Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/admin/users')}>
-            <Text style={styles.navIcon}>👥</Text>
-            <Text style={styles.navLabel}>Usuários</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.navItem, styles.navItemActive]} onPress={() => router.push('/admin/logs')}>
-            <Text style={styles.navIcon}>📋</Text>
-            <Text style={styles.navLabel}>Logs</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.navItem} 
-            onPress={() => router.push('/admin/communications')}>
-            <Text style={styles.navIcon}>📢</Text>
-            <Text style={styles.navLabel}>Avisos</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Modal para Prédio */}
+        <Modal
+          visible={showBuildingPicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowBuildingPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+                <TouchableOpacity onPress={() => setShowBuildingPicker(false)}>
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScrollView}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalOption,
+                    logBuildingFilter === '' && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setLogBuildingFilter('');
+                    setShowBuildingPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    logBuildingFilter === '' && styles.modalOptionTextSelected
+                  ]}>
+                    Todos os Prédios
+                  </Text>
+                  {logBuildingFilter === '' && (
+                    <Text style={styles.modalCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+                {buildings.map((building) => (
+                  <TouchableOpacity
+                    key={building.id}
+                    style={[
+                      styles.modalOption,
+                      logBuildingFilter === building.name && styles.modalOptionSelected
+                    ]}
+                    onPress={() => {
+                      setLogBuildingFilter(building.name);
+                      setShowBuildingPicker(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      logBuildingFilter === building.name && styles.modalOptionTextSelected
+                    ]}>
+                      {building.name}
+                    </Text>
+                    {logBuildingFilter === building.name && (
+                      <Text style={styles.modalCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
   );
 }
@@ -648,8 +753,84 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     justifyContent: 'center',
   },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 44,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  pickerChevron: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
   picker: {
     height: 50,
+  },
+  // Estilos dos modais dos pickers
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    margin: 20,
+    borderRadius: 12,
+    maxHeight: '70%',
+    minWidth: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  modalScrollView: {
+    maxHeight: 300,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  modalCheckmark: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: 'bold',
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -868,5 +1049,42 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '500',
     textAlign: 'center',
+  },
+  logsContainer: {
+    flex: 1,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  paginationButton: {
+    backgroundColor: '#9C27B0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
 });

@@ -132,14 +132,13 @@ class NotificationService {
 
       // Configurar como as notificações devem ser tratadas quando recebidas
       Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldShowBanner: true,
-          shouldShowList: true,
-          shouldSetBadge: true,
-        }),
-      });
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
 
       // Solicitar permissões de notificação
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -418,6 +417,88 @@ class NotificationService {
   }
 
   /**
+   * Envia mensagem WhatsApp para porteiro usando a API configurada dinamicamente
+   */
+  async sendPorteiroWhatsApp(
+    porteiroData: {
+      name: string;
+      phone: string;
+      email: string;
+      building: string;
+      cpf: string;
+      work_schedule: string;
+      profile_id: string;
+      temporary_password?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      // Configuração da API
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-porteiro-whatsapp`;
+      
+      // Preparar dados para a API
+      const apiData = {
+        name: porteiroData.name,
+        phone: porteiroData.phone.replace(/\D/g, ''), // Remove caracteres não numéricos
+        email: porteiroData.email,
+        building: porteiroData.building,
+        cpf: porteiroData.cpf,
+        work_schedule: porteiroData.work_schedule,
+        profile_id: porteiroData.profile_id,
+        temporary_password: porteiroData.temporary_password
+      };
+
+      // Fazer chamada para a API
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData),
+      });
+
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+          console.error('❌ Erro detalhado da API de porteiro:', errorData);
+        } catch (parseError) {
+          console.error('❌ Erro ao parsear resposta de erro:', parseError);
+        }
+        
+        const errorMessage = errorData.message || errorData.error || `Erro HTTP ${response.status}: ${response.statusText}`;
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.warn('⚠️ Não foi possível parsear resposta de sucesso:', parseError);
+      }
+
+      return {
+        success: true,
+        message: 'Mensagem para porteiro enviada com sucesso!',
+      };
+
+    } catch (error) {
+      console.error('💥 Erro inesperado ao enviar mensagem para porteiro:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      return {
+        success: false,
+        error: `Erro de conexão: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
    * Envia mensagem WhatsApp para visitante usando a API de residentes (temporário)
    */
   async sendVisitorWhatsApp(
@@ -437,7 +518,7 @@ class NotificationService {
 
     try {
       // Configuração da API - usando endpoint de visitantes
-      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-visitor-whatsapp`;
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-visitor-whatsapp`;
       
       // Preparar dados para a API - usando endpoint de visitantes
       const apiData = {
@@ -518,7 +599,7 @@ class NotificationService {
 
     try {
       // Configuração da API
-      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://notification-api-james-1.onrender.com'}/api/send-regularization-whatsapp`;
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api/send-regularization-whatsapp`;
       
       // Preparar dados para a API
       const apiData = {

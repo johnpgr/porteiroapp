@@ -87,6 +87,13 @@ export default function PorteiroDashboard() {
             try {
               await startShift();
               Alert.alert('Sucesso', 'Turno iniciado com sucesso!');
+              // Se o modal estava sendo obrigatório, remover a obrigatoriedade e fechar
+              if (isModalMandatory) {
+                setIsModalMandatory(false);
+                setTimeout(() => {
+                  setShowShiftModal(false);
+                }, 1500);
+              }
             } catch (error) {
               console.error('Erro ao iniciar turno:', error);
               Alert.alert('Erro', 'Falha ao iniciar turno. Tente novamente.');
@@ -118,6 +125,7 @@ export default function PorteiroDashboard() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [selectedAuth, setSelectedAuth] = useState<any>(null);
   const [showShiftModal, setShowShiftModal] = useState(false);
+  const [isModalMandatory, setIsModalMandatory] = useState(false);
 
   // Estados para dados do porteiro
   const [porteiroData, setPorteiroData] = useState<{
@@ -139,7 +147,6 @@ export default function PorteiroDashboard() {
     porteiroId: user?.id || '',
     buildingId: porteiroData?.building_id || '',
     onShiftChange: (shift) => {
-      console.log('🔄 Shift changed:', shift);
     }
   });
   
@@ -198,6 +205,27 @@ export default function PorteiroDashboard() {
   const closeImageModal = () => {
     setShowImageModal(false);
     setSelectedImageUrl(null);
+  };
+
+  // Função para verificar se o turno está ativo antes de executar ações
+  const checkShiftBeforeAction = (action: () => void, actionName: string = 'esta ação') => {
+    if (!currentShift) {
+      Alert.alert(
+        'Turno Inativo',
+        `Você precisa iniciar seu turno para realizar ${actionName}. Acesse o controle de turno para iniciar.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIsModalMandatory(true);
+              setShowShiftModal(true);
+            }
+          }
+        ]
+      );
+      return;
+    }
+    action();
   };
 
   // Função para processar work_schedule
@@ -309,7 +337,7 @@ export default function PorteiroDashboard() {
         return;
       }
       
-      // Buscar visitantes diretamente da tabela 'visitors' com status aprovado
+      // Buscar visitantes diretamente da tabela 'visitors' com status aprovado (excluindo rejeitados)
       const { data: visitors, error: visitorsError } = await supabase
         .from('visitors')
         .select(`
@@ -328,6 +356,8 @@ export default function PorteiroDashboard() {
         `)
         .eq('apartments.building_id', profile.building_id)
         .eq('status', 'aprovado')
+        .neq('status', 'rejected')
+        .neq('status', 'não autorizado')
         .order('created_at', { ascending: false })
         .limit(50);
         
@@ -659,6 +689,33 @@ export default function PorteiroDashboard() {
     }
   }, [user?.id, authLoading]);
   
+  // Modal de controle de turno - abre automaticamente quando o turno estiver desligado
+  useEffect(() => {
+    if (!authLoading && user?.id && porteiroData) {
+      // Definir a aba padrão como chegada
+      setActiveTab('chegada');
+      
+      // Verificar se não há turno ativo e abrir o modal automaticamente
+      if (!currentShift) {
+        setShowShiftModal(true);
+        setIsModalMandatory(true);
+      }
+    }
+  }, [user?.id, authLoading, porteiroData, currentShift]);
+  
+  // Atualizar se o modal deve ser obrigatório baseado no status do turno
+  useEffect(() => {
+    if (currentShift && isModalMandatory) {
+      // Turno foi iniciado, remover obrigatoriedade e fechar modal
+      setIsModalMandatory(false);
+      setTimeout(() => {
+        setShowShiftModal(false);
+      }, 1000); // Aguardar 1 segundo para o usuário ver que o turno foi iniciado
+    } else if (!currentShift && showShiftModal) {
+      setIsModalMandatory(true);
+    }
+  }, [currentShift, isModalMandatory, showShiftModal]);
+  
   // Carregar comunicados quando a aba avisos for ativada
   useEffect(() => {
     if (activeTab === 'avisos' && user?.id) {
@@ -763,7 +820,7 @@ export default function PorteiroDashboard() {
 
         <View style={styles.topMenuRight}>
           {/* Botão de Pânico */}
-          <TouchableOpacity style={styles.panicButton} onPress={handlePanicButton}>
+          <TouchableOpacity style={styles.panicButton} onPress={() => checkShiftBeforeAction(handlePanicButton, 'acionar emergência')}>
             <Text style={styles.panicButtonText}>🚨</Text>
           </TouchableOpacity>
 
@@ -812,7 +869,7 @@ export default function PorteiroDashboard() {
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.visitorButton])}
-          onPress={() => setActiveFlow('visitante')}>
+          onPress={() => checkShiftBeforeAction(() => setActiveFlow('visitante'), 'registrar visitantes')}>
           <Text style={styles.buttonIcon}>👋</Text>
           <Text style={styles.buttonTitle}>Registrar Visitante</Text>
           <Text style={styles.buttonDescription}>Cadastrar nova visita</Text>
@@ -820,7 +877,7 @@ export default function PorteiroDashboard() {
 
         <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.deliveryButton])}
-          onPress={() => setActiveFlow('encomenda')}>
+          onPress={() => checkShiftBeforeAction(() => setActiveFlow('encomenda'), 'registrar encomendas')}>
           <Text style={styles.buttonIcon}>📦</Text>
           <Text style={styles.buttonTitle}>Registrar Encomenda</Text>
           <Text style={styles.buttonDescription}>Receber entrega</Text>
@@ -828,7 +885,7 @@ export default function PorteiroDashboard() {
 
         <TouchableOpacity
           style={flattenStyles([styles.actionButton, styles.vehicleButton])}
-          onPress={() => setActiveFlow('veiculo')}>
+          onPress={() => checkShiftBeforeAction(() => setActiveFlow('veiculo'), 'registrar veículos')}>
           <Text style={styles.buttonIcon}>🚗</Text>
           <Text style={styles.buttonTitle}>Registrar Veículo</Text>
           <Text style={styles.buttonDescription}>Autorizar entrada</Text>
@@ -1132,14 +1189,7 @@ export default function PorteiroDashboard() {
         // Buscar o perfil do morador
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select(`
-            id,
-            full_name,
-            cpf,
-            phone,
-            user_type,
-            building_id
-          `)
+          .select(`*`)
           .eq('cpf', cleanCPF)
           .single();
 
@@ -1309,7 +1359,8 @@ export default function PorteiroDashboard() {
         if (searchType === 'cpf') {
           const result = await searchByCPF(query);
           if (result) {
-            setProfileResult(result);
+            setProfileResult(result)
+            console.log("RESULTADOOOO:", result)
           } else {
             setSearchError('CPF não encontrado no sistema');
           }
@@ -1740,7 +1791,7 @@ export default function PorteiroDashboard() {
                 styles.navItem,
                 activeTab === 'autorizacoes' && styles.navItemActive,
               ])}
-              onPress={() => setActiveTab('autorizacoes')}>
+              onPress={() => checkShiftBeforeAction(() => setActiveTab('autorizacoes'), 'acessar autorizações')}>
               <Text
                 style={flattenStyles([
                   styles.navIcon,
@@ -1762,7 +1813,7 @@ export default function PorteiroDashboard() {
                 styles.navItem,
                 activeTab === 'consulta' && styles.navItemActive,
               ])}
-              onPress={() => setActiveTab('consulta')}>
+              onPress={() => checkShiftBeforeAction(() => setActiveTab('consulta'), 'acessar consultas')}>
               <Text
                 style={flattenStyles([
                   styles.navIcon,
@@ -1786,7 +1837,7 @@ export default function PorteiroDashboard() {
                 styles.navItem,
                 activeTab === 'logs' && styles.navItemActive,
               ])}
-              onPress={() => setActiveTab('logs')}>
+              onPress={() => checkShiftBeforeAction(() => setActiveTab('logs'), 'acessar logs')}>
               <Text
                 style={flattenStyles([
                   styles.navIcon,
@@ -1848,9 +1899,9 @@ export default function PorteiroDashboard() {
             </View>
             
             <View style={styles.photoContainer}>
-              {profileResult?.photo_url ? (
+              {profileResult?.avatar_url ? (
                 <Image 
-                  source={{ uri: profileResult.photo_url }}
+                  source={{ uri: profileResult.avatar_url }}
                   style={styles.photoModalImage}
                   resizeMode="contain"
                 />
@@ -1917,17 +1968,34 @@ export default function PorteiroDashboard() {
         visible={showShiftModal}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowShiftModal(false)}>
+        onRequestClose={() => {
+          // Só permitir fechar se não for obrigatório (ou seja, se o turno estiver ativo)
+          if (!isModalMandatory) {
+            setShowShiftModal(false);
+          }
+        }}>
         <View style={styles.modalOverlay}>
           <View style={styles.shiftModalContainer}>
             <View style={styles.shiftModalHeader}>
               <Text style={styles.shiftModalTitle}>Controle de Turno</Text>
-              <TouchableOpacity 
-                style={styles.shiftModalCloseButton}
-                onPress={() => setShowShiftModal(false)}>
-                <Text style={styles.shiftModalCloseText}>✕</Text>
-              </TouchableOpacity>
+              {/* Só mostrar botão X se não for obrigatório */}
+              {!isModalMandatory && (
+                <TouchableOpacity 
+                  style={styles.shiftModalCloseButton}
+                  onPress={() => setShowShiftModal(false)}>
+                  <Text style={styles.shiftModalCloseText}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
+            
+            {/* Mostrar aviso se o modal for obrigatório */}
+            {isModalMandatory && (
+              <View style={styles.mandatoryModalWarning}>
+                <Text style={styles.mandatoryModalWarningText}>
+                  ⚠️ Você deve iniciar o turno para usar as funções do sistema
+                </Text>
+              </View>
+            )}
             
             <View style={styles.shiftModalContent}>
               {/* Status do Turno */}
@@ -1965,15 +2033,27 @@ export default function PorteiroDashboard() {
                 <Text style={styles.shiftSectionTitle}>Controles</Text>
                 
                 {!currentShift ? (
-                  <TouchableOpacity 
-                    style={styles.shiftActionButton}
-                    onPress={handleStartShift}
-                    disabled={shiftLoading}>
-                    <Text style={styles.shiftActionIcon}>▶️</Text>
-                    <Text style={styles.shiftActionText}>
-                      {shiftLoading ? 'Iniciando...' : 'Iniciar Turno'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View>
+                    <TouchableOpacity 
+                      style={styles.shiftActionButton}
+                      onPress={handleStartShift}
+                      disabled={shiftLoading}>
+                      <Text style={styles.shiftActionIcon}>▶️</Text>
+                      <Text style={styles.shiftActionText}>
+                        {shiftLoading ? 'Iniciando...' : 'Iniciar Turno'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {/* Botão de logout quando modal for obrigatório */}
+                    {isModalMandatory && (
+                      <TouchableOpacity 
+                        style={[styles.shiftActionButton, styles.logoutButton]}
+                        onPress={handleLogout}>
+                        <Text style={styles.shiftActionIcon}>🚪</Text>
+                        <Text style={styles.shiftActionText}>Sair do Sistema</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 ) : (
                   <TouchableOpacity 
                     style={[styles.shiftActionButton, styles.shiftEndButton]}
@@ -2016,14 +2096,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
     marginBottom: 5,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#fff',
     textAlign: 'center',
     opacity: 0.9,
@@ -3392,6 +3472,22 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: 'bold',
   },
+  mandatoryModalWarning: {
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFE69C',
+    borderWidth: 1,
+    margin: 16,
+    marginTop: 16,
+    marginBottom: 0,
+    padding: 12,
+    borderRadius: 8,
+  },
+  mandatoryModalWarningText: {
+    color: '#856404',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   shiftModalContent: {
     padding: 20,
   },
@@ -3464,6 +3560,10 @@ const styles = StyleSheet.create({
   },
   shiftEndButton: {
     backgroundColor: '#f44336',
+  },
+  logoutButton: {
+    backgroundColor: '#FF9800',
+    marginTop: 12,
   },
   shiftActionIcon: {
     fontSize: 18,

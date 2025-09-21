@@ -63,31 +63,16 @@ router.post('/send-visitor-whatsapp', async (req, res) => {
       created_at: visitorData.created_at
     });
 
-    // Preparar template de mensagem WhatsApp
-    const registrationLink = `https://jamesavisa.jamesconcierge.com/login`;
-    const messageTemplate = `Olá, ${name} ! 👋  
- 
-Seu acesso de visitante foi autorizado, mas é necessário completar seu cadastro para liberar a entrada.  
- 
-**Prédio:** ${building}   
-**Apartamento:** ${apartment}   
- 
-**Credenciais temporárias:**  
-📱 Celular: ${phone}   
-🔑 Senha: ${visitorData.plain_password}  (válida por 24h)  
- 
-👉 [Clique aqui]( ${registrationLink} ) para finalizar seu cadastro e ativar o acesso.  
- 
-Qualquer dúvida, entre em contato conosco! 📞  
- 
----  
-**Acesso liberado via sistema PorteiroApp**`;
+    const messageTemplate = `Olá, ${name} 👋
+
+Sua visita ao morador do ${building}, apartamento ${apartment} está confirmada.
+
+Identifique-se na portaria para liberar o acesso.
+
+✅ James Avisa — cuidando da sua segurança, com praticidade.
+`;
 
     const message = messageTemplate;
-
-    console.log('📤 Enviando mensagem WhatsApp...');
-    console.log('📱 Para:', phone);
-    console.log('💬 Mensagem:', message);
 
     // Enviar mensagem via WhatsApp
     const whatsappResult = await sendWhatsApp({

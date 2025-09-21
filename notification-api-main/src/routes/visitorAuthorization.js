@@ -74,15 +74,12 @@ router.post('/send-visitor-notification', async (req, res) => {
     }
 
     // Gerar mensagem WhatsApp personalizada
-    const whatsappMessage = `🏢 *JamesAvisa - Autorização de Visitante*\n\n` +
-      `Olá *${visitorData.residentName}*!\n\n` +
-      `O visitante *${visitorData.visitorName}* está aguardando autorização para acessar o prédio.\n\n` +
-      `📍 *Destino:* ${visitorData.building} - Apt ${visitorData.apartment}\n` +
-      `⏰ *Solicitado em:* ${new Date().toLocaleString('pt-BR')}\n\n` +
-      `Para autorizar ou recusar o acesso, clique no link abaixo:\n` +
-      `${authorizationLink}\n\n` +
-      `⚠️ *Este link expira em 30 minutos*\n\n` +
-      `_Mensagem automática do JamesAvisa_`;
+    const whatsappMessage = `📢 James Avisa\n` +
+      `Prezado(a) ${visitorData.residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+      `Visitante: ${visitorData.visitorName}\n` +
+      `Prédio: ${visitorData.building}\n` +
+      `Apartamento: ${visitorData.apartment}\n\n` +
+      `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 
     console.log('📝 Mensagem formatada:', whatsappMessage.substring(0, 100) + '...');
 

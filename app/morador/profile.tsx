@@ -12,12 +12,17 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { createClient } from '@supabase/supabase-js';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import * as ImagePicker from 'expo-image-picker';
+import { PhotoUpload } from '~/components/PhotoUpload';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import BottomNav from '~/components/BottomNav';
+import { useFirstLogin } from '~/hooks/useFirstLogin';
+import { FirstLoginModal } from '~/components/FirstLoginModal';
 
 interface MoradorProfileData {
   id: string;
@@ -59,10 +64,77 @@ export default function MoradorProfile() {
   });
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  
+  // Hook para gerenciar primeiro login
+  const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // Função para upload robusto de foto usando FileSystem
+  const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
+    const maxRetries = 3;
+    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 [Profile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
+        
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileName = `${user!.id}/${timestamp}_${randomId}.jpeg`;
+        
+        console.log('🔄 [Profile] Nome do arquivo:', fileName);
+        console.log('🔄 [Profile] URI da foto:', photoUri);
+
+        // Método 1: Tentar upload direto com FileSystem.uploadAsync
+        console.log('🔄 [Profile] Tentando upload direto com FileSystem.uploadAsync...');
+        
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
+        console.log('🔄 [Profile] URL de upload:', uploadUrl);
+        
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        console.log('🔄 [Profile] Resultado do FileSystem upload:', uploadResult);
+
+        if (uploadResult.status === 200) {
+          // Obter URL pública usando cliente regular
+          console.log('🔄 [Profile] Obtendo URL pública...');
+          const { data: urlData } = supabase.storage
+            .from('user-photos')
+            .getPublicUrl(fileName);
+          
+          console.log('✅ [Profile] Upload bem-sucedido! URL:', urlData.publicUrl);
+          return urlData.publicUrl;
+        } else {
+          throw new Error(`Upload falhou com status: ${uploadResult.status}`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [Profile] Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error('❌ [Profile] Todas as tentativas falharam');
+          return null;
+        }
+        
+        // Aguardar antes da próxima tentativa
+        const delay = 1000 * attempt;
+        console.log(`⏳ [Profile] Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return null;
+  };
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -77,7 +149,7 @@ export default function MoradorProfile() {
       console.log('🔍 DEBUG - Buscando todos os perfis para debug...');
       const { data: allProfiles, error: allProfilesError } = await supabase
         .from('profiles')
-        .select('user_id, full_name, email');
+        .select('id, full_name, email');
       
       console.log('📊 DEBUG - Todos os perfis na tabela:', allProfiles);
       console.log('📊 DEBUG - Erro ao buscar todos os perfis:', allProfilesError);
@@ -138,7 +210,7 @@ export default function MoradorProfile() {
 
       const profileDataMapped: MoradorProfileData = {
         id: data.id,
-        user_id: data.user_id,
+        user_id: data.id, // Na tabela profiles, id é a chave primária que representa o user
         full_name: data.full_name || '',
         email: data.email || '',
         phone: data.phone || '',
@@ -177,6 +249,13 @@ export default function MoradorProfile() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchProfile();
+      checkFirstLoginStatus();
+    }
+  }, [user?.id, fetchProfile, checkFirstLoginStatus]);
 
   // Formatador de data de nascimento para padrão dd/mm/yyyy
   const formatBirthDate = (text: string) => {
@@ -429,26 +508,109 @@ export default function MoradorProfile() {
   };
 
   const handleImagePicker = async () => {
+    if (!user?.id) {
+      Alert.alert('Erro', 'Usuário não autenticado');
+      return;
+    }
+
+    setPhotoUploading(true);
     try {
+      // Usar o componente PhotoUpload para selecionar e processar a imagem
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
       if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos');
+        Alert.alert(
+          'Permissão Necessária',
+          'É necessário permitir acesso à galeria para alterar a foto do perfil.'
+        );
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: "images",
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        base64: false,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setFormData({ ...formData, avatar_url: result.assets[0].uri });
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
       }
-    } catch {
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem');
+
+      const photoUri = result.assets[0].uri;
+      console.log('📸 [Profile] Foto selecionada:', photoUri);
+
+      // Fazer upload da imagem
+      const uploadedUrl = await uploadPhotoToStorage(photoUri);
+      
+      if (uploadedUrl) {
+        // Atualizar o avatar_url no banco de dados
+        const { error } = await supabase
+          .from('profiles')
+          .update({ avatar_url: uploadedUrl } as any)
+          .eq('id', user.id as any);
+
+        if (error) {
+          console.error('Erro ao atualizar avatar_url:', error);
+          Alert.alert('Erro', 'Não foi possível salvar a foto no perfil');
+          return;
+        }
+
+        setFormData({ ...formData, avatar_url: uploadedUrl });
+        Alert.alert('Sucesso', 'Foto atualizada com sucesso!');
+      } else {
+        Alert.alert('Erro', 'Não foi possível fazer upload da foto');
+      }
+    } catch (error) {
+      console.error('Erro no upload da foto:', error);
+      Alert.alert('Erro', 'Erro interno ao fazer upload da foto');
+    } finally {
+      setPhotoUploading(false);
     }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user?.id || !formData.avatar_url) return;
+
+    Alert.alert(
+      'Remover Foto',
+      'Tem certeza que deseja remover sua foto de perfil?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            setPhotoUploading(true);
+            try {
+              // Remover foto do storage (opcional, pois já temos a função básica)
+              // Para simplificar, vamos apenas remover a referência do banco
+              
+              // Atualizar o avatar_url no banco de dados
+              const { error } = await supabase
+                .from('profiles')
+                .update({ avatar_url: null } as any)
+                .eq('id', user.id as any);
+
+              if (error) {
+                console.error('Erro ao remover avatar_url:', error);
+                Alert.alert('Erro', 'Não foi possível remover a foto do perfil');
+                return;
+              }
+
+              setFormData({ ...formData, avatar_url: '' });
+              Alert.alert('Sucesso', 'Foto removida com sucesso!');
+            } catch (error) {
+              console.error('Erro ao remover foto:', error);
+              Alert.alert('Erro', 'Erro interno ao remover foto');
+            } finally {
+              setPhotoUploading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const validatePassword = (password: string) => {
@@ -615,7 +777,8 @@ export default function MoradorProfile() {
             <View style={styles.photoSection}>
               <TouchableOpacity
                 style={styles.photoContainer}
-                onPress={isEditing ? handleImagePicker : undefined}>
+                onPress={isEditing && !photoUploading ? handleImagePicker : undefined}
+                disabled={photoUploading}>
                 {formData.avatar_url ? (
                   <Image source={{ uri: formData.avatar_url }} style={styles.photo} />
                 ) : (
@@ -625,11 +788,25 @@ export default function MoradorProfile() {
                 )}
                 {isEditing && (
                   <View style={styles.photoOverlay}>
-                    <Ionicons name="camera" size={24} color="#fff" />
+                    <Ionicons 
+                      name={photoUploading ? "hourglass" : "camera"} 
+                      size={24} 
+                      color="#fff" 
+                    />
                   </View>
                 )}
               </TouchableOpacity>
               <Text style={styles.photoLabel}>Foto do Perfil</Text>
+              {isEditing && formData.avatar_url && (
+                <TouchableOpacity
+                  style={[styles.removePhotoButton, photoUploading && styles.disabledButton]}
+                  onPress={handleRemovePhoto}
+                  disabled={photoUploading}>
+                  <Text style={styles.removePhotoText}>
+                    {photoUploading ? 'Processando...' : 'Remover Foto'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.section}>
@@ -853,6 +1030,19 @@ export default function MoradorProfile() {
           </ScrollView>
         </View>
         <BottomNav activeTab="profile" />
+        
+        {/* Modal de Primeiro Login */}
+        <FirstLoginModal 
+          visible={isFirstLogin} 
+          onClose={() => {
+            // Não permitir fechar o modal até completar o primeiro login
+            console.log('Tentativa de fechar modal de primeiro login bloqueada');
+          }}
+          onComplete={() => {
+            checkFirstLoginStatus();
+            fetchProfile();
+          }}
+        />
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -875,6 +1065,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#4CAF50',
     padding: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1061,5 +1253,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  removePhotoButton: {
+    backgroundColor: '#f44336',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  removePhotoText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    backgroundColor: '#6c757d',
+    opacity: 0.6,
   },
 });

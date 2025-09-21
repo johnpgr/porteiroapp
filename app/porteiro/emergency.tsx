@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { flattenStyles } from '~/utils/styles';
+import { ArrowBigLeft, ArrowLeft } from 'lucide-react-native';
 
 export default function PorteiroEmergencyPage() {
   const handleEmergencyCall = (service: string, number: string) => {
@@ -39,10 +40,12 @@ export default function PorteiroEmergencyPage() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
+            <ArrowLeft color="#fff" size={30} />
           </TouchableOpacity>
-          <Text style={styles.title}>🚨 Emergência</Text>
-          <Text style={styles.subtitle}>Contatos de Emergência</Text>
+          <View>
+            <Text style={styles.title}>🚨 Emergência</Text>
+            <Text style={styles.subtitle}>Contatos de Emergência</Text>
+          </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -117,8 +120,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: "center",
     flexDirection: "row",
-    gap: 20,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     paddingHorizontal: 20,
+    gap: 50,
     paddingVertical: 30,
   },
   backButton: {
@@ -127,11 +132,11 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 50,
     fontWeight: '600',
   },
   title: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

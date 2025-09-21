@@ -2,7 +2,7 @@
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "1.0.1",
+    "version": "2.0.0",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
@@ -18,7 +18,8 @@
           "color": "#ffffff",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -29,21 +30,6 @@
     "userInterfaceStyle": "light",
     "primaryColor": "#ffffff",
     "backgroundColor": "#F9FAFB",
-    "theme": {
-      "primary": "#ffffff",
-      "secondary": "#2196F3",
-      "accent": "#FF9800",
-      "error": "#F44336",
-      "warning": "#FF9800",
-      "info": "#2196F3",
-      "success": "#ffffff",
-      "surface": "#FFFFFF",
-      "background": "#F9FAFB",
-      "onPrimary": "#FFFFFF",
-      "onSecondary": "#FFFFFF",
-      "onSurface": "#333333",
-      "onBackground": "#333333"
-    },
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
@@ -55,10 +41,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.porteiroapp.notifications",
-      "buildNumber": "1.0.1",
-      "statusBar": {
-        "barStyle": "light-content",
-        "backgroundColor": "#ffffff"
+      "buildNumber": "2.0.0",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Precisamos acessar a câmera para tirar fotos de visitantes, entregas e documentos dentro do condomínio.",
+        "NSMicrophoneUsageDescription": "Precisamos acessar o microfone para gravar áudios e registrar mensagens e ocorrências.",
+        "NSPhotoLibraryUsageDescription": "Precisamos acessar sua biblioteca de fotos para selecionar e enviar imagens.",
+        "NSPhotoLibraryAddUsageDescription": "Precisamos salvar imagens na sua biblioteca quando você optar por baixar ou salvar fotos."
       }
     },
     "android": {
@@ -68,14 +57,14 @@
       },
       "package": "com.porteiroapp.notifications",
       "googleServicesFile": "./google-services.json",
-      "edgeToEdgeEnabled": true,
-      "statusBar": {
-        "backgroundColor": "#388E3C",
-        "barStyle": "light-content"
-      },
-      "navigationBar": {
-        "backgroundColor": "#ffffff"
-      }
+      "edgeToEdgeEnabled": true
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#388E3C",
+      "barStyle": "light-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#ffffff"
     },
     "notification": {
       "color": "#ffffff",

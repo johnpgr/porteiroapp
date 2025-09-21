@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { supabase } from '~/utils/supabase';
+import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
 
@@ -113,6 +113,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [duplicatePlateError, setDuplicatePlateError] = useState(false);
   const [duplicatePlateMessage, setDuplicatePlateMessage] = useState('');
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: string }[]>([]);
   const [selectedApartment, setSelectedApartment] = useState<{id: string, number: string, floor: number | null} | null>(null);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
@@ -286,6 +287,23 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   // Carregar prédios quando necessário
 
 
+  // Função para agrupar apartamentos por andar
+  const groupApartmentsByFloor = () => {
+    const grouped = availableApartments.reduce((acc, apartment) => {
+      const floor = apartment.floor || 0;
+      if (!acc[floor]) {
+        acc[floor] = [];
+      }
+      acc[floor].push(apartment);
+      return acc;
+    }, {} as Record<number, typeof availableApartments>);
+    
+    return Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(floor => ({ floor, apartments: grouped[floor] }));
+  };
+
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
@@ -303,33 +321,54 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         </View>
       ) : (
         <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.apartmentsGrid}>
-            {availableApartments.map((apartment) => (
+          {groupApartmentsByFloor().map(({ floor, apartments }) => (
+            <View key={floor} style={styles.floorSection}>
               <TouchableOpacity
-                key={apartment.id}
                 style={[
-                  styles.apartmentButton,
-                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                  styles.floorButton,
+                  selectedFloor === floor && styles.floorButtonSelected,
                 ]}
                 onPress={() => {
-                  console.log('Selecionando apartamento:', apartment);
-                  if (!apartment.id) {
-                    Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
-                    return;
-                  }
-                  setSelectedApartment(apartment);
-                  setApartamento(apartment.number);
-                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                  setCurrentStep('convidado');
+                  setSelectedFloor(selectedFloor === floor ? null : floor);
                 }}>
-                <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                <Text style={styles.apartmentId}>ID: {apartment.id}</Text>
-                {apartment.floor && (
-                  <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                )}
+                <Text style={styles.floorButtonText}>
+                  {floor === 0 ? 'Térreo' : `${floor}º Andar`} ({apartments?.length || 0} apts)
+                </Text>
+                <Text style={styles.floorButtonIcon}>
+                  {selectedFloor === floor ? '▼' : '▶'}
+                </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              
+              {selectedFloor === floor && (
+                <View style={styles.apartmentsGrid}>
+                  {apartments.map((apartment) => (
+                    <TouchableOpacity
+                      key={apartment.id}
+                      style={[
+                        styles.apartmentButton,
+                        selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                      ]}
+                      onPress={() => {
+                        console.log('Selecionando apartamento:', apartment);
+                        if (!apartment.id) {
+                          Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
+                          return;
+                        }
+                        setSelectedApartment(apartment);
+                        setApartamento(apartment.number);
+                        console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
+                        setCurrentStep('convidado');
+                      }}>
+                      <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
+                      {apartment.floor && (
+                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
         </ScrollView>
       )}
     </View>
@@ -576,215 +615,268 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
     </View>
   );
 
-  const renderConfirmacaoStep = () => {
-    const handleConfirm = async () => {
-      try {
-        // Validar se apartamento foi selecionado
+  const handleConfirm = async () => {
+    try {
+      // Validar se apartamento foi selecionado
+      if (!selectedApartment || !selectedApartment.id) {
+        console.error('❌ [RegistrarVeiculo] Apartamento não selecionado:', selectedApartment);
+        Alert.alert('Erro', 'Por favor, selecione um apartamento antes de continuar');
+        return;
+      }
+
+      console.log('✅ [RegistrarVeiculo] Apartamento selecionado:', selectedApartment);
+
+      // VALIDAÇÃO FINAL: Verificar novamente se a placa não é duplicata antes de confirmar
+      const cleanPlate = placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      console.log('🔍 [RegistrarVeiculo] Verificando duplicata para placa:', cleanPlate);
+      
+      const { data: finalDuplicateCheck, error: duplicateCheckError } = await supabase
+        .from('vehicles')
+        .select('license_plate')
+        .eq('license_plate', cleanPlate)
+        .single();
+
+      if (finalDuplicateCheck && !duplicateCheckError) {
+        console.error('❌ [RegistrarVeiculo] Placa duplicada encontrada:', finalDuplicateCheck);
+        Alert.alert(
+          '❌ Erro de Validação',
+          `A placa ${placa} já está cadastrada no sistema. O cadastro não pode ser concluído.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ [RegistrarVeiculo] Verificação de duplicata concluída - placa liberada');
+
+      // Preparar informações completas do veículo para salvar no visitor_logs
+      const vehicleData = {
+        license_plate: placa,
+        brand: marcaSelecionada?.nome || null,
+        model: modelo || vehicleInfo?.model || null,
+        color: corSelecionada?.nome || vehicleInfo?.color || null,
+        existing_vehicle: vehicleInfo?.existing || false,
+        has_apartment: hasOwner,
+        apartment_id: selectedApartment?.id || null, // Usar apartment_id selecionado
+        apartment_number: vehicleInfo?.apartment_info?.number || null
+      };
+      
+      console.log('📋 [RegistrarVeiculo] Dados do veículo preparados:', vehicleData);
+      console.log('🏠 [RegistrarVeiculo] selectedApartment atual:', selectedApartment);
+      console.log('👤 [RegistrarVeiculo] Nome do convidado:', nomeConvidado);
+      console.log('🏢 [RegistrarVeiculo] Building ID do porteiro:', doormanBuildingId);
+
+      // Verificar se já existe um veículo com esta placa (segunda verificação)
+      console.log('🔍 [RegistrarVeiculo] Verificando se veículo já existe no banco...');
+      const { data: existingVehicleByPlate, error: vehicleCheckError } = await supabase
+        .from('vehicles')
+        .select('id, license_plate, model, color')
+        .eq('license_plate', cleanPlate)
+        .single();
+
+      console.log('📊 [RegistrarVeiculo] Resultado da verificação:', { existingVehicleByPlate, vehicleCheckError });
+
+      // Se o veículo não existe, criar registro na tabela vehicles primeiro
+      if (!vehicleInfo?.existing && !existingVehicleByPlate && marcaSelecionada && corSelecionada) {
+        // Validação adicional para garantir que selectedApartment existe
         if (!selectedApartment || !selectedApartment.id) {
-          Alert.alert('Erro', 'Por favor, selecione um apartamento antes de continuar');
+          console.error('❌ [RegistrarVeiculo] Erro: selectedApartment não está definido ou não tem ID');
+          Alert.alert('Erro', 'Nenhum apartamento foi selecionado. Por favor, selecione um apartamento.');
           return;
         }
-
-        console.log('Apartamento selecionado:', selectedApartment);
-
-        // VALIDAÇÃO FINAL: Verificar novamente se a placa não é duplicata antes de confirmar
-        const cleanPlate = placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-        const { data: finalDuplicateCheck, error: duplicateCheckError } = await supabase
-          .from('vehicles')
-          .select('license_plate')
-          .eq('license_plate', cleanPlate)
-          .single();
-
-        if (finalDuplicateCheck && !duplicateCheckError) {
-          Alert.alert(
-            '❌ Erro de Validação',
-            `A placa ${placa} já está cadastrada no sistema. O cadastro não pode ser concluído.`,
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-
-        // Preparar informações completas do veículo para salvar no visitor_logs
-        const vehicleData = {
-          license_plate: placa,
-          brand: marcaSelecionada?.nome || null,
-          model: modelo || vehicleInfo?.model || null,
-          color: corSelecionada?.nome || vehicleInfo?.color || null,
-          existing_vehicle: vehicleInfo?.existing || false,
-          has_apartment: hasOwner,
+        
+        console.log('➕ [RegistrarVeiculo] Inserindo novo veículo no banco...');
+        console.log('🏠 [RegistrarVeiculo] Inserindo veículo com apartment_id:', selectedApartment.id);
+        console.log('📋 [RegistrarVeiculo] selectedApartment completo:', selectedApartment);
+        
+        const vehicleInsertData = {
+          license_plate: placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
+          brand: marcaSelecionada.nome,
+          model: modelo,
+          color: corSelecionada.nome,
           apartment_id: selectedApartment?.id || null, // Usar apartment_id selecionado
-          apartment_number: vehicleInfo?.apartment_info?.number || null
         };
         
-        console.log('Dados do veículo preparados:', vehicleData);
-        console.log('selectedApartment atual:', selectedApartment);
-
-        // Verificar se já existe um veículo com esta placa (segunda verificação)
-        const { data: existingVehicleByPlate } = await supabase
+        console.log('📝 [RegistrarVeiculo] Dados que serão inseridos na tabela vehicles:', vehicleInsertData);
+        
+        const { error: vehicleError } = await supabase
           .from('vehicles')
-          .select('id, license_plate, model, color')
-          .eq('license_plate', cleanPlate)
-          .single();
+          .insert(vehicleInsertData);
 
-        // Se o veículo não existe, criar registro na tabela vehicles primeiro
-        if (!vehicleInfo?.existing && !existingVehicleByPlate && marcaSelecionada && corSelecionada) {
-          // Validação adicional para garantir que selectedApartment existe
-          if (!selectedApartment || !selectedApartment.id) {
-            console.error('Erro: selectedApartment não está definido ou não tem ID');
-            Alert.alert('Erro', 'Nenhum apartamento foi selecionado. Por favor, selecione um apartamento.');
-            return;
-          }
-          
-          console.log('Inserindo veículo com apartment_id:', selectedApartment.id);
-          console.log('selectedApartment completo:', selectedApartment);
-          
-          const vehicleInsertData = {
-            license_plate: placa.replace(/[^A-Za-z0-9]/g, '').toUpperCase(),
-            brand: marcaSelecionada.nome,
-            model: modelo,
-            color: corSelecionada.nome,
-            apartment_id: selectedApartment?.id || null, // Usar apartment_id selecionado
-          };
-          
-          console.log('Dados que serão inseridos na tabela vehicles:', vehicleInsertData);
-          
-          const { error: vehicleError } = await supabase
-            .from('vehicles')
-            .insert(vehicleInsertData);
-
-          if (vehicleError) {
-            console.error('Erro ao salvar veículo:', vehicleError);
-            Alert.alert('Erro', 'Não foi possível salvar o veículo. Tente novamente.');
-            return;
-          }
-          
-          console.log('Veículo inserido com sucesso com apartment_id:', vehicleInsertData.apartment_id);
-        } else if (existingVehicleByPlate) {
-          console.log('Veículo com placa', placa, 'já existe. Reutilizando dados existentes.');
-          // Atualizar vehicleData com os dados do veículo existente
-          vehicleData.existing_vehicle = true;
-          vehicleData.model = existingVehicleByPlate.model;
-          vehicleData.color = existingVehicleByPlate.color;
-        }
-
-        // Usar o apartamento selecionado diretamente
-        if (!selectedApartment) {
-          Alert.alert('Erro', 'Nenhum apartamento foi selecionado.');
+        if (vehicleError) {
+          console.error('❌ [RegistrarVeiculo] Erro ao salvar veículo:', vehicleError);
+          Alert.alert('Erro', 'Não foi possível salvar o veículo. Tente novamente.');
           return;
         }
+        
+        console.log('✅ [RegistrarVeiculo] Veículo inserido com sucesso com apartment_id:', vehicleInsertData.apartment_id);
+      } else if (existingVehicleByPlate) {
+        console.log('♻️ [RegistrarVeiculo] Veículo com placa', placa, 'já existe. Reutilizando dados existentes.');
+        // Atualizar vehicleData com os dados do veículo existente
+        vehicleData.existing_vehicle = true;
+        vehicleData.model = existingVehicleByPlate.model;
+        vehicleData.color = existingVehicleByPlate.color;
+      }
 
-        const apartmentData = {
-          id: selectedApartment.id,
-          building_id: doormanBuildingId,
-          number: selectedApartment.number
+      // Usar o apartamento selecionado diretamente
+      if (!selectedApartment) {
+        Alert.alert('Erro', 'Nenhum apartamento foi selecionado.');
+        return;
+      }
+
+      const apartmentData = {
+        id: selectedApartment.id,
+        building_id: doormanBuildingId,
+        number: selectedApartment.number
+      };
+
+      // Criar ou buscar visitante
+      console.log('👤 [RegistrarVeiculo] Criando ou buscando visitante no banco...');
+      let visitorId;
+      const { data: existingVisitor } = await supabase
+        .from('visitors')
+        .select('id')
+        .eq('name', nomeConvidado)
+        .single();
+
+      if (existingVisitor) {
+        console.log('♻️ [RegistrarVeiculo] Visitante existente encontrado:', existingVisitor);
+        visitorId = existingVisitor.id;
+      } else {
+        console.log('➕ [RegistrarVeiculo] Criando novo visitante...');
+        const visitorInsertData = {
+          name: nomeConvidado,
+          apartment_id: selectedApartment.id,
+          access_type: 'com_aprovacao'
         };
-
-        // Criar ou buscar visitante
-        let visitorId;
-        const { data: existingVisitor } = await supabase
+        console.log('📝 [RegistrarVeiculo] Dados do visitante para inserção:', visitorInsertData);
+        
+        const { data: newVisitor, error: visitorError } = await supabase
           .from('visitors')
+          .insert(visitorInsertData)
           .select('id')
-          .eq('name', nomeConvidado)
           .single();
 
-        if (existingVisitor) {
-          visitorId = existingVisitor.id;
-        } else {
-          const { data: newVisitor, error: visitorError } = await supabase
-            .from('visitors')
-            .insert({ name: nomeConvidado })
-            .select('id')
+        if (visitorError || !newVisitor) {
+          console.error('❌ [RegistrarVeiculo] Erro ao criar visitante:', visitorError);
+          Alert.alert('Erro', 'Não foi possível criar o visitante. Tente novamente.');
+          return;
+        }
+        console.log('✅ [RegistrarVeiculo] Visitante criado:', newVisitor);
+        visitorId = newVisitor.id;
+      }
+
+      // Salvar no visitor_logs com vehicle_info completo
+      console.log('📝 [RegistrarVeiculo] Registrando entrada no visitor_logs...');
+      const logInsertData = {
+        visitor_id: visitorId,
+        apartment_id: apartmentData.id,
+        building_id: apartmentData.building_id,
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        visit_session_id: generateUUID(),
+        vehicle_info: vehicleData,
+        notification_status: 'pending',
+        purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
+      };
+      console.log('📋 [RegistrarVeiculo] Dados do log para inserção:', logInsertData);
+      
+      const { data: visitorLogData, error } = await supabase
+        .from('visitor_logs')
+        .insert(logInsertData)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('❌ [RegistrarVeiculo] Erro ao salvar log de visitante:', error);
+        Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
+        return;
+      }
+
+      console.log('✅ [RegistrarVeiculo] Log registrado com sucesso');
+
+      // Enviar notificação via API (WhatsApp) após registro bem-sucedido
+      if (visitorLogData?.id) {
+        try {
+          console.log('📱 [RegistrarVeiculo] Enviando notificação WhatsApp...');
+          console.log('🆔 [RegistrarVeiculo] Visitor log ID:', visitorLogData.id);
+          
+          // Buscar dados do morador para notificação
+          const { data: residentData, error: residentError } = await supabase
+            .from('apartments')
+            .select(`
+              number,
+              apartment_residents!inner(
+                profiles!inner(
+                  full_name,
+                  phone,
+                  email
+                ),
+                is_owner
+              ),
+              buildings!inner(
+                name
+              )
+            `)
+            .eq('id', apartmentData.id)
+            .eq('apartment_residents.is_owner', true)
             .single();
 
-          if (visitorError || !newVisitor) {
-            console.error('Erro ao criar visitante:', visitorError);
-            Alert.alert('Erro', 'Não foi possível criar o visitante. Tente novamente.');
-            return;
-          }
-          visitorId = newVisitor.id;
-        }
-
-        // Salvar no visitor_logs com vehicle_info completo
-        const { data: visitorLogData, error } = await supabase
-          .from('visitor_logs')
-          .insert({
-            visitor_id: visitorId,
-            apartment_id: apartmentData.id,
-            building_id: apartmentData.building_id,
-            log_time: new Date().toISOString(),
-            tipo_log: 'IN',
-            visit_session_id: generateUUID(),
-            vehicle_info: vehicleData,
-            notification_status: 'pending',
-            purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
-          })
-          .select('id')
-          .single();
-
-        if (error) {
-          console.error('Erro ao salvar log de visitante:', error);
-          Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
-          return;
-        }
-
-        // Enviar notificação via API (WhatsApp) após registro bem-sucedido
-        if (visitorLogData?.id) {
-          try {
-            // Buscar dados do morador proprietário e do prédio
-            const { data: residentData } = await supabase
-              .from('apartments')
-              .select(`
-                id,
-                number,
-                apartment_residents!apartment_residents_apartment_id_fkey (
-                  profiles!inner(
-                    full_name,
-                    phone
-                  )
-                ),
-                buildings (
-                  name
-                )
-              `)
-              .eq('id', apartmentData.id)
-              .eq('apartment_residents.is_owner', true)
-              .single();
-
-            if (residentData?.apartment_residents?.profiles?.phone) {
-              await notificationApi.sendVisitorNotification({
-                visitorLogId: visitorLogData.id,
+          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+            const resident = residentData.apartment_residents[0];
+            const building = residentData.buildings;
+            
+            if (resident.profiles.phone && building) {
+              await notificationApi.sendVisitorAuthorization({
                 visitorName: nomeConvidado,
-                residentPhone: residentData.apartment_residents.profiles.phone,
-                residentName: residentData.apartment_residents.profiles.full_name || 'Morador',
-                building: residentData.buildings?.name || 'Prédio',
+                residentName: resident.profiles.full_name,
+                residentPhone: resident.profiles.phone,
+                residentEmail: resident.profiles.email || '',
+                building: building.name,
                 apartment: residentData.number
               });
+              
+              console.log('✅ [RegistrarVeiculo] Mensagem de autorização WhatsApp enviada com sucesso');
+              
+              // Atualizar status da notificação
+              await supabase
+                .from('visitor_logs')
+                .update({ notification_status: 'sent' })
+                .eq('id', visitorLogData.id);
+            } else {
+              console.warn('⚠️ [RegistrarVeiculo] Dados insuficientes para enviar notificação via API');
             }
-          } catch (apiError) {
-            console.error('Erro ao enviar notificação via API:', apiError);
-            // Não bloquear o fluxo principal em caso de erro na API
+          } else {
+            console.log('⚠️ [RegistrarVeiculo] Morador não encontrado ou sem telefone cadastrado');
           }
+        } catch (notificationError) {
+          console.error('❌ [RegistrarVeiculo] Erro no processo de notificação:', notificationError);
         }
-
-        // Preparar mensagem baseada no tipo de veículo
-        let message = '';
-        if (hasOwner && vehicleInfo?.apartment_info) {
-          message = `Veículo ${placa} de ${nomeConvidado} registrado. Veículo vinculado ao apartamento ${vehicleInfo.apartment_info.number || 'N/A'}.`;
-        } else {
-          message = `Veículo ${placa} de ${nomeConvidado} registrado com sucesso para o apartamento ${selectedApartment.number}.`;
-        }
-
-        if (onConfirm) {
-          onConfirm(message);
-        } else {
-          Alert.alert('✅ Veículo Registrado!', message, [{ text: 'OK' }]);
-          onClose();
-        }
-      } catch (error) {
-        console.error('Erro ao confirmar registro:', error);
-        Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
       }
-    };
+
+      console.log('🎉 [RegistrarVeiculo] Processo de registro concluído com sucesso!');
+      
+      // Sucesso - mostrar mensagem e fechar modal
+      Alert.alert(
+        'Sucesso!',
+        `Veículo ${placa} registrado com sucesso para ${nomeConvidado}.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              onConfirm?.(`Veículo ${placa} registrado para ${nomeConvidado}`);
+              onClose();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('❌ [RegistrarVeiculo] Erro geral no handleConfirm:', error);
+      console.error('📋 [RegistrarVeiculo] Stack trace:', error.stack);
+      Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
+    }
+  };
+
+  const renderConfirmacaoStep = () => {
 
     return (
       <View style={styles.stepContainer}>
@@ -839,7 +931,13 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           </View>
         </View>
 
-        <TouchableOpacity style={styles.confirmFinalButton} onPress={handleConfirm}>
+        <TouchableOpacity 
+          style={styles.confirmFinalButton} 
+          onPress={() => {
+            console.log('🔘 [RegistrarVeiculo] Botão Confirmar Registro foi pressionado!');
+            handleConfirm();
+          }}
+        >
           <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
         </TouchableOpacity>
       </View>
@@ -1263,8 +1361,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#d32f2f',
   },
+  apartmentsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 15,
+  },
   apartmentButton: {
-    width: '48%',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 12,
@@ -1299,5 +1401,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     textAlign: 'center',
+  },
+  floorSection: {
+    marginBottom: 20,
+  },
+  floorButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    marginBottom: 10,
+  },
+  floorButtonSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
+  },
+  floorButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  floorButtonIcon: {
+    fontSize: 16,
+    color: '#666',
   },
 });

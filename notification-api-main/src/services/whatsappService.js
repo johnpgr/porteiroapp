@@ -81,7 +81,7 @@ function validateBrazilianPhone(phone) {
  * @param {string} baseUrl - URL base do site de cadastro
  * @returns {string} - Link completo com parâmetros
  */
-function generateRegistrationLink(residentData, baseUrl = 'https://jamesavisa.jamesconcierge.com/login') {
+function generateRegistrationLink(residentData, baseUrl = 'porteiroapp://login') {
   const cleanPhone = residentData.phone.replace(/\D/g, '');
   
   const params = new URLSearchParams({
@@ -437,14 +437,77 @@ async function checkWhatsAppNumber(number) {
 
 // Função para gerar mensagem de autorização de visitante
 function generateVisitorAuthorizationMessage(visitorName, residentName, building, apartment, authorizationLink) {
-  return `📢 James Avisa\nPrezado(a) ${residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
-    `👤 *Visitante:* ${visitorName}\n` +
-    `🏠 *Apartamento:* ${apartment}${building ? ` - ${building}` : ''}\n\n` +
-    `*RESPONDA RAPIDAMENTE:*\n` +
-    `• Digite *1* para AUTORIZAR\n` +
-    `• Digite *2* para RECUSAR\n\n` +
-    `Ou acesse: ${authorizationLink}\n\n` +
-    `⏰ Esta autorização expira em 30 minutos.`;
+  return `📢 James Avisa\n` +
+         `Prezado(a) ${residentName}, informamos que há um visitante aguardando na portaria.\n\n` +
+         `Visitante: ${visitorName}\n` +
+         `Prédio: ${building}\n` +
+         `Apartamento: ${apartment}\n\n` +
+         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+}
+
+// Gerar mensagem de autorização com botões interativos
+function generateVisitorAuthorizationMessageWithButtons(visitorName, apartmentNumber, visitType = 'visitor') {
+  const typeText = {
+    visitor: 'visitante',
+    delivery: 'entrega',
+    service: 'prestador de serviço'
+  }[visitType] || 'visitante';
+  
+  const message = `🏢 *AUTORIZAÇÃO DE ${typeText.toUpperCase()}*\n\n` +
+                 `👤 Nome: ${visitorName}\n` +
+                 `🏠 Apartamento: ${apartmentNumber}\n\n` +
+                 `Selecione uma opção:`;
+  
+  // Botões básicos para visitas/entregas gerais
+  const basicButtons = [
+    { id: 'accept', title: '✅ Aceitar' },
+    { id: 'reject', title: '❌ Recusar' }
+  ];
+  
+  // Botões específicos para entregas
+  const deliveryButtons = [
+    { id: 'elevator', title: '🛗 Enviar pelo elevador' },
+    { id: 'reception', title: '🏢 Deixar na portaria' },
+    { id: 'reject', title: '❌ Recusar' }
+  ];
+  
+  return {
+    message,
+    buttons: visitType === 'delivery' ? deliveryButtons : basicButtons
+  };
+}
+
+// Gerar mensagem de autorização com lista interativa (para mais opções)
+function generateVisitorAuthorizationMessageWithList(visitorName, apartmentNumber, visitType = 'visitor') {
+  const typeText = {
+    visitor: 'visitante',
+    delivery: 'entrega',
+    service: 'prestador de serviço'
+  }[visitType] || 'visitante';
+  
+  const message = `🏢 *AUTORIZAÇÃO DE ${typeText.toUpperCase()}*\n\n` +
+                 `👤 Nome: ${visitorName}\n` +
+                 `🏠 Apartamento: ${apartmentNumber}\n\n` +
+                 `Selecione uma das opções abaixo:`;
+  
+  // Lista básica para visitas/entregas gerais
+  const basicList = [
+    { id: 'accept', title: '✅ Aceitar', description: 'Autorizar a visita/entrega' },
+    { id: 'reject', title: '❌ Recusar', description: 'Negar a autorização' }
+  ];
+  
+  // Lista específica para entregas
+  const deliveryList = [
+    { id: 'elevator', title: '🛗 Enviar pelo elevador', description: 'Autorizar e enviar diretamente ao apartamento' },
+    { id: 'reception', title: '🏢 Deixar na portaria', description: 'Autorizar e deixar na recepção' },
+    { id: 'reject', title: '❌ Recusar entrega', description: 'Negar a autorização da entrega' }
+  ];
+  
+  return {
+    message,
+    listItems: visitType === 'delivery' ? deliveryList : basicList,
+    title: visitType === 'delivery' ? 'Opções de Entrega' : 'Opções de Autorização'
+  };
 }
 
 // Função específica para enviar autorização de visitante
@@ -458,8 +521,187 @@ async function sendVisitorAuthorization(residentPhone, visitorName, residentName
   return await sendWhatsApp({ to: residentPhone, message });
 }
 
+// Enviar mensagem do WhatsApp com botões interativos
+async function sendWhatsAppWithButtons(phoneNumber, message, buttons, tokenId) {
+  try {
+    console.log(`📤 Enviando mensagem com botões para ${phoneNumber}`);
+    
+    if (!WHATSAPP_ENABLED) {
+      console.log('📵 WhatsApp desabilitado - simulando envio com botões');
+      console.log('Mensagem:', message);
+      console.log('Botões:', buttons);
+      return { success: true, simulated: true };
+    }
+    
+    // Validar número
+    if (!isValidBrazilianNumber(phoneNumber)) {
+      throw new Error('Número de telefone inválido');
+    }
+    
+    // Verificar status da instância
+    const instanceStatus = await checkInstanceStatus();
+    if (!instanceStatus.connected) {
+      throw new Error('Instância do WhatsApp não conectada');
+    }
+    
+    // Formatar número para padrão brasileiro
+    const formattedNumber = formatBrazilianNumber(phoneNumber);
+    
+    // Preparar botões com IDs únicos
+    const interactiveButtons = buttons.map(button => ({
+      type: 'reply',
+      reply: {
+        id: `${button.id}_${tokenId}`,
+        title: button.title
+      }
+    }));
+    
+    // Payload para mensagem com botões
+    const payload = {
+      number: formattedNumber,
+      options: {
+        delay: 1200,
+        presence: 'composing'
+      },
+      buttonMessage: {
+        text: message,
+        buttons: interactiveButtons,
+        headerType: 1
+      }
+    };
+    
+    console.log('📋 Payload da mensagem com botões:', JSON.stringify(payload, null, 2));
+    
+    const response = await fetch(`${EVOLUTION_API_URL}/message/sendButtons/${INSTANCE_NAME}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': API_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const responseData = await response.json();
+    
+    if (!response.ok) {
+      console.error('❌ Erro na API do WhatsApp:', responseData);
+      
+      // Tratar diferentes tipos de erro
+      if (response.status === 401) {
+        throw new Error('Chave da API inválida');
+      } else if (response.status === 404) {
+        throw new Error('Instância não encontrada');
+      } else if (response.status === 400) {
+        throw new Error(`Erro na requisição: ${responseData.message || 'Dados inválidos'}`);
+      } else if (response.status === 500) {
+        throw new Error('Erro interno do servidor WhatsApp');
+      }
+      
+      throw new Error(`Erro HTTP ${response.status}: ${responseData.message || 'Erro desconhecido'}`);
+    }
+    
+    console.log('✅ Mensagem com botões enviada com sucesso:', responseData);
+    return { success: true, data: responseData };
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem com botões:', error.message);
+    throw error;
+  }
+}
+
+// Enviar mensagem do WhatsApp com lista interativa
+async function sendWhatsAppWithList(phoneNumber, message, listItems, tokenId, title = 'Selecione uma opção') {
+  try {
+    console.log(`📤 Enviando mensagem com lista para ${phoneNumber}`);
+    
+    if (!WHATSAPP_ENABLED) {
+      console.log('📵 WhatsApp desabilitado - simulando envio com lista');
+      console.log('Mensagem:', message);
+      console.log('Lista:', listItems);
+      return { success: true, simulated: true };
+    }
+    
+    // Validar número
+    if (!isValidBrazilianNumber(phoneNumber)) {
+      throw new Error('Número de telefone inválido');
+    }
+    
+    // Verificar status da instância
+    const instanceStatus = await checkInstanceStatus();
+    if (!instanceStatus.connected) {
+      throw new Error('Instância do WhatsApp não conectada');
+    }
+    
+    // Formatar número para padrão brasileiro
+    const formattedNumber = formatBrazilianNumber(phoneNumber);
+    
+    // Preparar itens da lista com IDs únicos
+    const rows = listItems.map(item => ({
+      id: `${item.id}_${tokenId}`,
+      title: item.title,
+      description: item.description || ''
+    }));
+    
+    // Payload para mensagem com lista
+    const payload = {
+      number: formattedNumber,
+      options: {
+        delay: 1200,
+        presence: 'composing'
+      },
+      listMessage: {
+        text: message,
+        buttonText: 'Ver opções',
+        sections: [{
+          title: title,
+          rows: rows
+        }]
+      }
+    };
+    
+    console.log('📋 Payload da mensagem com lista:', JSON.stringify(payload, null, 2));
+    
+    const response = await fetch(`${EVOLUTION_API_URL}/message/sendList/${INSTANCE_NAME}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': API_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const responseData = await response.json();
+    
+    if (!response.ok) {
+      console.error('❌ Erro na API do WhatsApp:', responseData);
+      
+      // Tratar diferentes tipos de erro
+      if (response.status === 401) {
+        throw new Error('Chave da API inválida');
+      } else if (response.status === 404) {
+        throw new Error('Instância não encontrada');
+      } else if (response.status === 400) {
+        throw new Error(`Erro na requisição: ${responseData.message || 'Dados inválidos'}`);
+      } else if (response.status === 500) {
+        throw new Error('Erro interno do servidor WhatsApp');
+      }
+      
+      throw new Error(`Erro HTTP ${response.status}: ${responseData.message || 'Erro desconhecido'}`);
+    }
+    
+    console.log('✅ Mensagem com lista enviada com sucesso:', responseData);
+    return { success: true, data: responseData };
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem com lista:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   sendWhatsApp,
+  sendWhatsAppWithButtons,
+  sendWhatsAppWithList,
   checkInstanceStatus,
   generateQRCode,
   checkWhatsAppNumber,
@@ -467,5 +709,7 @@ module.exports = {
   generateWhatsAppMessage,
   validateBrazilianPhone,
   generateVisitorAuthorizationMessage,
+  generateVisitorAuthorizationMessageWithButtons,
+  generateVisitorAuthorizationMessageWithList,
   sendVisitorAuthorization
 };

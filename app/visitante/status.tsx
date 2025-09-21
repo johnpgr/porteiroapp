@@ -126,15 +126,13 @@ export default function StatusScreen() {
           description: 'Sua solicitação foi enviada ao morador',
         };
       case 'aprovado':
-      case 'approved':
         return {
           icon: 'checkmark-circle',
           color: '#4CAF50',
           text: 'Visita Autorizada',
           description: 'Você pode acessar o prédio',
         };
-      case 'negado':
-      case 'denied':
+      case 'nao_permitido':
         return {
           icon: 'close-circle',
           color: '#F44336',
@@ -272,7 +270,7 @@ export default function StatusScreen() {
             </View>
 
             {/* Action Buttons */}
-            {(visitor.status === 'aprovado' || visitor.status === 'approved') && (
+            {visitor.status === 'aprovado' && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity style={styles.actionButton}>
                   <Ionicons name="call" size={20} color="#fff" />

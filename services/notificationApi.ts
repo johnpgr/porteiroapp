@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 
-const API_BASE_URL = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://10.0.2.2:3001'}/api`;
+const API_BASE_URL = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api`;
 
 interface SendVisitorNotificationRequest {
   visitorLogId: string;
@@ -46,6 +46,7 @@ interface SendVisitorAuthorizationRequest {
   visitorName: string;
   residentName: string;
   residentPhone: string;
+  residentEmail: string;
   building: string;
   apartment: string;
 }

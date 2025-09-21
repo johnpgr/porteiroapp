@@ -69,11 +69,19 @@ const validateDate = (dateString: string): boolean => {
   if (!day || !month || !year) return false;
   if (day < 1 || day > 31) return false;
   if (month < 1 || month > 12) return false;
-  if (year < new Date().getFullYear()) return false;
   
   // Verifica se a data é válida
   const date = new Date(year, month - 1, day);
-  return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
+  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) {
+    return false;
+  }
+  
+  // Permite datas a partir de hoje (data atual) - incluindo hoje
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Remove horas para comparar apenas a data
+  date.setHours(0, 0, 0, 0);
+  
+  return date >= today;
 };
 
 const validateTime = (timeString: string): boolean => {
@@ -155,6 +163,7 @@ interface Visitor {
   document: string | null;
   phone: string | null;
   photo_url: string | null;
+  access_type?: 'direto' | 'com_aprovacao';
   status: string;
   visitor_type: string;
   created_at: string;
@@ -162,18 +171,23 @@ interface Visitor {
   apartment_id: string;
   registration_token?: string;
   token_expires_at?: string;
+  visit_date?: string | null;
+  visit_start_time?: string | null;
+  visit_end_time?: string | null;
 }
 
 interface PreRegistrationData {
   name: string;
   phone: string;
-  visitor_type: 'comum' | 'frequente';
   visit_type: 'pontual' | 'frequente';
+  access_type?: 'com_aprovacao' | 'direto';
   visit_date?: string;
   visit_start_time?: string;
   visit_end_time?: string;
   allowed_days?: string[];
   max_simultaneous_visits?: number;
+  validity_start?: string;
+  validity_end?: string;
 }
 
 export default function VisitantesTab() {
@@ -186,13 +200,15 @@ export default function VisitantesTab() {
   const [preRegistrationData, setPreRegistrationData] = useState<PreRegistrationData>({
     name: '',
     phone: '',
-    visitor_type: 'comum',
     visit_type: 'pontual',
+    access_type: 'com_aprovacao',
     visit_date: '',
     visit_start_time: '',
     visit_end_time: '',
     allowed_days: [],
-    max_simultaneous_visits: 1
+    max_simultaneous_visits: 1,
+    validity_start: '',
+    validity_end: ''
   });
   
   // Estado para armazenar apartment_id e evitar múltiplas consultas
@@ -210,7 +226,6 @@ export default function VisitantesTab() {
   const [editData, setEditData] = useState<PreRegistrationData>({
     name: '',
     phone: '',
-    visitor_type: 'comum',
     visit_type: 'pontual',
     visit_date: '',
     visit_start_time: '',
@@ -334,16 +349,29 @@ export default function VisitantesTab() {
           photo_url,
           status,
           visitor_type,
+          access_type,
           created_at,
           updated_at,
-          apartment_id
+          apartment_id,
+          visit_date,
+          visit_start_time,
+          visit_end_time
         `)
         .eq('apartment_id', currentApartmentId)
         .order('created_at', { ascending: false });
 
       if (visitorsError) {
         console.error('❌ Erro ao buscar visitantes:', visitorsError);
-        throw visitorsError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (visitorsError.code === '42703') {
+          setError('Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (visitorsError.code === 'PGRST204') {
+          setError('Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          setError(`Erro ao buscar visitantes: ${visitorsError.message}`);
+        }
+        return;
       }
 
       console.log('✅ Visitantes encontrados para o apartamento:', visitorsData?.length || 0);
@@ -356,11 +384,15 @@ export default function VisitantesTab() {
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'approved',
+        status: visitor.status || 'aprovado',
         visitor_type: visitor.visitor_type || 'comum',
+        access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
-        apartment_id: visitor.apartment_id
+        apartment_id: visitor.apartment_id,
+        visit_date: visitor.visit_date,
+        visit_start_time: visitor.visit_start_time,
+        visit_end_time: visitor.visit_end_time
       }));
 
       console.log('✅ [VisitantesTab] Mapped visitors:', mappedVisitors);
@@ -485,16 +517,49 @@ export default function VisitantesTab() {
     
     const [, day, month, year] = match;
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    
     return date.getDate() == parseInt(day) && 
            date.getMonth() == parseInt(month) - 1 && 
            date.getFullYear() == parseInt(year) &&
-           date >= new Date(); // Data deve ser futura
+           date >= today; // Data deve ser atual ou futura
   };
 
   // Função para validar formato de horário (HH:MM)
   const validateTime = (timeString: string): boolean => {
     const timeRegex = /^([01]?\d|2[0-3]):([0-5]\d)$/;
     return timeRegex.test(timeString);
+  };
+
+  // Função para formatar data de visita
+  const formatVisitDate = (dateString: string | null): string => {
+    if (!dateString) return 'Data não definida';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Função para formatar horário de visita
+  const formatVisitTime = (timeString: string | null): string => {
+    if (!timeString) return '--:--';
+    return timeString.substring(0, 5); // Pega apenas HH:MM
+  };
+
+  // Função para formatar período de visita completo
+  const formatVisitPeriod = (date: string | null, startTime: string | null, endTime: string | null): string => {
+    const formattedDate = formatVisitDate(date);
+    const formattedStartTime = formatVisitTime(startTime);
+    const formattedEndTime = formatVisitTime(endTime);
+    
+    if (date && (startTime || endTime)) {
+      return `${formattedDate} das ${formattedStartTime} às ${formattedEndTime}`;
+    }
+    return 'Período não definido';
   };
 
   // Função para verificar conflitos de agendamento
@@ -727,32 +792,68 @@ export default function VisitantesTab() {
       return;
     }
 
+    // Validações removidas: visit_reason e access_type não existem na tabela
+
+    // Validar período de validade se fornecido
+    if (preRegistrationData.validity_start && !validateDate(preRegistrationData.validity_start)) {
+      Alert.alert('Erro', 'Data de início da validade inválida. Use o formato DD/MM/AAAA.');
+      return;
+    }
+
+    if (preRegistrationData.validity_end && !validateDate(preRegistrationData.validity_end)) {
+      Alert.alert('Erro', 'Data de fim da validade inválida. Use o formato DD/MM/AAAA.');
+      return;
+    }
+
+    // Verificar se data de início é anterior à data de fim
+    if (preRegistrationData.validity_start && preRegistrationData.validity_end) {
+      const startDate = parseDate(preRegistrationData.validity_start);
+      const endDate = parseDate(preRegistrationData.validity_end);
+      if (startDate >= endDate) {
+        Alert.alert('Erro', 'Data de início da validade deve ser anterior à data de fim.');
+        return;
+      }
+    }
+
     // Validações específicas para agendamento
     if (preRegistrationData.visit_type === 'pontual') {
-      if (!preRegistrationData.visit_date || !preRegistrationData.visit_start_time || !preRegistrationData.visit_end_time) {
-        Alert.alert('Erro', 'Para visitas pontuais, data e horários são obrigatórios.');
+      if (!preRegistrationData.visit_date) {
+        Alert.alert('Erro', 'Para visitas pontuais, a data é obrigatória.');
         return;
       }
       
       if (!validateDate(preRegistrationData.visit_date)) {
-        Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA e uma data futura.');
+        Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA e uma data atual ou futura.');
         return;
       }
       
-      if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-        Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+      // Verificar horários apenas se ambos estiverem preenchidos
+      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
+      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+      
+      // Se um horário está preenchido, ambos devem estar
+      if (hasStartTime !== hasEndTime) {
+        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
         return;
       }
       
-      // Verificar se horário de início é anterior ao de fim
-      const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-      const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
-      if (startMinutes >= endMinutes) {
-        Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
-        return;
+      // Se ambos os horários estão preenchidos, validar formato e sequência
+      if (hasStartTime && hasEndTime) {
+        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
+          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+          return;
+        }
+        
+        // Verificar se horário de início é anterior ao de fim
+        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        if (startMinutes >= endMinutes) {
+          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+          return;
+        }
       }
     } else if (preRegistrationData.visit_type === 'frequente') {
       if (!preRegistrationData.allowed_days || preRegistrationData.allowed_days.length === 0) {
@@ -760,25 +861,33 @@ export default function VisitantesTab() {
         return;
       }
       
-      if (!preRegistrationData.visit_start_time || !preRegistrationData.visit_end_time) {
-        Alert.alert('Erro', 'Para visitas frequentes, horários são obrigatórios.');
+      // Verificar horários apenas se ambos estiverem preenchidos
+      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
+      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+      
+      // Se um horário está preenchido, ambos devem estar
+      if (hasStartTime !== hasEndTime) {
+        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
         return;
       }
       
-      if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-        Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
-        return;
-      }
-      
-      // Verificar se horário de início é anterior ao de fim
-      const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-      const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-      
-      if (startMinutes >= endMinutes) {
-        Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
-        return;
+      // Se ambos os horários estão preenchidos, validar formato e sequência
+      if (hasStartTime && hasEndTime) {
+        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
+          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+          return;
+        }
+        
+        // Verificar se horário de início é anterior ao de fim
+        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        if (startMinutes >= endMinutes) {
+          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+          return;
+        }
       }
     }
 
@@ -791,8 +900,8 @@ export default function VisitantesTab() {
       const registrationToken = generateRegistrationToken();
       const tokenExpiresAt = getTokenExpirationDate();
 
-      // Determinar status inicial baseado no tipo de visitante
-      const initialStatus = preRegistrationData.visitor_type === 'frequente' ? 'aprovado' : 'pendente';
+      // Determinar status inicial baseado no tipo de acesso selecionado
+      const initialStatus = preRegistrationData.access_type === 'direto' ? 'aprovado' : 'pendente';
 
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
@@ -812,17 +921,29 @@ export default function VisitantesTab() {
       let visitData: any = {
         name: sanitizedName,
         phone: sanitizedPhone.replace(/\D/g, ''),
-        visitor_type: preRegistrationData.visitor_type,
         status: initialStatus,
+        access_type: preRegistrationData.access_type || 'com_aprovacao', // Usar tipo selecionado pelo morador
         apartment_id: currentApartmentId,
         registration_token: registrationToken,
         token_expires_at: tokenExpiresAt,
         visit_type: preRegistrationData.visit_type,
-        visit_start_time: preRegistrationData.visit_start_time,
-        visit_end_time: preRegistrationData.visit_end_time,
+        // Se os horários estão em branco, definir como liberação 24h (00:00 - 23:59)
+        visit_start_time: preRegistrationData.visit_start_time || '00:00',
+        visit_end_time: preRegistrationData.visit_end_time || '23:59',
         max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
         is_recurring: preRegistrationData.visit_type === 'frequente'
       };
+
+      // Adicionar período de validade se fornecido
+      if (preRegistrationData.validity_start) {
+        const [day, month, year] = preRegistrationData.validity_start.split('/');
+        visitData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+
+      if (preRegistrationData.validity_end) {
+        const [day, month, year] = preRegistrationData.validity_end.split('/');
+        visitData.validity_end = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
 
       // Adicionar campos específicos baseados no tipo de visita
       if (preRegistrationData.visit_type === 'pontual') {
@@ -856,7 +977,16 @@ export default function VisitantesTab() {
 
       if (visitorError) {
         console.error('Erro ao inserir visitante:', visitorError);
-        throw visitorError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (visitorError.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (visitorError.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao inserir visitante: ${visitorError.message}`);
+        }
+        return;
       }
 
       console.log('Visitante inserido com sucesso:', insertedVisitor);
@@ -920,13 +1050,15 @@ export default function VisitantesTab() {
             setPreRegistrationData({ 
               name: '', 
               phone: '', 
-              visitor_type: 'comum',
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
               allowed_days: [],
-              max_simultaneous_visits: 1
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
             });
             fetchVisitors(); // Atualizar lista
           }}]
@@ -940,13 +1072,15 @@ export default function VisitantesTab() {
             setPreRegistrationData({ 
               name: '', 
               phone: '', 
-              visitor_type: 'comum',
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
               allowed_days: [],
-              max_simultaneous_visits: 1
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
             });
             fetchVisitors();
           }}]
@@ -966,7 +1100,6 @@ export default function VisitantesTab() {
     setEditData({
       name: visitor.name,
       phone: visitor.phone || '',
-      visitor_type: visitor.visitor_type as 'comum' | 'frequente',
       visit_type: 'pontual', // Valor padrão, pode ser ajustado conforme necessário
       visit_date: '',
       visit_start_time: '',
@@ -1010,13 +1143,23 @@ export default function VisitantesTab() {
           name: sanitizedName,
           phone: sanitizedPhone.replace(/\D/g, ''),
           visitor_type: editData.visitor_type,
+          access_type: editData.access_type,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingVisitor.id);
 
       if (updateError) {
         console.error('Erro ao atualizar visitante:', updateError);
-        throw updateError;
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (updateError.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (updateError.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
+        }
+        return;
       }
 
       Alert.alert(
@@ -1032,6 +1175,7 @@ export default function VisitantesTab() {
               phone: '',
               visitor_type: 'comum',
               visit_type: 'pontual',
+              access_type: 'com_aprovacao',
               visit_date: '',
               visit_start_time: '',
               visit_end_time: '',
@@ -1082,7 +1226,15 @@ export default function VisitantesTab() {
 
               if (error) {
                 console.error('Erro ao excluir visitante:', error);
-                Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
+                
+                // Tratamento específico para erros de coluna inexistente
+                if (error.code === '42703') {
+                  Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+                } else if (error.code === 'PGRST204') {
+                  Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+                } else {
+                  Alert.alert('Erro', `Erro ao excluir visitante: ${error.message}`);
+                }
                 return;
               }
 
@@ -1101,17 +1253,6 @@ export default function VisitantesTab() {
   // Função para aprovar visitante
   const handleApproveVisitor = async (visitor: Visitor) => {
     try {
-      // Validar se CPF e nome estão completos
-      if (!visitor.document || visitor.document.trim() === '') {
-        Alert.alert('Validação', 'O CPF do visitante deve estar preenchido para aprovação.');
-        return;
-      }
-
-      if (!visitor.name || visitor.name.trim() === '' || visitor.name.trim().split(' ').length < 2) {
-        Alert.alert('Validação', 'O nome completo do visitante deve estar preenchido para aprovação.');
-        return;
-      }
-
       const { error } = await supabase
         .from('visitors')
         .update({
@@ -1122,7 +1263,15 @@ export default function VisitantesTab() {
 
       if (error) {
         console.error('Erro ao aprovar visitante:', error);
-        Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (error.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (error.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao aprovar visitante: ${error.message}`);
+        }
         return;
       }
 
@@ -1140,14 +1289,22 @@ export default function VisitantesTab() {
       const { error } = await supabase
         .from('visitors')
         .update({
-          status: 'negado',
+          status: 'nao_permitido',
           updated_at: new Date().toISOString()
         })
         .eq('id', visitor.id);
 
       if (error) {
         console.error('Erro ao desaprovar visitante:', error);
-        Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
+        
+        // Tratamento específico para erros de coluna inexistente
+        if (error.code === '42703') {
+          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+        } else if (error.code === 'PGRST204') {
+          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+        } else {
+          Alert.alert('Erro', `Erro ao desaprovar visitante: ${error.message}`);
+        }
         return;
       }
 
@@ -1234,6 +1391,14 @@ export default function VisitantesTab() {
                   <Text style={styles.visitorDate}>
                     Cadastrado: {formatDisplayDate(visitor.created_at)}
                   </Text>
+                  {(visitor.visit_date || visitor.visit_start_time || visitor.visit_end_time) && (
+                    <View style={styles.visitScheduleContainer}>
+                      <Text style={styles.visitScheduleLabel}>🕒 Período de Visita:</Text>
+                      <Text style={styles.visitScheduleText}>
+                        {formatVisitPeriod(visitor.visit_date, visitor.visit_start_time, visitor.visit_end_time)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 
                 <View style={styles.cardHeaderActions}>
@@ -1297,7 +1462,7 @@ export default function VisitantesTab() {
         <SafeAreaView style={styles.modalOverlay}>
           <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pré-cadastro de Visitante</Text>
+              <Text style={styles.modalTitle}>Pré-cadastro de Visitantes</Text>
               <TouchableOpacity
                 onPress={() => setShowPreRegistrationModal(false)}
                 style={styles.closeButton}
@@ -1331,37 +1496,6 @@ export default function VisitantesTab() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Visitante *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visitor_type === 'comum' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visitor_type: 'comum' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visitor_type === 'comum' && styles.visitorTypeButtonTextActive
-                    ]}>Comum</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visitor_type === 'frequente' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visitor_type: 'frequente' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visitor_type === 'frequente' && styles.visitorTypeButtonTextActive
-                    ]}>Frequente</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tipo de Visita *</Text>
                 <View style={styles.visitorTypeSelector}>
                   <TouchableOpacity
@@ -1392,6 +1526,37 @@ export default function VisitantesTab() {
                 </View>
               </View>
 
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Aprovação *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
+                    ]}>Com Aprovação</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'direto' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonTextActive
+                    ]}>Liberação Direta</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* Campos condicionais para visita pontual */}
               {preRegistrationData.visit_type === 'pontual' && (
                 <>
@@ -1413,7 +1578,7 @@ export default function VisitantesTab() {
 
                   <View style={styles.timeInputRow}>
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_start_time}
@@ -1429,7 +1594,7 @@ export default function VisitantesTab() {
                     </View>
 
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_end_time}
@@ -1443,6 +1608,12 @@ export default function VisitantesTab() {
                         maxLength={5}
                       />
                     </View>
+                  </View>
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
                   </View>
                 </>
               )}
@@ -1483,7 +1654,7 @@ export default function VisitantesTab() {
 
                   <View style={styles.timeInputRow}>
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_start_time}
@@ -1499,7 +1670,7 @@ export default function VisitantesTab() {
                     </View>
 
                     <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
                       <TextInput
                         style={styles.textInput}
                         value={preRegistrationData.visit_end_time}
@@ -1514,29 +1685,21 @@ export default function VisitantesTab() {
                       />
                     </View>
                   </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Máximo de Visitas Simultâneas</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.max_simultaneous_visits?.toString()}
-                      onChangeText={(text) => {
-                        const num = parseInt(text) || 1;
-                        setPreRegistrationData(prev => ({ ...prev, max_simultaneous_visits: num }));
-                      }}
-                      placeholder="1"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                    />
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
                   </View>
+
                 </>
               )}
 
               <View style={styles.infoBox}>
                 <Text style={styles.infoText}>
-                  {preRegistrationData.visitor_type === 'frequente' 
-                    ? '• Visitantes frequentes mantêm acesso aprovado permanentemente\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)'
-                    : '• Visitantes comuns precisam de aprovação a cada visita\n• Status retorna a "não permitido" após cada verificação\n• O horário define o período em que podem entrar (ex: das 15h às 18h)'
+                  {preRegistrationData.visit_type === 'frequente' 
+                    ? '• Visitantes frequentes têm acesso liberado nos dias e horários definidos\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)\n• Acesso sempre requer aprovação do porteiro'
+                    : '• Visitantes pontuais têm acesso apenas na data específica\n• Status retorna a "não permitido" após a visita\n• O horário define o período em que podem entrar (ex: das 15h às 18h)\n• Acesso sempre requer aprovação do porteiro'
                   }
                 </Text>
               </View>
@@ -1608,6 +1771,37 @@ export default function VisitantesTab() {
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
+                <View style={styles.visitorTypeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.access_type === 'direto' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'direto' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.access_type === 'direto' && styles.visitorTypeButtonTextActive
+                    ]}>Direto</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
+                    ]}>Com Aprovação</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
@@ -2028,14 +2222,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 0,
     width: '100%',
-    flex: 1,
+    height: '100%',
     marginTop: 0,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
@@ -2058,11 +2253,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   modalBody: {
-    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 15,
+    flex: 1,
   },
   inputGroup: {
+    marginTop: 12,
     marginBottom: 16,
   },
   inputLabel: {
@@ -2110,8 +2306,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderLeftWidth: 4,
     marginTop: 10,
+    marginBottom: 35,
     borderLeftColor: '#4CAF50',
-  },
+  }, 
   infoText: {
     fontSize: 12,
     color: '#555',
@@ -2119,9 +2316,8 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     gap: 12,
@@ -2161,6 +2357,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   timeInputGroup: {
+    marginBottom: 36,
     flex: 1,
   },
   daysSelector: {
@@ -2258,6 +2455,32 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDanger: {
     color: '#f44336',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  // Estilos para exibição do período de visita
+  visitScheduleContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  visitScheduleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  visitScheduleText: {
+    fontSize: 12,
+    color: '#555',
+    fontWeight: '500',
   },
 
 });

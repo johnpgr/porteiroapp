@@ -10,14 +10,18 @@ import {
   Alert,
   SafeAreaView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { supabase } from '../../utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
+import { useFirstLogin } from '~/hooks/useFirstLogin';
+import { FirstLoginModal } from '~/components/FirstLoginModal';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
 
@@ -36,6 +40,7 @@ interface VisitorHistory {
 
 export default function MoradorDashboard() {
   const { user, signOut } = useAuth();
+  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   const { tab } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState('inicio');
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
@@ -45,6 +50,10 @@ export default function MoradorDashboard() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   
+  // Estados para o modal de notificação
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<any>(null);
+  
   // Hook para notificações pendentes em tempo real
   const {
     notifications: pendingNotifications,
@@ -52,6 +61,14 @@ export default function MoradorDashboard() {
     error: notificationsError,
     respondToNotification
   } = usePendingNotifications();
+
+  // Hook para gerenciar primeiro login
+  const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
+
+  // Debug log para verificar o estado
+  useEffect(() => {
+    console.log('🚀 DEBUG MoradorDashboard - isFirstLogin:', isFirstLogin);
+  }, [isFirstLogin]);
 
   // Handle tab parameter from navigation
   useEffect(() => {
@@ -96,7 +113,7 @@ export default function MoradorDashboard() {
         return;
       }
       
-      // Buscar histórico de visitantes (apenas aprovadas)
+      // Buscar histórico de visitantes (aprovadas e rejeitadas)
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitor_logs')
         .select(`
@@ -114,7 +131,7 @@ export default function MoradorDashboard() {
           )
         `)
         .eq('apartment_id', apartmentData.apartment_id)
-        .eq('notification_status', 'approved')
+        .in('notification_status', ['approved', 'rejected'])
         .order('log_time', { ascending: false })
         .limit(20);
       
@@ -149,8 +166,9 @@ export default function MoradorDashboard() {
   useEffect(() => {
     if (user?.id) {
       fetchVisitorsHistory();
+      checkFirstLoginStatus();
     }
-  }, [user?.id]);
+  }, [user?.id, checkFirstLoginStatus]);
 
   // Função para formatar data em português
   const formatDate = (dateString: string) => {
@@ -182,6 +200,7 @@ export default function MoradorDashboard() {
       case 'pending':
         return '⏳';
       case 'denied':
+      case 'rejected':
         return '❌';
       default:
         return '❓';
@@ -197,6 +216,8 @@ export default function MoradorDashboard() {
         return 'Pendente';
       case 'denied':
         return 'Negada';
+      case 'rejected':
+        return 'Rejeitada';
       default:
         return 'Desconhecido';
     }
@@ -224,7 +245,10 @@ export default function MoradorDashboard() {
 
       <View style={styles.headerCenter}>
         <Text style={styles.title}>🏠 Morador</Text>
-        <Text style={styles.subtitle}>Apartamento 101</Text>
+        <Text style={styles.subtitle}>
+          {apartmentLoading ? 'Carregando...' : 
+           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
+        </Text>
       </View>
 
       <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
@@ -286,8 +310,6 @@ export default function MoradorDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>📬 Notificações Pendentes</Text>
 
-
-
         {loadingNotifications && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#4CAF50" />
@@ -308,11 +330,111 @@ export default function MoradorDashboard() {
         )}
 
         {!loadingNotifications && !notificationsError && pendingNotifications.map((notification) => (
-          <NotificationCard
-            key={notification.id}
-            notification={notification}
-            onRespond={respondToNotification}
-          />
+          <View key={notification.id}>
+            <NotificationCard
+              notification={notification}
+              onRespond={respondToNotification}
+              onInfoPress={() => {
+                setSelectedNotification(notification);
+                setShowNotificationModal(true);
+              }}
+            />
+
+            <Modal
+              visible={showNotificationModal && selectedNotification?.id === notification.id}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowNotificationModal(false)}
+            >
+              <TouchableOpacity 
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setShowNotificationModal(false)}
+              >
+                <View style={styles.notificationModalContent}>
+                  <View style={styles.notificationModalHeader}>
+                    <View style={styles.notificationModalHeaderLeft}>
+                      <Text style={styles.notificationModalTitle}>Detalhes - {notification.visitor_name || 'Visitante'}</Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.closeModalButton}
+                      onPress={() => setShowNotificationModal(false)}
+                    >
+                      <Ionicons name="close" size={20} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.notificationModalBody}>
+                    {notification.photo_url && (
+                      <View style={styles.notificationPhotoContainer}>
+                        <Image 
+                          source={{ uri: notification.photo_url }} 
+                          style={styles.notificationPhoto}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    )}
+                    
+                    <View style={styles.notificationDetailItem}>
+                      <Text style={styles.detailLabel}>Visitante:</Text>
+                      <Text style={styles.detailValue}>{notification.visitor_name}</Text>
+                    </View>
+
+                    <View style={styles.notificationDetailItem}>
+                      <Text style={styles.detailLabel}>Documento:</Text>
+                      <Text style={styles.detailValue}>{notification.visitors?.document || 'Não informado'}</Text>
+                    </View>
+
+                    <View style={styles.notificationDetailItem}>
+                      <Text style={styles.detailLabel}>Telefone:</Text>
+                      <Text style={styles.detailValue}>{notification.visitor_phone || 'Não informado'}</Text>
+                    </View>
+
+                    <View style={styles.notificationDetailItem}>
+                      <Text style={styles.detailLabel}>Motivo:</Text>
+                      <Text style={styles.detailValue}>{notification.purpose}</Text>
+                    </View>
+
+                    <View style={styles.notificationDetailItem}>
+                      <Text style={styles.detailLabel}>Data/Hora:</Text>
+                      <Text style={styles.detailValue}>{formatDate(notification.created_at)}</Text>
+                    </View>
+
+                    {notification.delivery_destination && (
+                      <View style={styles.notificationDetailItem}>
+                        <Text style={styles.detailLabel}>Destino da Entrega:</Text>
+                        <Text style={styles.detailValue}>
+                          {notification.delivery_destination === 'portaria' ? 'Deixar na portaria' : 'Enviar pelo elevador'}
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  <View style={styles.notificationModalActions}>
+                    <TouchableOpacity
+                      style={[styles.modalActionButton, styles.approveButton]}
+                      onPress={() => {
+                        respondToNotification(notification.id, 'approved');
+                        setShowNotificationModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalActionButtonText}>Aprovar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.modalActionButton, styles.denyButton]}
+                      onPress={() => {
+                        respondToNotification(notification.id, 'denied');
+                        setShowNotificationModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalActionButtonText}>Negar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Modal>
+          </View>
         ))}
       </View>
 
@@ -444,6 +566,8 @@ export default function MoradorDashboard() {
           Avisos
         </Text>
       </TouchableOpacity>
+
+
     </View>
   );
 
@@ -456,6 +580,14 @@ export default function MoradorDashboard() {
           {renderBottomNavigation()}
           {renderAvatarMenu()}
         </View>
+        
+        <FirstLoginModal
+          visible={isFirstLogin}
+          onClose={() => {}}
+          onComplete={() => {
+            checkFirstLoginStatus();
+          }}
+        />
       </SafeAreaView>
     </ProtectedRoute>
   );
@@ -762,5 +894,89 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e0e0e0',
     marginHorizontal: 16,
+  },
+  
+  // Estilos do modal de notificação
+  notificationModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    margin: 20,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  notificationModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  notificationModalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  closeModalButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  notificationModalBody: {
+    padding: 20,
+    maxHeight: 400,
+  },
+  notificationPhotoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  notificationPhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: '#4CAF50',
+  },
+  notificationDetailItem: {
+    marginBottom: 15,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#333',
+  },
+  notificationModalActions: {
+    flexDirection: 'row',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    gap: 12,
+  },
+  modalActionButton: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  modalActionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });

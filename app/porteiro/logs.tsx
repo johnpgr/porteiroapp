@@ -80,44 +80,49 @@ export default function ActivityLogs() {
   const [realtimeChannels, setRealtimeChannels] = useState<RealtimeChannel[]>([]);
   const [buildingId, setBuildingId] = useState<string | null>(null);
 
+  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Função para enviar notificação push aos porteiros
   const notifyPorteiros = async (message: string, data: any) => {
-    try {
-      if (!buildingId) return;
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+    console.log('📱 Push notifications desativadas - log atualizado sem notificação:', message);
+    return;
+    
+    // try {
+    //   if (!buildingId) return;
 
-      // Buscar todos os porteiros do prédio
-      const { data: porteiros, error } = await supabase
-        .from('profiles')
-        .select('id, expo_push_token')
-        .eq('user_type', 'porteiro')
-        .eq('building_id', buildingId)
-        .not('expo_push_token', 'is', null);
+    //   // Buscar todos os porteiros do prédio
+    //   const { data: porteiros, error } = await supabase
+    //     .from('profiles')
+    //     .select('id, expo_push_token')
+    //     .eq('user_type', 'porteiro')
+    //     .eq('building_id', buildingId)
+    //     .not('expo_push_token', 'is', null);
 
-      if (error) {
-        console.error('Erro ao buscar porteiros:', error);
-        return;
-      }
+    //   if (error) {
+    //     console.error('Erro ao buscar porteiros:', error);
+    //     return;
+    //   }
 
-      // Enviar notificação para cada porteiro
-      for (const porteiro of porteiros || []) {
-        if (porteiro.expo_push_token) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Atualização nos Logs',
-              body: message,
-              data: {
-                ...data,
-                building_id: buildingId,
-                timestamp: new Date().toISOString()
-              }
-            },
-            trigger: null
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao enviar notificação aos porteiros:', error);
-    }
+    //   // Enviar notificação para cada porteiro
+    //   for (const porteiro of porteiros || []) {
+    //     if (porteiro.expo_push_token) {
+    //       await Notifications.scheduleNotificationAsync({
+    //         content: {
+    //           title: 'Atualização nos Logs',
+    //           body: message,
+    //           data: {
+    //             ...data,
+    //             building_id: buildingId,
+    //             timestamp: new Date().toISOString()
+    //           }
+    //         },
+    //         trigger: null
+    //       });
+    //     }
+    //   }
+    // } catch (error) {
+    //   console.error('Erro ao enviar notificação aos porteiros:', error);
+    // }
   };
 
 
@@ -740,7 +745,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

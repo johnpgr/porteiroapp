@@ -11,6 +11,7 @@ export interface Database {
           email: string;
           phone: string | null;
           role: string;
+          is_active: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -21,6 +22,7 @@ export interface Database {
           email: string;
           phone?: string | null;
           role: string;
+          is_active?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -31,6 +33,7 @@ export interface Database {
           email?: string;
           phone?: string | null;
           role?: string;
+          is_active?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
