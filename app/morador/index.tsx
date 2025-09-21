@@ -113,7 +113,7 @@ export default function MoradorDashboard() {
         return;
       }
       
-      // Buscar histórico de visitantes (apenas aprovadas)
+      // Buscar histórico de visitantes (aprovadas e rejeitadas)
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitor_logs')
         .select(`
@@ -131,7 +131,7 @@ export default function MoradorDashboard() {
           )
         `)
         .eq('apartment_id', apartmentData.apartment_id)
-        .eq('notification_status', 'approved')
+        .in('notification_status', ['approved', 'rejected'])
         .order('log_time', { ascending: false })
         .limit(20);
       
@@ -200,6 +200,7 @@ export default function MoradorDashboard() {
       case 'pending':
         return '⏳';
       case 'denied':
+      case 'rejected':
         return '❌';
       default:
         return '❓';
@@ -215,6 +216,8 @@ export default function MoradorDashboard() {
         return 'Pendente';
       case 'denied':
         return 'Negada';
+      case 'rejected':
+        return 'Rejeitada';
       default:
         return 'Desconhecido';
     }

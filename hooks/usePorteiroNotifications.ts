@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { shiftService } from '../services/shiftService';
+import { Alert } from 'react-native';
 
 console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
 
@@ -69,6 +70,92 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
     } catch (err) {
       console.error('❌ [usePorteiroNotifications] Erro ao criar notificação local:', err);
     }
+  };
+
+  // Função para exibir popup de aprovação/rejeição
+  const showApprovalPopup = async (status: string, visitorData: any) => {
+    console.log('🎯 [showApprovalPopup] Dados recebidos:', JSON.stringify(visitorData, null, 2));
+    
+    const isApproved = status === 'approved';
+    let apartmentNumber = 'N/A';
+    
+    try {
+      console.log('🔍 [showApprovalPopup] Tentando buscar apartamento com visitor_id:', visitorData?.visitor_id);
+      console.log('🔍 [showApprovalPopup] Tentando buscar apartamento com apartment_id:', visitorData?.apartment_id);
+      
+      // Primeiro tentar pelo apartment_id diretamente (mais provável de estar no payload)
+      if (visitorData?.apartment_id) {
+        console.log('🏠 [showApprovalPopup] Buscando via apartment_id...');
+        const { data: apartmentInfo, error } = await supabase
+          .from('apartments')
+          .select('number')
+          .eq('id', visitorData.apartment_id)
+          .single();
+        
+        console.log('🏠 [showApprovalPopup] Resultado busca apartment:', { apartmentInfo, error });
+        
+        if (!error && apartmentInfo?.number) {
+          apartmentNumber = apartmentInfo.number;
+          console.log('✅ [showApprovalPopup] Apartamento encontrado via apartment_id:', apartmentNumber);
+        }
+      }
+      // Se não conseguiu pelo apartment_id, tentar pelo visitor_id
+      else if (visitorData?.visitor_id) {
+        console.log('📋 [showApprovalPopup] Buscando via visitor_id...');
+        const { data: visitorInfo, error } = await supabase
+          .from('visitors')
+          .select(`
+            apartment_id,
+            apartments!inner(
+              number
+            )
+          `)
+          .eq('id', visitorData.visitor_id)
+          .single();
+        
+        console.log('📋 [showApprovalPopup] Resultado busca visitor:', { visitorInfo, error });
+        
+        if (!error && visitorInfo?.apartments?.number) {
+          apartmentNumber = visitorInfo.apartments.number;
+          console.log('✅ [showApprovalPopup] Apartamento encontrado via visitor_id:', apartmentNumber);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [showApprovalPopup] Erro ao buscar número do apartamento:', error);
+    }
+    
+    // Verificar se é uma entrega
+    if (visitorData?.entry_type === 'delivery') {
+      console.log('📦 [showApprovalPopup] Detectada entrega, exibindo alerta específico');
+      
+      const deliveryDestination = visitorData?.delivery_destination;
+      const destinationText = deliveryDestination === 'elevador' ? 'no elevador' : 'na portaria';
+      
+      const title = 'Instrução de Entrega';
+      const message = `O morador do apartamento ${apartmentNumber} solicitou para deixar ${destinationText}.`;
+      
+      Alert.alert(
+        title,
+        message,
+        [{ text: 'OK', style: 'default' }],
+        { cancelable: true }
+      );
+      return;
+    }
+    
+    // Comportamento padrão para visitantes
+    const visitorName = visitorData?.guest_name || 'Visitante';
+    const title = isApproved ? 'Visitante Aprovado' : 'Visitante Rejeitado';
+    const message = isApproved 
+      ? `O visitante ${visitorName} foi aprovado para o apartamento ${apartmentNumber}.`
+      : `A entrada do visitante ${visitorName} foi rejeitada pelo apartamento ${apartmentNumber}.`;
+    
+    Alert.alert(
+      title,
+      message,
+      [{ text: 'OK', style: 'default' }],
+      { cancelable: true }
+    );
   };
   
   // Verificar se o porteiro está em turno ativo
@@ -152,6 +239,15 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           },
           async (payload) => {
             console.log('🔄 [usePorteiroNotifications] Mudança em visitor_logs:', payload);
+            
+            // Verificar se é uma atualização de status para approved ou rejected
+            if (payload.eventType === 'UPDATE' && payload.new?.notification_status) {
+              const status = payload.new.notification_status;
+              if (status === 'approved' || status === 'rejected') {
+                console.log('🎯 [usePorteiroNotifications] Status de aprovação detectado:', status);
+                await showApprovalPopup(status, payload.new);
+              }
+            }
             
             const notification: PorteiroNotification = {
               id: `visitor_log_${Date.now()}`,

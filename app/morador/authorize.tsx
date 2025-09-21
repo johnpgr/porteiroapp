@@ -111,11 +111,12 @@ export default function AuthorizeScreen() {
            apartment_id: apartmentData.id,
            building_id: apartmentData.building_id,
            log_time: new Date().toISOString(),
-           tipo_log: actionType === 'approve' ? 'IN' : 'OUT',
+           tipo_log: 'IN',
            visit_session_id: Crypto.randomUUID(),
            purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
            authorized_by: user.id,
-           status: newStatus
+           status: newStatus,
+           notification_status: actionType === 'approve' ? 'approved' : 'rejected'
          });
        }
 

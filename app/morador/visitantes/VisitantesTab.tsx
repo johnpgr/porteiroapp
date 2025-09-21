@@ -1253,12 +1253,6 @@ export default function VisitantesTab() {
   // Função para aprovar visitante
   const handleApproveVisitor = async (visitor: Visitor) => {
     try {
-      // Validar se nome está completo
-      if (!visitor.name || visitor.name.trim() === '' || visitor.name.trim().split(' ').length < 2) {
-        Alert.alert('Validação', 'O nome completo do visitante deve estar preenchido para aprovação.');
-        return;
-      }
-
       const { error } = await supabase
         .from('visitors')
         .update({
