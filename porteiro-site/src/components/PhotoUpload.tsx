@@ -131,8 +131,6 @@ export default function PhotoUpload({
               width={128}
               height={128}
               className="w-full h-full object-cover"
-              width={128}
-              height={128}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

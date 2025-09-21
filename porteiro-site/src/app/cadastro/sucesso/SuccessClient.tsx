@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { CheckCircle, Smartphone, Shield, Users, Clock, ArrowRight, Download, LogIn, Sparkles } from 'lucide-react';
+import { CheckCircle, Smartphone, Shield, Users, Clock, ArrowRight, Download, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
