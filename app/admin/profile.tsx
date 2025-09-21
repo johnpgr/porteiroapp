@@ -736,9 +736,9 @@ export default function AdminProfilePage() {
                 <Text style={styles.label}>E-mail</Text>
                 {isEditing ? (
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, styles.readOnlyInput]}
                     value={formData.email}
-                    onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
+                    editable={false}
                     placeholder="Digite seu e-mail"
                     keyboardType="email-address"
                   />
@@ -1106,6 +1106,11 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+    color: '#666',
   },
   textArea: {
     height: 80,

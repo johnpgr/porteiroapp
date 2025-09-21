@@ -630,12 +630,12 @@ export default function PorteiroProfile() {
                   <Text style={styles.label}>Email</Text>
                   {isEditing ? (
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, styles.readOnlyInput]}
                       value={formData.email}
-                      onChangeText={(text) => setFormData({ ...formData, email: text })}
-                      placeholder="Digite seu email"
+                      placeholder="Email não pode ser alterado"
                       keyboardType="email-address"
                       autoCapitalize="none"
+                      editable={false}
                     />
                   ) : (
                     <Text style={styles.value}>{formData.email || 'Não informado'}</Text>
@@ -1022,6 +1022,11 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#ccc',
+    color: '#666',
   },
   textArea: {
     height: 80,

@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
+  TouchableOpacity,
   Modal,
   StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Alert,
+  Image,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFirstLogin } from '../hooks/useFirstLogin';
@@ -28,11 +29,8 @@ interface FirstLoginModalProps {
 interface FormData {
   full_name: string;
   cpf: string;
-  phone: string;
   birth_date: string;
-  address: string;
-  emergency_contact_name: string;
-  emergency_contact_phone: string;
+  phone: string;
   photoUri: string | null;
 }
 
@@ -48,16 +46,13 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const [formData, setFormData] = useState<FormData>({
     full_name: '',
     cpf: '',
-    phone: '',
     birth_date: '',
-    address: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
+    phone: '',
     photoUri: null,
   });
   
   const { completeFirstLogin, profileData, isLoading: hookLoading, error: hookError } = useFirstLogin();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   // Verificação de segurança para dados nulos
   useEffect(() => {
@@ -70,7 +65,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         cpf: (profileData as any)?.cpf || '',
         phone: (profileData as any)?.phone || '',
         birth_date: (profileData as any)?.birth_date || '',
-        address: (profileData as any)?.address || '',
         emergency_contact_name: (profileData as any)?.emergency_contact_name || '',
         emergency_contact_phone: (profileData as any)?.emergency_contact_phone || '',
       };
@@ -94,9 +88,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         cpf: '',
         phone: '',
         birth_date: '',
-        address: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
         photoUri: null,
       });
       setErrors({});
@@ -127,11 +118,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     updateFormData('phone', formattedPhone);
   };
 
-  // Format emergency phone as user types
-  const handleEmergencyPhoneChange = (text: string) => {
-    const formattedPhone = text.replace(/\D/g, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-    updateFormData('emergency_contact_phone', formattedPhone);
-  };
+
 
   // Format birth date as user types
   const handleBirthDateChange = (text: string) => {
@@ -172,19 +159,9 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         } else if (formData.phone.replace(/\D/g, '').length < 10) {
           newErrors.phone = 'Telefone deve ter pelo menos 10 dígitos';
         }
-        if (!formData.address.trim()) newErrors.address = 'Endereço é obrigatório';
         break;
 
-      case 'emergency':
-        if (!formData.emergency_contact_name.trim()) {
-          newErrors.emergency_contact_name = 'Nome do contato de emergência é obrigatório';
-        }
-        if (!formData.emergency_contact_phone.trim()) {
-          newErrors.emergency_contact_phone = 'Telefone de emergência é obrigatório';
-        } else if (formData.emergency_contact_phone.replace(/\D/g, '').length < 10) {
-          newErrors.emergency_contact_phone = 'Telefone deve ter pelo menos 10 dígitos';
-        }
-        break;
+
 
       case 'photo':
         if (!formData.photoUri) {
@@ -202,8 +179,8 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const handleNext = () => {
     if (!validateCurrentStep()) return;
 
-    const steps: ('personal' | 'contact' | 'emergency' | 'photo')[] = [
-      'personal', 'contact', 'emergency', 'photo'
+    const steps: ('personal' | 'contact' | 'photo')[] = [
+      'personal', 'contact', 'photo'
     ];
     const currentIndex = steps.indexOf(step);
     if (currentIndex < steps.length - 1) {
@@ -213,8 +190,8 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
   // Navigate to previous step
   const handleBack = () => {
-    const steps: ('personal' | 'contact' | 'emergency' | 'photo')[] = [
-      'personal', 'contact', 'emergency', 'photo'
+    const steps: ('personal' | 'contact' | 'photo')[] = [
+      'personal', 'contact', 'photo'
     ];
     const currentIndex = steps.indexOf(step);
     if (currentIndex > 0) {
@@ -222,6 +199,115 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     } else {
       onClose();
     }
+  };
+
+  // Handle logout with confirmation and robust error handling
+  const handleLogout = () => {
+    Alert.alert(
+      'Confirmar Logout',
+      'Tem certeza que deseja sair? Você perderá o progresso atual do cadastro.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            // Mostrar loading durante logout
+            setIsLoading(true);
+            
+            try {
+              console.log('🚪 [FirstLoginModal] Iniciando logout...');
+              
+              // Timeout para evitar travamento em caso de problemas de rede
+              const logoutPromise = signOut();
+              const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+              );
+              
+              await Promise.race([logoutPromise, timeoutPromise]);
+              
+              console.log('✅ [FirstLoginModal] Logout realizado com sucesso');
+              onClose();
+              
+            } catch (error: any) {
+              console.error('❌ [FirstLoginModal] Erro durante logout:', error);
+              
+              // Verificar se é erro de rede ou timeout
+              const isNetworkError = error?.message?.includes('Network request failed') || 
+                                   error?.message?.includes('Timeout') ||
+                                   error?.name?.includes('AuthRetryableFetchError');
+              
+              if (isNetworkError) {
+                console.log('🌐 [FirstLoginModal] Erro de rede detectado, executando logout local...');
+                
+                // Fallback: logout local mesmo com erro de rede
+                try {
+                  // Limpar dados locais diretamente
+                  await import('../services/TokenStorage').then(({ TokenStorage }) => 
+                    TokenStorage.clearAll()
+                  );
+                  
+                  console.log('🧹 [FirstLoginModal] Dados locais limpos com sucesso');
+                  
+                  Alert.alert(
+                    'Logout Realizado',
+                    'Você foi desconectado com sucesso. Devido a problemas de conectividade, alguns dados podem não ter sido sincronizados com o servidor.',
+                    [{ 
+                      text: 'OK', 
+                      onPress: () => onClose()
+                    }]
+                  );
+                  
+                } catch (fallbackError) {
+                  console.error('❌ [FirstLoginModal] Erro no fallback de logout:', fallbackError);
+                  
+                  Alert.alert(
+                    'Forçar Saída',
+                    'Houve um problema ao fazer logout. Deseja forçar a saída? Isso pode deixar alguns dados não sincronizados.',
+                    [
+                      {
+                        text: 'Cancelar',
+                        style: 'cancel'
+                      },
+                      {
+                        text: 'Forçar Saída',
+                        style: 'destructive',
+                        onPress: () => {
+                          console.log('🔄 [FirstLoginModal] Forçando logout...');
+                          onClose();
+                        }
+                      }
+                    ]
+                  );
+                }
+              } else {
+                // Outros tipos de erro
+                Alert.alert(
+                  'Erro no Logout',
+                  'Ocorreu um erro inesperado ao fazer logout. Tente novamente.',
+                  [
+                    {
+                      text: 'Tentar Novamente',
+                      onPress: () => handleLogout()
+                    },
+                    {
+                      text: 'Forçar Saída',
+                      style: 'destructive',
+                      onPress: () => onClose()
+                    }
+                  ]
+                );
+              }
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Complete profile
@@ -239,7 +325,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       full_name: formData.full_name,
       phone: formData.phone,
       birth_date: formData.birth_date,
-      address: formData.address,
       emergency_contact_name: formData.emergency_contact_name,
       emergency_contact_phone: formData.emergency_contact_phone,
     });
@@ -281,7 +366,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         full_name: formData.full_name,
         phone: formData.phone,
         birth_date: formData.birth_date,
-        address: formData.address,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
       });
@@ -327,21 +411,33 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     placeholder: string,
     keyboardType: 'default' | 'numeric' | 'phone-pad' = 'default',
     maxLength?: number,
-    error?: string
-  ) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={[styles.input, error ? styles.inputError : null]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        keyboardType={keyboardType}
-        maxLength={maxLength}
-      />
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-    </View>
-  );
+    error?: string,
+    autoFocus?: boolean
+  ) => {
+    return (
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>{label}</Text>
+        <TextInput
+          style={[styles.input, error ? styles.inputError : null]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#1F2937"
+          keyboardType={keyboardType}
+          maxLength={maxLength}
+          editable={true}
+          selectTextOnFocus={true}
+          autoCorrect={false}
+          autoCapitalize={keyboardType === 'phone-pad' ? 'none' : 'words'}
+          autoFocus={autoFocus}
+          clearButtonMode="while-editing"
+          returnKeyType="next"
+          blurOnSubmit={false}
+        />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      </View>
+    );
+  };
 
   // Render personal data step
   const renderPersonalStep = () => (
@@ -416,20 +512,10 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         errors?.phone
       )}
 
-      {renderInput(
-        'Endereço Completo',
-        formData.address,
-        (text) => updateFormData('address', text),
-        'Rua, número, bairro, cidade',
-        'default',
-        undefined,
-        errors?.address
-      )}
-
       <TouchableOpacity
-        style={[styles.button, (!formData.phone || !formData.address) ? styles.buttonDisabled : null]}
+        style={[styles.button, !formData.phone ? styles.buttonDisabled : null]}
         onPress={handleNext}
-        disabled={!formData.phone || !formData.address}
+        disabled={!formData.phone}
       >
         <Text style={styles.buttonText}>Continuar</Text>
         <Ionicons name="arrow-forward" size={20} color="white" />
@@ -437,47 +523,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     </View>
   );
 
-  // Render emergency contact step
-  const renderEmergencyStep = () => (
-    <View style={styles.stepContainer}>
-      <View style={styles.header}>
-        <Ionicons name="medical-outline" size={48} color="#007AFF" />
-        <Text style={styles.title}>Contato de Emergência</Text>
-        <Text style={styles.subtitle}>
-          Quem devemos contatar em caso de emergência?
-        </Text>
-      </View>
 
-      {renderInput(
-        'Nome do Contato',
-        formData.emergency_contact_name,
-        (text) => updateFormData('emergency_contact_name', text),
-        'Nome completo do contato',
-        'default',
-        undefined,
-        errors?.emergency_contact_name
-      )}
-
-      {renderInput(
-        'Telefone do Contato',
-        formData.emergency_contact_phone,
-        handleEmergencyPhoneChange,
-        '(11) 99999-9999',
-        'phone-pad',
-        15,
-        errors?.emergency_contact_phone
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, (!formData.emergency_contact_name || !formData.emergency_contact_phone) ? styles.buttonDisabled : null]}
-        onPress={handleNext}
-        disabled={!formData.emergency_contact_name || !formData.emergency_contact_phone}
-      >
-        <Text style={styles.buttonText}>Continuar</Text>
-        <Ionicons name="arrow-forward" size={20} color="white" />
-      </TouchableOpacity>
-    </View>
-  );
 
 
 
@@ -523,7 +569,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     const steps = [
       { key: 'personal', title: 'Dados Pessoais', icon: 'person-outline' },
       { key: 'contact', title: 'Contato', icon: 'call-outline' },
-      { key: 'emergency', title: 'Emergência', icon: 'medical-outline' },
       { key: 'photo', title: 'Foto', icon: 'camera-outline' }
     ];
     
@@ -538,8 +583,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         return renderPersonalStep();
       case 'contact':
         return renderContactStep();
-      case 'emergency':
-        return renderEmergencyStep();
       case 'photo':
         return renderPhotoStep();
       default:
@@ -596,10 +639,11 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          <TouchableOpacity onPress={handleLogout} style={styles.backButton}>
+            <Ionicons name="log-out" size={24} color="#007AFF" />
           </TouchableOpacity>
           
           <View style={styles.progressContainer}>
@@ -649,17 +693,15 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          nestedScrollEnabled={true}
+          scrollEnabled={true}
         >
           {renderCurrentStep()}
         </ScrollView>
 
-        {/* Back Button (except for first step) */}
-        {step !== 'personal' && (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={20} color="#007AFF" />
-            <Text style={styles.backButtonText}>Voltar</Text>
-          </TouchableOpacity>
-        )}
+
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -808,6 +850,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: 'white',
+    color: '#1F2937',
   },
   inputError: {
     borderColor: '#FF3B30',

@@ -106,6 +106,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [duplicatePlateError, setDuplicatePlateError] = useState(false);
   const [duplicatePlateMessage, setDuplicatePlateMessage] = useState('');
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: string }[]>([]);
   const [selectedApartment, setSelectedApartment] = useState<{id: string, number: string, floor: number | null} | null>(null);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
@@ -279,6 +280,23 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   // Carregar prédios quando necessário
 
 
+  // Função para agrupar apartamentos por andar
+  const groupApartmentsByFloor = () => {
+    const grouped = availableApartments.reduce((acc, apartment) => {
+      const floor = apartment.floor || 0;
+      if (!acc[floor]) {
+        acc[floor] = [];
+      }
+      acc[floor].push(apartment);
+      return acc;
+    }, {} as Record<number, typeof availableApartments>);
+    
+    return Object.keys(grouped)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(floor => ({ floor, apartments: grouped[floor] }));
+  };
+
   const renderApartamentoStep = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.stepTitle}>🏠 Apartamento</Text>
@@ -296,32 +314,54 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         </View>
       ) : (
         <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.apartmentsGrid}>
-            {availableApartments.map((apartment) => (
+          {groupApartmentsByFloor().map(({ floor, apartments }) => (
+            <View key={floor} style={styles.floorSection}>
               <TouchableOpacity
-                key={apartment.id}
                 style={[
-                  styles.apartmentButton,
-                  selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                  styles.floorButton,
+                  selectedFloor === floor && styles.floorButtonSelected,
                 ]}
                 onPress={() => {
-                  console.log('Selecionando apartamento:', apartment);
-                  if (!apartment.id) {
-                    Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
-                    return;
-                  }
-                  setSelectedApartment(apartment);
-                  setApartamento(apartment.number);
-                  console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                  setCurrentStep('convidado');
+                  setSelectedFloor(selectedFloor === floor ? null : floor);
                 }}>
-                <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                {apartment.floor && (
-                  <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                )}
+                <Text style={styles.floorButtonText}>
+                  {floor === 0 ? 'Térreo' : `${floor}º Andar`} ({apartments?.length || 0} apts)
+                </Text>
+                <Text style={styles.floorButtonIcon}>
+                  {selectedFloor === floor ? '▼' : '▶'}
+                </Text>
               </TouchableOpacity>
-            ))}
-          </View>
+              
+              {selectedFloor === floor && (
+                <View style={styles.apartmentsGrid}>
+                  {apartments.map((apartment) => (
+                    <TouchableOpacity
+                      key={apartment.id}
+                      style={[
+                        styles.apartmentButton,
+                        selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
+                      ]}
+                      onPress={() => {
+                        console.log('Selecionando apartamento:', apartment);
+                        if (!apartment.id) {
+                          Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
+                          return;
+                        }
+                        setSelectedApartment(apartment);
+                        setApartamento(apartment.number);
+                        console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
+                        setCurrentStep('convidado');
+                      }}>
+                      <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
+                      {apartment.floor && (
+                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))}
         </ScrollView>
       )}
     </View>
@@ -1314,8 +1354,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#d32f2f',
   },
+  apartmentsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 15,
+  },
   apartmentButton: {
-    width: '48%',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 12,
@@ -1350,5 +1394,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     textAlign: 'center',
+  },
+  floorSection: {
+    marginBottom: 20,
+  },
+  floorButton: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    marginBottom: 10,
+  },
+  floorButtonSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
+  },
+  floorButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  floorButtonIcon: {
+    fontSize: 16,
+    color: '#666',
   },
 });

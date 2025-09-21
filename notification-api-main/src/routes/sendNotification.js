@@ -131,6 +131,119 @@ Mensagem enviada automaticamente pelo sistema JamesAvisa`
   }
 });
 
+// POST /api/send-porteiro-whatsapp - Endpoint específico para envio de mensagens WhatsApp para porteiros
+router.post('/send-porteiro-whatsapp', async (req, res) => {
+  try {
+    console.log('Enviando notificação WhatsApp para porteiro:', req.body);
+
+    const { name, email, phone, building, cpf, work_schedule, profile_id } = req.body;
+
+    if (!name || !email || !building || !profile_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: name, email, building, profile_id'
+      });
+    }
+
+    // Buscar senha temporária no Supabase
+    let temporary_password = 'Senha será enviada em breve';
+    try {
+      const { data: passwordData, error: passwordError } = await supabase
+        .from('temporary_passwords')
+        .select('plain_password')
+        .eq('profile_id', profile_id)
+        .eq('used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (passwordError) {
+        console.log('Nenhuma senha temporária encontrada para profile_id:', profile_id);
+      } else if (passwordData) {
+        temporary_password = passwordData.plain_password;
+        console.log('Senha temporária encontrada para profile_id:', profile_id);
+      }
+    } catch (supabaseError) {
+      console.error('Erro ao buscar senha temporária:', supabaseError.message);
+      // Continua com a mensagem padrão
+    }
+    
+    console.log('Dados para WhatsApp:', { name, email, phone, building, cpf, work_schedule, temporary_password });
+
+    // Formatação do horário de trabalho
+    const workScheduleText = work_schedule ? 
+      `\n🕐 Horário de trabalho: ${work_schedule}` : '';
+
+    // Send WhatsApp notification with credentials for porteiro
+    const whatsappMessage = `🏢 JamesAvisa - Cadastro de Porteiro
+
+Olá *${name}*!
+
+Você foi cadastrado(a) como porteiro no JamesAvisa.
+
+📍 Dados do seu trabalho:
+
+🏢 Prédio: ${building}${workScheduleText}
+
+🔐 SUAS CREDENCIAIS DE ACESSO:
+
+📧 Usuário (Email): ${email}
+
+🔑 Senha temporária: ${temporary_password || 'Será enviada em breve'}
+
+💡 IMPORTANTE: Use seu email como usuário para fazer login!
+
+Como porteiro no JamesAvisa você pode:
+
+✅ Gerenciar visitantes e entregas
+
+✅ Autorizar acessos remotamente
+
+✅ Comunicar-se com os moradores
+
+✅ Registrar ocorrências
+
+✅ Controlar entrada e saída de veículos
+
+Mensagem enviada automaticamente pelo sistema JamesAvisa`;
+
+    try {
+      // Se houver telefone, envia por WhatsApp, senão apenas registra o sucesso
+      if (phone) {
+        await sendWhatsApp({
+          to: phone,
+          message: whatsappMessage
+        });
+        console.log('WhatsApp enviado com sucesso para porteiro:', phone);
+      } else {
+        console.log('Cadastro de porteiro realizado sem envio de WhatsApp (telefone não fornecido)');
+      }
+    } catch (whatsappError) {
+      console.error('Erro ao enviar WhatsApp para porteiro:', whatsappError.message);
+      // Don't fail the registration if WhatsApp fails
+    }
+
+    res.json({
+      success: true,
+      message: 'Cadastro de porteiro iniciado com sucesso! Verifique seu WhatsApp para as credenciais de acesso.',
+      data: {
+        profile_id: profile_id,
+        building_name: building,
+        work_schedule: work_schedule
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro no cadastro de porteiro:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
 // GET /api/whatsapp-status - Verificar status da instância WhatsApp
 router.get('/whatsapp-status', async (req, res) => {
   try {

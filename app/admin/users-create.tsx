@@ -110,6 +110,18 @@ interface ResidentData {
   temporary_password?: string; // Senha temporária para moradores
 }
 
+// Interface para dados do porteiro
+interface PorteiroData {
+  name: string;
+  phone: string;
+  email: string;
+  building: string;
+  cpf: string;
+  work_schedule: string;
+  profile_id: string;
+  temporary_password?: string; // Senha temporária para porteiros
+}
+
 // Função para gerar senha temporária aleatória de 6 dígitos numéricos
 const generateTemporaryPassword = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -379,6 +391,29 @@ export default function UsersCreate() {
     }
   };
 
+  // Função para enviar WhatsApp para um único porteiro
+  const handlePorteiroWhatsApp = async (porteiroData: PorteiroData) => {
+    if (!porteiroData.phone) {
+      Alert.alert('Erro', 'Telefone não informado');
+      return;
+    }
+
+    setWhatsappLoading(true);
+    try {
+      const result = await notificationService.sendPorteiroWhatsApp(porteiroData);
+      if (result.success) {
+        Alert.alert('Sucesso', 'Mensagem WhatsApp enviada com sucesso!');
+      } else {
+        Alert.alert('Erro', result.error || 'Erro ao enviar mensagem WhatsApp');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar WhatsApp:', error);
+      Alert.alert('Erro', 'Erro ao enviar mensagem WhatsApp');
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
   const handleAddUser = async () => {
     if (!validateUser()) {
       return;
@@ -496,27 +531,48 @@ export default function UsersCreate() {
         }
       }
 
-      // Se sendWhatsApp estiver marcado e for morador, enviar automaticamente
-      if (sendWhatsApp && newUser.type === 'morador' && newUser.phone) {
-        // Encontrar os nomes do prédio e apartamento para envio
-        const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-        const selectedApartments = apartments.filter(apt => 
-          newUser.selectedApartmentIds.includes(apt.id)
-        );
-        
-        if (building && selectedApartments.length > 0) {
-          // Preparar dados para WhatsApp
-          const residentData: ResidentData = {
-            name: newUser.name,
-            phone: newUser.phone,
-            email: newUser.email,
-            building: building.name,
-            apartment: selectedApartments.map(apt => apt.number).join(', '),
-            profile_id: insertedUser.id,
-            temporary_password: temporaryPassword
-          };
+      // Se sendWhatsApp estiver marcado, enviar automaticamente
+      if (sendWhatsApp && newUser.phone) {
+        if (newUser.type === 'morador') {
+          // Encontrar os nomes do prédio e apartamento para envio
+          const building = buildings.find(b => b.id === newUser.selectedBuildingId);
+          const selectedApartments = apartments.filter(apt => 
+            newUser.selectedApartmentIds.includes(apt.id)
+          );
+          
+          if (building && selectedApartments.length > 0) {
+            // Preparar dados para WhatsApp
+            const residentData: ResidentData = {
+              name: newUser.name,
+              phone: newUser.phone,
+              email: newUser.email,
+              building: building.name,
+              apartment: selectedApartments.map(apt => apt.number).join(', '),
+              profile_id: insertedUser.id,
+              temporary_password: temporaryPassword
+            };
 
-          await handleSingleUserWhatsApp(residentData);
+            await handleSingleUserWhatsApp(residentData);
+          }
+        } else if (newUser.type === 'porteiro') {
+          // Encontrar o nome do prédio para envio
+          const building = buildings.find(b => b.id === newUser.selectedBuildingId);
+          
+          if (building) {
+            // Preparar dados para WhatsApp do porteiro
+            const porteiroData: PorteiroData = {
+              name: newUser.name,
+              phone: newUser.phone,
+              email: newUser.email,
+              building: building.name,
+              cpf: newUser.cpf,
+              work_schedule: `${newUser.workStartTime} - ${newUser.workEndTime}`,
+              profile_id: insertedUser.id,
+              temporary_password: temporaryPassword
+            };
+
+            await handlePorteiroWhatsApp(porteiroData);
+          }
         }
 
         // Resetar formulário e voltar
@@ -585,28 +641,49 @@ export default function UsersCreate() {
               router.back();
             }
           },
-          ...(newUser.type === 'morador' && newUser.phone ? [{
+          ...(newUser.phone ? [{
             text: 'Enviar WhatsApp',
             onPress: async () => {
-              // Encontrar os nomes do prédio e apartamento para envio
-              const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-              const selectedApartments = apartments.filter(apt => 
-                newUser.selectedApartmentIds.includes(apt.id)
-              );
-              
-              if (building && selectedApartments.length > 0) {
-                // Preparar dados para WhatsApp
-                const residentData: ResidentData = {
-                  name: newUser.name,
-                  phone: newUser.phone,
-                  email: newUser.email,
-                  building: building.name,
-                  apartment: selectedApartments.map(apt => apt.number).join(', '),
-                  profile_id: insertedUser.id,
-                  temporary_password: temporaryPassword
-                };
+              if (newUser.type === 'morador') {
+                // Encontrar os nomes do prédio e apartamento para envio
+                const building = buildings.find(b => b.id === newUser.selectedBuildingId);
+                const selectedApartments = apartments.filter(apt => 
+                  newUser.selectedApartmentIds.includes(apt.id)
+                );
+                
+                if (building && selectedApartments.length > 0) {
+                  // Preparar dados para WhatsApp
+                  const residentData: ResidentData = {
+                    name: newUser.name,
+                    phone: newUser.phone,
+                    email: newUser.email,
+                    building: building.name,
+                    apartment: selectedApartments.map(apt => apt.number).join(', '),
+                    profile_id: insertedUser.id,
+                    temporary_password: temporaryPassword
+                  };
 
-                await handleSingleUserWhatsApp(residentData);
+                  await handleSingleUserWhatsApp(residentData);
+                }
+              } else if (newUser.type === 'porteiro') {
+                // Encontrar o nome do prédio para envio
+                const building = buildings.find(b => b.id === newUser.selectedBuildingId);
+                
+                if (building) {
+                  // Preparar dados para WhatsApp do porteiro
+                  const porteiroData: PorteiroData = {
+                    name: newUser.name,
+                    phone: newUser.phone,
+                    email: newUser.email,
+                    building: building.name,
+                    cpf: newUser.cpf,
+                    work_schedule: `${newUser.workStartTime} - ${newUser.workEndTime}`,
+                    profile_id: insertedUser.id,
+                    temporary_password: temporaryPassword
+                  };
+
+                  await handlePorteiroWhatsApp(porteiroData);
+                }
               }
 
               // Resetar formulário

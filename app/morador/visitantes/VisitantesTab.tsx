@@ -171,6 +171,9 @@ interface Visitor {
   apartment_id: string;
   registration_token?: string;
   token_expires_at?: string;
+  visit_date?: string | null;
+  visit_start_time?: string | null;
+  visit_end_time?: string | null;
 }
 
 interface PreRegistrationData {
@@ -349,7 +352,10 @@ export default function VisitantesTab() {
           access_type,
           created_at,
           updated_at,
-          apartment_id
+          apartment_id,
+          visit_date,
+          visit_start_time,
+          visit_end_time
         `)
         .eq('apartment_id', currentApartmentId)
         .order('created_at', { ascending: false });
@@ -383,7 +389,10 @@ export default function VisitantesTab() {
         access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
-        apartment_id: visitor.apartment_id
+        apartment_id: visitor.apartment_id,
+        visit_date: visitor.visit_date,
+        visit_start_time: visitor.visit_start_time,
+        visit_end_time: visitor.visit_end_time
       }));
 
       console.log('✅ [VisitantesTab] Mapped visitors:', mappedVisitors);
@@ -522,6 +531,35 @@ export default function VisitantesTab() {
   const validateTime = (timeString: string): boolean => {
     const timeRegex = /^([01]?\d|2[0-3]):([0-5]\d)$/;
     return timeRegex.test(timeString);
+  };
+
+  // Função para formatar data de visita
+  const formatVisitDate = (dateString: string | null): string => {
+    if (!dateString) return 'Data não definida';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Função para formatar horário de visita
+  const formatVisitTime = (timeString: string | null): string => {
+    if (!timeString) return '--:--';
+    return timeString.substring(0, 5); // Pega apenas HH:MM
+  };
+
+  // Função para formatar período de visita completo
+  const formatVisitPeriod = (date: string | null, startTime: string | null, endTime: string | null): string => {
+    const formattedDate = formatVisitDate(date);
+    const formattedStartTime = formatVisitTime(startTime);
+    const formattedEndTime = formatVisitTime(endTime);
+    
+    if (date && (startTime || endTime)) {
+      return `${formattedDate} das ${formattedStartTime} às ${formattedEndTime}`;
+    }
+    return 'Período não definido';
   };
 
   // Função para verificar conflitos de agendamento
@@ -1359,6 +1397,14 @@ export default function VisitantesTab() {
                   <Text style={styles.visitorDate}>
                     Cadastrado: {formatDisplayDate(visitor.created_at)}
                   </Text>
+                  {(visitor.visit_date || visitor.visit_start_time || visitor.visit_end_time) && (
+                    <View style={styles.visitScheduleContainer}>
+                      <Text style={styles.visitScheduleLabel}>🕒 Período de Visita:</Text>
+                      <Text style={styles.visitScheduleText}>
+                        {formatVisitPeriod(visitor.visit_date, visitor.visit_start_time, visitor.visit_end_time)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 
                 <View style={styles.cardHeaderActions}>
@@ -2421,6 +2467,26 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  // Estilos para exibição do período de visita
+  visitScheduleContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  visitScheduleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  visitScheduleText: {
+    fontSize: 12,
+    color: '#555',
+    fontWeight: '500',
   },
 
 });
