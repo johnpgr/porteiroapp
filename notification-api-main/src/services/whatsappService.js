@@ -442,7 +442,7 @@ function generateVisitorAuthorizationMessage(visitorName, residentName, building
          `Visitante: ${visitorName}\n` +
          `Prédio: ${building}\n` +
          `Apartamento: ${apartment}\n\n` +
-         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+         `👉 Acesse o app james avisa ou https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 
 // Gerar mensagem de autorização com botões interativos

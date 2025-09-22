@@ -86,7 +86,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       if (tokenError) {
         console.warn('⚠️ Erro ao criar token de autorização:', tokenError);
         // Fallback para mensagem tradicional
-        const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+        const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse o app james avisa ou https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
         
         whatsappResult = await sendWhatsApp({
           to: resident_phone,
@@ -115,7 +115,7 @@ router.post('/send-visitor-waiting-notification', async (req, res) => {
       }
     } else {
       // Usar mensagem tradicional sem botões
-      const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+      const messageTemplate = `📢 James Avisa\nPrezado(a) ${resident_name}, informamos que há um visitante aguardando na portaria.\n\nVisitante: ${visitor_name}\nPrédio: ${building}\nApartamento: ${apartment}\n\n👉 Acesse o app james avisa ou https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
       
       console.log('📤 Enviando mensagem WhatsApp tradicional...');
       console.log('📱 Para:', resident_phone);
