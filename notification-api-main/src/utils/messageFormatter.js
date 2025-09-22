@@ -183,7 +183,7 @@ function generateVisitorAuthorizationMessage(authorizationData, authorizationLin
          `Visitante: ${authorizationData.visitorName}\n` +
          `Prédio: ${authorizationData.building}\n` +
          `Apartamento: ${authorizationData.apartment}\n\n` +
-         `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+         `👉 Acesse o app james avisa ou https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 }
 
 /**

@@ -79,7 +79,7 @@ router.post('/send-visitor-notification', async (req, res) => {
       `Visitante: ${visitorData.visitorName}\n` +
       `Prédio: ${visitorData.building}\n` +
       `Apartamento: ${visitorData.apartment}\n\n` +
-      `👉 Acesse https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
+      `👉 Acesse o app james avisa ou https://jamesavisa.jamesconcierge.com/login para verificar os detalhes e autorizar ou recusar a entrada.`;
 
     console.log('📝 Mensagem formatada:', whatsappMessage.substring(0, 100) + '...');
 

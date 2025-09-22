@@ -128,7 +128,7 @@ export default function AdminProfilePage() {
       if (!user) {
         console.warn('⚠️ [AdminProfile] Usuário não encontrado');
         Alert.alert('Erro', 'Usuário não autenticado');
-        router.replace('/admin/login');
+        router.replace('/');
         return;
       }
       
@@ -527,7 +527,7 @@ export default function AdminProfilePage() {
         [
           {
             text: 'OK',
-            onPress: () => router.replace('/admin/login'),
+            onPress: () => router.replace('/'),
           },
         ]
       );

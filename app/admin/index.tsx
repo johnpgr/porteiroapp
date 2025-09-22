@@ -143,7 +143,7 @@ export default function AdminDashboard() {
                   setShowAvatarMenu(false);
                   try {
                     await supabase.auth.signOut();
-                    router.replace('/admin/login');
+                    router.replace('/');
                   } catch (error) {
                     console.error('Erro ao fazer logout:', error);
                     Alert.alert('Erro', 'Não foi possível fazer logout');
