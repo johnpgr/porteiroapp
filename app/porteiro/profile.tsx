@@ -33,6 +33,106 @@ export default function PorteiroProfile() {
     emergency_contact_phone: '',
     work_schedule: '',
   });
+
+  // Função para converter JSON do work_schedule para string de exibição
+  const formatWorkScheduleForDisplay = (workSchedule: string): string => {
+    if (!workSchedule) return 'Não informado';
+    
+    try {
+      const schedule = JSON.parse(workSchedule);
+      if (schedule.startTime && schedule.endTime) {
+        return `${schedule.startTime} - ${schedule.endTime}`;
+      }
+    } catch (error) {
+      // Se não for JSON válido, retorna como string normal
+      return workSchedule;
+    }
+    
+    return 'Não informado';
+  };
+
+  // Função para converter os dias do work_schedule para português
+  const formatWorkDaysForDisplay = (workSchedule: string): string => {
+    if (!workSchedule) return 'Não informado';
+    
+    try {
+      const schedule = JSON.parse(workSchedule);
+      if (schedule.days) {
+        const dayNames = {
+          monday: 'Segunda',
+          tuesday: 'Terça',
+          wednesday: 'Quarta',
+          thursday: 'Quinta',
+          friday: 'Sexta',
+          saturday: 'Sábado',
+          sunday: 'Domingo'
+        };
+        
+        const activeDays = Object.entries(schedule.days)
+          .filter(([_, isActive]) => isActive)
+          .map(([day, _]) => dayNames[day as keyof typeof dayNames])
+          .filter(Boolean);
+        
+        return activeDays.length > 0 ? activeDays.join(', ') : 'Nenhum dia definido';
+      }
+    } catch (error) {
+      // Se não for JSON válido, retorna mensagem padrão
+      return 'Formato inválido';
+    }
+    
+    return 'Não informado';
+  };
+
+  // Função para converter string de entrada para JSON do work_schedule
+  const formatWorkScheduleForSave = (timeRange: string): string => {
+    if (!timeRange || timeRange.trim() === '') return '';
+    
+    // Se já for um JSON válido, mantém como está
+    try {
+      const parsed = JSON.parse(timeRange);
+      if (parsed.startTime && parsed.endTime) {
+        return timeRange;
+      }
+    } catch (error) {
+      // Não é JSON, vamos converter
+    }
+    
+    // Tenta extrair horários do formato "HH:MM-HH:MM" ou "HH:MM - HH:MM"
+    const timeRegex = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/;
+    const match = timeRange.match(timeRegex);
+    
+    if (match) {
+      const [, startTime, endTime] = match;
+      return JSON.stringify({
+        days: {
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          sunday: false
+        },
+        startTime,
+        endTime
+      });
+    }
+    
+    // Se não conseguir extrair, cria um JSON padrão
+    return JSON.stringify({
+      days: {
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false
+      },
+      startTime: '08:00',
+      endTime: '18:00'
+    });
+  };
   const [loading, setLoading] = useState(true);
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -259,7 +359,6 @@ export default function PorteiroProfile() {
           avatar_url: formData.avatar_url,
           emergency_contact_name: formData.emergency_contact_name,
           emergency_contact_phone: formData.emergency_contact_phone,
-          work_schedule: formData.work_schedule,
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
@@ -728,16 +827,12 @@ export default function PorteiroProfile() {
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Horário de Trabalho</Text>
-                  {isEditing ? (
-                    <TextInput
-                      style={styles.input}
-                      value={formData.work_schedule}
-                      onChangeText={(text) => setFormData({ ...formData, work_schedule: text })}
-                      placeholder="Ex: 08:00-18:00"
-                    />
-                  ) : (
-                    <Text style={styles.value}>{formData.work_schedule || 'Não informado'}</Text>
-                  )}
+                  <Text style={styles.value}>{formatWorkScheduleForDisplay(formData.work_schedule)}</Text>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Dias de Trabalho</Text>
+                  <Text style={styles.value}>{formatWorkDaysForDisplay(formData.work_schedule)}</Text>
                 </View>
 
                 <View style={styles.inputGroup}>

@@ -235,30 +235,57 @@ export default function PorteiroDashboard() {
     }
     
     try {
-      // Extrair horário do formato "Segunda-feira, Quarta-feira, Sexta-feira: 08:00-18:00"
-      // ou do formato simples "08:00-18:00"
-      let timeRange = workSchedule;
-      
-      // Se contém ":", pegar a parte após os dois pontos
-      if (workSchedule.includes(': ')) {
-        timeRange = workSchedule.split(': ')[1];
+      // Tentar fazer parse do JSON primeiro
+      let scheduleData;
+      try {
+        scheduleData = JSON.parse(workSchedule);
+      } catch (jsonError) {
+        // Se não for JSON válido, tentar o formato antigo
+        console.log('🔧 Formato antigo detectado, convertendo:', workSchedule);
+        
+        // Extrair horário do formato "Segunda-feira, Quarta-feira, Sexta-feira: 08:00-18:00"
+        // ou do formato simples "08:00-18:00"
+        let timeRange = workSchedule;
+        
+        // Se contém ":", pegar a parte após os dois pontos
+        if (workSchedule.includes(': ')) {
+          timeRange = workSchedule.split(': ')[1];
+        }
+        
+        // Verificar se tem o formato HH:MM-HH:MM
+        if (!timeRange.includes('-')) {
+          return { start: '08:00', end: '20:00' };
+        }
+        
+        const [start, end] = timeRange.split('-').map(time => time.trim());
+        
+        // Validar formato HH:MM
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const validStart = timeRegex.test(start) ? start : '08:00';
+        const validEnd = timeRegex.test(end) ? end : '20:00';
+        
+        console.log('🔧 parseWorkSchedule (formato antigo) - input:', workSchedule, 'output:', { start: validStart, end: validEnd });
+        
+        return { start: validStart, end: validEnd };
       }
       
-      // Verificar se tem o formato HH:MM-HH:MM
-      if (!timeRange.includes('-')) {
-        return { start: '08:00', end: '20:00' };
+      // Processar formato JSON
+      if (scheduleData && typeof scheduleData === 'object') {
+        const startTime = scheduleData.startTime || '08:00';
+        const endTime = scheduleData.endTime || '20:00';
+        
+        // Validar formato HH:MM
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const validStart = timeRegex.test(startTime) ? startTime : '08:00';
+        const validEnd = timeRegex.test(endTime) ? endTime : '20:00';
+        
+        console.log('🔧 parseWorkSchedule (JSON) - input:', workSchedule, 'output:', { start: validStart, end: validEnd });
+        
+        return { start: validStart, end: validEnd };
       }
       
-      const [start, end] = timeRange.split('-').map(time => time.trim());
-      
-      // Validar formato HH:MM
-      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      const validStart = timeRegex.test(start) ? start : '08:00';
-      const validEnd = timeRegex.test(end) ? end : '20:00';
-      
-      console.log('🔧 parseWorkSchedule - input:', workSchedule, 'output:', { start: validStart, end: validEnd });
-      
-      return { start: validStart, end: validEnd };
+      // Fallback para valores padrão
+      return { start: '08:00', end: '20:00' };
     } catch (error) {
       console.error('Erro ao processar work_schedule:', error);
       return { start: '08:00', end: '20:00' };
