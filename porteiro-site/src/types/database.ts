@@ -11,6 +11,7 @@ export interface Database {
           email: string;
           phone: string | null;
           role: string;
+          admin_type: string | null;
           is_active: boolean | null;
           created_at: string;
           updated_at: string;
@@ -22,6 +23,7 @@ export interface Database {
           email: string;
           phone?: string | null;
           role: string;
+          admin_type?: string | null;
           is_active?: boolean | null;
           created_at?: string;
           updated_at?: string;
@@ -33,7 +35,44 @@ export interface Database {
           email?: string;
           phone?: string | null;
           role?: string;
+          admin_type?: string | null;
           is_active?: boolean | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      super_admin_profiles: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          full_name: string;
+          phone: string | null;
+          admin_type: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          full_name: string;
+          phone?: string | null;
+          admin_type?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string;
+          full_name?: string;
+          phone?: string | null;
+          admin_type?: string;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };

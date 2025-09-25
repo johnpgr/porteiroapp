@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { useEffect } from 'react';
 import "./globals.css";
 import { AuthProvider } from '@/utils/useAuth';
+import { Toaster } from 'sonner';
+import { NotificationProvider } from '@/components/NotificationSystem';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +40,15 @@ export default function RootLayout({
         suppressHydrationWarning={true}
       >
         <AuthProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+            <Toaster 
+              position="top-right"
+              richColors
+              closeButton
+              duration={4000}
+            />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>
