@@ -1044,7 +1044,7 @@ export default function VisitantesTab() {
       if (whatsappResult.success) {
         Alert.alert(
           'Sucesso!', 
-          `Pré-cadastro realizado com sucesso!\n\nUm link foi enviado via WhatsApp para ${formatBrazilianPhone(sanitizedPhone)} para completar o cadastro.\n\nSenha temporária: ${temporaryPassword}\n\nO link e a senha expiram em 7 dias.`,
+          `Pré-cadastro realizado com sucesso!\n\nUm link foi enviado via WhatsApp para ${formatBrazilianPhone(sanitizedPhone)}.`,
           [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
             setPreRegistrationData({ 

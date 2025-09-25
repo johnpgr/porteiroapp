@@ -32,10 +32,14 @@ interface VisitorHistory {
   visitor_name: string;
   purpose: string;
   log_time: string;
+  resident_response_at?: string;
   notification_status: 'approved' | 'pending' | 'denied';
   visitor_document?: string;
   visitor_phone?: string;
   delivery_destination?: string;
+  building_name?: string;
+  apartment_number?: string;
+  approved_by_name?: string;
 }
 
 export default function MoradorDashboard() {
@@ -49,10 +53,9 @@ export default function MoradorDashboard() {
   const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [userApartmentId, setUserApartmentId] = useState<string | null>(null);
   
   // Estados para o modal de notificação
-  const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [selectedNotification, setSelectedNotification] = useState<any>(null);
   
   // Hook para notificações pendentes em tempo real
   const {
@@ -110,8 +113,12 @@ export default function MoradorDashboard() {
       if (!apartmentData?.apartment_id) {
         setVisitorsHistory([]);
         setHistoryError('Nenhum apartamento vinculado à sua conta. Solicite ao síndico/administrador para vincular seu apartamento.');
+        setUserApartmentId(null);
         return;
       }
+
+      // Armazenar o apartment_id no estado para uso no subscription
+      setUserApartmentId(apartmentData.apartment_id);
       
       // Buscar histórico de visitantes (aprovadas e rejeitadas)
       const { data: visitorsData, error: visitorsError } = await supabase
@@ -119,25 +126,54 @@ export default function MoradorDashboard() {
         .select(`
           id,
           log_time,
+          resident_response_at,
+          resident_response_by,
           tipo_log,
           purpose,
           notification_status,
           delivery_destination,
+          apartment_id,
           visitors (
             id,
             name,
             document,
             phone
+          ),
+          apartments (
+            number,
+            buildings (
+              name
+            )
           )
         `)
         .eq('apartment_id', apartmentData.apartment_id)
         .in('notification_status', ['approved', 'rejected'])
+        .order('resident_response_at', { ascending: false, nullsLast: true })
         .order('log_time', { ascending: false })
         .limit(20);
       
       if (visitorsError) {
         console.error('Erro ao buscar histórico de visitantes:', visitorsError.message);
         throw new Error('Erro ao buscar histórico de visitantes: ' + visitorsError.message);
+      }
+      
+      // Buscar nomes dos aprovadores para os logs que têm resident_response_by
+      const approverIds = visitorsData?.filter(log => log.resident_response_by).map(log => log.resident_response_by) || [];
+      const uniqueApproverIds = [...new Set(approverIds)];
+      
+      let approverNames = {};
+      if (uniqueApproverIds.length > 0) {
+        const { data: approversData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', uniqueApproverIds);
+        
+        if (approversData) {
+          approverNames = approversData.reduce((acc, profile) => {
+            acc[profile.id] = profile.full_name;
+            return acc;
+          }, {});
+        }
       }
       
       // Mapear dados para o formato esperado
@@ -147,8 +183,12 @@ export default function MoradorDashboard() {
           visitor_name: log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
           purpose: log.purpose || 'Não informado',
           log_time: log.log_time,
+          resident_response_at: log.resident_response_at,
           notification_status: log.notification_status || 'pending',
-          delivery_destination: log.delivery_destination
+          delivery_destination: log.delivery_destination,
+          building_name: log.apartments?.buildings?.name,
+          apartment_number: log.apartments?.number,
+          approved_by_name: log.resident_response_by ? approverNames[log.resident_response_by] || 'Usuário não encontrado' : null
         };
       }) || [];
       
@@ -169,6 +209,36 @@ export default function MoradorDashboard() {
       checkFirstLoginStatus();
     }
   }, [user?.id, checkFirstLoginStatus]);
+
+  // Subscription para atualização automática dos visitor_logs
+  useEffect(() => {
+    if (!user?.id || !userApartmentId) return;
+
+    // Criar subscription para mudanças na tabela visitor_logs
+    const subscription = supabase
+      .channel('visitor_logs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Escutar todos os eventos (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'visitor_logs',
+          filter: `apartment_id=eq.${userApartmentId}` // Filtrar apenas logs do apartamento do usuário
+        },
+        (payload) => {
+          console.log('Mudança detectada nos visitor_logs:', payload);
+          // Recarregar o histórico quando houver mudanças
+          fetchVisitorsHistory();
+        }
+      )
+      .subscribe();
+
+    // Cleanup function para remover o subscription
+    return () => {
+      console.log('Removendo subscription dos visitor_logs');
+      supabase.removeChannel(subscription);
+    };
+  }, [user?.id, userApartmentId, fetchVisitorsHistory]);
 
   // Função para formatar data em português
   const formatDate = (dateString: string) => {
@@ -330,113 +400,15 @@ export default function MoradorDashboard() {
         )}
 
         {!loadingNotifications && !notificationsError && pendingNotifications.map((notification) => (
-          <View key={notification.id}>
-            <NotificationCard
-              notification={notification}
-              onRespond={respondToNotification}
-              onInfoPress={() => {
-                setSelectedNotification(notification);
-                setShowNotificationModal(true);
-              }}
-            />
-
-            <Modal
-              visible={showNotificationModal && selectedNotification?.id === notification.id}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setShowNotificationModal(false)}
-            >
-              <TouchableOpacity 
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowNotificationModal(false)}
-              >
-                <View style={styles.notificationModalContent}>
-                  <View style={styles.notificationModalHeader}>
-                    <View style={styles.notificationModalHeaderLeft}>
-                      <Text style={styles.notificationModalTitle}>Detalhes - {notification.visitor_name || 'Visitante'}</Text>
-                    </View>
-                    <TouchableOpacity 
-                      style={styles.closeModalButton}
-                      onPress={() => setShowNotificationModal(false)}
-                    >
-                      <Ionicons name="close" size={20} color="#666" />
-                    </TouchableOpacity>
-                  </View>
-
-                  <ScrollView style={styles.notificationModalBody}>
-                    {notification.photo_url && (
-                      <View style={styles.notificationPhotoContainer}>
-                        <Image 
-                          source={{ uri: notification.photo_url }} 
-                          style={styles.notificationPhoto}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    )}
-                    
-                    <View style={styles.notificationDetailItem}>
-                      <Text style={styles.detailLabel}>Visitante:</Text>
-                      <Text style={styles.detailValue}>{notification.visitor_name}</Text>
-                    </View>
-
-                    <View style={styles.notificationDetailItem}>
-                      <Text style={styles.detailLabel}>Documento:</Text>
-                      <Text style={styles.detailValue}>{notification.visitors?.document || 'Não informado'}</Text>
-                    </View>
-
-                    <View style={styles.notificationDetailItem}>
-                      <Text style={styles.detailLabel}>Telefone:</Text>
-                      <Text style={styles.detailValue}>{notification.visitor_phone || 'Não informado'}</Text>
-                    </View>
-
-                    <View style={styles.notificationDetailItem}>
-                      <Text style={styles.detailLabel}>Motivo:</Text>
-                      <Text style={styles.detailValue}>{notification.purpose}</Text>
-                    </View>
-
-                    <View style={styles.notificationDetailItem}>
-                      <Text style={styles.detailLabel}>Data/Hora:</Text>
-                      <Text style={styles.detailValue}>{formatDate(notification.created_at)}</Text>
-                    </View>
-
-                    {notification.delivery_destination && (
-                      <View style={styles.notificationDetailItem}>
-                        <Text style={styles.detailLabel}>Destino da Entrega:</Text>
-                        <Text style={styles.detailValue}>
-                          {notification.delivery_destination === 'portaria' ? 'Deixar na portaria' : 'Enviar pelo elevador'}
-                        </Text>
-                      </View>
-                    )}
-                  </ScrollView>
-
-                  <View style={styles.notificationModalActions}>
-                    <TouchableOpacity
-                      style={[styles.modalActionButton, styles.approveButton]}
-                      onPress={() => {
-                        respondToNotification(notification.id, 'approved');
-                        setShowNotificationModal(false);
-                      }}
-                    >
-                      <Text style={styles.modalActionButtonText}>Aprovar</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.modalActionButton, styles.denyButton]}
-                      onPress={() => {
-                        respondToNotification(notification.id, 'denied');
-                        setShowNotificationModal(false);
-                      }}
-                    >
-                      <Text style={styles.modalActionButtonText}>Negar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </Modal>
-          </View>
+          <NotificationCard
+            key={notification.id}
+            notification={notification}
+            onRespond={respondToNotification}
+          />
         ))}
       </View>
+
+
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -486,8 +458,18 @@ export default function MoradorDashboard() {
           ]}>
             <Text style={styles.historyTitle}>{visitor.visitor_name}</Text>
             <Text style={styles.historyDetails}>
-              {visitor.purpose} • {formatDate(visitor.log_time)}
+              {visitor.purpose} • {formatDate(visitor.resident_response_at || visitor.log_time)}
             </Text>
+            {(visitor.building_name || visitor.apartment_number) && (
+              <Text style={styles.buildingApartmentInfo}>
+                🏢 {visitor.building_name || 'Prédio'} - Apt {visitor.apartment_number || 'N/A'}
+              </Text>
+            )}
+            {visitor.approved_by_name && (
+              <Text style={styles.approvedByInfo}>
+                👤 Aprovado por: {visitor.approved_by_name}
+              </Text>
+            )}
             {visitor.purpose?.includes('entrega') && visitor.delivery_destination && (
               <Text style={[
                 styles.deliveryDestination,
@@ -831,6 +813,18 @@ const styles = StyleSheet.create({
     color: '#7b1fa2',
     borderWidth: 1,
     borderColor: '#ce93d8',
+  },
+  buildingApartmentInfo: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  approvedByInfo: {
+    fontSize: 12,
+    color: '#2196F3',
+    marginTop: 2,
+    fontStyle: 'italic',
   },
 
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image } from 'react-native';
-import { Info, Eye, X } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
 // Legacy notification interface for backward compatibility
@@ -24,6 +24,7 @@ interface LegacyNotificationCardProps {
 interface PendingNotificationCardProps {
   notification: PendingNotification;
   onRespond: (id: string, response: NotificationResponse) => Promise<{success: boolean; error?: string}>;
+  onInfoPress?: () => void;
 }
 
 type NotificationCardProps = LegacyNotificationCardProps | PendingNotificationCardProps;
@@ -129,7 +130,7 @@ function LegacyNotificationCard({ notification, onPress, onMarkAsRead }: LegacyN
 }
 
 // New pending notification card component
-function PendingNotificationCard({ notification, onRespond }: PendingNotificationCardProps) {
+function PendingNotificationCard({ notification, onRespond, onInfoPress }: PendingNotificationCardProps) {
   const [responding, setResponding] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
@@ -252,19 +253,11 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         </Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.infoButton}
-            onPress={() => setShowInfoModal(true)}
+            style={styles.detailsButton}
+            onPress={onInfoPress || (() => setShowInfoModal(true))}
           >
-            <Info size={16} color="#2196F3" />
+            <Text style={styles.detailsButtonText}>ver detalhes</Text>
           </TouchableOpacity>
-          {notification.photo_url && (
-            <TouchableOpacity
-              style={styles.infoButton}
-              onPress={() => setShowImageModal(true)}
-            >
-              <Eye size={16} color="#2196F3" />
-            </TouchableOpacity>
-          )}
           <Text style={styles.notificationTime}>
             {getTimeAgo(notification.notification_sent_at)}
           </Text>
@@ -323,123 +316,230 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         )}
       </View>
 
-      {/* Modal de informações */}
+      {/* Modal de informações redesenhado */}
       <Modal
         visible={showInfoModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderLeft}>
-                <Info size={24} color="#2196F3" />
-                <Text style={styles.modalTitle}>Detalhes da Notificação</Text>
+        <View style={styles.fullScreenModalOverlay}>
+          <View style={styles.fullScreenDetailsCard}>
+            {/* Header Fixo */}
+            <View style={styles.fullScreenHeader}>
+              <View style={styles.headerContent}>
+                <TouchableOpacity 
+                  style={styles.backButton}
+                  onPress={() => setShowInfoModal(false)}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+                <View style={styles.headerTitleContainer}>
+                  <Text style={styles.fullScreenTitle}>Detalhes da Notificação</Text>
+                  <Text style={styles.fullScreenSubtitle}>{notification.guest_name || 'Visitante'}</Text>
+                </View>
               </View>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowInfoModal(false)}
-              >
-                <X size={20} color="#666" />
-              </TouchableOpacity>
             </View>
-            
-            <View style={styles.photoSection}>
-              <TouchableOpacity 
-                style={styles.viewPhotoButton}
-                onPress={() => setShowImageModal(true)}
-              >
-                <Eye size={18} color="#2196F3" />
-                <Text style={styles.viewPhotoText}>Ver Imagem</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.infoContent}>
-              {notification.guest_name && (
-                <Text style={styles.infoItem}>👤 Nome: {notification.guest_name}</Text>
-              )}
-              {notification.phone && (
-                <Text style={styles.infoItem}>📞 Telefone: {notification.phone}</Text>
-              )}
-              {notification.purpose && (
-                <Text style={styles.infoItem}>📋 Motivo: {notification.purpose}</Text>
-              )}
-              {notification.delivery_sender && (
-                <Text style={styles.infoItem}>🚚 Remetente: {notification.delivery_sender}</Text>
-              )}
-              {notification.delivery_company && (
-                <Text style={styles.infoItem}>🏢 Empresa: {notification.delivery_company}</Text>
-              )}
-              {notification.delivery_description && (
-                <Text style={styles.infoItem}>📦 Descrição: {notification.delivery_description}</Text>
-              )}
-              {notification.license_plate && (
-                <Text style={styles.infoItem}>🔢 Placa: {notification.license_plate}</Text>
-              )}
-              {notification.vehicle_brand && (
-                <Text style={styles.infoItem}>🚗 Veículo: {[notification.vehicle_brand, notification.vehicle_model, notification.vehicle_color].filter(Boolean).join(' ')}</Text>
-              )}
-              <Text style={styles.infoItem}>🕐 Solicitado em: {new Date(notification.notification_sent_at).toLocaleString('pt-BR')}</Text>
-            </View>
-            <View style={styles.modalActions}>
+
+            {/* Conteúdo Scrollável */}
+            <ScrollView 
+              style={styles.fullScreenScrollContent}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.fullScreenScrollContainer}
+            >
+              {/* Foto do Visitante */}
+              <View style={styles.photoContainer}>
+                {notification.photo_url ? (
+                  <TouchableOpacity 
+                    style={styles.photoWrapper}
+                    onPress={() => setShowImageModal(true)}
+                  >
+                    <Image 
+                      source={{ uri: notification.photo_url }} 
+                      style={styles.visitorPhoto}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.photoOverlay}>
+                      <Ionicons name="expand" size={20} color="white" />
+                      <Text style={styles.expandText}>Toque para expandir</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.noPhotoContainer}>
+                    <Ionicons name="camera-off" size={40} color="#ccc" />
+                    <Text style={styles.noPhotoText}>Imagem não registrada</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Informações do Visitante */}
+              <View style={styles.infoContainer}>
+                <View style={styles.infoGrid}>
+                {notification.guest_name && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                       <Ionicons name="person-outline" size={18} color="#4CAF50" />
+                     </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Nome Completo</Text>
+                      <Text style={styles.infoValue}>{notification.guest_name}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.phone && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                     <Ionicons name="call-outline" size={18} color="#4CAF50" />
+                   </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Telefone</Text>
+                      <Text style={styles.infoValue}>{notification.phone}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.purpose && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                     <Ionicons name="clipboard-outline" size={18} color="#4CAF50" />
+                   </View>
+                     <View style={styles.infoContent}>
+                       <Text style={styles.infoLabel}>Motivo da Visita</Text>
+                       <Text style={styles.infoValue}>{notification.purpose}</Text>
+                     </View>
+                  </View>
+                )}
+
+                <View style={styles.infoItem}>
+                   <View style={styles.infoIcon}>
+                     <Ionicons name="time-outline" size={18} color="#4CAF50" />
+                   </View>
+                   <View style={styles.infoContent}>
+                     <Text style={styles.infoLabel}>Data e Hora</Text>
+                     <Text style={styles.infoValue}>{new Date(notification.notification_sent_at).toLocaleString('pt-BR')}</Text>
+                   </View>
+                 </View>
+
+                {notification.delivery_sender && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons name="mail-outline" size={18} color="#4CAF50" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Remetente</Text>
+                      <Text style={styles.infoValue}>{notification.delivery_sender}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.delivery_company && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons name="business-outline" size={18} color="#4CAF50" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Empresa</Text>
+                      <Text style={styles.infoValue}>{notification.delivery_company}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.delivery_description && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons name="document-text-outline" size={18} color="#4CAF50" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Descrição</Text>
+                      <Text style={styles.infoValue}>{notification.delivery_description}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.license_plate && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons name="car-outline" size={18} color="#4CAF50" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Placa</Text>
+                      <Text style={styles.infoValue}>{notification.license_plate}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {notification.vehicle_brand && (
+                  <View style={styles.infoItem}>
+                    <View style={styles.infoIcon}>
+                      <Ionicons name="car-sport-outline" size={18} color="#4CAF50" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Veículo</Text>
+                      <Text style={styles.infoValue}>{[notification.vehicle_brand, notification.vehicle_model, notification.vehicle_color].filter(Boolean).join(' ')}</Text>
+                    </View>
+                  </View>
+                )}
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Footer Fixo com Ações */}
+            <View style={styles.fullScreenFooter}>
               {isDelivery ? (
                 <>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.porterButton]}
+                    style={[styles.cardActionButton, styles.approveCardButton]}
                     onPress={() => {
                       setShowInfoModal(false);
                       handleDeliveryPortaria();
                     }}
                     disabled={responding}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {responding ? 'Processando...' : 'Deixar na portaria'}
-                    </Text>
+                    <Ionicons name="home-outline" size={20} color="white" />
+                    <Text style={styles.cardActionText}>{responding ? 'Processando...' : 'Deixar na portaria'}</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.elevatorButton]}
+                    style={[styles.cardActionButton, styles.denyCardButton]}
                     onPress={() => {
                       setShowInfoModal(false);
                       handleDeliveryElevador();
                     }}
                     disabled={responding}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {responding ? 'Processando...' : 'Subir no elevador'}
-                    </Text>
+                    <Ionicons name="arrow-up-outline" size={20} color="white" />
+                    <Text style={styles.cardActionText}>{responding ? 'Processando...' : 'Subir no elevador'}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.denyButton]}
+                    style={[styles.cardActionButton, styles.denyCardButton]}
                     onPress={() => {
                       setShowInfoModal(false);
                       handleReject();
                     }}
                     disabled={responding}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {responding ? 'Processando...' : 'Recusar'}
-                    </Text>
+                    <Ionicons name="close-outline" size={20} color="white" />
+                    <Text style={styles.cardActionText}>{responding ? 'Processando...' : 'Recusar'}</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.approveButton]}
+                    style={[styles.cardActionButton, styles.approveCardButton]}
                     onPress={() => {
                       setShowInfoModal(false);
                       handleApprove();
                     }}
                     disabled={responding}
                   >
-                    <Text style={styles.actionButtonText}>
-                      {responding ? 'Processando...' : 'Aceitar'}
-                    </Text>
+                    <Ionicons name="checkmark-outline" size={20} color="white" />
+                    <Text style={styles.cardActionText}>{responding ? 'Processando...' : 'Aceitar'}</Text>
                   </TouchableOpacity>
                 </>
               )}
             </View>
-           
           </View>
         </View>
       </Modal>
@@ -480,41 +580,60 @@ function PendingNotificationCard({ notification, onRespond }: PendingNotificatio
         </View>
       </Modal>
 
-      {/* Modal de visualização de imagem */}
+      {/* Modal de visualização de imagem em tela cheia */}
       <Modal
         visible={showImageModal}
         transparent
         animationType="fade"
         onRequestClose={() => setShowImageModal(false)}
       >
-        <View style={styles.imageModalOverlay}>
-          <View style={styles.imageModalContent}>
-            <View style={styles.imageModalHeader}>
-              <Text style={styles.imageModalTitle}>Foto do Visitante</Text>
-              <TouchableOpacity
-                style={styles.closeImageButton}
-                onPress={() => setShowImageModal(false)}
-              >
-                <X size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-            {notification.photo_url ? (
-              <Image 
-                source={{ uri: notification.photo_url }} 
-                style={styles.fullScreenImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.noImageContainer}>
-                <Text style={styles.noImageText}>Nenhuma imagem disponível</Text>
-              </View>
-            )}
+        <View style={styles.fullScreenImageModalOverlay}>
+          {/* Header com título e botão fechar */}
+          <View style={styles.fullScreenImageHeader}>
+            <Text style={styles.fullScreenImageTitle}>Foto do Visitante</Text>
             <TouchableOpacity
-              style={styles.closeImageButtonBottom}
+              style={styles.fullScreenImageCloseButton}
               onPress={() => setShowImageModal(false)}
             >
-              <X size={16} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.closeImageButtonText}>Fechar</Text>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Conteúdo da imagem */}
+          <View style={styles.fullScreenImageContent}>
+            {notification.photo_url ? (
+              <ScrollView
+                contentContainerStyle={styles.imageScrollContainer}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+              >
+                <Image 
+                  source={{ uri: notification.photo_url }} 
+                  style={styles.zoomableImage}
+                  resizeMode="contain"
+                />
+              </ScrollView>
+            ) : (
+              <View style={styles.fullScreenNoImageContainer}>
+                <Ionicons name="image-outline" size={80} color="rgba(255, 255, 255, 0.5)" />
+                <Text style={styles.fullScreenNoImageText}>Nenhuma imagem disponível</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* Footer com instruções e botão fechar */}
+          <View style={styles.fullScreenImageFooter}>
+            {notification.photo_url && (
+              <Text style={styles.zoomInstructions}>Toque duas vezes para ampliar</Text>
+            )}
+            <TouchableOpacity
+              style={styles.fullScreenImageCloseButtonBottom}
+              onPress={() => setShowImageModal(false)}
+            >
+              <Ionicons name="close" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.fullScreenImageCloseButtonText}>Fechar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -645,6 +764,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2196F3',
   },
+  detailsButton: {
+    backgroundColor: '#e3f2fd',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  detailsButtonText: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '600',
+  },
   notificationTitle: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -667,6 +799,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+    marginTop: 5,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -719,9 +852,285 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  detailsCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '95%',
+    maxWidth: 400,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+    overflow: 'hidden',
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContainer: {
+    paddingBottom: 10,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: 'white',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#E8F5E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  headerText: {
+    flex: 1,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginBottom: 10,
+  },
+  photoWrapper: {
+    position: 'relative',
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
+  visitorPhoto: {
+    width: 150,
+    height: 150,
+    borderRadius: 20,
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  expandText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  noPhotoContainer: {
+    width: 150,
+    height: 150,
+    borderRadius: 20,
+    backgroundColor: '#f8f8f8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+  },
+  noPhotoText: {
+    color: '#999',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  infoContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  infoGrid: {
+    gap: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  infoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E8F5E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginTop: 2,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    lineHeight: 22,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: 'white',
+  },
+  cardActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  approveCardButton: {
+    backgroundColor: '#4CAF50',
+  },
+  denyCardButton: {
+    backgroundColor: '#f44336',
+  },
+  cardActionText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  // Estilos para modal em tela cheia
+  fullScreenModalOverlay: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  fullScreenDetailsCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  fullScreenHeader: {
+    backgroundColor: '#4CAF50',
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  headerTitleContainer: {
+    flex: 1,
+  },
+  fullScreenTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  fullScreenSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  fullScreenScrollContent: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  fullScreenScrollContainer: {
+    paddingBottom: 20,
+  },
+  fullScreenFooter: {
+    flexDirection: 'row',
+    padding: 20,
+    gap: 15,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   modalContent: {
     backgroundColor: '#fff',
@@ -746,14 +1155,6 @@ const styles = StyleSheet.create({
   },
   modalHeaderLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
@@ -786,6 +1187,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2196F3',
     marginLeft: 8,
+  },
+  noImageWarning: {
+    backgroundColor: '#fff3cd',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  noImageWarningText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#856404',
+    textAlign: 'center',
   },
   textInput: {
     borderWidth: 1,
@@ -829,20 +1244,6 @@ const styles = StyleSheet.create({
   closeModalButtonText: {
     color: '#666',
     fontWeight: '600',
-  },
-  infoContent: {
-    marginBottom: 20,
-  },
-  infoItem: {
-    fontSize: 15,
-    color: '#444',
-    marginBottom: 12,
-    lineHeight: 22,
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2196F3',
   },
   deliveryOption: {
     paddingVertical: 16,
@@ -889,74 +1290,88 @@ const styles = StyleSheet.create({
     color: '#E65100',
     fontWeight: '600',
   },
-  // Estilos do modal de imagem
-  imageModalOverlay: {
+  // Estilos do modal de imagem em tela cheia
+  fullScreenImageModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'space-between',
   },
-  imageModalContent: {
-    width: '95%',
-    height: '90%',
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageModalHeader: {
+  fullScreenImageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: '100%',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    position: 'absolute',
-    top: 0,
-    zIndex: 1,
+    paddingTop: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
-  imageModalTitle: {
-    fontSize: 18,
+  fullScreenImageTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
   },
-  closeImageButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  fullScreenImageCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  fullScreenImage: {
-    width: '100%',
-    height: '80%',
-    borderRadius: 8,
-  },
-  noImageContainer: {
-    width: '100%',
-    height: '80%',
+  fullScreenImageContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
+    paddingHorizontal: 10,
   },
-  noImageText: {
-    fontSize: 16,
-    color: '#fff',
+  imageScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100%',
+  },
+  zoomableImage: {
+    width: '100%',
+    height: '100%',
+    maxWidth: 400,
+    maxHeight: 600,
+  },
+  fullScreenNoImageContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  fullScreenNoImageText: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
+    marginTop: 16,
   },
-  closeImageButtonBottom: {
+  fullScreenImageFooter: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingBottom: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  zoomInstructions: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  fullScreenImageCloseButtonBottom: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    position: 'absolute',
-    bottom: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  closeImageButtonText: {
+  fullScreenImageCloseButtonText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
