@@ -1271,17 +1271,6 @@ export default function CadastroTab() {
             <Text style={styles.avatarMenuText}>Perfil</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.avatarMenuItem}
-            onPress={() => {
-              setShowAvatarMenu(false);
-              router.push('/morador/configuracoes');
-            }}
-          >
-            <Ionicons name="settings" size={20} color="#333" />
-            <Text style={styles.avatarMenuText}>Configurações</Text>
-          </TouchableOpacity>
-          
           <View style={styles.avatarMenuSeparator} />
           
           <TouchableOpacity 
@@ -1384,8 +1373,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
   avatarMenuText: {
     fontSize: 16,

@@ -138,6 +138,14 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const [showImageModal, setShowImageModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Debug: Log da notificação e URL da imagem
+  console.debug('🔍 NotificationCard renderizada:', {
+    id: notification.id,
+    photo_url: notification.photo_url,
+    guest_name: notification.guest_name,
+    entry_type: notification.entry_type
+  });
+
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
     const sent = new Date(dateString);
@@ -352,17 +360,21 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 {notification.photo_url ? (
                   <TouchableOpacity 
                     style={styles.photoWrapper}
-                    onPress={() => setShowImageModal(true)}
+                    onPress={() => {
+                      console.debug('�️ Tentando abrir modal de imagem:', notification.photo_url);
+                      setShowImageModal(true);
+                    }}
+                    activeOpacity={0.8}
                   >
                     <Image 
                       source={{ uri: notification.photo_url }} 
                       style={styles.visitorPhoto}
                       resizeMode="cover"
+                      onLoad={() => console.debug('✅ Imagem carregada com sucesso:', notification.photo_url)}
+                      onError={(error) => console.error('❌ Erro ao carregar imagem:', error.nativeEvent.error, 'URL:', notification.photo_url)}
+                      onLoadStart={() => console.debug('🔄 Iniciando carregamento da imagem:', notification.photo_url)}
                     />
-                    <View style={styles.photoOverlay}>
-                      <Ionicons name="expand" size={20} color="white" />
-                      <Text style={styles.expandText}>Toque para expandir</Text>
-                    </View>
+
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.noPhotoContainer}>
@@ -608,11 +620,15 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 minimumZoomScale={1}
                 showsHorizontalScrollIndicator={false}
                 showsVerticalScrollIndicator={false}
+                zoomScale={1}
               >
                 <Image 
                   source={{ uri: notification.photo_url }} 
-                  style={styles.zoomableImage}
+                  style={styles.fullSizeImage}
                   resizeMode="contain"
+                  onLoad={() => console.debug('✅ Imagem em tela cheia carregada:', notification.photo_url)}
+                  onError={(error) => console.error('❌ Erro na imagem em tela cheia:', error.nativeEvent.error)}
+                  onLoadStart={() => console.debug('🔄 Carregando imagem em tela cheia:', notification.photo_url)}
                 />
               </ScrollView>
             ) : (
@@ -896,7 +912,6 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     width: 50,
-    height: 50,
     borderRadius: 25,
     backgroundColor: '#E8F5E8',
     justifyContent: 'center',
@@ -933,32 +948,25 @@ const styles = StyleSheet.create({
   },
   photoWrapper: {
     position: 'relative',
-    borderRadius: 15,
+    borderRadius: 20,
     overflow: 'hidden',
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   visitorPhoto: {
     width: 150,
     height: 150,
     borderRadius: 20,
+    backgroundColor: 'transparent',
   },
-  photoOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  expandText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
+
   noPhotoContainer: {
     width: 150,
     height: 150,
@@ -1075,20 +1083,13 @@ const styles = StyleSheet.create({
   },
   fullScreenHeader: {
     backgroundColor: '#4CAF50',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    padding: 30,
+    shadowColor: '#000'
   },
   backButton: {
     width: 40,
+    marginTop: 20,
+    marginBottom: 20,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -1325,16 +1326,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   imageScrollContainer: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '100%',
-  },
-  zoomableImage: {
     width: '100%',
     height: '100%',
-    maxWidth: 400,
-    maxHeight: 600,
+  },
+  fullSizeImage: {
+    width: '100%',
+    height: '100%',
+    minWidth: '90%',
+    minHeight: '70%',
   },
   fullScreenNoImageContainer: {
     justifyContent: 'center',
