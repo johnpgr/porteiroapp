@@ -20,6 +20,39 @@ import * as Notifications from 'expo-notifications';
 
 console.log('🚀 AUTORIZACOES TAB LOADED');
 
+// Função para verificar se uma string é um UUID válido
+const isValidUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+// Função para buscar o nome do perfil pelo ID
+const getProfileName = async (authorizedBy: string): Promise<string> => {
+  // Se não é um UUID válido, retornar o valor direto
+  if (!isValidUUID(authorizedBy)) {
+    return authorizedBy;
+  }
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', authorizedBy)
+      .single();
+
+    if (error) {
+      console.warn('⚠️ Erro ao buscar perfil:', error);
+      return 'Usuário';
+    }
+
+    // Retornar o nome completo se disponível, senão 'Usuário'
+    return profile?.full_name || 'Usuário';
+  } catch (error) {
+    console.error('❌ Erro ao buscar nome do perfil:', error);
+    return 'Usuário';
+  }
+};
+
 // Interface para logs de atividades otimizada
 type ActivityEntry = {
   id: string;
@@ -394,9 +427,9 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       }
 
       // Processar dados para incluir número do apartamento e nome do visitante
-      const processedLogs = (data || []).map((log) => {
-        // Para authorized_by, usar o valor direto (pode ser 'Porteiro' ou um nome)
-        const authorizedByName = log.authorized_by || 'Sistema';
+      const processedLogs = await Promise.all((data || []).map(async (log) => {
+        // Para authorized_by, buscar o nome do perfil se for um UUID, senão usar o valor direto
+        const authorizedByName = await getProfileName(log.authorized_by || 'Sistema');
         
         return {
           ...log,
@@ -404,7 +437,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
           visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante',
           authorized_by_name: authorizedByName
         };
-      });
+      }));
 
       setVisitorLogs(processedLogs);
       console.log('✅ Visitor logs carregados:', processedLogs?.length || 0, `registros (filtro: ${timeFilter})`);

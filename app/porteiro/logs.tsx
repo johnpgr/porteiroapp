@@ -587,9 +587,9 @@ export default function ActivityLogs() {
           </View>
         )}
 
-        <View style={styles.expandIndicator}>
+        <TouchableOpacity onPress={() => setExpanded(!expanded)}  style={styles.expandIndicator}>
           <Text style={styles.expandText}>{expanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}</Text>
-        </View>
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
