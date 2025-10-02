@@ -120,6 +120,18 @@ export default function PorteiroDashboard() {
     return `${hours}h ${minutes}m`;
   };
 
+  // Função para acionamento do interfone
+  const handleIntercomCall = () => {
+    Alert.alert(
+      'Interfone',
+      'Acionando interfone...',
+      [
+        { text: 'OK', style: 'default' }
+      ]
+    );
+    console.log('🔔 Interfone acionado pelo porteiro');
+  };
+
   const [activeTab, setActiveTab] = useState<TabType>('chegada');
   const [activeFlow, setActiveFlow] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -1835,6 +1847,13 @@ export default function PorteiroDashboard() {
               </Text>
             </TouchableOpacity>
 
+            {/* Botão Central do Interfone */}
+            <TouchableOpacity
+              style={styles.intercomButton}
+              onPress={handleIntercomCall}>
+              <Text style={styles.intercomIcon}>📞</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={flattenStyles([
                 styles.navItem,
@@ -2238,6 +2257,28 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: '#2196F3',
     fontWeight: 'bold',
+  },
+  // Estilos para o botão do interfone
+  intercomButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    marginTop: -8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  intercomIcon: {
+    fontSize: 24,
+    color: '#fff',
   },
   authorizationCard: {
     backgroundColor: '#fff',

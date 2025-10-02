@@ -1484,7 +1484,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         tipo_log: 'IN',
         visit_session_id: generateUUID(),
         authorized_by: user?.id || 'Porteiro',
-        purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${user?.email || porteiroData?.full_name || 'Porteiro'}`,
+        purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${user?.full_name}`,
         photo_url: visitorData.photo_url
       };
 

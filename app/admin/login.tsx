@@ -3,12 +3,15 @@ import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollV
 import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
 import { adminAuth } from '../../utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
 
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   // Use generic timeout return type for compatibility across environments (RN / web / Node)
   const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
+  const hasNavigatedRef = useRef(false);
+  const { user, loading: authLoading, checkAndRedirectUser } = useAuth();
 
   useEffect(() => {
     // Cleanup na desmontagem do componente
@@ -19,6 +22,21 @@ export default function AdminLogin() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && user?.user_type === 'admin') {
+      if (!hasNavigatedRef.current) {
+        hasNavigatedRef.current = true;
+        if (loginTimeoutRef.current) {
+          clearTimeout(loginTimeoutRef.current);
+          loginTimeoutRef.current = null;
+        }
+        router.replace('/admin');
+      }
+    } else if (!authLoading && !user) {
+      hasNavigatedRef.current = false;
+    }
+  }, [authLoading, user]);
 
   // Removida função checkCurrentAdmin - verificação automática deve ocorrer apenas em rotas protegidas
 
@@ -33,6 +51,7 @@ export default function AdminLogin() {
 
     try {
       console.log('🔐 Iniciando processo de login...');
+      hasNavigatedRef.current = false;
       setIsLoading(true);
 
       // Timeout de segurança para resetar loading em caso de travamento
@@ -53,8 +72,10 @@ export default function AdminLogin() {
 
       if (result.user && result.adminProfile) {
         console.log('✅ Login realizado com sucesso!');
-        if (isMountedRef.current) {
-          router.replace('/admin');
+        try {
+          await checkAndRedirectUser();
+        } catch (redirectError) {
+          console.error('⚠️ Erro ao redirecionar após login:', redirectError);
         }
         return { success: true };
       } else {
