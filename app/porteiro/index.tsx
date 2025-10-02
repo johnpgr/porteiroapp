@@ -10,13 +10,13 @@ import {
   Alert,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import AutorizacoesTab from './AutorizacoesTab';
-import ShiftControl from '../../components/ShiftControl';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
@@ -86,14 +86,6 @@ export default function PorteiroDashboard() {
           onPress: async () => {
             try {
               await startShift();
-              Alert.alert('Sucesso', 'Turno iniciado com sucesso!');
-              // Se o modal estava sendo obrigatório, remover a obrigatoriedade e fechar
-              if (isModalMandatory) {
-                setIsModalMandatory(false);
-                setTimeout(() => {
-                  setShowShiftModal(false);
-                }, 1500);
-              }
             } catch (error) {
               console.error('Erro ao iniciar turno:', error);
               Alert.alert('Erro', 'Falha ao iniciar turno. Tente novamente.');
@@ -138,6 +130,8 @@ export default function PorteiroDashboard() {
   const [selectedAuth, setSelectedAuth] = useState<any>(null);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [isModalMandatory, setIsModalMandatory] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initialShiftCheckDone, setInitialShiftCheckDone] = useState(false);
 
   // Estados para dados do porteiro
   const [porteiroData, setPorteiroData] = useState<{
@@ -152,32 +146,37 @@ export default function PorteiroDashboard() {
   // Guard para evitar recarregar dados do mesmo usuário repetidamente
   const hasLoadedPorteiroDataRef = useRef<string | null>(null);
   const buildingIdRef = useRef<string | null>(null);
+  const hasCompletedInitialLoadRef = useRef(false);
 
   // Use shift control only when we have the required data
   const shiftControlEnabled = !!(user?.id && porteiroData?.building_id);
   const shiftControlResult = useShiftControl({
     porteiroId: user?.id || '',
     buildingId: porteiroData?.building_id || '',
-    onShiftChange: (shift) => {
-    }
   });
   
   // Only use shift control results when enabled
   const {
     currentShift,
     isLoading: shiftLoading,
-    error: shiftError,
     startShift,
     endShift,
     refreshShiftStatus: refreshShift
   } = shiftControlEnabled ? shiftControlResult : {
     currentShift: null,
     isLoading: false,
-    error: null,
     startShift: async () => {},
     endShift: async () => {},
     refreshShiftStatus: async () => {}
   };
+
+  useEffect(() => {
+    if (!user?.id) {
+      hasCompletedInitialLoadRef.current = false;
+      setIsInitializing(true);
+      setInitialShiftCheckDone(false);
+    }
+  }, [user?.id]);
 
   // Estados para a aba Consulta
   const [searchType, setSearchType] = useState<'cpf' | 'placa'>('cpf');
@@ -221,6 +220,14 @@ export default function PorteiroDashboard() {
 
   // Função para verificar se o turno está ativo antes de executar ações
   const checkShiftBeforeAction = (action: () => void, actionName: string = 'esta ação') => {
+    if (isInitializing) {
+      Alert.alert(
+        'Verificando turno',
+        'Estamos confirmando o status do seu turno. Aguarde alguns instantes e tente novamente.'
+      );
+      return;
+    }
+
     if (!currentShift) {
       Alert.alert(
         'Turno Inativo',
@@ -727,33 +734,113 @@ export default function PorteiroDashboard() {
       return () => clearTimeout(timeoutId);
     }
   }, [user?.id, authLoading]);
+
+  // Realiza uma checagem inicial garantindo que o status do turno seja conhecido antes de liberar a tela
+  useEffect(() => {
+    let isActive = true;
+
+    if (!shiftControlEnabled) {
+      setInitialShiftCheckDone(true);
+      return;
+    }
+
+    hasCompletedInitialLoadRef.current = false;
+    setInitialShiftCheckDone(false);
+    setIsInitializing(true);
+
+    const fetchInitialShiftStatus = async () => {
+      try {
+        await refreshShift();
+      } catch (error) {
+        console.error('Erro ao atualizar status inicial do turno:', error);
+      } finally {
+        if (isActive) {
+          setInitialShiftCheckDone(true);
+        }
+      }
+    };
+
+    fetchInitialShiftStatus();
+
+    return () => {
+      isActive = false;
+    };
+  }, [shiftControlEnabled, refreshShift, user?.id, porteiroData?.building_id]);
+
+  // Mantém uma tela de carregamento até concluir a checagem inicial do turno
+  useEffect(() => {
+    const stillLoading =
+      authLoading ||
+      loadingPorteiro ||
+      (shiftControlEnabled && (!initialShiftCheckDone || shiftLoading));
+
+    if (!hasCompletedInitialLoadRef.current) {
+      if (stillLoading) {
+        if (!isInitializing) {
+          setIsInitializing(true);
+        }
+      } else {
+        hasCompletedInitialLoadRef.current = true;
+        if (isInitializing) {
+          setIsInitializing(false);
+        }
+      }
+    } else if (isInitializing && !stillLoading) {
+      setIsInitializing(false);
+    }
+  }, [
+    authLoading,
+    loadingPorteiro,
+    shiftControlEnabled,
+    initialShiftCheckDone,
+    shiftLoading,
+    isInitializing,
+  ]);
   
   // Modal de controle de turno - abre automaticamente quando o turno estiver desligado
   useEffect(() => {
     if (!authLoading && user?.id && porteiroData) {
-      // Definir a aba padrão como chegada
       setActiveTab('chegada');
-      
-      // Verificar se não há turno ativo e abrir o modal automaticamente
-      if (!currentShift) {
+    }
+  }, [authLoading, porteiroData, user?.id]);
+
+  // Controla abertura automática do modal de turno apenas após a inicialização completa
+  useEffect(() => {
+    if (isInitializing || !shiftControlEnabled || shiftLoading) {
+      if (showShiftModal) {
+        setShowShiftModal(false);
+      }
+      if (isModalMandatory) {
+        setIsModalMandatory(false);
+      }
+      return;
+    }
+
+    if (!currentShift) {
+      if (!showShiftModal) {
         setShowShiftModal(true);
+      }
+      if (!isModalMandatory) {
         setIsModalMandatory(true);
       }
+      return;
     }
-  }, [user?.id, authLoading, porteiroData, currentShift]);
-  
-  // Atualizar se o modal deve ser obrigatório baseado no status do turno
-  useEffect(() => {
-    if (currentShift && isModalMandatory) {
-      // Turno foi iniciado, remover obrigatoriedade e fechar modal
+
+    // Há um turno ativo. Só fechamos automaticamente se o modal estava obrigatório.
+    if (isModalMandatory) {
       setIsModalMandatory(false);
-      setTimeout(() => {
+      if (showShiftModal) {
         setShowShiftModal(false);
-      }, 1000); // Aguardar 1 segundo para o usuário ver que o turno foi iniciado
-    } else if (!currentShift && showShiftModal) {
-      setIsModalMandatory(true);
+      }
     }
-  }, [currentShift, isModalMandatory, showShiftModal]);
+  }, [
+    currentShift,
+    isInitializing,
+    isModalMandatory,
+    shiftControlEnabled,
+    shiftLoading,
+    showShiftModal,
+  ]);
   
   // Carregar comunicados quando a aba avisos for ativada
   useEffect(() => {
@@ -814,6 +901,11 @@ export default function PorteiroDashboard() {
         style: 'destructive',
         onPress: async () => {
           try {
+              setShowShiftModal(false);
+              setIsModalMandatory(false);
+              setInitialShiftCheckDone(false);
+              setIsInitializing(true);
+              hasCompletedInitialLoadRef.current = false;
             await supabase.auth.signOut();
             router.replace('/porteiro/login');
           } catch (error) {
@@ -832,6 +924,17 @@ export default function PorteiroDashboard() {
           <View style={styles.topMenuLeft}>
             <Text style={styles.welcomeText}>❌ Erro de Conexão</Text>
             <Text style={styles.shiftText}>Verifique sua conexão com a internet</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (isInitializing) {
+      return (
+        <View style={styles.topMenu}>
+          <View style={styles.topMenuLeft}>
+            <Text style={styles.welcomeText}>Carregando ambiente</Text>
+            <Text style={styles.shiftText}>Verificando status do turno...</Text>
           </View>
         </View>
       );
@@ -864,7 +967,18 @@ export default function PorteiroDashboard() {
           </TouchableOpacity>
 
           {/* Botão Circular de Controle de Turno */}
-          <TouchableOpacity style={styles.shiftControlButton} onPress={() => setShowShiftModal(true)}>
+          <TouchableOpacity
+            style={flattenStyles([
+              styles.shiftControlButton,
+              isInitializing && styles.shiftControlButtonDisabled,
+            ])}
+            onPress={() => {
+              if (!isInitializing) {
+                setShowShiftModal(true);
+              }
+            }}
+            disabled={isInitializing}
+          >
             <Text style={styles.shiftControlIcon}>⏰</Text>
           </TouchableOpacity>
 
@@ -1184,10 +1298,8 @@ export default function PorteiroDashboard() {
         return false;
       }
       
-      // Formato antigo: ABC1234 (3 letras + 4 números)
       const oldFormat = /^[A-Z]{3}[0-9]{4}$/.test(cleanPlate);
       
-      // Formato Mercosul: ABC1D23 (3 letras + 1 número + 1 letra + 2 números)
       const mercosulFormat = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate);
       
       return oldFormat || mercosulFormat;
@@ -1798,109 +1910,113 @@ export default function PorteiroDashboard() {
 
       {!activeFlow && (
         <SafeAreaView style={styles.container}>
-          {renderTopMenu()}
-          <View style={styles.content}>{renderTabContent()}</View>
+          {!isInitializing && (
+            <>
+              {renderTopMenu()}
+              <View style={styles.content}>{renderTabContent()}</View>
 
-          {/* Navegação Inferior Fixa */}
-          <View style={styles.bottomNavigation}>
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'chegada' && styles.navItemActive,
-              ])}
-              onPress={() => setActiveTab('chegada')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'chegada' && styles.navIconActive,
-                ])}>
-                🏠
-              </Text>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'chegada' && styles.navLabelActive,
-                ])}>
-                Chegada
-              </Text>
-            </TouchableOpacity>
+              {/* Navegação Inferior Fixa */}
+              <View style={styles.bottomNavigation}>
+                <TouchableOpacity
+                  style={flattenStyles([
+                    styles.navItem,
+                    activeTab === 'chegada' && styles.navItemActive,
+                  ])}
+                  onPress={() => setActiveTab('chegada')}>
+                  <Text
+                    style={flattenStyles([
+                      styles.navIcon,
+                      activeTab === 'chegada' && styles.navIconActive,
+                    ])}>
+                    🏠
+                  </Text>
+                  <Text
+                    style={flattenStyles([
+                      styles.navLabel,
+                      activeTab === 'chegada' && styles.navLabelActive,
+                    ])}>
+                    Chegada
+                  </Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'autorizacoes' && styles.navItemActive,
-              ])}
-              onPress={() => checkShiftBeforeAction(() => setActiveTab('autorizacoes'), 'acessar autorizações')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'autorizacoes' && styles.navIconActive,
-                ])}>
-                ✅
-              </Text>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'autorizacoes' && styles.navLabelActive,
-                ])}>
-                Autorizações
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={flattenStyles([
+                    styles.navItem,
+                    activeTab === 'autorizacoes' && styles.navItemActive,
+                  ])}
+                  onPress={() => checkShiftBeforeAction(() => setActiveTab('autorizacoes'), 'acessar autorizações')}>
+                  <Text
+                    style={flattenStyles([
+                      styles.navIcon,
+                      activeTab === 'autorizacoes' && styles.navIconActive,
+                    ])}>
+                    ✅
+                  </Text>
+                  <Text
+                    style={flattenStyles([
+                      styles.navLabel,
+                      activeTab === 'autorizacoes' && styles.navLabelActive,
+                    ])}>
+                    Autorizações
+                  </Text>
+                </TouchableOpacity>
 
-            {/* Botão Central do Interfone */}
-            <TouchableOpacity
-              style={styles.intercomButton}
-              onPress={handleIntercomCall}>
-              <Text style={styles.intercomIcon}>📞</Text>
-            </TouchableOpacity>
+                {/* Botão Central do Interfone */}
+                <TouchableOpacity
+                  style={styles.intercomButton}
+                  onPress={handleIntercomCall}>
+                  <Text style={styles.intercomIcon}>📞</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'consulta' && styles.navItemActive,
-              ])}
-              onPress={() => checkShiftBeforeAction(() => setActiveTab('consulta'), 'acessar consultas')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'consulta' && styles.navIconActive,
-                ])}>
-                🔍
-              </Text>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'consulta' && styles.navLabelActive,
-                ])}>
-                Consulta
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={flattenStyles([
+                    styles.navItem,
+                    activeTab === 'consulta' && styles.navItemActive,
+                  ])}
+                  onPress={() => checkShiftBeforeAction(() => setActiveTab('consulta'), 'acessar consultas')}>
+                  <Text
+                    style={flattenStyles([
+                      styles.navIcon,
+                      activeTab === 'consulta' && styles.navIconActive,
+                    ])}>
+                    🔍
+                  </Text>
+                  <Text
+                    style={flattenStyles([
+                      styles.navLabel,
+                      activeTab === 'consulta' && styles.navLabelActive,
+                    ])}>
+                    Consulta
+                  </Text>
+                </TouchableOpacity>
 
 
 
-            <TouchableOpacity
-              style={flattenStyles([
-                styles.navItem,
-                activeTab === 'logs' && styles.navItemActive,
-              ])}
-              onPress={() => checkShiftBeforeAction(() => setActiveTab('logs'), 'acessar logs')}>
-              <Text
-                style={flattenStyles([
-                  styles.navIcon,
-                  activeTab === 'logs' && styles.navIconActive,
-                ])}>
-                📋
-              </Text>
-              <Text
-                style={flattenStyles([
-                  styles.navLabel,
-                  activeTab === 'logs' && styles.navLabelActive,
-                ])}>
-                Logs
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={flattenStyles([
+                    styles.navItem,
+                    activeTab === 'logs' && styles.navItemActive,
+                  ])}
+                  onPress={() => checkShiftBeforeAction(() => setActiveTab('logs'), 'acessar logs')}>
+                  <Text
+                    style={flattenStyles([
+                      styles.navIcon,
+                      activeTab === 'logs' && styles.navIconActive,
+                    ])}>
+                    📋
+                  </Text>
+                  <Text
+                    style={flattenStyles([
+                      styles.navLabel,
+                      activeTab === 'logs' && styles.navLabelActive,
+                    ])}>
+                    Logs
+                  </Text>
+                </TouchableOpacity>
 
-          </View>
+              </View>
+            </>
+          )}
         </SafeAreaView>
       )}
 
@@ -2011,7 +2127,7 @@ export default function PorteiroDashboard() {
 
       {/* Modal de Controle de Turno */}
       <Modal
-        visible={showShiftModal}
+        visible={!isInitializing && showShiftModal}
         transparent={true}
         animationType="slide"
         onRequestClose={() => {
@@ -2118,6 +2234,14 @@ export default function PorteiroDashboard() {
           </View>
         </View>
       </Modal>
+
+      {isInitializing && (
+        <View style={styles.initialOverlay}>
+          <ActivityIndicator size="large" color="#2196F3" />
+          <Text style={styles.initialOverlayMessage}>Verificando status do turno...</Text>
+          <Text style={styles.initialOverlaySubtext}>Isso pode levar apenas alguns segundos.</Text>
+        </View>
+      )}
     </ProtectedRoute>
   );
 }
@@ -2129,6 +2253,31 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  initialOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#f8f9fa',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    zIndex: 3000,
+  },
+  initialOverlayMessage: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+  },
+  initialOverlaySubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   tabContent: {
     overflow: "hidden",
@@ -3496,6 +3645,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  shiftControlButtonDisabled: {
+    backgroundColor: '#9CCC9C',
+    opacity: 0.6,
   },
   shiftControlIcon: {
     fontSize: 20,

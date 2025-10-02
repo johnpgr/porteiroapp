@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Stack, usePathname, router } from 'expo-router';
 
 export default function AdminLayout() {
   const pathname = usePathname();
   const shouldHideBottomNav = pathname === '/admin/login';
+  const previousPathRef = useRef<string | null>(null);
+  const [shouldAnimate, setShouldAnimate] = useState(true);
+
+  useEffect(() => {
+    if (previousPathRef.current === pathname) {
+      setShouldAnimate(false);
+    } else {
+      setShouldAnimate(true);
+      previousPathRef.current = pathname;
+    }
+  }, [pathname]);
 
   return (
     <View style={styles.container}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="users" />
         <Stack.Screen name="logs" />
