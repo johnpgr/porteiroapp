@@ -15,6 +15,7 @@ const completeRegistrationRoutes = require('./src/routes/completeRegistration');
 const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
 const whatsappWebhookRoutes = require('./src/routes/whatsappWebhook');
 const interactiveNotificationsRoutes = require('./src/routes/interactiveNotifications');
+const webrtcRoutes = require('./src/routes/webrtcRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,6 +34,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true
 }));
+
+// Servir arquivos estáticos da raiz do projeto
+app.use(express.static(path.join(__dirname)));
 
 // Middleware de log personalizado para requisições
 app.use((req, res, next) => {
@@ -68,7 +72,13 @@ app.get('/', (req, res) => {
       completeProfile: 'POST /api/complete-profile',
       interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
       customButtons: 'POST /api/interactive/send-custom-buttons',
-      customList: 'POST /api/interactive/send-custom-list'
+      customList: 'POST /api/interactive/send-custom-list',
+      webrtcResidents: 'GET /api/webrtc/residents',
+      webrtcCallInitiate: 'POST /api/webrtc/call/initiate',
+      webrtcCallAnswer: 'POST /api/webrtc/call/:callId/answer',
+      webrtcCallEnd: 'POST /api/webrtc/call/:callId/end',
+      webrtcBuildings: 'GET /api/webrtc/buildings',
+      webrtcApartmentResidents: 'GET /api/webrtc/apartments/:number/residents'
     },
     version: '1.0.0'
   });
@@ -83,6 +93,7 @@ app.use('/api', completeRegistrationRoutes);
 app.use('/api', visitorAuthorizationRoutes);
 app.use('/webhook', whatsappWebhookRoutes);
 app.use('/api/interactive', interactiveNotificationsRoutes);
+app.use('/api', webrtcRoutes);
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
@@ -108,7 +119,13 @@ app.use('*', (req, res) => {
       completeProfile: 'POST /api/complete-profile',
       interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
       customButtons: 'POST /api/interactive/send-custom-buttons',
-      customList: 'POST /api/interactive/send-custom-list'
+      customList: 'POST /api/interactive/send-custom-list',
+      webrtcResidents: 'GET /api/webrtc/residents',
+      webrtcCallInitiate: 'POST /api/webrtc/call/initiate',
+      webrtcCallAnswer: 'POST /api/webrtc/call/:callId/answer',
+      webrtcCallEnd: 'POST /api/webrtc/call/:callId/end',
+      webrtcBuildings: 'GET /api/webrtc/buildings',
+      webrtcApartmentResidents: 'GET /api/webrtc/apartments/:number/residents'
     }
   });
 });
@@ -120,7 +137,14 @@ app.listen(PORT, () => {
   console.log(`🌐 URL: http://127.0.0.1:${PORT}`);
   console.log(`📋 Health Check: http://127.0.0.1:${PORT}/health`);
   console.log(`📱 WhatsApp Endpoint: http://127.0.0.1:${PORT}/api/send-resident-whatsapp`);
-  console.log(`\n⚡ Pronto para enviar mensagens WhatsApp para moradores!\n`);
+  console.log(`📞 WebRTC Endpoints:`);
+  console.log(`   - Moradores: http://127.0.0.1:${PORT}/api/webrtc/residents`);
+  console.log(`   - Iniciar Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/initiate`);
+  console.log(`   - Responder Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/:callId/answer`);
+  console.log(`   - Encerrar Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/:callId/end`);
+  console.log(`   - Prédios: http://127.0.0.1:${PORT}/api/webrtc/buildings`);
+  console.log(`   - Moradores do Apartamento: http://127.0.0.1:${PORT}/api/webrtc/apartments/:number/residents`);
+  console.log(`\n⚡ Pronto para enviar mensagens WhatsApp e realizar chamadas WebRTC!\n`);
 });
 
 // Tratamento de sinais de encerramento

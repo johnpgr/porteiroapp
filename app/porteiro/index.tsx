@@ -17,12 +17,14 @@ import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import AutorizacoesTab from './AutorizacoesTab';
+import IntercomModal from './components/modals/IntercomModal';
 import { router } from 'expo-router';
 import { supabase } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { useShiftControl } from '~/hooks/useShiftControl';
 import ActivityLogs from './logs';
+import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -114,13 +116,7 @@ export default function PorteiroDashboard() {
 
   // Função para acionamento do interfone
   const handleIntercomCall = () => {
-    Alert.alert(
-      'Interfone',
-      'Acionando interfone...',
-      [
-        { text: 'OK', style: 'default' }
-      ]
-    );
+    setShowIntercomModal(true);
     console.log('🔔 Interfone acionado pelo porteiro');
   };
 
@@ -211,6 +207,9 @@ export default function PorteiroDashboard() {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  
+  // Estado para modal do interfone
+  const [showIntercomModal, setShowIntercomModal] = useState(false);
 
   // Função para fechar modal de imagem
   const closeImageModal = () => {
@@ -1965,7 +1964,7 @@ export default function PorteiroDashboard() {
                 <TouchableOpacity
                   style={styles.intercomButton}
                   onPress={handleIntercomCall}>
-                  <Text style={styles.intercomIcon}>📞</Text>
+                    <Phone size={32} color='#fff' />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -2242,6 +2241,12 @@ export default function PorteiroDashboard() {
           <Text style={styles.initialOverlaySubtext}>Isso pode levar apenas alguns segundos.</Text>
         </View>
       )}
+      
+      {/* Modal do Interfone */}
+      <IntercomModal
+        visible={showIntercomModal}
+        onClose={() => setShowIntercomModal(false)}
+      />
     </ProtectedRoute>
   );
 }
@@ -2409,25 +2414,19 @@ const styles = StyleSheet.create({
   },
   // Estilos para o botão do interfone
   intercomButton: {
-    width: 56,
-    height: 56,
+    position: 'relative',
+    bottom: 16,
     borderRadius: 28,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#2196F3',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 8,
-    marginTop: -8,
-    elevation: 8,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     borderWidth: 3,
     borderColor: '#fff',
-  },
-  intercomIcon: {
-    fontSize: 24,
-    color: '#fff',
   },
   authorizationCard: {
     backgroundColor: '#fff',

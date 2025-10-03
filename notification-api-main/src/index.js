@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const http = require('http');
 
 dotenv.config();
 
@@ -12,9 +13,13 @@ const sendVisitorNotificationRouter = require('./routes/sendVisitorNotification'
 const sendVisitorWaitingNotificationRouter = require('./routes/sendVisitorWaitingNotification');
 const whatsappWebhookRouter = require('./routes/whatsappWebhook');
 const lembretesNotificationsRouter = require('./routes/lembretesNotifications');
+const webrtcRoutes = require('./routes/webrtcRoutes');
 const reminderJobService = require('./services/reminderJobService');
+const webrtcSignalingService = require('./services/webrtcSignalingService');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3001;
 
 app.use(cors({
   origin: '*', 
@@ -34,11 +39,15 @@ app.use('/api', sendVisitorNotificationRouter);
 app.use('/api', sendVisitorWaitingNotificationRouter);
 app.use('/api', whatsappWebhookRouter);
 app.use('/api', lembretesNotificationsRouter);
+app.use('/api', webrtcRoutes);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
-app.listen(PORT, () => {
+// Inicializar WebRTC Signaling Service
+webrtcSignalingService.initialize(server);
+
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   
   // Iniciar o job de lembretes

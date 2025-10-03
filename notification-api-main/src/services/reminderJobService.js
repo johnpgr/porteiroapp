@@ -220,4 +220,4 @@ class ReminderJobService {
 // Instância singleton
 const reminderJobService = new ReminderJobService();
 
-module.exports
+module.exports = reminderJobService;

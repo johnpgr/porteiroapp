@@ -2,9 +2,9 @@ const axios = require('axios');
 
 // Configurações da Evolution API
 const EVOLUTION_API_CONFIG = {
-  baseUrl: process.env.EVOLUTION_BASE_URL || process.env.EXPO_PUBLIC_EVOLUTION_API_URL || 'https://evolutionapi.atendimentoemagrecer.com.br',
-  token: process.env.EVOLUTION_API_KEY || process.env.EXPO_PUBLIC_EVOLUTION_API_TOKEN || '09E5A1E9AA3C-495D-BEDF-50DCD30DE760',
-  instance: process.env.EVOLUTION_INSTANCE || process.env.EXPO_PUBLIC_EVOLUTION_INSTANCE || 'desenvolvimento',
+  baseUrl: process.env.EVOLUTION_BASE_URL,
+  token: process.env.EVOLUTION_API_KEY,
+  instance: process.env.EVOLUTION_INSTANCE,
 };
 
 // Logs de debug para configuração
