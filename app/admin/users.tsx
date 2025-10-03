@@ -20,11 +20,15 @@ import { notificationService } from '../../services/notificationService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
-const supabaseAdmin = createClient(
-  'https://ycamhxzumzkpxuhtugxc.supabase.co',
-  supabaseServiceRoleKey
-);
+// Configuração do Supabase Admin - Requer variáveis de ambiente
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error('Variáveis de ambiente EXPO_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias');
+}
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Função utilitária para formatação de placa de veículo
 const formatLicensePlate = (input: string): string => {

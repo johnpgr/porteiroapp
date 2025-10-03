@@ -72,8 +72,13 @@ export default function MoradorProfile() {
   // Função para upload robusto de foto usando FileSystem
   const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
     const maxRetries = 3;
-    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    // Configuração do Supabase - Requer variáveis de ambiente
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Variáveis de ambiente EXPO_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são obrigatórias');
+    }
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
