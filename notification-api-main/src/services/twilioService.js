@@ -2,15 +2,34 @@ const twilio = require('twilio');
 
 class TwilioService {
   constructor() {
+    this.initialized = false;
+    this.accountSid = null;
+    this.authToken = null;
+    this.twimlAppSid = null;
+    this.apiKeySid = null;
+    this.apiKeySecret = null;
+    this.client = null;
+  }
+
+  /**
+   * Inicializa o serviço Twilio (lazy loading)
+   */
+  initialize() {
+    if (this.initialized) {
+      return;
+    }
+
     this.accountSid = process.env.TWILIO_ACCOUNT_SID;
     this.authToken = process.env.TWILIO_AUTH_TOKEN;
     this.twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
     this.apiKeySid = process.env.TWILIO_API_KEY_SID;
     this.apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
-    this.client = twilio(this.accountSid, this.authToken);
     
     // Validar variáveis de ambiente obrigatórias
     this.validateEnvironmentVariables();
+    
+    this.client = twilio(this.accountSid, this.authToken);
+    this.initialized = true;
   }
 
   /**
@@ -87,6 +106,8 @@ class TwilioService {
    * @returns {string} Token de acesso
    */
   generateAccessToken(identity) {
+    this.initialize(); // Garante que o serviço está inicializado
+    
     const AccessToken = twilio.jwt.AccessToken;
     const VoiceGrant = AccessToken.VoiceGrant;
 
@@ -114,6 +135,8 @@ class TwilioService {
    * @returns {Promise<Object>} Dados da chamada criada
    */
   async makeCall(apartmentIdentity, callerIdentity = 'porteiro') {
+    this.initialize(); // Garante que o serviço está inicializado
+    
     try {
       const call = await this.client.calls.create({
         to: `client:${apartmentIdentity}`,
@@ -138,6 +161,8 @@ class TwilioService {
    * @returns {Promise<Object>} Dados da chamada atualizada
    */
   async hangupCall(callSid) {
+    this.initialize(); // Garante que o serviço está inicializado
+    
     try {
       const call = await this.client.calls(callSid).update({
         status: 'completed'
