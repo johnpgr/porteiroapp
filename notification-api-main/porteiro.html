@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interfone Digital - Porteiro</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Teste Porteiro - Sistema de Interfone</title>
     <style>
         * {
             margin: 0;
@@ -16,1478 +15,500 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
 
         .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            width: 100%;
             max-width: 800px;
-            backdrop-filter: blur(10px);
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
 
         .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
             text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
         }
 
         .header h1 {
-            color: #333;
-            font-size: 2.5rem;
+            font-size: 2.5em;
             margin-bottom: 10px;
-            font-weight: 700;
         }
 
-        .header .subtitle {
-            color: #666;
-            font-size: 1.1rem;
-            font-weight: 500;
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
         }
 
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
+        .content {
+            padding: 40px;
         }
 
-        .panel {
-            background: #f8f9fa;
-            border-radius: 15px;
+        .section {
+            margin-bottom: 40px;
             padding: 25px;
-            border: 1px solid #e9ecef;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            background: #f8f9fa;
         }
 
-        .panel h3 {
-            color: #495057;
+        .section h2 {
+            color: #2c3e50;
             margin-bottom: 20px;
-            font-size: 1.3rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
         }
 
         .form-group {
             margin-bottom: 20px;
         }
 
-        .form-group label {
+        label {
             display: block;
             margin-bottom: 8px;
-            color: #495057;
-            font-weight: 500;
+            font-weight: 600;
+            color: #34495e;
         }
 
-        .form-group input, .form-group select {
+        input, select {
             width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            background: white;
+            padding: 12px;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
         }
 
-        .form-group input:focus, .form-group select:focus {
+        input:focus, select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #3498db;
         }
 
         .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: center;
-            min-width: 120px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #3498db, #2980b9);
             color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
         }
 
-        .btn-primary:hover {
+        .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
         }
 
         .btn-success {
-            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
-            color: white;
-        }
-
-        .btn-success:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(86, 171, 47, 0.3);
+            background: linear-gradient(135deg, #27ae60, #229954);
         }
 
         .btn-danger {
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-            color: white;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
         }
 
-        .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(255, 65, 108, 0.3);
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
         }
 
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-
-        .connection-status {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.1rem;
-        }
-
-        .connection-status.connected {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .connection-status.calling {
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            color: #856404;
-            border: 1px solid #ffeaa7;
-            animation: pulse 2s infinite;
-        }
-
-        .connection-status.disconnected {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-
-        .residents-list {
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
             max-height: 300px;
             overflow-y: auto;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            background: white;
         }
 
-        .resident-item {
-            padding: 15px;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background-color 0.3s ease;
-        }
-
-        .resident-item:hover {
-            background-color: #f8f9fa;
-        }
-
-        .resident-item:last-child {
-            border-bottom: none;
-        }
-
-        .resident-info {
-            flex: 1;
-        }
-
-        .resident-name {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .resident-apartment {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .resident-status {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .response.success {
             background: #d4edda;
+            border: 1px solid #c3e6cb;
             color: #155724;
         }
 
-        .resident-status.online {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .resident-status.offline {
+        .response.error {
             background: #f8d7da;
+            border: 1px solid #f5c6cb;
             color: #721c24;
         }
 
-        .call-status-area {
-            display: none;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            margin-top: 20px;
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
         }
 
-        .call-status-area h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
+        .status-online {
+            background: #27ae60;
         }
 
-        .calling-residents {
-            display: grid;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .calling-resident {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #ffc107;
-        }
-
-        .calling-resident.answered {
-            border-left-color: #28a745;
-            background: #d4edda;
-        }
-
-        .calling-resident.cancelled {
-            border-left-color: #6c757d;
-            background: #e2e3e5;
-        }
-
-        .calling-resident.failed {
-            border-left-color: #dc3545;
-            background: #f8d7da;
-        }
-
-        .calling-status {
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .calling-status.calling {
-            color: #856404;
-        }
-
-        .calling-status.answered {
-            color: #155724;
-        }
-
-        .calling-status.cancelled {
-            color: #495057;
-        }
-
-        .calling-status.failed {
-            color: #721c24;
-        }
-
-        .call-controls {
-            display: none;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
+        .status-offline {
+            background: #e74c3c;
         }
 
         .call-info {
-            display: none;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            margin-top: 20px;
-        }
-
-        .call-info h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-
-        .call-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-
-        .call-detail {
-            text-align: center;
-        }
-
-        .call-detail-label {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-
-        .call-detail-value {
-            color: #333;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .volume-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
             margin-top: 15px;
         }
 
-        .volume-bar {
-            flex: 1;
-            height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .volume-level {
-            height: 100%;
-            background: linear-gradient(90deg, #56ab2f 0%, #a8e6cf 100%);
-            width: 0%;
-            transition: width 0.1s ease;
-        }
-
-        .log-container {
-            background: #2c3e50;
-            color: #ecf0f1;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 30px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-        }
-
-        .log-entry {
-            margin-bottom: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid #34495e;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-        }
-
-        .log-entry.info { color: #3498db; }
-        .log-entry.success { color: #2ecc71; }
-        .log-entry.warning { color: #f39c12; }
-        .log-entry.error { color: #e74c3c; }
-
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
             border-radius: 50%;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
+            margin: 0 auto;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
-            }
-
-            .main-content {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .call-controls {
-                grid-template-columns: 1fr;
-            }
-
-            .call-details {
-                grid-template-columns: 1fr;
-            }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚪 Interfone Digital</h1>
-            <div class="subtitle">Painel do Porteiro</div>
+            <h1>🏢 Sistema de Interfone - Porteiro</h1>
+            <p>Teste das funcionalidades do porteiro via API</p>
+            <div style="margin-top: 15px;">
+                <span class="status-indicator status-offline" id="apiStatus"></span>
+                <span id="apiStatusText">Verificando conexão...</span>
+            </div>
         </div>
 
-        <div id="connectionStatus" class="connection-status disconnected">
-            <span>🔴</span>
-            <span>Desconectado - Aguardando conexão</span>
-        </div>
-
-        <div class="main-content">
-            <div class="panel">
-                <h3>🏢 Buscar Apartamento</h3>
+        <div class="content">
+            <!-- Seção de Configuração -->
+            <div class="section">
+                <h2>⚙️ Configuração</h2>
                 <div class="form-group">
-                    <label for="buildingSelect">Prédio:</label>
-                    <select id="buildingSelect">
-                        <option value="">Selecione um prédio...</option>
-                    </select>
+                    <label for="apiUrl">URL da API:</label>
+                    <input type="text" id="apiUrl" value="http://127.0.0.1:3001" placeholder="http://127.0.0.1:3001">
                 </div>
                 <div class="form-group">
-                    <label for="apartmentInput">Apartamento:</label>
-                    <input type="text" id="apartmentInput" placeholder="Ex: 101, 202A, etc.">
+                    <label for="doormanId">ID do Porteiro:</label>
+                    <input type="text" id="doormanId" value="porteiro-001" placeholder="ID do porteiro">
                 </div>
-                <button class="btn btn-primary" onclick="callApartment()">
-                    <span>📞</span> Chamar Apartamento
-                </button>
+                <div class="form-group">
+                    <label for="buildingId">ID do Prédio:</label>
+                    <input type="text" id="buildingId" value="1" placeholder="ID do prédio">
+                </div>
+                <button class="btn" onclick="checkApiStatus()">🔍 Verificar API</button>
             </div>
 
-            <div class="panel">
-                <h3>👥 Moradores do Apartamento</h3>
-                <div id="residentsList" class="residents-list">
-                    <div style="padding: 40px; text-align: center; color: #666;">
-                        Busque um apartamento para ver os moradores
-                    </div>
+            <!-- Seção de Chamadas -->
+            <div class="section">
+                <h2>📞 Iniciar Chamada</h2>
+                <div class="form-group">
+                    <label for="apartmentNumber">Número do Apartamento:</label>
+                    <input type="text" id="apartmentNumber" placeholder="Ex: 101, 202, 1501" value="101">
+                </div>
+                <button class="btn btn-success" onclick="startCall()">📞 Iniciar Chamada</button>
+                <button class="btn btn-danger" onclick="endCall()" id="endCallBtn" disabled>📴 Encerrar Chamada</button>
+                
+                <div class="loading" id="callLoading">
+                    <div class="spinner"></div>
+                    <p>Iniciando chamada...</p>
+                </div>
+
+                <div class="call-info" id="callInfo" style="display: none;">
+                    <h4>📋 Informações da Chamada</h4>
+                    <p><strong>ID da Chamada:</strong> <span id="callId">-</span></p>
+                    <p><strong>Twilio Call SID:</strong> <span id="twilioSid">-</span></p>
+                    <p><strong>Apartamento:</strong> <span id="callApartment">-</span></p>
+                    <p><strong>Moradores Notificados:</strong> <span id="residentsCount">-</span></p>
+                    <p><strong>Status:</strong> <span id="callStatus">-</span></p>
                 </div>
             </div>
-        </div>
 
-        <div id="callStatusArea" class="call-status-area">
-            <h4>📞 Status da Chamada</h4>
-            <div id="callStatusMessage" style="margin-bottom: 15px; font-weight: 600;"></div>
-            <div id="callingResidents" class="calling-residents"></div>
-        </div>
-
-        <div id="callControls" class="call-controls">
-            <button class="btn btn-success" id="answerCall" onclick="answerCall()" disabled>
-                <span>📞</span> Atender
-            </button>
-            <button class="btn btn-danger" id="endCall" onclick="endCall()" disabled>
-                <span>📴</span> Encerrar
-            </button>
-            <button class="btn btn-primary" id="muteButton" onclick="toggleMute()">
-                <span>🔇</span> Mute
-            </button>
-            <button class="btn btn-primary" onclick="testMicrophone()">
-                <span>🎤</span> Testar Mic
-            </button>
-        </div>
-
-        <div id="callInfo" class="call-info">
-            <h4>📊 Informações da Chamada</h4>
-            <div class="call-details">
-                <div class="call-detail">
-                    <div class="call-detail-label">Morador</div>
-                    <div class="call-detail-value" id="currentResident">-</div>
+            <!-- Seção de Token Twilio -->
+            <div class="section">
+                <h2>🔑 Token Twilio</h2>
+                <div class="form-group">
+                    <label for="userId">User ID para Token:</label>
+                    <input type="text" id="userId" placeholder="ID do usuário" value="porteiro-001">
                 </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Apartamento</div>
-                    <div class="call-detail-value" id="currentApartment">-</div>
-                </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Duração</div>
-                    <div class="call-detail-value" id="callDuration">00:00</div>
-                </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Status</div>
-                    <div class="call-detail-value" id="callStatus">-</div>
+                <button class="btn btn-warning" onclick="generateToken()">🔑 Gerar Token</button>
+                
+                <div id="tokenInfo" style="display: none; margin-top: 15px;">
+                    <label>Token Gerado:</label>
+                    <textarea id="tokenValue" readonly style="height: 100px; font-family: monospace; font-size: 12px;"></textarea>
                 </div>
             </div>
-            <div class="volume-control">
-                <span>🔊 Volume Microfone:</span>
-                <div class="volume-bar">
-                    <div class="volume-level" id="volumeLevel"></div>
-                </div>
-            </div>
-            <div class="volume-control">
-                <span>🔊 Volume Áudio Recebido:</span>
-                <input type="range" id="remoteVolumeSlider" min="0" max="1" step="0.1" value="1" 
-                       style="width: 100%; margin-top: 5px;" onchange="adjustRemoteVolume(this.value)">
-                <span id="remoteVolumeValue" style="font-size: 0.9em; color: #666;">100%</span>
-            </div>
-        </div>
 
-        <!-- Elemento de áudio para reprodução do áudio remoto -->
-        <audio id="remoteAudio" autoplay playsinline style="display: none;"></audio>
+            <!-- Seção de Histórico -->
+            <div class="section">
+                <h2>📊 Histórico de Chamadas</h2>
+                <button class="btn" onclick="loadHistory()">📋 Carregar Histórico</button>
+                <div id="historyList" style="margin-top: 15px;"></div>
+            </div>
 
-        <div class="log-container">
-            <div id="logContainer">
-                <div class="log-entry info">Sistema iniciado - Aguardando conexão...</div>
+            <!-- Seção de Resposta da API -->
+            <div class="section">
+                <h2>📡 Resposta da API</h2>
+                <div id="apiResponse" class="response">Nenhuma requisição feita ainda...</div>
             </div>
         </div>
     </div>
 
     <script>
-        // Configurações do Supabase
-        const SUPABASE_URL = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let currentCallId = null;
+        let currentTwilioSid = null;
 
-        // WebRTCService para integração com Supabase e WebSocket
-        class WebRTCService {
-            constructor() {
-                this.supabase = supabase;
-                this.socket = null;
-                this.isConnected = false;
-            }
-
-            // Conectar ao WebSocket
-            async connectWebSocket() {
-                try {
-                    // Importar Socket.IO client
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.socket.io/4.8.1/socket.io.min.js';
-                    document.head.appendChild(script);
-                    
-                    return new Promise((resolve, reject) => {
-                        script.onload = () => {
-                            // Conectar ao servidor WebSocket
-                            this.socket = io('ws://localhost:3001', {
-                                auth: {
-                                    token: 'porteiro-token', // Token de autenticação do porteiro
-                                    userType: 'porteiro',
-                                    userId: 'porteiro-001'
-                                }
-                            });
-
-                            this.socket.on('connect', () => {
-                                console.log('Conectado ao WebSocket');
-                                this.isConnected = true;
-                                this.setupWebSocketEvents();
-                                resolve();
-                            });
-
-                            this.socket.on('disconnect', () => {
-                                console.log('Desconectado do WebSocket');
-                                this.isConnected = false;
-                            });
-
-                            this.socket.on('connect_error', (error) => {
-                                console.error('Erro de conexão WebSocket:', error);
-                                reject(error);
-                            });
-                        };
-                        
-                        script.onerror = reject;
-                    });
-                } catch (error) {
-                    console.error('Erro ao conectar WebSocket:', error);
-                    throw error;
+        // Verificar status da API
+        async function checkApiStatus() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            showLoading('Verificando API...');
+            
+            try {
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateApiStatus(true);
+                    showResponse(data, true);
+                } else {
+                    updateApiStatus(false);
+                    showResponse(data, false);
                 }
+            } catch (error) {
+                updateApiStatus(false);
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
             }
-
-            // Configurar eventos WebSocket
-            setupWebSocketEvents() {
-                // Resposta de chamada aceita
-                this.socket.on('webrtc:call:answered', (data) => {
-                    const { callId, answer } = data;
-                    console.log('Chamada aceita:', callId);
-                    
-                    if (currentCall && currentCall.id === callId) {
-                        handleCallAccepted(data);
-                    }
-                });
-
-                // Chamada rejeitada
-                this.socket.on('webrtc:call:rejected', (data) => {
-                    const { callId, reason } = data;
-                    console.log('Chamada rejeitada:', callId, reason);
-                    
-                    if (currentCall && currentCall.id === callId) {
-                        handleCallRejected(data);
-                    }
-                });
-
-                // Erro na chamada
-                this.socket.on('webrtc:error', (error) => {
-                    console.error('Erro WebRTC:', error);
-                    log(`❌ Erro: ${error.message}`, 'error');
-                });
-
-                // Confirmação de chamada enviada
-                this.socket.on('webrtc:call:sent', (data) => {
-                    console.log('Chamada enviada com sucesso:', data.callId);
-                });
-            }
-
-            async getBuildings() {
-                try {
-                    const { data, error } = await this.supabase
-                        .from('buildings')
-                        .select('*')
-                        .order('name');
-                    
-                    if (error) throw error;
-                    return data || [];
-                } catch (error) {
-                    console.error('Erro ao buscar prédios:', error);
-                    // Retornar dados mock para teste
-                    return [
-                        { id: 'building-1', name: 'Edifício Teste A' },
-                        { id: 'building-2', name: 'Edifício Teste B' }
-                    ];
-                }
-            }
-
-            async getBuildingApartments(buildingId) {
-                try {
-                    const { data, error } = await this.supabase
-                        .from('apartments')
-                        .select('*')
-                        .eq('building_id', buildingId)
-                        .order('number');
-                    
-                    if (error) throw error;
-                    return data || [];
-                } catch (error) {
-                    console.error('Erro ao buscar apartamentos:', error);
-                    // Retornar dados mock para teste
-                    return [
-                        { id: 'apt-101', building_id: buildingId, number: '101', floor: 1 },
-                        { id: 'apt-102', building_id: buildingId, number: '102', floor: 1 },
-                        { id: 'apt-201', building_id: buildingId, number: '201', floor: 2 }
-                    ];
-                }
-            }
-
-            async getApartmentResidents(apartmentNumber, buildingId) {
-                try {
-                    console.log('🔍 Buscando moradores para apartamento:', apartmentNumber, 'no prédio:', buildingId);
-                    const { data, error } = await this.supabase
-                        .rpc('get_apartment_residents', { 
-                            apartment_number: apartmentNumber, 
-                            building_id: buildingId 
-                        });
-                    
-                    if (error) {
-                        console.error('❌ Erro na RPC get_apartment_residents:', error);
-                        throw error;
-                    }
-                    
-                    console.log('✅ Moradores encontrados:', data);
-                    return data || [];
-                } catch (error) {
-                    console.error('Erro ao buscar moradores:', error);
-                    console.error('Detalhes do erro:', error.message);
-                    // Retornar array vazio em caso de erro
-                    return [];
-                }
-            }
-
-            async initiateCall(apartmentId, visitorName, residents) {
-                try {
-                    if (!this.isConnected) {
-                        throw new Error('WebSocket não conectado');
-                    }
-
-                    // Gerar ID único para a chamada
-                    const callId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    
-                    // Enviar chamada via WebSocket para cada morador
-                    for (const resident of residents) {
-                        this.socket.emit('webrtc:call:initiate', {
-                            callId: callId,
-                            callerId: 'porteiro-001',
-                            receiverId: resident.profile_id,
-                            apartmentId: apartmentId,
-                            visitorName: visitorName,
-                            offer: null // Será preenchido quando estabelecer WebRTC
-                        });
-                    }
-
-                    return {
-                        success: true,
-                        call_id: callId,
-                        message: 'Chamada iniciada com sucesso'
-                    };
-                } catch (error) {
-                    console.error('Erro ao iniciar chamada:', error);
-                    throw error;
-                }
-            }
+            
+            hideLoading();
         }
 
-        // Funções para lidar com respostas de chamada
-        function handleCallAccepted(data) {
-            const { callId, answer, resident_id, resident_name } = data;
+        // Atualizar indicador de status da API
+        function updateApiStatus(online) {
+            const indicator = document.getElementById('apiStatus');
+            const text = document.getElementById('apiStatusText');
             
-            if (!currentCall || currentCall.id !== callId) {
-                return;
-            }
-            
-            log(`✅ ${resident_name} aceitou a chamada!`, 'success');
-            updateCallStatusMessage(`Conectado com ${resident_name}`);
-            
-            // Atualizar status: apenas quem atendeu fica como "answered", outros como "cancelled"
-            const callingList = currentCall.residents.map(resident => ({
-                id: resident.profile_id,
-                name: resident.full_name,
-                status: resident.profile_id === resident_id ? 'answered' : 'cancelled'
-            }));
-            
-            updateCallingResidentsList(callingList);
-            
-            // Atualizar status da chamada
-            currentCall.status = 'connected';
-            currentCall.connectedResident = {
-                id: resident_id,
-                name: resident_name
-            };
-            
-            // Estabelecer conexão WebRTC
-            establishConnection(resident_id, resident_name, currentCall.apartment);
-        }
-
-        function handleCallRejected(data) {
-            const { callId, reason, resident_id, resident_name } = data;
-            
-            if (!currentCall || currentCall.id !== callId) {
-                return;
-            }
-            
-            log(`❌ ${resident_name} rejeitou a chamada`, 'warning');
-            
-            // Remover morador da lista de chamadas ativas
-            currentCall.residents = currentCall.residents.filter(r => r.profile_id !== resident_id);
-            
-            // Verificar se ainda há moradores para atender
-            if (currentCall.residents.length === 0) {
-                // Todos rejeitaram
-                updateCallStatusMessage('Chamada rejeitada por todos os moradores');
-                
-                const callingList = [{
-                    id: resident_id,
-                    name: resident_name,
-                    status: 'rejected'
-                }];
-                
-                updateCallingResidentsList(callingList);
-                currentCall = null;
+            if (online) {
+                indicator.className = 'status-indicator status-online';
+                text.textContent = 'API Online';
             } else {
-                // Atualizar lista removendo quem rejeitou
-                const callingList = currentCall.residents.map(resident => ({
-                    id: resident.profile_id,
-                    name: resident.full_name,
-                    status: 'calling'
-                }));
-                
-                updateCallingResidentsList(callingList);
+                indicator.className = 'status-indicator status-offline';
+                text.textContent = 'API Offline';
             }
         }
 
-        // Variáveis globais
-        let currentUser = null;
-        let currentCall = null;
-        let currentApartment = null;
-        let currentApartmentResidents = [];
-        let apartments = [];
-        let peerConnection = null;
-        let localStream = null;
-        let remoteStream = null;
-        let callStartTime = null;
-        let callTimer = null;
-        let volumeMonitor = null;
-        let isMuted = false;
-        let webrtcService = null;
-        
-        // Configuração WebRTC
-        const rtcConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-
-        // Inicializar sistema
-        async function initializeSystem() {
-            try {
-                log('🚀 Inicializando sistema do porteiro...', 'info');
-                log('📡 Conectando com Supabase...', 'info');
-                
-                // Inicializar WebRTC Service
-                webrtcService = new WebRTCService();
-                
-                // Conectar ao WebSocket
-                try {
-                    await webrtcService.connectWebSocket();
-                    log('✅ WebSocket conectado com sucesso', 'success');
-                } catch (error) {
-                    log('❌ Erro ao conectar WebSocket: ' + error.message, 'error');
-                    log('⚠️ Sistema funcionará em modo limitado', 'warning');
-                }
-                
-                // Simular login do porteiro
-                currentUser = {
-                    id: 'porteiro-001',
-                    name: 'Porteiro Principal',
-                    type: 'porteiro',
-                    building_id: null
-                };
-                
-                await loadBuildings();
-                updateConnectionStatus('connected', '🟢 Conectado - Sistema pronto');
-                
-                log('✅ Sistema inicializado com sucesso', 'success');
-                
-            } catch (error) {
-                log(`❌ Erro na inicialização: ${error.message}`, 'error');
-                updateConnectionStatus('disconnected', '🔴 Erro na conexão');
-            }
-        }
-
-        // Carregar prédios
-        async function loadBuildings() {
-            try {
-                log('🏢 Carregando dados dos prédios...', 'info');
-                
-                const buildings = await webrtcService.getBuildings();
-                
-                const buildingSelect = document.getElementById('buildingSelect');
-                buildingSelect.innerHTML = '<option value="">Selecione um prédio...</option>';
-                
-                buildings.forEach(building => {
-                    const option = document.createElement('option');
-                    option.value = building.id;
-                    option.textContent = building.name;
-                    buildingSelect.appendChild(option);
-                });
-                
-                log(`🏢 ${buildings.length} prédios carregados com sucesso`, 'success');
-                
-            } catch (error) {
-                log(`❌ Erro ao carregar prédios: ${error.message}`, 'error');
-            }
-        }
-
-        // Buscar apartamento e iniciar chamada
-        async function callApartment() {
-            try {
-                const buildingId = document.getElementById('buildingSelect').value;
-                const apartmentNumber = document.getElementById('apartmentInput').value.trim();
-                
-                if (!buildingId || !apartmentNumber) {
-                    log('⚠️ Selecione um prédio e digite o número do apartamento', 'warning');
-                    return;
-                }
-                
-                log(`🔍 Buscando apartamento ${apartmentNumber}...`, 'info');
-                
-                // Buscar apartamentos do prédio
-                apartments = await webrtcService.getBuildingApartments(buildingId);
-                
-                // Encontrar o apartamento específico
-                const apartment = apartments.find(apt => apt.number === apartmentNumber);
-                
-                if (!apartment) {
-                    log(`❌ Apartamento ${apartmentNumber} não encontrado`, 'error');
-                    displayResidents([]);
-                    return;
-                }
-                
-                currentApartment = apartment;
-                
-                // Buscar moradores do apartamento
-                currentApartmentResidents = await webrtcService.getApartmentResidents(apartment.number, buildingId);
-                
-                if (currentApartmentResidents.length === 0) {
-                    log(`❌ Nenhum morador encontrado no apartamento ${apartmentNumber}`, 'error');
-                    displayResidents([]);
-                    return;
-                }
-                
-                displayResidents(currentApartmentResidents);
-                log(`✅ Apartamento ${apartmentNumber} encontrado com ${currentApartmentResidents.length} moradores`, 'success');
-                
-                // Iniciar chamada simultânea para todos os moradores
-                await startSimultaneousCall(currentApartmentResidents, apartmentNumber);
-                
-            } catch (error) {
-                console.error('Erro ao chamar apartamento:', error);
-                log(`❌ Erro ao chamar apartamento: ${error.message}`, 'error');
-            }
-        }
-
-        // Exibir moradores
-        function displayResidents(residents) {
-            const residentsList = document.getElementById('residentsList');
+        // Gerar token Twilio
+        async function generateToken() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const userId = document.getElementById('userId').value;
             
-            if (residents.length === 0) {
-                residentsList.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: #666;">
-                        Nenhum morador encontrado neste apartamento
-                    </div>
-                `;
+            if (!userId) {
+                alert('Por favor, insira um User ID');
                 return;
             }
             
-            residentsList.innerHTML = residents.map(resident => `
-                <div class="resident-item">
-                    <div class="resident-info">
-                        <div class="resident-name">${resident.full_name}</div>
-                        <div class="resident-apartment">${resident.relationship}${resident.is_primary ? ' (Principal)' : ''}${resident.is_owner ? ' (Proprietário)' : ''}</div>
-                    </div>
-                    <div class="resident-status">
-                        Disponível
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Iniciar chamada simultânea para todos os moradores
-        async function startSimultaneousCall(residents, apartmentNumber) {
-            try {
-                log(`📞 Iniciando chamada simultânea para ${residents.length} moradores do apartamento ${apartmentNumber}...`, 'info');
-                
-                // Verificar se currentApartment está definido
-                if (!currentApartment || !currentApartment.id) {
-                    throw new Error('Apartamento não selecionado ou ID do apartamento não encontrado');
-                }
-                
-                // Mostrar área de status da chamada
-                showCallStatusArea();
-                updateCallStatusMessage(`Chamando apartamento ${apartmentNumber}...`);
-                
-                // Inicializar lista de chamadas
-                const callingList = residents.map(resident => ({
-                    id: resident.profile_id,
-                    name: resident.full_name,
-                    status: 'calling'
-                }));
-                
-                updateCallingResidentsList(callingList);
-                
-                // Enviar notificação real para os moradores via WebSocket/Supabase
-                log(`📞 Enviando notificação de chamada para ${residents.length} morador(es)...`, 'info');
-                
-                // Inicializar chamada real via WebSocket
-                try {
-                    const callResponse = await webrtcService.initiateCall(currentApartment.id, 'Porteiro', residents);
-                    
-                    if (!callResponse.success) {
-                        throw new Error(callResponse.message || 'Erro ao iniciar chamada');
-                    }
-                    
-                    currentCall = {
-                        id: callResponse.call_id,
-                        apartment: apartmentNumber,
-                        residents: residents,
-                        status: 'calling',
-                        startTime: new Date()
-                    };
-                    
-                    // Aguardar resposta real dos moradores
-                    // A resposta virá via WebSocket quando um morador aceitar/rejeitar
-                    updateCallStatusMessage(`Aguardando resposta dos moradores...`);
-                    
-                    // Configurar timeout de 30 segundos
-                    setTimeout(() => {
-                        if (currentCall && currentCall.status === 'calling') {
-                            log(`⏰ Timeout da chamada - nenhum morador atendeu`, 'warning');
-                            updateCallStatusMessage('Chamada não atendida - timeout');
-                            
-                            callingList.forEach(call => {
-                                call.status = 'timeout';
-                            });
-                            
-                            updateCallingResidentsList(callingList);
-                            currentCall = null;
-                        }
-                    }, 30000);
-                    
-                } catch (error) {
-                    log(`❌ Erro ao iniciar chamada: ${error.message}`, 'error');
-                    updateCallStatusMessage('Erro ao iniciar chamada');
-                    
-                    callingList.forEach(call => {
-                        call.status = 'failed';
-                    });
-                    
-                    updateCallingResidentsList(callingList);
-                }
-                
-            } catch (error) {
-                console.error('Erro na chamada simultânea:', error);
-                log(`❌ Erro na chamada simultânea: ${error.message}`, 'error');
-                updateCallStatusMessage('Erro na chamada');
-            }
-        }
-
-        // Esta função foi removida - as respostas agora são tratadas via WebSocket
-        // nas funções handleCallAccepted e handleCallRejected
-
-        // Estabelecer conexão WebRTC
-        async function establishConnection(residentId, residentName, apartment) {
-            try {
-                // Aqui você implementaria a lógica real do WebRTC
-                currentCall = {
-                    resident_id: residentId,
-                    resident_name: residentName,
-                    apartment: apartment,
-                    status: 'connected'
-                };
-                
-                callStartTime = new Date();
-                
-                updateConnectionStatus('connected', `🟢 Conectado com ${residentName}`);
-                
-                showCallControls();
-                updateCallInfo();
-                startCallTimer();
-                
-                // Inicializar WebRTC se ainda não foi inicializado
-                if (!peerConnection) {
-                    await initializeWebRTC();
-                }
-                
-                log(`🎤 Conexão estabelecida com ${residentName}`, 'success');
-                
-            } catch (error) {
-                console.error('Erro ao estabelecer conexão:', error);
-                log(`❌ Erro ao estabelecer conexão: ${error.message}`, 'error');
-            }
-        }
-
-        // Mostrar área de status da chamada
-        function showCallStatusArea() {
-            document.getElementById('callStatusArea').style.display = 'block';
-        }
-
-        // Ocultar área de status da chamada
-        function hideCallStatusArea() {
-            document.getElementById('callStatusArea').style.display = 'none';
-        }
-
-        // Atualizar mensagem de status da chamada
-        function updateCallStatusMessage(message) {
-            document.getElementById('callStatusMessage').textContent = message;
-        }
-
-        // Atualizar lista de moradores sendo chamados
-        function updateCallingResidentsList(callingList) {
-            const container = document.getElementById('callingResidents');
+            showLoading('Gerando token...');
             
-            container.innerHTML = callingList.map(call => `
-                <div class="calling-resident ${call.status}">
-                    <div>
-                        <div style="font-weight: 600;">${call.name}</div>
-                    </div>
-                    <div class="calling-status ${call.status}">
-                        ${call.status === 'calling' ? 'Chamando...' : 
-                          call.status === 'answered' ? 'Atendeu' : 
-                          call.status === 'cancelled' ? 'Cancelado' : 'Não atendeu'}
-                    </div>
-                </div>
-            `).join('');
+            try {
+                const response = await fetch(`${apiUrl}/api/intercom/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                
+                const data = await response.json();
+                showResponse(data, response.ok);
+                
+                if (response.ok && data.token) {
+                    document.getElementById('tokenValue').value = data.token;
+                    document.getElementById('tokenInfo').style.display = 'block';
+                }
+            } catch (error) {
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
+            }
+            
+            hideLoading();
         }
 
         // Iniciar chamada
-        async function startCall(residentId, residentName, apartment) {
-            try {
-                log(`📞 Iniciando chamada para ${residentName} (Apt. ${apartment})...`, 'info');
-                
-                // Iniciar chamada via API
-                const callResponse = await webrtcService.initiateCall(currentApartment.id, 'Porteiro');
-                
-                if (!callResponse.success) {
-                    throw new Error(callResponse.message || 'Erro ao iniciar chamada');
-                }
-                
-                // Configurar informações da chamada
-                currentCall = {
-                    id: callResponse.call_id,
-                    resident_id: residentId,
-                    resident_name: residentName,
-                    apartment: apartment,
-                    status: 'calling'
-                };
-                
-                // Atualizar interface
-                updateConnectionStatus('calling', `🟡 Chamando ${residentName} - Apt. ${apartment}`);
-                showCallControls();
-                updateCallInfo();
-                
-                // Inicializar WebRTC
-                await initializeWebRTC();
-                
-                // Simular resposta após alguns segundos
-                setTimeout(() => {
-                    if (currentCall && currentCall.status === 'calling') {
-                        simulateCallAnswer();
-                    }
-                }, 3000);
-                
-            } catch (error) {
-                log(`❌ Erro ao iniciar chamada: ${error.message}`, 'error');
-                endCall();
+        async function startCall() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const apartmentNumber = document.getElementById('apartmentNumber').value;
+            const doormanId = document.getElementById('doormanId').value;
+            const buildingId = document.getElementById('buildingId').value;
+            
+            if (!apartmentNumber || !doormanId || !buildingId) {
+                alert('Por favor, preencha todos os campos obrigatórios');
+                return;
             }
-        }
-
-        // Inicializar WebRTC
-        async function initializeWebRTC() {
+            
+            document.getElementById('callLoading').style.display = 'block';
+            
             try {
-                // Obter stream de áudio
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
+                const response = await fetch(`${apiUrl}/api/intercom/call`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        apartment_number: apartmentNumber,
+                        doorman_id: doormanId,
+                        building_id: buildingId
+                    })
                 });
                 
-                // Criar peer connection
-                peerConnection = new RTCPeerConnection(rtcConfiguration);
+                const data = await response.json();
+                showResponse(data, response.ok);
                 
-                // Adicionar stream local
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-                
-                // Configurar eventos
-                peerConnection.ontrack = (event) => {
-                    remoteStream = event.streams[0];
-                    log('📥 Stream remoto recebido', 'success');
+                if (response.ok) {
+                    currentCallId = data.call_id;
+                    currentTwilioSid = data.twilio_call_sid;
                     
-                    // Conectar stream remoto ao elemento de áudio
-                    const remoteAudio = document.getElementById('remoteAudio');
-                    if (remoteAudio && remoteStream) {
-                        remoteAudio.srcObject = remoteStream;
-                        remoteAudio.volume = document.getElementById('remoteVolumeSlider').value;
-                        
-                        // Tentar reproduzir o áudio
-                        remoteAudio.play().then(() => {
-                            log('🔊 Áudio remoto iniciado com sucesso', 'success');
-                        }).catch(error => {
-                            log(`⚠️ Erro ao iniciar áudio remoto: ${error.message}`, 'warning');
-                            // Tentar novamente após interação do usuário
-                            document.addEventListener('click', () => {
-                                remoteAudio.play().catch(e => console.warn('Erro ao reproduzir áudio:', e));
-                            }, { once: true });
-                        });
-                    }
-                };
-                
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        log('🧊 ICE candidate gerado', 'info');
-                    }
-                };
-                
-                peerConnection.onconnectionstatechange = () => {
-                    log(`🔗 Estado da conexão: ${peerConnection.connectionState}`, 'info');
-                };
-                
-                // Iniciar monitoramento de volume
-                startVolumeMonitoring();
-                
-                log('🎤 WebRTC inicializado com sucesso', 'success');
-                
+                    // Atualizar informações da chamada
+                    document.getElementById('callId').textContent = data.call_id || '-';
+                    document.getElementById('twilioSid').textContent = data.twilio_call_sid || '-';
+                    document.getElementById('callApartment').textContent = data.apartment?.number || apartmentNumber;
+                    document.getElementById('residentsCount').textContent = data.residents_count || '-';
+                    document.getElementById('callStatus').textContent = 'Iniciada';
+                    
+                    document.getElementById('callInfo').style.display = 'block';
+                    document.getElementById('endCallBtn').disabled = false;
+                }
             } catch (error) {
-                throw new Error(`Falha na inicialização WebRTC: ${error.message}`);
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
             }
-        }
-
-        // Simular resposta da chamada
-        function simulateCallAnswer() {
-            if (currentCall) {
-                currentCall.status = 'connected';
-                callStartTime = new Date();
-                
-                updateConnectionStatus('connected', `🟢 Conectado com ${currentCall.resident_name}`);
-                
-                document.getElementById('answerCall').disabled = true;
-                document.getElementById('endCall').disabled = false;
-                
-                startCallTimer();
-                log(`✅ Chamada atendida por ${currentCall.resident_name}`, 'success');
-            }
-        }
-
-        // Atender chamada (para chamadas recebidas)
-        function answerCall() {
-            if (currentCall && currentCall.status === 'calling') {
-                simulateCallAnswer();
-            }
+            
+            document.getElementById('callLoading').style.display = 'none';
         }
 
         // Encerrar chamada
-        function endCall() {
-            try {
-                if (currentCall) {
-                    log(`📴 Encerrando chamada com ${currentCall.resident_name}...`, 'info');
-                }
-                
-                // Parar streams
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                    localStream = null;
-                }
-                
-                if (remoteStream) {
-                    remoteStream.getTracks().forEach(track => track.stop());
-                    remoteStream = null;
-                }
-                
-                // Fechar peer connection
-                if (peerConnection) {
-                    peerConnection.close();
-                    peerConnection = null;
-                }
-                
-                // Parar timers
-                if (callTimer) {
-                    clearInterval(callTimer);
-                    callTimer = null;
-                }
-                
-                if (volumeMonitor) {
-                    clearInterval(volumeMonitor);
-                    volumeMonitor = null;
-                }
-                
-                // Resetar interface
-                currentCall = null;
-                callStartTime = null;
-                isMuted = false;
-                
-                hideCallControls();
-                updateConnectionStatus('connected', '🟢 Conectado - Sistema pronto');
-                
-                log('✅ Chamada encerrada', 'success');
-                
-            } catch (error) {
-                log(`❌ Erro ao encerrar chamada: ${error.message}`, 'error');
+        async function endCall() {
+            if (!currentCallId) {
+                alert('Nenhuma chamada ativa para encerrar');
+                return;
             }
-        }
-
-        // Alternar mute
-        function toggleMute() {
-            if (localStream) {
-                const audioTrack = localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    isMuted = !audioTrack.enabled;
-                    
-                    const muteButton = document.getElementById('muteButton');
-                    muteButton.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-                    
-                    log(`${isMuted ? '🔇' : '🔊'} Microfone ${isMuted ? 'mutado' : 'desmutado'}`, 'info');
-                }
-            }
-        }
-
-        // Testar microfone
-        async function testMicrophone() {
-            try {
-                log('🎤 Testando microfone...', 'info');
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // Criar contexto de áudio para teste
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(stream);
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-                
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                
-                let testDuration = 3000;
-                let maxVolume = 0;
-                
-                const testInterval = setInterval(() => {
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
-                    }
-                    const volume = sum / bufferLength;
-                    maxVolume = Math.max(maxVolume, volume);
-                    
-                    testDuration -= 100;
-                    
-                    if (testDuration <= 0) {
-                        clearInterval(testInterval);
-                        stream.getTracks().forEach(track => track.stop());
-                        
-                        if (maxVolume > 10) {
-                            log('✅ Microfone funcionando corretamente!', 'success');
-                        } else {
-                            log('⚠️ Microfone muito baixo ou não detectado', 'warning');
-                        }
-                    }
-                }, 100);
-                
-                log('🔊 Fale algo para testar o microfone (3 segundos)...', 'info');
-                
-            } catch (error) {
-                log(`❌ Erro no teste do microfone: ${error.message}`, 'error');
-            }
-        }
-
-        // Iniciar monitoramento de volume
-        function startVolumeMonitoring() {
-            if (!localStream) return;
+            
+            const apiUrl = document.getElementById('apiUrl').value;
+            showLoading('Encerrando chamada...');
             
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(localStream);
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
+                const response = await fetch(`${apiUrl}/api/intercom/hangup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ call_id: currentCallId })
+                });
                 
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
+                const data = await response.json();
+                showResponse(data, response.ok);
                 
-                volumeMonitor = setInterval(() => {
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
-                    }
-                    const volume = (sum / bufferLength / 255) * 100;
-                    
-                    const volumeLevel = document.getElementById('volumeLevel');
-                    if (volumeLevel) {
-                        volumeLevel.style.width = `${volume}%`;
-                    }
-                }, 100);
-                
-            } catch (error) {
-                log(`❌ Erro no monitoramento de volume: ${error.message}`, 'error');
-            }
-        }
-
-        // Iniciar timer da chamada
-        function startCallTimer() {
-            callTimer = setInterval(() => {
-                if (callStartTime) {
-                    const duration = Math.floor((new Date() - callStartTime) / 1000);
-                    const minutes = Math.floor(duration / 60);
-                    const seconds = duration % 60;
-                    
-                    document.getElementById('callDuration').textContent = 
-                        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                if (response.ok) {
+                    document.getElementById('callStatus').textContent = 'Encerrada';
+                    document.getElementById('endCallBtn').disabled = true;
+                    currentCallId = null;
+                    currentTwilioSid = null;
                 }
-            }, 1000);
-        }
-
-        // Mostrar controles da chamada
-        function showCallControls() {
-            document.getElementById('callControls').style.display = 'grid';
-            document.getElementById('callInfo').style.display = 'block';
-        }
-
-        // Ocultar controles da chamada
-        function hideCallControls() {
-            document.getElementById('callControls').style.display = 'none';
-            document.getElementById('callInfo').style.display = 'none';
-        }
-
-        // Atualizar informações da chamada
-        function updateCallInfo() {
-            if (currentCall) {
-                document.getElementById('currentResident').textContent = currentCall.resident_name;
-                document.getElementById('currentApartment').textContent = currentCall.apartment;
-                document.getElementById('callStatus').textContent = 
-                    currentCall.status === 'calling' ? 'Chamando...' : 
-                    currentCall.status === 'connected' ? 'Conectado' : 'Desconectado';
+            } catch (error) {
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
             }
-        }
-
-        // Atualizar status da conexão
-        function updateConnectionStatus(status, message) {
-            const statusElement = document.getElementById('connectionStatus');
-            statusElement.className = `connection-status ${status}`;
-            statusElement.innerHTML = `<span>${status === 'connected' ? '🟢' : status === 'calling' ? '🟡' : '🔴'}</span><span>${message}</span>`;
-        }
-
-        // Ajustar volume do áudio remoto
-        function adjustRemoteVolume(volume) {
-            const remoteAudio = document.getElementById('remoteAudio');
-            const volumeValue = document.getElementById('remoteVolumeValue');
             
-            if (remoteAudio) {
-                remoteAudio.volume = parseFloat(volume);
-                volumeValue.textContent = `${Math.round(volume * 100)}%`;
-                log(`🔊 Volume do áudio remoto ajustado para ${Math.round(volume * 100)}%`, 'info');
-            }
+            hideLoading();
         }
 
-        // Função de log
-        function log(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry ${type}`;
-            logEntry.textContent = `[${timestamp}] ${message}`;
+        // Carregar histórico
+        async function loadHistory() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const buildingId = document.getElementById('buildingId').value;
             
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
+            showLoading('Carregando histórico...');
             
-            // Manter apenas os últimos 50 logs
-            while (logContainer.children.length > 50) {
-                logContainer.removeChild(logContainer.firstChild);
+            try {
+                const url = `${apiUrl}/api/intercom/history?building_id=${buildingId}&limit=10`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                showResponse(data, response.ok);
+                
+                if (response.ok && data.calls) {
+                    displayHistory(data.calls);
+                }
+            } catch (error) {
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
             }
+            
+            hideLoading();
         }
 
-        // Inicializar quando a página carregar
-        window.onload = initializeSystem;
-
-        // Cleanup ao fechar a página
-        window.onbeforeunload = function() {
-            if (currentCall) {
-                endCall();
+        // Exibir histórico
+        function displayHistory(calls) {
+            const historyDiv = document.getElementById('historyList');
+            
+            if (calls.length === 0) {
+                historyDiv.innerHTML = '<p>Nenhuma chamada encontrada.</p>';
+                return;
             }
+            
+            let html = '<div style="max-height: 300px; overflow-y: auto;">';
+            calls.forEach(call => {
+                const startTime = new Date(call.started_at).toLocaleString('pt-BR');
+                const duration = call.duration ? `${call.duration}s` : '-';
+                const apartment = call.apartments?.number || '-';
+                const doorman = call.profiles?.full_name || '-';
+                
+                html += `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px; background: white;">
+                        <strong>Chamada #${call.id}</strong><br>
+                        <small>Apartamento: ${apartment} | Porteiro: ${doorman}</small><br>
+                        <small>Início: ${startTime} | Duração: ${duration} | Status: ${call.status}</small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            historyDiv.innerHTML = html;
+        }
+
+        // Mostrar resposta da API
+        function showResponse(data, success) {
+            const responseDiv = document.getElementById('apiResponse');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+            responseDiv.className = `response ${success ? 'success' : 'error'}`;
+        }
+
+        // Mostrar loading
+        function showLoading(message) {
+            // Implementar se necessário
+        }
+
+        // Esconder loading
+        function hideLoading() {
+            // Implementar se necessário
+        }
+
+        // Verificar API ao carregar a página
+        window.onload = function() {
+            checkApiStatus();
         };
     </script>
 </body>

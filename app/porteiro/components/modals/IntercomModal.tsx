@@ -32,6 +32,9 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [buildingName, setBuildingName] = useState('');
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [notificationsSent, setNotificationsSent] = useState(0);
+  const [callMessage, setCallMessage] = useState('');
   
   // Refs para WebRTC
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,36 +62,103 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       if (profileError || !profile?.building_id) {
         console.error('Erro ao buscar informações do prédio:', profileError);
         setBuildingName('Prédio');
+        setBuildingId(null);
         return;
       }
       
       setBuildingName(profile.buildings?.name || 'Prédio');
+      setBuildingId(profile.building_id);
     } catch (error) {
       console.error('Erro ao carregar informações do prédio:', error);
       setBuildingName('Prédio');
+      setBuildingId(null);
+    }
+  };
+
+  // Validar se o apartamento existe no prédio
+  const validateApartment = async (apartmentNum: string): Promise<{ valid: boolean; apartmentId?: string; error?: string }> => {
+    if (!buildingId) {
+      return { valid: false, error: 'Informações do prédio não carregadas' };
+    }
+
+    try {
+      const { data: apartment, error } = await supabase
+        .from('apartments')
+        .select('id, number')
+        .eq('building_id', buildingId)
+        .eq('number', apartmentNum.trim())
+        .single();
+
+      if (error || !apartment) {
+        return { valid: false, error: `Apartamento ${apartmentNum} não encontrado neste prédio` };
+      }
+
+      return { valid: true, apartmentId: apartment.id };
+    } catch (error) {
+      console.error('Erro ao validar apartamento:', error);
+      return { valid: false, error: 'Erro ao validar apartamento' };
+    }
+  };
+
+  // Buscar moradores do apartamento
+  const getApartmentResidents = async (apartmentId: string): Promise<{ residents: any[]; error?: string }> => {
+    try {
+      const { data: residents, error } = await supabase
+        .from('apartment_residents')
+        .select(`
+          id,
+          profile_id,
+          profiles!inner(
+            id,
+            full_name,
+            notification_enabled
+          )
+        `)
+        .eq('apartment_id', apartmentId)
+        .eq('profiles.notification_enabled', true);
+
+      if (error) {
+        console.error('Erro ao buscar moradores:', error);
+        return { residents: [], error: 'Erro ao buscar moradores do apartamento' };
+      }
+
+      if (!residents || residents.length === 0) {
+        return { residents: [], error: 'Nenhum morador encontrado ou com notificações habilitadas' };
+      }
+
+      return { residents: residents || [] };
+    } catch (error) {
+      console.error('Erro ao buscar moradores:', error);
+      return { residents: [], error: 'Erro ao buscar moradores do apartamento' };
     }
   };
 
   // Iniciar chamada WebRTC
   const initiateCall = async () => {
-    if (!user?.id || !apartmentNumber.trim()) {
+    if (!user?.id || !apartmentNumber.trim() || !buildingId) {
       Alert.alert('Erro', 'Digite o número do apartamento');
       return;
     }
     
     try {
       setCallState('calling');
+      setCallMessage('Validando apartamento...');
       
-      // Buscar informações do prédio do porteiro
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('building_id')
-        .eq('id', user.id)
-        .eq('user_type', 'porteiro')
-        .single();
-        
-      if (profileError || !profile?.building_id) {
-        throw new Error('Não foi possível identificar o prédio');
+      // Validar apartamento
+      const validation = await validateApartment(apartmentNumber.trim());
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Apartamento inválido');
+      }
+
+      // Buscar moradores
+      setCallMessage('Buscando moradores...');
+      const { residents, error: residentsError } = await getApartmentResidents(validation.apartmentId!);
+      if (residentsError) {
+        throw new Error(residentsError);
+      }
+
+      if (residents.length === 0) {
+        throw new Error(`Apartamento ${apartmentNumber} não possui moradores cadastrados ou com notificações habilitadas`);
       }
       
       // Obter token de autenticação
@@ -97,53 +167,39 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         throw new Error('Usuário não autenticado');
       }
       
-      // Primeiro: buscar moradores do apartamento
-      console.log('🔍 Buscando moradores do apartamento:', apartmentNumber.trim());
+      console.log('🔍 Iniciando chamada para apartamento:', apartmentNumber.trim());
+      setCallMessage(`Enviando notificações para ${residents.length} morador(es)...`);
       
       const apiUrl = process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com';
       
-      const residentsResponse = await fetch(`${apiUrl}/api/webrtc/apartments/${apartmentNumber.trim()}/residents`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!residentsResponse.ok) {
-        const errorData = await residentsResponse.json().catch(() => ({}));
-        console.error('❌ Erro ao buscar moradores:', errorData);
-        throw new Error(errorData.error || `Erro ${residentsResponse.status}: Não foi possível buscar moradores do apartamento`);
-      }
-
-      const residentsData = await residentsResponse.json();
-      console.log('📋 Moradores encontrados:', residentsData);
-
-      if (!residentsData.success || !residentsData.residents || residentsData.residents.length === 0) {
-        throw new Error(`Apartamento ${apartmentNumber} não possui moradores cadastrados ou disponíveis`);
-      }
-
-      // Segundo: iniciar chamada com o primeiro morador disponível
-      const firstResident = residentsData.residents[0];
-      console.log('📞 Iniciando chamada para:', firstResident);
-
-      const response = await fetch(`${apiUrl}/api/webrtc/call/initiate`, {
+      // Usar o endpoint correto da API de interfone
+      const response = await fetch(`${apiUrl}/api/intercom/call`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          callerId: user.id,
-          receiverId: firstResident.id,
-          callType: 'audio'
+          apartment_number: apartmentNumber.trim(),
+          doorman_id: user.id,
+          building_id: buildingId
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ Erro ao iniciar chamada:', errorData);
-        throw new Error(errorData.error || `Erro ${response.status}: Não foi possível iniciar a chamada`);
+        
+        // Tratamento específico de erros
+        if (response.status === 404) {
+          throw new Error(`Apartamento ${apartmentNumber} não encontrado ou sem moradores cadastrados`);
+        } else if (response.status === 400) {
+          throw new Error(errorData.error || 'Dados inválidos para a chamada');
+        } else if (response.status === 403) {
+          throw new Error('Acesso negado. Verifique se você tem permissão para realizar chamadas');
+        } else {
+          throw new Error(errorData.error || `Erro ${response.status}: Não foi possível iniciar a chamada`);
+        }
       }
 
       const result = await response.json();
@@ -152,14 +208,17 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       if (result.success && result.callId) {
         // Usar o callId retornado pela API
         setCurrentCallId(result.callId);
+        setNotificationsSent(result.notificationsSent || residents.length);
+        setCallMessage(result.message || 'Chamada iniciada com sucesso');
         setCallState('connecting');
         
-        // Conectar WebSocket para sinalização
-        connectWebSocket(result.callId, session.access_token);
+        // Mostrar feedback sobre notificações enviadas
+        console.log(`📱 ${result.notificationsSent || residents.length} notificações enviadas para o apartamento ${apartmentNumber}`);
         
-        // Simular processo de conexão (em implementação real, seria baseado em eventos WebSocket)
+        // Simular processo de conexão (aguardando resposta dos moradores)
         setTimeout(() => {
           setCallState('connected');
+          setCallMessage('Chamada em andamento');
           startCallTimer();
         }, 3000);
         
@@ -180,18 +239,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       console.error('Erro ao iniciar chamada:', error);
       Alert.alert('Erro', error.message || 'Não foi possível iniciar a chamada');
       setCallState('idle');
+      setCallMessage('');
+      setNotificationsSent(0);
     }
   };
 
-  // Conectar WebSocket para sinalização
-  const connectWebSocket = (callId: string, token: string) => {
-    try {
-      // Em implementação real, conectaria ao WebSocket da API
-      console.log('WebSocket conectado para chamada:', callId);
-    } catch (error) {
-      console.error('Erro ao conectar WebSocket:', error);
-    }
-  };
+
 
   // Iniciar timer da chamada
   const startCallTimer = () => {
@@ -217,11 +270,15 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       
+      setCallMessage('Encerrando chamada...');
+      
       // Para chamadas de interfone, o currentCallId é o intercomGroupId
       // Precisamos encerrar todas as chamadas do grupo
       try {
+        const apiUrl = process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com';
+        
         // Encerrar a chamada usando a API de produção
-        const endCallResponse = await fetch(`${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL}/api/webrtc/call/${currentCallId}/end`, {
+        const endCallResponse = await fetch(`${apiUrl}/api/webrtc/call/${currentCallId}/end`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -255,6 +312,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setCallDuration(0);
       setIsMuted(false);
       setIsSpeakerOn(false);
+      setCallMessage('Chamada encerrada');
       
       // Fechar WebSocket
       if (webSocketRef.current) {
@@ -266,6 +324,8 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setTimeout(() => {
         setCallState('idle');
         setApartmentNumber('');
+        setNotificationsSent(0);
+        setCallMessage('');
         onClose();
       }, 2000);
     }
@@ -396,6 +456,21 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         <Text style={styles.callSubtitle}>
           Apartamento {apartmentNumber} - {buildingName}
         </Text>
+        
+        {/* Mostrar feedback de notificações */}
+        {notificationsSent > 0 && (
+          <Text style={styles.notificationFeedback}>
+            📱 {notificationsSent} notificação{notificationsSent > 1 ? 'ões' : ''} enviada{notificationsSent > 1 ? 's' : ''}
+          </Text>
+        )}
+        
+        {/* Mostrar mensagem da chamada */}
+        {callMessage && (
+          <Text style={styles.callMessage}>
+            {callMessage}
+          </Text>
+        )}
+        
         {callState === 'connected' && (
           <Text style={styles.callDuration}>
             {formatCallDuration(callDuration)}
@@ -466,6 +541,8 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setCallDuration(0);
       setIsMuted(false);
       setIsSpeakerOn(false);
+      setNotificationsSent(0);
+      setCallMessage('');
     }
   }, [visible]);
 
@@ -612,6 +689,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  notificationFeedback: {
+    fontSize: 14,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  callMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontStyle: 'italic',
   },
   callDuration: {
     fontSize: 20,

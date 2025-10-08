@@ -116,8 +116,11 @@ export default function PorteiroDashboard() {
 
   // Função para acionamento do interfone
   const handleIntercomCall = () => {
-    setShowIntercomModal(true);
-    console.log('🔔 Interfone acionado pelo porteiro');
+    // Verificar se o turno está ativo antes de permitir chamadas
+    checkShiftBeforeAction(() => {
+      setShowIntercomModal(true);
+      console.log('🔔 Interfone acionado pelo porteiro');
+    }, 'realizar chamadas de interfone');
   };
 
   const [activeTab, setActiveTab] = useState<TabType>('chegada');

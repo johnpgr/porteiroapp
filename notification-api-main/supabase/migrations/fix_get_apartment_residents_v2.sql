@@ -1,6 +1,6 @@
 -- Corrigir a função RPC get_apartment_residents - Versão 2
 -- Resolver erro "structure of query does not match function result type"
--- Implementar função completa para interfone que retorna todos os moradores do apartamento
+-- Implementar função completa que retorna todos os moradores do apartamento
 
 -- Primeiro, vamos dropar a função existente se ela existir
 DROP FUNCTION IF EXISTS get_apartment_residents(TEXT, UUID);
@@ -56,7 +56,7 @@ BEGIN
             'created_at', wdt.created_at
           )
         )
-        FROM webrtc_device_tokens wdt 
+        FROM device_tokens wdt 
         WHERE wdt.profile_id = p.id AND wdt.is_active = true
       ), 
       '[]'::jsonb

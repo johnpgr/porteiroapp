@@ -15,7 +15,7 @@ const completeRegistrationRoutes = require('./src/routes/completeRegistration');
 const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
 const whatsappWebhookRoutes = require('./src/routes/whatsappWebhook');
 const interactiveNotificationsRoutes = require('./src/routes/interactiveNotifications');
-const webrtcRoutes = require('./src/routes/webrtcRoutes');
+const intercomRoutes = require('./src/routes/intercom');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -40,10 +40,27 @@ app.use(express.static(path.join(__dirname)));
 
 // Middleware de log personalizado para requisições
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log('Body:', JSON.stringify(req.body, null, 2));
+  const timestamp = new Date().toISOString();
+  console.log(`\n🔄 [${timestamp}] ${req.method} ${req.path}`);
+  
+  // Log especial para endpoints do Twilio
+  if (req.path.includes('/intercom') || req.path.includes('/twilio')) {
+    console.log('🎯 TWILIO ENDPOINT DETECTED');
+    console.log('📍 Path:', req.path);
+    console.log('🔧 Method:', req.method);
+    console.log('📋 Headers:', JSON.stringify(req.headers, null, 2));
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+    }
+    if (req.query && Object.keys(req.query).length > 0) {
+      console.log('🔍 Query:', JSON.stringify(req.query, null, 2));
+    }
+    console.log('🎯 ================================');
+  } else {
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    if (req.body && Object.keys(req.body).length > 0) {
+      console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
   }
   next();
 });
@@ -73,18 +90,19 @@ app.get('/', (req, res) => {
       interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
       customButtons: 'POST /api/interactive/send-custom-buttons',
       customList: 'POST /api/interactive/send-custom-list',
-      webrtcResidents: 'GET /api/webrtc/residents',
-      webrtcCallInitiate: 'POST /api/webrtc/call/initiate',
-      webrtcCallAnswer: 'POST /api/webrtc/call/:callId/answer',
-      webrtcCallEnd: 'POST /api/webrtc/call/:callId/end',
-      webrtcBuildings: 'GET /api/webrtc/buildings',
-      webrtcApartmentResidents: 'GET /api/webrtc/apartments/:number/residents'
+      intercomToken: 'POST /api/intercom/token',
+      intercomCall: 'POST /api/intercom/call',
+      intercomAnswer: 'POST /api/intercom/answer',
+      intercomHangup: 'POST /api/intercom/hangup',
+      intercomHistory: 'GET /api/intercom/history',
+      intercomTwiml: 'GET /api/intercom/twiml/connect',
+      intercomWebhook: 'POST /api/intercom/webhook/status',
+
     },
     version: '1.0.0'
   });
 });
 
-// Usar rotas de notificação
 app.use('/api', sendNotificationRoutes);
 app.use('/api', sendVisitorNotificationRoutes);
 app.use('/api', sendVisitorWaitingNotificationRoutes);
@@ -93,10 +111,9 @@ app.use('/api', completeRegistrationRoutes);
 app.use('/api', visitorAuthorizationRoutes);
 app.use('/webhook', whatsappWebhookRoutes);
 app.use('/api/interactive', interactiveNotificationsRoutes);
-app.use('/api', webrtcRoutes);
+app.use('/api', intercomRoutes);
 
-// Middleware de tratamento de erros
-app.use((err, req, res, next) => {
+app.use((err, res) => {
   console.error('[ERROR]', err.stack);
   res.status(500).json({
     success: false,
@@ -119,13 +136,7 @@ app.use('*', (req, res) => {
       completeProfile: 'POST /api/complete-profile',
       interactiveNotifications: 'POST /api/interactive/send-interactive-notification',
       customButtons: 'POST /api/interactive/send-custom-buttons',
-      customList: 'POST /api/interactive/send-custom-list',
-      webrtcResidents: 'GET /api/webrtc/residents',
-      webrtcCallInitiate: 'POST /api/webrtc/call/initiate',
-      webrtcCallAnswer: 'POST /api/webrtc/call/:callId/answer',
-      webrtcCallEnd: 'POST /api/webrtc/call/:callId/end',
-      webrtcBuildings: 'GET /api/webrtc/buildings',
-      webrtcApartmentResidents: 'GET /api/webrtc/apartments/:number/residents'
+      customList: 'POST /api/interactive/send-custom-list'
     }
   });
 });
@@ -137,14 +148,7 @@ app.listen(PORT, () => {
   console.log(`🌐 URL: http://127.0.0.1:${PORT}`);
   console.log(`📋 Health Check: http://127.0.0.1:${PORT}/health`);
   console.log(`📱 WhatsApp Endpoint: http://127.0.0.1:${PORT}/api/send-resident-whatsapp`);
-  console.log(`📞 WebRTC Endpoints:`);
-  console.log(`   - Moradores: http://127.0.0.1:${PORT}/api/webrtc/residents`);
-  console.log(`   - Iniciar Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/initiate`);
-  console.log(`   - Responder Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/:callId/answer`);
-  console.log(`   - Encerrar Chamada: http://127.0.0.1:${PORT}/api/webrtc/call/:callId/end`);
-  console.log(`   - Prédios: http://127.0.0.1:${PORT}/api/webrtc/buildings`);
-  console.log(`   - Moradores do Apartamento: http://127.0.0.1:${PORT}/api/webrtc/apartments/:number/residents`);
-  console.log(`\n⚡ Pronto para enviar mensagens WhatsApp e realizar chamadas WebRTC!\n`);
+  console.log(`\n⚡ Pronto para enviar mensagens WhatsApp e notificações!\n`);
 });
 
 // Tratamento de sinais de encerramento

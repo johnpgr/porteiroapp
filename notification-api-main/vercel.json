@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "interfone-webrtc-test",
+  "name": "notification-api",
   "builds": [
     {
       "src": "api/**/*.js",

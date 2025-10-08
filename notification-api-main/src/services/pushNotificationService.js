@@ -61,8 +61,8 @@ class PushNotificationService {
     }
   }
 
-  // Enviar notificação push para interfone (faz o telefone tocar)
-  async sendIntercomNotification(deviceToken, platform, payload) {
+  // Enviar notificação push (método específico para notificações)
+  async sendNotification(deviceToken, platform, payload) {
     try {
       if (!this.initialized) {
         await this.initialize();
@@ -111,10 +111,10 @@ class PushNotificationService {
           body: payload.body,
         },
         data: {
-          type: payload.type || 'intercom_call',
+          type: payload.type || 'notification',
           callId: payload.callId || '',
           apartmentNumber: payload.apartmentNumber || '',
-          intercomGroupId: payload.intercomGroupId || '',
+          groupId: payload.groupId || '',
           priority: 'urgent',
           click_action: 'FLUTTER_NOTIFICATION_CLICK'
         },
@@ -123,7 +123,7 @@ class PushNotificationService {
           notification: {
             sound: 'default',
             priority: 'high',
-            channel_id: 'intercom_calls',
+            channel_id: 'notifications',
             default_sound: true,
             default_vibrate_timings: false,
             vibrate_timings: ['0.5s', '0.5s', '0.5s'],
@@ -131,7 +131,7 @@ class PushNotificationService {
             visibility: 'PUBLIC'
           },
           data: {
-            type: payload.type || 'intercom_call',
+            type: payload.type || 'notification',
             callId: payload.callId || '',
             apartmentNumber: payload.apartmentNumber || '',
             priority: 'urgent'
@@ -146,7 +146,7 @@ class PushNotificationService {
             body: payload.body,
             icon: '/icon-192x192.png',
             badge: '/badge-72x72.png',
-            tag: `intercom_${payload.callId}`,
+            tag: `notification_${payload.callId}`,
             requireInteraction: true,
             actions: [
               { action: 'answer', title: 'Atender' },
@@ -154,7 +154,7 @@ class PushNotificationService {
             ],
             data: {
               callId: payload.callId,
-              type: 'intercom_call',
+              type: 'notification',
               apartmentNumber: payload.apartmentNumber
             }
           }
@@ -188,7 +188,7 @@ class PushNotificationService {
 
       const notification = new apn.Notification();
       
-      // Configurar como chamada de interfone (faz o telefone tocar)
+      // Configurar como notificação prioritária
       notification.alert = {
         title: payload.title,
         body: payload.body
@@ -196,7 +196,7 @@ class PushNotificationService {
       
       notification.sound = 'default';
       notification.badge = 1;
-      notification.category = 'INTERCOM_CALL';
+      notification.category = 'NOTIFICATION';
       notification.contentAvailable = true;
       notification.mutableContent = true;
       notification.priority = 10; // Prioridade máxima
@@ -204,10 +204,10 @@ class PushNotificationService {
       
       // Dados customizados
       notification.payload = {
-        type: payload.type || 'intercom_call',
+        type: payload.type || 'notification',
         callId: payload.callId || '',
         apartmentNumber: payload.apartmentNumber || '',
-        intercomGroupId: payload.intercomGroupId || '',
+        groupId: payload.groupId || '',
         priority: 'urgent'
       };
 
@@ -266,14 +266,14 @@ class PushNotificationService {
     }
   }
 
-  // Enviar notificações em lote (método melhorado para interfone)
+  // Enviar notificações em lote
   async sendBatchNotifications(notifications) {
     try {
       if (!this.initialized) {
         await this.initialize();
       }
 
-      console.log(`📱 Enviando ${notifications.length} notificações push para interfone`);
+      console.log(`📱 Enviando ${notifications.length} notificações push`);
 
       const results = {
         total: notifications.length,
@@ -309,7 +309,7 @@ class PushNotificationService {
                 }
               };
 
-              return await this.sendIntercomNotification(
+              return await this.sendNotification(
                 tokenData.token,
                 tokenData.platform,
                 payload

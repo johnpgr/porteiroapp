@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interfone Digital - Morador</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Teste Morador - Sistema de Interfone</title>
     <style>
         * {
             margin: 0;
@@ -14,365 +13,198 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
 
         .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            width: 100%;
-            max-width: 600px;
-            backdrop-filter: blur(10px);
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        .header h1 {
-            color: #333;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .header .subtitle {
-            color: #666;
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-
-        .user-info {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            border: 1px solid #e9ecef;
-        }
-
-        .user-info h3 {
-            color: #495057;
-            margin-bottom: 15px;
-            font-size: 1.3rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .user-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-
-        .user-detail {
-            text-align: center;
-        }
-
-        .user-detail-label {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-
-        .user-detail-value {
-            color: #333;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-
-
-        .connection-status {
-            padding: 15px 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.1rem;
-        }
-
-        .connection-status.online {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .connection-status.offline {
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .connection-status.incoming-call {
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            color: #856404;
-            border: 1px solid #ffeaa7;
-            animation: pulse 1.5s infinite;
-        }
-
-        .connection-status.in-call {
-            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(1.02); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-
-        .incoming-call-panel {
-            display: none;
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-            border: 2px solid #ffeaa7;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 20px;
-            text-align: center;
-            animation: shake 0.5s ease-in-out infinite alternate;
-        }
-
-        @keyframes shake {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(5px); }
-        }
-
-        .incoming-call-panel h3 {
-            color: #856404;
-            margin-bottom: 15px;
-            font-size: 1.5rem;
-        }
-
-        .caller-info {
-            margin-bottom: 20px;
-        }
-
-        .caller-name {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .caller-details {
-            color: #666;
-            font-size: 1rem;
-        }
-
-        .call-actions {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-        }
-
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: center;
-            min-width: 120px;
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
-            color: white;
-        }
-
-        .btn-success:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(86, 171, 47, 0.3);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(255, 65, 108, 0.3);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-
-        .call-controls {
-            display: none;
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 20px;
-            border: 1px solid #e9ecef;
-        }
-
-        .call-controls h3 {
-            color: #495057;
-            margin-bottom: 20px;
-            font-size: 1.3rem;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .controls-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .call-info {
-            display: none;
+            max-width: 800px;
+            margin: 0 auto;
             background: white;
-            padding: 20px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            margin-bottom: 20px;
-        }
-
-        .call-info h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-            text-align: center;
-        }
-
-        .call-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .call-detail {
-            text-align: center;
-        }
-
-        .call-detail-label {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-
-        .call-detail-value {
-            color: #333;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .volume-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .volume-bar {
-            flex: 1;
-            height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
         }
 
-        .volume-level {
-            height: 100%;
-            background: linear-gradient(90deg, #56ab2f 0%, #a8e6cf 100%);
-            width: 0%;
-            transition: width 0.1s ease;
-        }
-
-        .notification-panel {
-            background: #e7f3ff;
-            border: 1px solid #b3d9ff;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
+        .header {
+            background: linear-gradient(135deg, #00b894, #00a085);
+            color: white;
+            padding: 30px;
             text-align: center;
         }
 
-        .notification-panel h4 {
-            color: #0066cc;
+        .header h1 {
+            font-size: 2.5em;
             margin-bottom: 10px;
         }
 
-        .notification-panel p {
-            color: #004499;
-            margin-bottom: 15px;
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
         }
 
-        .log-container {
-            background: #2c3e50;
-            color: #ecf0f1;
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            border: 2px solid #ecf0f1;
             border-radius: 10px;
-            padding: 20px;
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
         }
 
-        .log-entry {
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #00b894;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
             margin-bottom: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid #34495e;
+            font-weight: 600;
+            color: #34495e;
         }
 
-        .log-entry:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
         }
 
-        .log-entry.info { color: #3498db; }
-        .log-entry.success { color: #2ecc71; }
-        .log-entry.warning { color: #f39c12; }
-        .log-entry.error { color: #e74c3c; }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #00b894;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00b894, #00a085);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 184, 148, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .response.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .response.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #27ae60;
+        }
+
+        .status-offline {
+            background: #e74c3c;
+        }
+
+        .call-alert {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+            display: none;
+        }
+
+        .call-alert.active {
+            display: block;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .call-info {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
 
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #4facfe;
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #00b894;
             border-radius: 50%;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
+            margin: 0 auto;
         }
 
         @keyframes spin {
@@ -380,943 +212,507 @@
             100% { transform: rotate(360deg); }
         }
 
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
-            }
+        .notification-panel {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
 
-            .header h1 {
-                font-size: 2rem;
-            }
+        .notification-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
 
-            .user-details {
-                grid-template-columns: 1fr;
-            }
+        .notification-item.call {
+            border-left: 4px solid #e74c3c;
+        }
 
-            .call-actions {
-                flex-direction: column;
-            }
+        .notification-item.answered {
+            border-left: 4px solid #27ae60;
+        }
 
-            .controls-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .call-details {
-                grid-template-columns: repeat(2, 1fr);
-            }
+        .notification-item.missed {
+            border-left: 4px solid #f39c12;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏠 Interfone Digital</h1>
-            <div class="subtitle">Painel do Morador</div>
-        </div>
-
-        <div class="user-info">
-            <h3>👤 Informações do Usuário</h3>
-            <div class="user-details">
-                <div class="user-detail">
-                    <div class="user-detail-label">Nome</div>
-                    <div class="user-detail-value" id="userName">Carregando...</div>
-                </div>
-                <div class="user-detail">
-                    <div class="user-detail-label">Apartamento</div>
-                    <div class="user-detail-value" id="userApartment">Carregando...</div>
-                </div>
-                <div class="user-detail">
-                    <div class="user-detail-label">Prédio</div>
-                    <div class="user-detail-value" id="userBuilding">Carregando...</div>
-                </div>
+            <h1>🏠 Sistema de Interfone - Morador</h1>
+            <p>Teste das funcionalidades do morador via API</p>
+            <div style="margin-top: 15px;">
+                <span class="status-indicator status-offline" id="apiStatus"></span>
+                <span id="apiStatusText">Verificando conexão...</span>
             </div>
         </div>
 
-        <div id="connectionStatus" class="connection-status online">
-            <span>🟢</span>
-            <span>Disponível para receber chamadas</span>
-        </div>
-
-        <div id="incomingCallPanel" class="incoming-call-panel">
-            <h3>📞 Chamada Recebida!</h3>
-            <div class="caller-info">
-                <div class="caller-name" id="callerName">Porteiro</div>
-                <div class="caller-details" id="callerDetails">Portaria Principal</div>
-            </div>
-            <div class="call-actions">
-                <button class="btn btn-success" onclick="answerCall()">
-                    <span>📞</span> Atender
-                </button>
-                <button class="btn btn-danger" onclick="rejectCall()">
-                    <span>📴</span> Rejeitar
-                </button>
-            </div>
-        </div>
-
-        <!-- Elemento de áudio para reprodução do áudio remoto -->
-        <audio id="remoteAudio" autoplay playsinline style="display: none;"></audio>
-
-        <div id="callControls" class="call-controls">
-            <h3>🎛️ Controles da Chamada</h3>
-            <div class="controls-grid">
-                <button class="btn btn-danger" id="endCallBtn" onclick="endCall()">
-                    <span>📴</span> Encerrar
-                </button>
-                <button class="btn btn-primary" id="muteBtn" onclick="toggleMute()">
-                    <span>🔇</span> Mute
-                </button>
-                <button class="btn btn-primary" onclick="testMicrophone()">
-                    <span>🎤</span> Testar Mic
-                </button>
-            </div>
-        </div>
-
-        <div id="callInfo" class="call-info">
-            <h4>📊 Informações da Chamada</h4>
-            <div class="call-details">
-                <div class="call-detail">
-                    <div class="call-detail-label">Origem</div>
-                    <div class="call-detail-value" id="callOrigin">-</div>
+        <div class="content">
+            <!-- Alerta de Chamada -->
+            <div class="call-alert" id="callAlert">
+                <h3>📞 CHAMADA DO INTERFONE!</h3>
+                <p>O porteiro está chamando para o seu apartamento</p>
+                <div style="margin-top: 15px;">
+                    <button class="btn btn-success" onclick="answerCall()">✅ Atender</button>
+                    <button class="btn btn-danger" onclick="rejectCall()">❌ Recusar</button>
                 </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Duração</div>
-                    <div class="call-detail-value" id="callDuration">00:00</div>
+                <div id="incomingCallInfo"></div>
+            </div>
+
+            <!-- Seção de Configuração -->
+            <div class="section">
+                <h2>⚙️ Configuração</h2>
+                <div class="form-group">
+                    <label for="apiUrl">URL da API:</label>
+                    <input type="text" id="apiUrl" value="http://127.0.0.1:3001" placeholder="http://127.0.0.1:3001">
                 </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Status</div>
-                    <div class="call-detail-value" id="callStatus">-</div>
+                <div class="form-group">
+                    <label for="residentId">ID do Morador:</label>
+                    <input type="text" id="residentId" value="morador-001" placeholder="ID do morador">
                 </div>
-                <div class="call-detail">
-                    <div class="call-detail-label">Qualidade</div>
-                    <div class="call-detail-value" id="callQuality">-</div>
+                <div class="form-group">
+                    <label for="apartmentNumber">Número do Apartamento:</label>
+                    <input type="text" id="apartmentNumber" value="101" placeholder="Ex: 101, 202, 1501">
+                </div>
+                <button class="btn" onclick="checkApiStatus()">🔍 Verificar API</button>
+            </div>
+
+            <!-- Seção de Token Twilio -->
+            <div class="section">
+                <h2>🔑 Token Twilio</h2>
+                <div class="form-group">
+                    <label for="userId">User ID para Token:</label>
+                    <input type="text" id="userId" placeholder="ID do usuário" value="morador-001">
+                </div>
+                <button class="btn btn-warning" onclick="generateToken()">🔑 Gerar Token</button>
+                
+                <div id="tokenInfo" style="display: none; margin-top: 15px;">
+                    <label>Token Gerado:</label>
+                    <textarea id="tokenValue" readonly style="height: 100px; font-family: monospace; font-size: 12px;"></textarea>
                 </div>
             </div>
-            <div class="volume-control">
-                <span>🔊 Volume Microfone:</span>
-                <div class="volume-bar">
-                    <div class="volume-level" id="volumeLevel"></div>
+
+            <!-- Seção de Simulação de Chamada -->
+            <div class="section">
+                <h2>📞 Simular Chamada Recebida</h2>
+                <p>Simule uma chamada do porteiro para testar as funcionalidades de resposta</p>
+                <div class="form-group">
+                    <label for="simulatedCallId">ID da Chamada (simulada):</label>
+                    <input type="text" id="simulatedCallId" placeholder="Ex: call-123" value="call-test-001">
+                </div>
+                <button class="btn btn-info" onclick="simulateIncomingCall()">📲 Simular Chamada</button>
+                <button class="btn btn-danger" onclick="clearSimulation()">🧹 Limpar Simulação</button>
+            </div>
+
+            <!-- Seção de Resposta a Chamadas -->
+            <div class="section">
+                <h2>📱 Responder Chamadas</h2>
+                <div class="form-group">
+                    <label for="callIdToAnswer">ID da Chamada:</label>
+                    <input type="text" id="callIdToAnswer" placeholder="ID da chamada para responder">
+                </div>
+                <button class="btn btn-success" onclick="answerCallById()">✅ Atender Chamada</button>
+                
+                <div class="call-info" id="callResponseInfo" style="display: none;">
+                    <h4>📋 Status da Resposta</h4>
+                    <p id="responseStatus">-</p>
                 </div>
             </div>
-            <div class="volume-control">
-                <span>🔊 Volume Áudio Recebido:</span>
-                <input type="range" id="remoteVolumeSlider" min="0" max="1" step="0.1" value="1" 
-                       style="width: 100%; margin-top: 5px;" onchange="adjustRemoteVolume(this.value)">
-                <span id="remoteVolumeValue" style="font-size: 0.9em; color: #666;">100%</span>
+
+            <!-- Seção de Histórico -->
+            <div class="section">
+                <h2>📊 Histórico de Chamadas</h2>
+                <button class="btn" onclick="loadHistory()">📋 Carregar Histórico</button>
+                <div id="historyList" style="margin-top: 15px;"></div>
             </div>
-        </div>
 
-        <div class="notification-panel">
-            <h4>💡 Dicas de Uso</h4>
-            <p>• Mantenha-se disponível para receber chamadas da portaria</p>
-            <p>• Teste seu microfone regularmente para garantir boa qualidade</p>
-            <p>• Use os controles de áudio durante as chamadas conforme necessário</p>
-        </div>
+            <!-- Seção de Notificações -->
+            <div class="section">
+                <h2>🔔 Painel de Notificações</h2>
+                <button class="btn btn-info" onclick="startNotificationListener()">🎧 Iniciar Escuta</button>
+                <button class="btn btn-warning" onclick="stopNotificationListener()">⏹️ Parar Escuta</button>
+                
+                <div class="notification-panel" id="notificationPanel">
+                    <h4>📨 Notificações Recebidas</h4>
+                    <div id="notificationList">
+                        <p>Nenhuma notificação recebida ainda...</p>
+                    </div>
+                </div>
+            </div>
 
-        <div class="log-container">
-            <div id="logContainer">
-                <div class="log-entry info">Sistema iniciado - Aguardando ativação...</div>
+            <!-- Seção de Resposta da API -->
+            <div class="section">
+                <h2>📡 Resposta da API</h2>
+                <div id="apiResponse" class="response">Nenhuma requisição feita ainda...</div>
             </div>
         </div>
     </div>
 
     <script>
-        // Configurações do Supabase
-        const SUPABASE_URL = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let currentCallId = null;
+        let notificationListener = null;
+        let isListening = false;
 
-        // WebRTCService para integração com Supabase
-        class WebRTCService {
-            constructor() {
-                this.supabase = supabase;
-                this.socket = null;
-                this.isConnected = false;
-            }
-
-            // Conectar ao WebSocket
-            async connectWebSocket(userId, userType = 'morador') {
-                try {
-                    // Importar Socket.IO client
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.socket.io/4.8.1/socket.io.min.js';
-                    document.head.appendChild(script);
-                    
-                    return new Promise((resolve, reject) => {
-                        script.onload = () => {
-                            // Conectar ao servidor WebSocket
-                            this.socket = io('ws://localhost:3001', {
-                                auth: {
-                                    token: 'morador-token', // Token de autenticação do morador
-                                    userType: 'morador',
-                                    userId: 'morador-001'
-                                }
-                            });
-
-                            this.socket.on('connect', () => {
-                                console.log('Conectado ao WebSocket');
-                                this.isConnected = true;
-                                this.setupWebSocketEvents();
-                                resolve();
-                            });
-
-                            this.socket.on('disconnect', () => {
-                                console.log('Desconectado do WebSocket');
-                                this.isConnected = false;
-                            });
-
-                            this.socket.on('connect_error', (error) => {
-                                console.error('Erro de conexão WebSocket:', error);
-                                reject(error);
-                            });
-                        };
-                        
-                        script.onerror = reject;
-                    });
-                } catch (error) {
-                    console.error('Erro ao conectar WebSocket:', error);
-                    throw error;
-                }
-            }
-
-            // Configurar eventos WebSocket
-            setupWebSocketEvents() {
-                // Chamada recebida
-                this.socket.on('webrtc:call:incoming', (data) => {
-                    const { callId, caller, callerName, apartmentNumber } = data;
-                    log(`📞 Chamada recebida de ${callerName} para apartamento ${apartmentNumber}`, 'warning');
-                    
-                    // Mostrar chamada recebida
-                    showIncomingCall({
-                        id: callId,
-                        caller: callerName,
-                        origin: 'Portaria',
-                        visitor_name: 'Visitante',
-                        status: 'incoming'
-                    });
-                });
-
-                // Chamada encerrada pelo outro lado
-                this.socket.on('webrtc:call:ended', (data) => {
-                    log('📴 Chamada encerrada pelo outro lado', 'info');
-                    endCall();
-                });
-
-                // Erro WebSocket
-                this.socket.on('webrtc:error', (error) => {
-                    log(`❌ Erro WebSocket: ${error.message}`, 'error');
-                });
-
-                // Confirmação de chamada enviada
-                this.socket.on('webrtc:call:sent', (data) => {
-                    log(`✅ Resposta de chamada enviada: ${data.status}`, 'success');
-                });
-            }
-
-            // Responder chamada via WebSocket
-            async respondToCall(callId, response) {
-                if (!this.socket || !this.isConnected) {
-                    throw new Error('WebSocket não conectado');
-                }
-
-                return new Promise((resolve) => {
-                    if (response === 'accept') {
-                        this.socket.emit('webrtc:call:answer', { callId });
-                        log('✅ Chamada aceita via WebSocket', 'success');
-                    } else {
-                        this.socket.emit('webrtc:call:reject', { callId });
-                        log('📴 Chamada rejeitada via WebSocket', 'info');
-                    }
-                    
-                    resolve({ success: true, message: `Chamada ${response === 'accept' ? 'aceita' : 'rejeitada'}` });
-                });
-            }
-
-            async getResidentProfile(profileId) {
-                try {
-                    const { data, error } = await this.supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', profileId)
-                        .single();
-                    
-                    if (error) throw error;
-                    return data;
-                } catch (error) {
-                    console.error('Erro ao buscar perfil do morador:', error);
-                    throw new Error(`Perfil não encontrado: ${error.message}`);
-                }
-            }
-
-            async getResidentApartment(profileId) {
-                try {
-                    // Buscar relação apartamento-morador com dados completos
-                    const { data, error } = await this.supabase
-                        .from('apartment_residents')
-                        .select(`
-                            *,
-                            apartments (
-                                id,
-                                number,
-                                floor,
-                                buildings (
-                                    id,
-                                    name,
-                                    address
-                                )
-                            )
-                        `)
-                        .eq('profile_id', profileId)
-                        .eq('is_active', true)
-                        .single();
-                    
-                    if (error) throw error;
-                    
-                    if (!data) {
-                        throw new Error('Nenhum apartamento encontrado para este morador');
-                    }
-                    
-                    // Formatar dados para compatibilidade
-                    return {
-                        apartment_id: data.apartments.id,
-                        apartment_number: data.apartments.number,
-                        building_id: data.apartments.buildings.id,
-                        building_name: data.apartments.buildings.name,
-                        building_address: data.apartments.buildings.address,
-                        floor: data.apartments.floor,
-                        is_primary: data.is_primary,
-                        is_owner: data.is_owner,
-                        relationship: data.relationship
-                    };
-                } catch (error) {
-                    console.error('Erro ao buscar apartamento do morador:', error);
-                    throw new Error(`Apartamento não encontrado: ${error.message}`);
-                }
-            }
-
-            async updateResidentStatus(profileId, isOnline) {
-                try {
-                    const { data, error } = await this.supabase
-                        .from('profiles')
-                        .update({ is_online: isOnline, last_seen: new Date().toISOString() })
-                        .eq('id', profileId);
-                    
-                    if (error) throw error;
-                    return { success: true };
-                } catch (error) {
-                    console.error('Erro ao atualizar status:', error);
-                    return { success: false, error: error.message };
-                }
-            }
-
-            async answerCall(callId) {
-                try {
-                    const response = await fetch(`/api/webrtc/call/${callId}/answer`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            answer_type: 'accept'
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Erro ao responder chamada:', error);
-                    // Simular resposta para teste
-                    return {
-                        success: true,
-                        message: 'Chamada atendida com sucesso'
-                    };
-                }
-            }
-
-            async endCall(callId) {
-                try {
-                    const response = await fetch(`/api/webrtc/call/${callId}/end`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Erro ao encerrar chamada:', error);
-                    // Simular resposta para teste
-                    return {
-                        success: true,
-                        message: 'Chamada encerrada com sucesso'
-                    };
-                }
-            }
-        }
-        
-        // Variáveis globais
-        let currentUser = null;
-        let currentCall = null;
-        let peerConnection = null;
-        let localStream = null;
-        let remoteStream = null;
-        let callStartTime = null;
-        let callTimer = null;
-        let volumeMonitor = null;
-        let isMuted = false;
-        let incomingCallTimeout = null;
-        let webrtcService = null;
-        
-        // Configuração WebRTC
-        const rtcConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-
-        // Inicializar sistema
-        async function initializeSystem() {
+        // Verificar status da API
+        async function checkApiStatus() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            showLoading('Verificando API...');
+            
             try {
-                log('🚀 Inicializando sistema do morador...', 'info');
-                log('📡 Conectando com Supabase...', 'info');
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
                 
-                // Inicializar WebRTC Service
-                webrtcService = new WebRTCService();
-                
-                // Usar um profile_id real do banco de dados
-                const profileId = 'c2b5c7ae-9f4f-47dc-b35d-95bfbf883047'; // Douglas moura - Apt 101, Prediodeteste
-                
-                // Buscar dados do morador
-                const profile = await webrtcService.getResidentProfile(profileId);
-                const apartmentInfo = await webrtcService.getResidentApartment(profileId);
-                
-                currentUser = {
-                    id: profile.id,
-                    name: profile.full_name,
-                    email: profile.email,
-                    phone: profile.phone,
-                    apartment: apartmentInfo.apartment_number,
-                    building: apartmentInfo.building_name,
-                    building_address: apartmentInfo.building_address,
-                    building_id: apartmentInfo.building_id,
-                    apartment_id: apartmentInfo.apartment_id,
-                    floor: apartmentInfo.floor,
-                    is_primary: apartmentInfo.is_primary,
-                    is_owner: apartmentInfo.is_owner,
-                    relationship: apartmentInfo.relationship,
-                    webrtc_enabled: true
-                };
-                
-                // Atualizar interface com dados do usuário
-                document.getElementById('userName').textContent = currentUser.name;
-                document.getElementById('userApartment').textContent = `Apartamento ${currentUser.apartment}`;
-                document.getElementById('userBuilding').textContent = currentUser.building;
-                
-                log('✅ Sistema inicializado com sucesso', 'success');
-                log(`👤 Morador: ${currentUser.name}`, 'info');
-                log(`🏠 Apartamento: ${currentUser.apartment} - ${currentUser.building}`, 'info');
-                log(`📍 Endereço: ${currentUser.building_address}`, 'info');
-                log(`👥 Tipo: ${currentUser.relationship}${currentUser.is_owner ? ' (Proprietário)' : ''}${currentUser.is_primary ? ' (Principal)' : ''}`, 'info');
-                
-                // Conectar ao WebSocket
-                log('🔌 Conectando ao WebSocket...', 'info');
-                await webrtcService.connectWebSocket(currentUser.id, 'morador');
-                log('✅ WebSocket conectado com sucesso', 'success');
-                updateConnectionStatus('online', '🟢 Online - Disponível para receber chamadas');
-                
-                log('📞 Sistema pronto para receber chamadas', 'info');
-                
+                if (response.ok) {
+                    updateApiStatus(true);
+                    showResponse(data, true);
+                } else {
+                    updateApiStatus(false);
+                    showResponse(data, false);
+                }
             } catch (error) {
-                log(`❌ Erro na inicialização: ${error.message}`, 'error');
-                updateConnectionStatus('offline', '🔴 Offline - Erro na conexão');
+                updateApiStatus(false);
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
+            }
+            
+            hideLoading();
+        }
+
+        // Atualizar indicador de status da API
+        function updateApiStatus(online) {
+            const indicator = document.getElementById('apiStatus');
+            const text = document.getElementById('apiStatusText');
+            
+            if (online) {
+                indicator.className = 'status-indicator status-online';
+                text.textContent = 'API Online';
+            } else {
+                indicator.className = 'status-indicator status-offline';
+                text.textContent = 'API Offline';
             }
         }
 
-        // Mostrar chamada recebida
-        function showIncomingCall(callData) {
-            if (currentCall) {
-                log('⚠️ Já existe uma chamada ativa', 'warning');
+        // Gerar token Twilio
+        async function generateToken() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const userId = document.getElementById('userId').value;
+            
+            if (!userId) {
+                alert('Por favor, insira um User ID');
                 return;
             }
             
-            currentCall = callData;
+            showLoading('Gerando token...');
             
-            // Atualizar informações da chamada na interface
-            document.getElementById('callerName').textContent = callData.caller || 'Porteiro';
-            document.getElementById('callerDetails').textContent = callData.origin || 'Portaria Principal';
-            
-            // Mostrar painel de chamada recebida
-            document.getElementById('incomingCallPanel').style.display = 'block';
-            updateConnectionStatus('incoming-call', '📞 Chamada recebida - Atender ou rejeitar');
-            
-            // Reproduzir som de chamada (simulado)
-            playRingtone();
-            
-            // Auto-rejeitar após 30 segundos se não atendida
-            incomingCallTimeout = setTimeout(() => {
-                if (currentCall && currentCall.status === 'incoming') {
-                    log('⏰ Timeout da chamada - rejeitando automaticamente', 'warning');
-                    rejectCall();
-                }
-            }, 30000);
-        }
-
-        // Reproduzir toque (simulado)
-        function playRingtone() {
-            // Simular toque com beeps
-            let beepCount = 0;
-            const beepInterval = setInterval(() => {
-                if (currentCall && currentCall.status === 'incoming' && beepCount < 10) {
-                    log('🔔 Ring...', 'info');
-                    beepCount++;
-                } else {
-                    clearInterval(beepInterval);
-                }
-            }, 2000);
-        }
-
-        // Atender chamada
-        async function answerCall() {
             try {
-                if (!currentCall || currentCall.status !== 'incoming') return;
-                
-                log('📞 Atendendo chamada...', 'info');
-                
-                // Responder chamada via WebSocket
-                const response = await webrtcService.respondToCall(currentCall.id, 'accept');
-                
-                if (!response.success) {
-                    throw new Error(response.message || 'Erro ao atender chamada');
-                }
-                
-                // Limpar timeout de auto-rejeição
-                if (incomingCallTimeout) {
-                    clearTimeout(incomingCallTimeout);
-                    incomingCallTimeout = null;
-                }
-                
-                // Ocultar painel de chamada recebida
-                document.getElementById('incomingCallPanel').style.display = 'none';
-                
-                // Atualizar status da chamada
-                currentCall.status = 'connected';
-                callStartTime = new Date();
-                
-                // Inicializar WebRTC
-                await initializeWebRTC();
-                
-                // Mostrar controles da chamada
-                showCallControls();
-                updateCallInfo();
-                updateConnectionStatus('in-call', '🟢 Em chamada com a portaria');
-                
-                // Iniciar timer
-                startCallTimer();
-                
-                log('✅ Chamada atendida com sucesso', 'success');
-                
-            } catch (error) {
-                log(`❌ Erro ao atender chamada: ${error.message}`, 'error');
-                rejectCall();
-            }
-        }
-
-        // Rejeitar chamada
-        async function rejectCall() {
-            try {
-                if (!currentCall) return;
-                
-                log('📴 Rejeitando chamada...', 'info');
-                
-                // Rejeitar chamada via WebSocket se ainda estiver ativa
-                if (currentCall.status === 'incoming') {
-                    await webrtcService.respondToCall(currentCall.id, 'reject');
-                }
-                
-                // Limpar timeout
-                if (incomingCallTimeout) {
-                    clearTimeout(incomingCallTimeout);
-                    incomingCallTimeout = null;
-                }
-                
-                // Ocultar painel de chamada recebida
-                document.getElementById('incomingCallPanel').style.display = 'none';
-                
-                // Resetar estado
-                currentCall = null;
-                updateConnectionStatus('online', '🟢 Online - Disponível para receber chamadas');
-                
-                log('✅ Chamada rejeitada com sucesso', 'success');
-                
-            } catch (error) {
-                log(`❌ Erro ao rejeitar chamada: ${error.message}`, 'error');
-                
-                // Mesmo com erro, resetar o estado
-                if (incomingCallTimeout) {
-                    clearTimeout(incomingCallTimeout);
-                    incomingCallTimeout = null;
-                }
-                document.getElementById('incomingCallPanel').style.display = 'none';
-                currentCall = null;
-                updateConnectionStatus('online', '🟢 Online - Disponível para receber chamadas');
-            }
-        }
-
-        // Inicializar WebRTC
-        async function initializeWebRTC() {
-            try {
-                // Obter stream de áudio
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
+                const response = await fetch(`${apiUrl}/api/intercom/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId })
                 });
                 
-                // Criar peer connection
-                peerConnection = new RTCPeerConnection(rtcConfiguration);
+                const data = await response.json();
+                showResponse(data, response.ok);
                 
-                // Adicionar stream local
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
-                
-                // Configurar eventos
-                peerConnection.ontrack = (event) => {
-                    remoteStream = event.streams[0];
-                    log('📥 Stream remoto recebido', 'success');
-                    
-                    // Conectar stream remoto ao elemento de áudio
-                    const remoteAudio = document.getElementById('remoteAudio');
-                    if (remoteAudio && remoteStream) {
-                        remoteAudio.srcObject = remoteStream;
-                        remoteAudio.volume = document.getElementById('remoteVolumeSlider').value;
-                        
-                        // Tentar reproduzir o áudio
-                        remoteAudio.play().then(() => {
-                            log('🔊 Áudio remoto iniciado com sucesso', 'success');
-                        }).catch(error => {
-                            log(`⚠️ Erro ao iniciar áudio remoto: ${error.message}`, 'warning');
-                            // Tentar novamente após interação do usuário
-                            document.addEventListener('click', () => {
-                                remoteAudio.play().catch(e => console.warn('Erro ao reproduzir áudio:', e));
-                            }, { once: true });
-                        });
-                    }
-                };
-                
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        log('🧊 ICE candidate gerado', 'info');
-                    }
-                };
-                
-                peerConnection.onconnectionstatechange = () => {
-                    log(`🔗 Estado da conexão: ${peerConnection.connectionState}`, 'info');
-                    updateCallQuality();
-                };
-                
-                // Iniciar monitoramento de volume
-                startVolumeMonitoring();
-                
-                log('🎤 WebRTC inicializado com sucesso', 'success');
-                
+                if (response.ok && data.token) {
+                    document.getElementById('tokenValue').value = data.token;
+                    document.getElementById('tokenInfo').style.display = 'block';
+                }
             } catch (error) {
-                throw new Error(`Falha na inicialização WebRTC: ${error.message}`);
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
             }
+            
+            hideLoading();
         }
 
-        // Encerrar chamada
-        async function endCall() {
-            try {
-                if (currentCall) {
-                    log(`📴 Encerrando chamada...`, 'info');
-                }
-                
-                // Encerrar chamada via API se houver uma chamada ativa
-                if (currentCall && currentCall.id) {
-                    await webrtcService.endCall(currentCall.id);
-                }
-                
-                // Parar streams
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                    localStream = null;
-                }
-                
-                if (remoteStream) {
-                    remoteStream.getTracks().forEach(track => track.stop());
-                    remoteStream = null;
-                }
-                
-                // Fechar peer connection
-                if (peerConnection) {
-                    peerConnection.close();
-                    peerConnection = null;
-                }
-                
-                // Parar timers
-                if (callTimer) {
-                    clearInterval(callTimer);
-                    callTimer = null;
-                }
-                
-                if (volumeMonitor) {
-                    clearInterval(volumeMonitor);
-                    volumeMonitor = null;
-                }
-                
-                if (incomingCallTimeout) {
-                    clearTimeout(incomingCallTimeout);
-                    incomingCallTimeout = null;
-                }
-                
-                // Resetar interface
-                currentCall = null;
-                callStartTime = null;
-                isMuted = false;
-                
-                hideCallControls();
-                document.getElementById('incomingCallPanel').style.display = 'none';
-                
-                updateConnectionStatus('online', '🟢 Disponível para receber chamadas');
-                
-                log('✅ Chamada encerrada', 'success');
-                
-            } catch (error) {
-                log(`❌ Erro ao encerrar chamada: ${error.message}`, 'error');
+        // Simular chamada recebida
+        function simulateIncomingCall() {
+            const callId = document.getElementById('simulatedCallId').value;
+            const apartmentNumber = document.getElementById('apartmentNumber').value;
+            
+            if (!callId) {
+                alert('Por favor, insira um ID de chamada');
+                return;
             }
+            
+            currentCallId = callId;
+            
+            // Mostrar alerta de chamada
+            const callAlert = document.getElementById('callAlert');
+            const callInfo = document.getElementById('incomingCallInfo');
+            
+            callInfo.innerHTML = `
+                <div style="margin-top: 10px; font-size: 14px;">
+                    <strong>ID da Chamada:</strong> ${callId}<br>
+                    <strong>Apartamento:</strong> ${apartmentNumber}<br>
+                    <strong>Horário:</strong> ${new Date().toLocaleTimeString('pt-BR')}
+                </div>
+            `;
+            
+            callAlert.classList.add('active');
+            
+            // Adicionar notificação
+            addNotification('call', 'Chamada do Interfone', `Chamada recebida para o apartamento ${apartmentNumber}`, callId);
+            
+            showResponse({ 
+                message: 'Chamada simulada iniciada', 
+                call_id: callId, 
+                apartment: apartmentNumber 
+            }, true);
         }
 
-        // Alternar mute
-        function toggleMute() {
-            if (localStream) {
-                const audioTrack = localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    isMuted = !audioTrack.enabled;
-                    
-                    const muteBtn = document.getElementById('muteBtn');
-                    muteBtn.innerHTML = isMuted ? '<span>🔊</span> Unmute' : '<span>🔇</span> Mute';
-                    
-                    log(`${isMuted ? '🔇' : '🔊'} Microfone ${isMuted ? 'mutado' : 'desmutado'}`, 'info');
-                }
-            }
+        // Limpar simulação
+        function clearSimulation() {
+            const callAlert = document.getElementById('callAlert');
+            callAlert.classList.remove('active');
+            currentCallId = null;
+            
+            showResponse({ message: 'Simulação limpa' }, true);
         }
 
-        // Testar microfone
-        async function testMicrophone() {
-            try {
-                log('🎤 Testando microfone...', 'info');
-                
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // Criar contexto de áudio para teste
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(stream);
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-                
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                
-                let testDuration = 3000;
-                let maxVolume = 0;
-                
-                const testInterval = setInterval(() => {
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
-                    }
-                    const volume = sum / bufferLength;
-                    maxVolume = Math.max(maxVolume, volume);
-                    
-                    testDuration -= 100;
-                    
-                    if (testDuration <= 0) {
-                        clearInterval(testInterval);
-                        stream.getTracks().forEach(track => track.stop());
-                        
-                        if (maxVolume > 10) {
-                            log('✅ Microfone funcionando corretamente!', 'success');
-                        } else {
-                            log('⚠️ Microfone muito baixo ou não detectado', 'warning');
-                        }
-                    }
-                }, 100);
-                
-                log('🔊 Fale algo para testar o microfone (3 segundos)...', 'info');
-                
-            } catch (error) {
-                log(`❌ Erro no teste do microfone: ${error.message}`, 'error');
+        // Atender chamada (do alerta)
+        function answerCall() {
+            if (!currentCallId) {
+                alert('Nenhuma chamada ativa para atender');
+                return;
             }
+            
+            answerCallById(currentCallId);
         }
 
-        // Iniciar monitoramento de volume
-        function startVolumeMonitoring() {
-            if (!localStream) return;
+        // Recusar chamada
+        function rejectCall() {
+            if (!currentCallId) {
+                alert('Nenhuma chamada ativa para recusar');
+                return;
+            }
+            
+            const callAlert = document.getElementById('callAlert');
+            callAlert.classList.remove('active');
+            
+            addNotification('missed', 'Chamada Recusada', `Chamada ${currentCallId} foi recusada`, currentCallId);
+            
+            showResponse({ 
+                message: 'Chamada recusada', 
+                call_id: currentCallId,
+                action: 'rejected'
+            }, true);
+            
+            currentCallId = null;
+        }
+
+        // Atender chamada por ID
+        async function answerCallById(callId = null) {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const residentId = document.getElementById('residentId').value;
+            const targetCallId = callId || document.getElementById('callIdToAnswer').value;
+            
+            if (!targetCallId || !residentId) {
+                alert('Por favor, preencha o ID da chamada e ID do morador');
+                return;
+            }
+            
+            showLoading('Atendendo chamada...');
             
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(localStream);
-                const analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
+                const response = await fetch(`${apiUrl}/api/intercom/answer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        call_id: targetCallId,
+                        resident_id: residentId
+                    })
+                });
                 
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
+                const data = await response.json();
+                showResponse(data, response.ok);
                 
-                volumeMonitor = setInterval(() => {
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < bufferLength; i++) {
-                        sum += dataArray[i];
+                if (response.ok) {
+                    // Esconder alerta se for a chamada atual
+                    if (targetCallId === currentCallId) {
+                        const callAlert = document.getElementById('callAlert');
+                        callAlert.classList.remove('active');
+                        currentCallId = null;
                     }
-                    const volume = (sum / bufferLength / 255) * 100;
                     
-                    const volumeLevel = document.getElementById('volumeLevel');
-                    if (volumeLevel) {
-                        volumeLevel.style.width = `${volume}%`;
-                    }
-                }, 100);
-                
+                    // Mostrar info de resposta
+                    document.getElementById('responseStatus').textContent = 'Chamada atendida com sucesso!';
+                    document.getElementById('callResponseInfo').style.display = 'block';
+                    
+                    // Adicionar notificação
+                    addNotification('answered', 'Chamada Atendida', `Chamada ${targetCallId} foi atendida`, targetCallId);
+                }
             } catch (error) {
-                log(`❌ Erro no monitoramento de volume: ${error.message}`, 'error');
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
+            }
+            
+            hideLoading();
+        }
+
+        // Carregar histórico
+        async function loadHistory() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            
+            showLoading('Carregando histórico...');
+            
+            try {
+                const url = `${apiUrl}/api/intercom/history?limit=10`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                showResponse(data, response.ok);
+                
+                if (response.ok && data.calls) {
+                    displayHistory(data.calls);
+                }
+            } catch (error) {
+                showResponse({ error: 'Erro de conexão: ' + error.message }, false);
+            }
+            
+            hideLoading();
+        }
+
+        // Exibir histórico
+        function displayHistory(calls) {
+            const historyDiv = document.getElementById('historyList');
+            
+            if (calls.length === 0) {
+                historyDiv.innerHTML = '<p>Nenhuma chamada encontrada.</p>';
+                return;
+            }
+            
+            let html = '<div style="max-height: 300px; overflow-y: auto;">';
+            calls.forEach(call => {
+                const startTime = new Date(call.started_at).toLocaleString('pt-BR');
+                const duration = call.duration ? `${call.duration}s` : '-';
+                const apartment = call.apartments?.number || '-';
+                const doorman = call.profiles?.full_name || '-';
+                
+                const statusColor = call.status === 'answered' ? '#27ae60' : 
+                                  call.status === 'ended' ? '#e74c3c' : '#f39c12';
+                
+                html += `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px; background: white; border-left: 4px solid ${statusColor};">
+                        <strong>Chamada #${call.id}</strong><br>
+                        <small>Apartamento: ${apartment} | Porteiro: ${doorman}</small><br>
+                        <small>Início: ${startTime} | Duração: ${duration} | Status: ${call.status}</small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            historyDiv.innerHTML = html;
+        }
+
+        // Iniciar escuta de notificações (simulado)
+        function startNotificationListener() {
+            if (isListening) {
+                alert('Já está escutando notificações');
+                return;
+            }
+            
+            isListening = true;
+            addNotification('info', 'Sistema', 'Escuta de notificações iniciada', null);
+            
+            // Simular notificações periódicas (para teste)
+            notificationListener = setInterval(() => {
+                if (Math.random() > 0.8) { // 20% de chance a cada 5 segundos
+                    const apartmentNumber = document.getElementById('apartmentNumber').value;
+                    addNotification('call', 'Nova Chamada', `Chamada simulada para apartamento ${apartmentNumber}`, `sim-${Date.now()}`);
+                }
+            }, 5000);
+            
+            showResponse({ message: 'Escuta de notificações iniciada' }, true);
+        }
+
+        // Parar escuta de notificações
+        function stopNotificationListener() {
+            if (!isListening) {
+                alert('Não está escutando notificações');
+                return;
+            }
+            
+            isListening = false;
+            if (notificationListener) {
+                clearInterval(notificationListener);
+                notificationListener = null;
+            }
+            
+            addNotification('info', 'Sistema', 'Escuta de notificações parada', null);
+            showResponse({ message: 'Escuta de notificações parada' }, true);
+        }
+
+        // Adicionar notificação ao painel
+        function addNotification(type, title, message, callId) {
+            const notificationList = document.getElementById('notificationList');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            
+            const notificationDiv = document.createElement('div');
+            notificationDiv.className = `notification-item ${type}`;
+            notificationDiv.innerHTML = `
+                <div style="display: flex; justify-content: between; align-items: center;">
+                    <div>
+                        <strong>${title}</strong><br>
+                        <small>${message}</small><br>
+                        <small style="color: #666;">⏰ ${timestamp}</small>
+                        ${callId ? `<br><small style="color: #666;">📞 ID: ${callId}</small>` : ''}
+                    </div>
+                    ${callId && type === 'call' ? `
+                        <div style="margin-left: auto;">
+                            <button class="btn btn-success" style="padding: 5px 10px; font-size: 12px;" onclick="answerCallById('${callId}')">Atender</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            // Inserir no topo
+            if (notificationList.firstChild && notificationList.firstChild.tagName !== 'P') {
+                notificationList.insertBefore(notificationDiv, notificationList.firstChild);
+            } else {
+                notificationList.innerHTML = '';
+                notificationList.appendChild(notificationDiv);
+            }
+            
+            // Limitar a 10 notificações
+            while (notificationList.children.length > 10) {
+                notificationList.removeChild(notificationList.lastChild);
             }
         }
 
-        // Iniciar timer da chamada
-        function startCallTimer() {
-            callTimer = setInterval(() => {
-                if (callStartTime) {
-                    const duration = Math.floor((new Date() - callStartTime) / 1000);
-                    const minutes = Math.floor(duration / 60);
-                    const seconds = duration % 60;
-                    
-                    document.getElementById('callDuration').textContent = 
-                        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                }
+        // Mostrar resposta da API
+        function showResponse(data, success) {
+            const responseDiv = document.getElementById('apiResponse');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+            responseDiv.className = `response ${success ? 'success' : 'error'}`;
+        }
+
+        // Mostrar loading
+        function showLoading(message) {
+            // Implementar se necessário
+        }
+
+        // Esconder loading
+        function hideLoading() {
+            // Implementar se necessário
+        }
+
+        // Verificar API ao carregar a página
+        window.onload = function() {
+            checkApiStatus();
+            
+            // Adicionar notificação de boas-vindas
+            setTimeout(() => {
+                addNotification('info', 'Sistema', 'Interface do morador carregada com sucesso', null);
             }, 1000);
-        }
-
-        // Mostrar controles da chamada
-        function showCallControls() {
-            document.getElementById('callControls').style.display = 'block';
-            document.getElementById('callInfo').style.display = 'block';
-        }
-
-        // Ocultar controles da chamada
-        function hideCallControls() {
-            document.getElementById('callControls').style.display = 'none';
-            document.getElementById('callInfo').style.display = 'none';
-        }
-
-        // Atualizar informações da chamada
-        function updateCallInfo() {
-            if (currentCall) {
-                document.getElementById('callOrigin').textContent = currentCall.origin || 'Portaria';
-                document.getElementById('callStatus').textContent = 
-                    currentCall.status === 'incoming' ? 'Recebendo...' : 
-                    currentCall.status === 'connected' ? 'Conectado' : 'Desconectado';
-            }
-        }
-
-        // Atualizar qualidade da chamada
-        function updateCallQuality() {
-            if (peerConnection) {
-                const state = peerConnection.connectionState;
-                let quality = 'Desconhecida';
-                
-                switch (state) {
-                    case 'connected':
-                        quality = 'Boa';
-                        break;
-                    case 'connecting':
-                        quality = 'Conectando...';
-                        break;
-                    case 'disconnected':
-                        quality = 'Desconectado';
-                        break;
-                    case 'failed':
-                        quality = 'Falhou';
-                        break;
-                }
-                
-                document.getElementById('callQuality').textContent = quality;
-            }
-        }
-
-        // Atualizar status da conexão
-        function updateConnectionStatus(status, message) {
-            const statusElement = document.getElementById('connectionStatus');
-            statusElement.className = `connection-status ${status}`;
-            statusElement.innerHTML = `<span>${getStatusIcon(status)}</span><span>${message}</span>`;
-        }
-
-        // Obter ícone do status
-        function getStatusIcon(status) {
-            switch (status) {
-                case 'online': return '🟢';
-                case 'offline': return '🔴';
-                case 'incoming-call': return '📞';
-                case 'in-call': return '🟢';
-                default: return '🔴';
-            }
-        }
-
-        // Ajustar volume do áudio remoto
-        function adjustRemoteVolume(volume) {
-            const remoteAudio = document.getElementById('remoteAudio');
-            const volumeValue = document.getElementById('remoteVolumeValue');
-            
-            if (remoteAudio) {
-                remoteAudio.volume = parseFloat(volume);
-                volumeValue.textContent = `${Math.round(volume * 100)}%`;
-                log(`🔊 Volume do áudio remoto ajustado para ${Math.round(volume * 100)}%`, 'info');
-            }
-        }
-
-        // Função de log
-        function log(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry ${type}`;
-            logEntry.textContent = `[${timestamp}] ${message}`;
-            
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            
-            // Manter apenas os últimos 50 logs
-            while (logContainer.children.length > 50) {
-                logContainer.removeChild(logContainer.firstChild);
-            }
-        }
-
-        // Inicializar quando a página carregar
-        window.onload = initializeSystem;
-
-        // Cleanup ao fechar a página
-        window.onbeforeunload = function() {
-            if (currentCall) {
-                endCall();
-            }
         };
     </script>
 </body>

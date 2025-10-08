@@ -13,9 +13,8 @@ const sendVisitorNotificationRouter = require('./routes/sendVisitorNotification'
 const sendVisitorWaitingNotificationRouter = require('./routes/sendVisitorWaitingNotification');
 const whatsappWebhookRouter = require('./routes/whatsappWebhook');
 const lembretesNotificationsRouter = require('./routes/lembretesNotifications');
-const webrtcRoutes = require('./routes/webrtcRoutes');
+const intercomRouter = require('./routes/intercom');
 const reminderJobService = require('./services/reminderJobService');
-const webrtcSignalingService = require('./services/webrtcSignalingService');
 
 const app = express();
 const server = http.createServer(app);
@@ -39,13 +38,10 @@ app.use('/api', sendVisitorNotificationRouter);
 app.use('/api', sendVisitorWaitingNotificationRouter);
 app.use('/api', whatsappWebhookRouter);
 app.use('/api', lembretesNotificationsRouter);
-app.use('/api', webrtcRoutes);
+app.use('/api', intercomRouter);
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
-
-// Inicializar WebRTC Signaling Service
-webrtcSignalingService.initialize(server);
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

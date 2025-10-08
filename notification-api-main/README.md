@@ -1,6 +1,6 @@
 # JamesAvisa WhatsApp API
 
-API responsável pelo envio exclusivo de mensagens WhatsApp para moradores do JamesAvisa e sistema de interfone WebRTC.
+API responsável pelo envio exclusivo de mensagens WhatsApp e notificações para moradores do JamesAvisa.
 
 ## 📋 Descrição
 
@@ -9,7 +9,7 @@ Esta API foi desenvolvida especificamente para o JamesAvisa e é responsável po
 - Gerar links de cadastro personalizados
 - Validar dados de moradores
 - Integrar com a Evolution API para envio de mensagens
-- **Sistema de Interfone WebRTC**: Comunicação de voz em tempo real entre porteiro e morador
+- **Sistema de Notificações**: Comunicação eficiente entre porteiro e morador através de múltiplos canais
 
 ## 🚀 Instalação
 
@@ -231,58 +231,44 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3001/api/send-resident-whatsapp" `
   }'
 ```
 
-### 📞 Testando o Sistema de Interfone
+### 📱 Testando o Sistema de Notificações
 
-#### Interface de Teste Manual:
+#### Teste de Mensagens WhatsApp:
 1. **Inicie o servidor**: `npm start`
-2. **Acesse a interface**: `http://localhost:3001/tests/manual/webrtc-test-interface.html`
-3. **Teste as funcionalidades**:
-   - Conectar como Porteiro ou Morador
-   - Iniciar chamada de voz
-   - Testar controles de volume e mute
-   - Verificar indicadores de conexão
-   - Monitorar qualidade de áudio
+2. **Configure as variáveis de ambiente** no arquivo `.env`
+3. **Teste os endpoints**:
+   - Envio de mensagens para moradores
+   - Notificações de visitantes
+   - Sistema de lembretes
+   - Notificações interativas
 
 #### Fluxo de Teste:
 ```
-1. Abra duas abas do navegador
-2. Aba 1: Conecte como "Porteiro"
-3. Aba 2: Conecte como "Morador"
-4. No Porteiro: Clique "Iniciar Chamada"
-5. No Morador: Aceite a chamada
-6. Teste a comunicação de voz
-7. Use controles de volume/mute
-8. Encerre a chamada
+1. Configure a Evolution API
+2. Teste envio de mensagem simples
+3. Teste notificação de visitante
+4. Configure lembretes
+5. Teste notificações push
+6. Verifique logs de entrega
 ```
 
-#### Verificação de Conectividade:
-- **WebSocket**: Verifique conexão em `ws://localhost:3001/socket.io/`
-- **STUN/TURN**: Testa atravessamento de NAT/Firewall
-- **Áudio**: Verifica captura e reprodução de áudio
-- **Latência**: Monitora qualidade da conexão em tempo real
+## 📱 Sistema de Notificações
 
-## 📞 Sistema de Interfone WebRTC
-
-O JamesAvisa inclui um sistema completo de interfone baseado em WebRTC para comunicação de voz entre porteiro e morador.
+O JamesAvisa inclui um sistema completo de notificações para comunicação entre porteiro e morador.
 
 ### Características:
-- **Áudio apenas**: Sistema otimizado para chamadas de voz (sem vídeo)
-- **Baixa latência**: Configurado para comunicação em tempo real
-- **Atravessa NAT/Firewall**: Utiliza servidores STUN/TURN
-- **Interface de teste**: Página HTML para testes manuais
-- **Notificações WhatsApp**: Integração com notificações de chamadas
-
-### Acesso ao Sistema:
-- **Interface de Teste**: `http://localhost:3001/tests/manual/webrtc-test-interface.html`
-- **WebSocket**: `ws://localhost:3001/socket.io/`
-- **Endpoints WebRTC**: `/api/webrtc/*`
+- **WhatsApp**: Integração com Evolution API para mensagens
+- **Push Notifications**: Notificações push para dispositivos móveis
+- **Email**: Envio de emails para moradores
+- **Lembretes**: Sistema de lembretes programados
+- **Notificações Interativas**: Botões e listas personalizadas
 
 ### Funcionalidades:
-- ✅ Chamadas de voz entre porteiro e morador
-- ✅ Controles de volume e mute/unmute
-- ✅ Indicadores visuais de conexão e qualidade de áudio
-- ✅ Monitoramento de nível de áudio em tempo real
-- ✅ Testes automatizados de conectividade
+- ✅ Mensagens WhatsApp para moradores
+- ✅ Notificações de visitantes
+- ✅ Sistema de lembretes
+- ✅ Notificações push
+- ✅ Emails automáticos
 
 ## 🏗️ Arquitetura
 
@@ -292,21 +278,17 @@ notification-api-main/
 ├── package.json            # Dependências e scripts
 ├── README.md              # Documentação
 ├── .env                   # Variáveis de ambiente
-├── tests/
-│   └── manual/
-│       └── webrtc-test-interface.html # Interface de teste do interfone
 └── src/
     ├── routes/
     │   ├── sendNotification.js    # Rotas da API
-    │   └── webrtcRoutes.js       # Rotas WebRTC
+    │   ├── sendVisitorNotification.js # Notificações de visitantes
+    │   ├── lembretesNotifications.js # Sistema de lembretes
+    │   └── interactiveNotifications.js # Notificações interativas
     ├── services/
     │   ├── whatsappService.js         # Integração com Evolution API
-    │   ├── webrtcSignalingService.js  # Sinalização WebRTC
-    │   └── webrtcNotificationService.js # Notificações de chamadas
-    ├── controllers/
-    │   └── webrtcController.js    # Controlador WebRTC
-    ├── config/
-    │   └── webrtcConfig.js       # Configurações WebRTC
+    │   ├── pushNotificationService.js # Notificações push
+    │   ├── emailService.js           # Serviço de email
+    │   └── reminderJobService.js     # Serviço de lembretes
     ├── validators/
     │   └── notificationValidator.js # Validação de dados
     └── utils/
