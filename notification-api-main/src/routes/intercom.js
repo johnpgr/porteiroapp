@@ -105,9 +105,9 @@ router.post('/intercom/call', async (req, res) => {
     // Buscar tokens de dispositivo dos moradores
     const residentIds = residents.map(r => r.profiles.id);
     const { data: deviceTokens, error: tokensError } = await supabase
-      .from('device_tokens')
-      .select('profile_id, token, platform')
-      .in('profile_id', residentIds)
+      .from('user_notification_tokens')
+      .select('user_id, notification_token, device_type')
+      .in('user_id', residentIds)
       .eq('is_active', true);
 
     if (tokensError) {
@@ -155,7 +155,7 @@ router.post('/intercom/call', async (req, res) => {
     if (deviceTokens && deviceTokens.length > 0) {
       for (const resident of residents) {
         if (resident.profiles.notification_enabled) {
-          const residentTokens = deviceTokens.filter(token => token.profile_id === resident.profiles.id);
+          const residentTokens = deviceTokens.filter(token => token.user_id === resident.profiles.id);
           
           for (const deviceToken of residentTokens) {
             try {
@@ -172,8 +172,8 @@ router.post('/intercom/call', async (req, res) => {
                   action: 'incoming_call',
                   apartmentIdentity: apartmentIdentity
                 },
-                deviceToken: deviceToken.token,
-                platform: deviceToken.platform
+                deviceToken: deviceToken.notification_token,
+                platform: deviceToken.device_type
               };
 
               await sendNotificationService.sendNotification(notification);
