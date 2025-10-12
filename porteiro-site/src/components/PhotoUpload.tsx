@@ -128,9 +128,9 @@ export default function PhotoUpload({
             <Image 
               src={previewUrl} 
               alt="Preview" 
-              className="w-full h-full object-cover"
               width={128}
               height={128}
+              className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
