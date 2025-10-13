@@ -1330,6 +1330,13 @@ export default function VisitantesTab() {
           <Ionicons name="add-circle" size={24} color="#fff" />
           <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.vehicleButton}
+          onPress={() => router.push('/morador/cadastro/placa')}>
+          <Ionicons name="car" size={24} color="#fff" />
+          <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -2481,6 +2488,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#555',
     fontWeight: '500',
+  },
+  vehicleButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  vehicleButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 
 });
