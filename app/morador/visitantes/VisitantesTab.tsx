@@ -179,7 +179,7 @@ interface Visitor {
 interface PreRegistrationData {
   name: string;
   phone: string;
-  visit_type: 'pontual' | 'frequente';
+  visit_type: 'pontual' | 'frequente' | 'prestador_servico';
   access_type?: 'com_aprovacao' | 'direto';
   visit_date?: string;
   visit_start_time?: string;
@@ -1529,6 +1529,19 @@ export default function VisitantesTab() {
                       styles.visitorTypeButtonText,
                       preRegistrationData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive
                     ]}>Frequente</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.visitorTypeButton,
+                      preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonActive
+                    ]}
+                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visit_type: 'prestador_servico' }))}
+                  >
+                    <Text style={[
+                      styles.visitorTypeButtonText,
+                      preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonTextActive
+                    ]}>Prestador de Serviço</Text>
                   </TouchableOpacity>
                 </View>
               </View>
