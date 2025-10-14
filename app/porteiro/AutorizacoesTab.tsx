@@ -53,6 +53,33 @@ const getProfileName = async (authorizedBy: string): Promise<string> => {
   }
 };
 
+// Função para buscar o nome do morador que autorizou baseado no resident_response_by
+const getResidentName = async (residentResponseBy: string): Promise<string> => {
+  // Se não é um UUID válido, retornar o valor direto
+  if (!isValidUUID(residentResponseBy)) {
+    return residentResponseBy;
+  }
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', residentResponseBy)
+      .single();
+
+    if (error) {
+      console.warn('⚠️ Erro ao buscar perfil do morador:', error);
+      return 'Morador';
+    }
+
+    // Retornar o nome completo se disponível, senão 'Morador'
+    return profile?.full_name || 'Morador';
+  } catch (error) {
+    console.error('❌ Erro ao buscar nome do morador:', error);
+    return 'Morador';
+  }
+};
+
 // Interface para logs de atividades otimizada
 type ActivityEntry = {
   id: string;
@@ -431,11 +458,15 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         // Para authorized_by, buscar o nome do perfil se for um UUID, senão usar o valor direto
         const authorizedByName = await getProfileName(log.authorized_by || 'Sistema');
         
+        // Para resident_response_by, buscar o nome do morador que autorizou
+        const residentName = log.resident_response_by ? await getResidentName(log.resident_response_by) : null;
+        
         return {
           ...log,
           apartment_number: log.apartments?.number || 'N/A',
           visitor_name: log.visitors?.name || log.guest_name || log.visitor_name || 'Visitante',
-          authorized_by_name: authorizedByName
+          authorized_by_name: authorizedByName,
+          resident_response_by_name: residentName
         };
       }));
 
@@ -1590,16 +1621,22 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
               <Text style={styles.detailText}>📍 Destino: {log.delivery_destination}</Text>
             )}
             {/* Exibir "Autorizado por" apenas quando status for aprovado */}
-            {log.notification_status === 'approved' && log.authorized_by && (
+            {log.notification_status === 'approved' && (log.resident_response_by_name || log.authorized_by) && (
               <Text style={styles.detailText}>
-                ✅ Autorizado por: {log.authorized_by_name || log.authorized_by}
+                ✅ Autorizado por: {log.resident_response_by_name || log.authorized_by_name || log.authorized_by}
               </Text>
             )}
             <Text style={styles.detailText}>🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às {formatLogTime(log.log_time || log.created_at)}</Text>
           </View>
         )}
         
-        <TouchableOpacity style={styles.expandIndicator}>
+        <TouchableOpacity 
+          style={styles.expandIndicator}
+          onPress={(e) => {
+            e.stopPropagation();
+            toggleCardExpansion(log.id);
+          }}
+        >
           <Text style={styles.expandText}>
             {isExpanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}
           </Text>
