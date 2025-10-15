@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,14 @@ import {
   TouchableOpacity,
   Modal,
   SafeAreaView,
-  TextInput,
   ActivityIndicator,
   Alert,
-  Dimensions,
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { audioService } from '~/services/audioService';
 
-const { width, height } = Dimensions.get('window');
+const supabaseClient = supabase as any;
 
 interface IntercomModalProps {
   visible: boolean;
@@ -38,7 +36,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   const [callMessage, setCallMessage] = useState('');
   
   // Refs para WebRTC
-  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const webSocketRef = useRef<WebSocket | null>(null);
   
   // Listener para mudanças de estado da chamada para controlar áudio
@@ -59,12 +57,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   }, [callState]);
 
   // Carregar informações do prédio do porteiro
-  const loadBuildingInfo = async () => {
+  const loadBuildingInfo = useCallback(async () => {
     if (!user?.id) return;
     
     try {
       // Buscar informações do prédio do porteiro
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select(`
           building_id,
@@ -91,7 +89,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setBuildingName('Prédio');
       setBuildingId(null);
     }
-  };
+  }, [user?.id]);
 
   // Validar se o apartamento existe no prédio
   const validateApartment = async (apartmentNum: string): Promise<{ valid: boolean; apartmentId?: string; error?: string }> => {
@@ -100,7 +98,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     }
 
     try {
-      const { data: apartment, error } = await supabase
+      const { data: apartment, error } = await supabaseClient
         .from('apartments')
         .select('id, number')
         .eq('building_id', buildingId)
@@ -121,7 +119,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Buscar moradores do apartamento
   const getApartmentResidents = async (apartmentId: string): Promise<{ residents: any[]; error?: string }> => {
     try {
-      const { data: residents, error } = await supabase
+      const { data: residents, error } = await supabaseClient
         .from('apartment_residents')
         .select(`
           id,
@@ -158,6 +156,20 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       return;
     }
     
+    const handleCallFailure = async (message: string) => {
+      console.warn('❌ Falha ao iniciar chamada:', message);
+      Alert.alert('Erro', message);
+      try {
+        await audioService.stopRingtone();
+      } catch (audioError) {
+        console.error('❌ Erro ao parar som de chamada:', audioError);
+      }
+      setCallState('idle');
+      setCallMessage('');
+      setNotificationsSent(0);
+      setCurrentCallId(null);
+    };
+    
     try {
       setCallState('calling');
       setCallMessage('Validando apartamento...');
@@ -175,24 +187,28 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       // Validar apartamento
       const validation = await validateApartment(apartmentNumber.trim());
       if (!validation.valid) {
-        throw new Error(validation.error || 'Apartamento inválido');
+        await handleCallFailure(validation.error || 'Apartamento inválido');
+        return;
       }
 
       // Buscar moradores
       setCallMessage('Buscando moradores...');
       const { residents, error: residentsError } = await getApartmentResidents(validation.apartmentId!);
       if (residentsError) {
-        throw new Error(residentsError);
+        await handleCallFailure(residentsError);
+        return;
       }
 
       if (residents.length === 0) {
-        throw new Error(`Apartamento ${apartmentNumber} não possui moradores cadastrados ou com notificações habilitadas`);
+        await handleCallFailure(`Apartamento ${apartmentNumber} não possui moradores cadastrados ou com notificações habilitadas`);
+        return;
       }
       
       // Obter token de autenticação
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        throw new Error('Usuário não autenticado');
+        await handleCallFailure('Usuário não autenticado');
+        return;
       }
       
       console.log('🔍 Iniciando chamada para apartamento:', apartmentNumber.trim());
@@ -228,44 +244,53 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       console.log('📡 Status da resposta:', response.status);
       console.log('📡 Headers da resposta:', Object.fromEntries(response.headers.entries()));
       
-      // Tentar fazer o parsing da resposta JSON primeiro
-      let result;
-      let errorData;
-      
-      try {
-        const responseText = await response.text();
-        console.log('📡 Texto bruto da resposta:', responseText);
-        console.log('📡 Tamanho da resposta:', responseText.length);
-        console.log('📡 Content-Type:', response.headers.get('content-type'));
-        
-        if (responseText.trim()) {
-          // Verificar se a resposta parece ser HTML (erro do servidor)
-          if (responseText.trim().startsWith('<')) {
-            console.error('❌ Servidor retornou HTML em vez de JSON:', responseText.substring(0, 200) + '...');
-            throw new Error('Servidor retornou uma página de erro HTML em vez de JSON. Verifique se a API está funcionando corretamente.');
+      const responseText = await response.text();
+      const trimmedResponse = responseText.trim();
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      console.log('📡 Texto bruto da resposta:', responseText);
+      console.log('📡 Tamanho da resposta:', responseText.length);
+      console.log('📡 Content-Type:', contentType || 'indefinido');
+
+      if (!trimmedResponse) {
+        console.warn('⚠️ Resposta vazia do servidor');
+      }
+
+      if (trimmedResponse) {
+        const looksJson = trimmedResponse.startsWith('{') || trimmedResponse.startsWith('[');
+        const isJsonContent = contentType.includes('application/json');
+
+        if (!looksJson && !isJsonContent) {
+          const normalized = trimmedResponse.toLowerCase();
+
+          if (normalized.includes('ngrok') || (normalized.includes('endpoint') && normalized.includes('offline'))) {
+            await handleCallFailure('Serviço do interfone está offline. Ative o túnel Ngrok ou atualize a URL da API de notificações.');
+            return;
           }
-          
-          // Verificar se a resposta parece ser JSON válido
-          if (!responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
-            console.error('❌ Resposta não parece ser JSON válido:', responseText.substring(0, 100) + '...');
-            throw new Error('Resposta do servidor não está no formato JSON esperado.');
+
+          if (trimmedResponse.startsWith('<')) {
+            console.error('❌ Servidor retornou HTML em vez de JSON:', trimmedResponse.substring(0, 200) + '...');
+            await handleCallFailure('Servidor retornou uma página de erro HTML em vez de JSON. Verifique se a API está funcionando corretamente.');
+            return;
           }
-          
-          result = JSON.parse(responseText);
-        } else {
-          console.warn('⚠️ Resposta vazia do servidor');
-          result = {};
+
+          console.error('❌ Resposta não parece ser JSON válido:', trimmedResponse.substring(0, 100) + '...');
+          await handleCallFailure('Resposta do servidor não está no formato JSON esperado.');
+          return;
         }
-      } catch (parseError) {
-        console.error('❌ Erro ao fazer parsing da resposta JSON:', parseError);
-        console.error('❌ Tipo do erro:', parseError.constructor.name);
-        console.error('❌ Mensagem do erro:', parseError.message);
-        
-        // Verificar se é um erro de parsing JSON específico
-        if (parseError instanceof SyntaxError) {
-          throw new Error(`Erro de formato JSON: ${parseError.message}. O servidor pode estar retornando uma página de erro.`);
-        } else {
-          throw new Error('Resposta inválida do servidor - não é um JSON válido');
+      }
+
+      let result: any = {};
+      if (trimmedResponse) {
+        try {
+          result = JSON.parse(trimmedResponse);
+        } catch (parseError) {
+          console.error('❌ Erro ao fazer parsing da resposta JSON:', parseError);
+          const message =
+            parseError instanceof SyntaxError
+              ? `Erro de formato JSON: ${parseError.message}. O servidor pode estar retornando uma página de erro.`
+              : 'Resposta inválida do servidor - não é um JSON válido';
+          await handleCallFailure(message);
+          return;
         }
       }
 
@@ -299,7 +324,8 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         }
         
         console.error('❌ Mensagem de erro final:', errorMessage);
-        throw new Error(errorMessage);
+        await handleCallFailure(errorMessage);
+        return;
       }
 
       console.log('✅ Chamada iniciada com sucesso:', result);
@@ -345,38 +371,46 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         }
         
         console.error('❌ Erro na resposta da API:', result);
-        throw new Error(errorMessage);
+        await handleCallFailure(errorMessage);
+        return;
       }
     } catch (error) {
-      console.error('❌ Erro geral ao iniciar chamada:', error);
-      console.error('❌ Stack trace:', error?.stack);
-      console.error('❌ Tipo do erro:', error?.constructor?.name);
+      const err = error as Error & { name?: string };
+      const errorMessage = typeof err?.message === 'string' ? err.message : '';
+      const errorName = typeof err?.name === 'string' ? err.name : err?.constructor?.name || 'Erro';
+      const errorStack = typeof err?.stack === 'string' ? err.stack : '';
+
+      console.error('❌ Erro geral ao iniciar chamada:', err);
+      if (errorStack) {
+        console.error('❌ Stack trace:', errorStack);
+      }
+      console.error('❌ Tipo do erro:', errorName);
       
       // Determinar mensagem de erro mais específica
       let userMessage = 'Não foi possível iniciar a chamada';
       
       // Tratamento específico para erros de Babel/JavaScript engine
-      if (error?.message?.includes('Reflect.construct') || 
-          error?.message?.includes('_construct') ||
-          error?.message?.includes('asyncToGenerator') ||
-          error?.stack?.includes('construct.js') ||
-          error?.stack?.includes('wrapNativeSuper.js')) {
+      if (errorMessage.includes('Reflect.construct') || 
+          errorMessage.includes('_construct') ||
+          errorMessage.includes('asyncToGenerator') ||
+          errorStack.includes('construct.js') ||
+          errorStack.includes('wrapNativeSuper.js')) {
         userMessage = 'Erro de compatibilidade do sistema. Reinicie o aplicativo e tente novamente.';
-        console.error('❌ Erro de compatibilidade JavaScript detectado:', error.message);
+        console.error('❌ Erro de compatibilidade JavaScript detectado:', errorMessage);
         
         // Resetar estado para permitir nova tentativa
         setCallState('idle');
         setCallMessage('');
         setCurrentCallId(null);
         return;
-      } else if (error?.message?.includes('criar registro da chamada')) {
+      } else if (errorMessage.includes('criar registro da chamada')) {
         userMessage = 'Erro ao criar registro da chamada. Verifique sua conexão e tente novamente.';
-        console.error('❌ Erro ao criar registro da chamada:', error.message);
-      } else if (error?.message) {
-        userMessage = error.message;
-      } else if (error?.name === 'TypeError') {
+        console.error('❌ Erro ao criar registro da chamada:', errorMessage);
+      } else if (errorMessage) {
+        userMessage = errorMessage;
+      } else if (errorName === 'TypeError') {
         userMessage = 'Erro de conexão com o servidor. Verifique sua internet.';
-      } else if (error?.name === 'NetworkError') {
+      } else if (errorName === 'NetworkError') {
         userMessage = 'Erro de rede. Verifique sua conexão com a internet.';
       }
       
@@ -681,7 +715,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     if (visible && callState === 'idle') {
       loadBuildingInfo();
     }
-  }, [visible, callState]);
+  }, [visible, callState, loadBuildingInfo]);
 
   // Effect para limpeza quando modal fecha
   useEffect(() => {
