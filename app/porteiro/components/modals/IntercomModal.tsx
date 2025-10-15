@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { audioService } from '~/services/audioService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,7 +22,7 @@ interface IntercomModalProps {
   onClose: () => void;
 }
 
-type CallState = 'idle' | 'calling' | 'connecting' | 'connected' | 'ended';
+type CallState = 'idle' | 'calling' | 'ringing' | 'connecting' | 'connected' | 'ended';
 
 export default function IntercomModal({ visible, onClose }: IntercomModalProps) {
   const { user } = useAuth();
@@ -39,6 +40,23 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Refs para WebRTC
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const webSocketRef = useRef<WebSocket | null>(null);
+  
+  // Listener para mudanças de estado da chamada para controlar áudio
+  useEffect(() => {
+    const handleCallStateChange = async () => {
+      if (callState === 'connected' || callState === 'ended') {
+        // Parar som de chamada quando conectar ou encerrar
+        await audioService.stopRingtone();
+        
+        if (callState === 'connected') {
+          // Iniciar timer quando conectar
+          startCallTimer();
+        }
+      }
+    };
+    
+    handleCallStateChange();
+  }, [callState]);
 
   // Carregar informações do prédio do porteiro
   const loadBuildingInfo = async () => {
@@ -144,6 +162,16 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setCallState('calling');
       setCallMessage('Validando apartamento...');
       
+      // Inicializar e tocar som de chamada com tratamento de erro
+      try {
+        await audioService.initialize();
+        await audioService.loadRingtone();
+        await audioService.playRingtone();
+      } catch (audioError) {
+        console.warn('⚠️ Erro ao inicializar áudio:', audioError);
+        // Continuar mesmo se o áudio falhar
+      }
+      
       // Validar apartamento
       const validation = await validateApartment(apartmentNumber.trim());
       if (!validation.valid) {
@@ -171,9 +199,20 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       setCallMessage(`Enviando notificações para ${residents.length} morador(es)...`);
       
       const apiUrl = process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com';
+      // Remover barra final da URL base se existir para evitar barra dupla
+      const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+      const fullUrl = `${baseUrl}/api/intercom/call`;
+      
+      console.log('🔗 URL da API configurada:', apiUrl);
+      console.log('🔗 URL completa da requisição:', fullUrl);
+      console.log('📋 Dados da requisição:', {
+        apartment_number: apartmentNumber.trim(),
+        doorman_id: user.id,
+        building_id: buildingId
+      });
       
       // Usar o endpoint correto da API de interfone
-      const response = await fetch(`${apiUrl}/api/intercom/call`, {
+      const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -186,41 +225,112 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Erro ao iniciar chamada:', errorData);
+      console.log('📡 Status da resposta:', response.status);
+      console.log('📡 Headers da resposta:', Object.fromEntries(response.headers.entries()));
+      
+      // Tentar fazer o parsing da resposta JSON primeiro
+      let result;
+      let errorData;
+      
+      try {
+        const responseText = await response.text();
+        console.log('📡 Texto bruto da resposta:', responseText);
+        console.log('📡 Tamanho da resposta:', responseText.length);
+        console.log('📡 Content-Type:', response.headers.get('content-type'));
         
-        // Tratamento específico de erros
-        if (response.status === 404) {
-          throw new Error(`Apartamento ${apartmentNumber} não encontrado ou sem moradores cadastrados`);
-        } else if (response.status === 400) {
-          throw new Error(errorData.error || 'Dados inválidos para a chamada');
-        } else if (response.status === 403) {
-          throw new Error('Acesso negado. Verifique se você tem permissão para realizar chamadas');
+        if (responseText.trim()) {
+          // Verificar se a resposta parece ser HTML (erro do servidor)
+          if (responseText.trim().startsWith('<')) {
+            console.error('❌ Servidor retornou HTML em vez de JSON:', responseText.substring(0, 200) + '...');
+            throw new Error('Servidor retornou uma página de erro HTML em vez de JSON. Verifique se a API está funcionando corretamente.');
+          }
+          
+          // Verificar se a resposta parece ser JSON válido
+          if (!responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+            console.error('❌ Resposta não parece ser JSON válido:', responseText.substring(0, 100) + '...');
+            throw new Error('Resposta do servidor não está no formato JSON esperado.');
+          }
+          
+          result = JSON.parse(responseText);
         } else {
-          throw new Error(errorData.error || `Erro ${response.status}: Não foi possível iniciar a chamada`);
+          console.warn('⚠️ Resposta vazia do servidor');
+          result = {};
+        }
+      } catch (parseError) {
+        console.error('❌ Erro ao fazer parsing da resposta JSON:', parseError);
+        console.error('❌ Tipo do erro:', parseError.constructor.name);
+        console.error('❌ Mensagem do erro:', parseError.message);
+        
+        // Verificar se é um erro de parsing JSON específico
+        if (parseError instanceof SyntaxError) {
+          throw new Error(`Erro de formato JSON: ${parseError.message}. O servidor pode estar retornando uma página de erro.`);
+        } else {
+          throw new Error('Resposta inválida do servidor - não é um JSON válido');
         }
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        console.error('❌ Erro ao iniciar chamada - Status:', response.status);
+        console.error('❌ Status Text:', response.statusText);
+        console.error('❌ URL da requisição:', fullUrl);
+        console.error('❌ Dados do erro:', result);
+        
+        // Tratamento específico de erros com mais detalhes
+        let errorMessage = '';
+        
+        if (response.status === 404) {
+          errorMessage = `Apartamento ${apartmentNumber} não encontrado ou sem moradores cadastrados`;
+        } else if (response.status === 400) {
+          errorMessage = result?.error || result?.message || 'Dados inválidos para a chamada';
+        } else if (response.status === 401) {
+          errorMessage = 'Token de autenticação inválido ou expirado. Faça login novamente.';
+        } else if (response.status === 403) {
+          errorMessage = 'Acesso negado. Verifique se você tem permissão para realizar chamadas';
+        } else if (response.status === 500) {
+          errorMessage = result?.error || result?.message || 'Erro interno do servidor - tente novamente';
+        } else if (response.status === 502) {
+          errorMessage = 'Servidor indisponível (Bad Gateway). Tente novamente em alguns minutos.';
+        } else if (response.status === 503) {
+          errorMessage = 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.';
+        } else if (response.status === 504) {
+          errorMessage = 'Timeout do servidor. A requisição demorou muito para ser processada.';
+        } else {
+          errorMessage = result?.error || result?.message || `Erro ${response.status} (${response.statusText}): Não foi possível iniciar a chamada`;
+        }
+        
+        console.error('❌ Mensagem de erro final:', errorMessage);
+        throw new Error(errorMessage);
+      }
+
       console.log('✅ Chamada iniciada com sucesso:', result);
       
-      if (result.success && result.callId) {
-        // Usar o callId retornado pela API
-        setCurrentCallId(result.callId);
-        setNotificationsSent(result.notificationsSent || residents.length);
+      if (result.success && (result.callId || result.call_id)) {
+        // Usar o callId retornado pela API (pode vir como callId ou call_id)
+        const callId = result.callId || result.call_id;
+        setCurrentCallId(callId);
+        setNotificationsSent(result.notificationsSent || result.notifications_sent || residents.length);
         setCallMessage(result.message || 'Chamada iniciada com sucesso');
-        setCallState('connecting');
+        
+        // Verificar se a chamada está no estado 'ringing' (aguardando resposta)
+        if (result.status === 'ringing') {
+          setCallState('ringing');
+          setCallMessage('Chamando morador... Aguardando resposta');
+          
+          // Continuar tocando som de chamada até o morador atender
+          // O som será parado quando o estado mudar para 'connected' ou 'ended'
+          
+          // Aguardar resposta do morador (será atualizado via WebSocket ou polling)
+          // Por enquanto, simular aguardo de resposta
+          console.log('📞 Aguardando morador atender...');
+        } else {
+          setCallState('connecting');
+        }
         
         // Mostrar feedback sobre notificações enviadas
-        console.log(`📱 ${result.notificationsSent || residents.length} notificações enviadas para o apartamento ${apartmentNumber}`);
-        
-        // Simular processo de conexão (aguardando resposta dos moradores)
-        setTimeout(() => {
-          setCallState('connected');
-          setCallMessage('Chamada em andamento');
-          startCallTimer();
-        }, 3000);
+        const notificationCount = result.notificationsSent || result.notifications_sent || residents.length;
+        console.log(`📱 ${notificationCount} notificações enviadas para o apartamento ${apartmentNumber}`);
+        console.log('📞 Call ID:', callId);
+        console.log('📞 Status:', result.status);
         
       } else {
         // Tratamento de erros específicos da API
@@ -228,7 +338,9 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         
         if (result.error) {
           errorMessage = result.error;
-        } else if (!result.callId) {
+        } else if (!result.success) {
+          errorMessage = result.message || 'Falha na API - success = false';
+        } else if (!result.callId && !result.call_id) {
           errorMessage = 'Resposta inválida da API - callId não encontrado';
         }
         
@@ -236,8 +348,48 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Erro ao iniciar chamada:', error);
-      Alert.alert('Erro', error.message || 'Não foi possível iniciar a chamada');
+      console.error('❌ Erro geral ao iniciar chamada:', error);
+      console.error('❌ Stack trace:', error?.stack);
+      console.error('❌ Tipo do erro:', error?.constructor?.name);
+      
+      // Determinar mensagem de erro mais específica
+      let userMessage = 'Não foi possível iniciar a chamada';
+      
+      // Tratamento específico para erros de Babel/JavaScript engine
+      if (error?.message?.includes('Reflect.construct') || 
+          error?.message?.includes('_construct') ||
+          error?.message?.includes('asyncToGenerator') ||
+          error?.stack?.includes('construct.js') ||
+          error?.stack?.includes('wrapNativeSuper.js')) {
+        userMessage = 'Erro de compatibilidade do sistema. Reinicie o aplicativo e tente novamente.';
+        console.error('❌ Erro de compatibilidade JavaScript detectado:', error.message);
+        
+        // Resetar estado para permitir nova tentativa
+        setCallState('idle');
+        setCallMessage('');
+        setCurrentCallId(null);
+        return;
+      } else if (error?.message?.includes('criar registro da chamada')) {
+        userMessage = 'Erro ao criar registro da chamada. Verifique sua conexão e tente novamente.';
+        console.error('❌ Erro ao criar registro da chamada:', error.message);
+      } else if (error?.message) {
+        userMessage = error.message;
+      } else if (error?.name === 'TypeError') {
+        userMessage = 'Erro de conexão com o servidor. Verifique sua internet.';
+      } else if (error?.name === 'NetworkError') {
+        userMessage = 'Erro de rede. Verifique sua conexão com a internet.';
+      }
+      
+      console.error('❌ Mensagem para o usuário:', userMessage);
+      Alert.alert('Erro', userMessage);
+      
+      // Parar som de chamada em caso de erro
+      try {
+        await audioService.stopRingtone();
+      } catch (audioError) {
+        console.error('❌ Erro ao parar som de chamada:', audioError);
+      }
+      
       setCallState('idle');
       setCallMessage('');
       setNotificationsSent(0);
@@ -305,6 +457,9 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     } catch (error) {
       console.error('Erro ao encerrar chamada:', error);
     } finally {
+      // Parar som de chamada
+      await audioService.stopRingtone();
+      
       // Limpar estado da chamada
       stopCallTimer();
       setCallState('ended');
@@ -449,6 +604,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       <View style={styles.callHeader}>
         <Text style={styles.callTitle}>
           {callState === 'calling' && 'Chamando...'}
+          {callState === 'ringing' && 'Tocando...'}
           {callState === 'connecting' && 'Conectando...'}
           {callState === 'connected' && 'Em chamada'}
           {callState === 'ended' && 'Chamada encerrada'}
@@ -478,9 +634,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         )}
       </View>
 
-      {callState === 'calling' || callState === 'connecting' ? (
+      {(callState === 'calling' || callState === 'ringing' || callState === 'connecting') ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4CAF50" />
+          {callState === 'ringing' && (
+            <Text style={styles.ringingText}>🔊 Som de chamada tocando</Text>
+          )}
         </View>
       ) : null}
 
@@ -801,5 +960,12 @@ const styles = StyleSheet.create({
   backspaceButtonText: {
     fontSize: 24,
     color: '#666',
+  },
+  ringingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#4CAF50',
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });
