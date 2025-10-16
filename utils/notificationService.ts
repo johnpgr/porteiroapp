@@ -1,7 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+
+const supabaseClient = supabase as any;
 
 // Configuração global de notificações
 Notifications.setNotificationHandler({
@@ -9,6 +12,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -60,9 +65,14 @@ export class NotificationService {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return null;
 
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-      });
+      const projectId =
+        process.env.EXPO_PUBLIC_PROJECT_ID ||
+        Constants?.expoConfig?.extra?.eas?.projectId ||
+        Constants?.easConfig?.projectId;
+
+      const tokenData = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      );
 
       const deviceInfo = {
         model: Device.modelName || 'Unknown',
@@ -89,22 +99,29 @@ export class NotificationService {
       const tokenData = await this.getDeviceToken();
       if (!tokenData) return false;
 
-      const { error } = await supabase
+      const timestamp = new Date().toISOString();
+
+      const { error } = await supabaseClient
         .from('user_notification_tokens')
-        .upsert({
-          user_id: userId,
-          device_type: tokenData.deviceType,
-          notification_token: tokenData.token,
-          device_info: tokenData.deviceInfo,
-        }, {
-          onConflict: 'user_id,notification_token'
-        });
+        .upsert(
+          {
+            user_id: userId,
+            device_type: tokenData.deviceType,
+            notification_token: tokenData.token,
+            device_info: tokenData.deviceInfo,
+            is_active: true,
+            last_used_at: timestamp,
+            updated_at: timestamp,
+          },
+          {
+            onConflict: 'user_id,notification_token',
+          },
+        );
 
       if (error) {
         console.error('Error registering token:', error);
         return false;
       }
-
 
       return true;
     } catch (error) {
@@ -114,13 +131,39 @@ export class NotificationService {
   }
 
   async updateTokenStatus(userId: string, isActive: boolean): Promise<void> {
-    if (!this.currentToken) return;
-
     try {
-      // Token status management removed - tokens are managed by presence
-      console.log('Token status update requested but not implemented');
+      const timestamp = new Date().toISOString();
+
+      const updatePayload = isActive
+        ? {
+            is_active: true,
+            updated_at: timestamp,
+            last_used_at: timestamp,
+          }
+        : {
+            is_active: false,
+            updated_at: timestamp,
+            deactivated_at: timestamp,
+          };
+
+      const { error } = await supabaseClient
+        .from('user_notification_tokens')
+        .update(updatePayload)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error updating token status:', error);
+      }
     } catch (error) {
       console.error('Error updating token status:', error);
+    }
+  }
+
+  async deactivateAllTokensForUser(userId: string): Promise<void> {
+    try {
+      await this.updateTokenStatus(userId, false);
+    } catch (error) {
+      console.error('Error deactivating tokens for user:', error);
     }
   }
 
@@ -148,7 +191,7 @@ export class NotificationService {
   private async handleNotificationReceived(notification: Notifications.Notification) {
     // Atualizar status para 'delivered'
     const notificationId = notification.request.content.data?.notificationId;
-    if (notificationId) {
+    if (typeof notificationId === 'string') {
       await this.updateNotificationStatus(notificationId, 'delivered');
     }
   }
@@ -157,7 +200,7 @@ export class NotificationService {
     const data = response.notification.request.content.data;
     
     // Marcar como lida
-    if (data?.notificationId) {
+    if (typeof data?.notificationId === 'string') {
       await this.updateNotificationStatus(data.notificationId, 'read');
     }
 
@@ -169,7 +212,7 @@ export class NotificationService {
 
   private async updateNotificationStatus(notificationId: string, status: string) {
     try {
-      await supabase
+      await supabaseClient
         .from('notifications')
         .update({ 
           status,
