@@ -116,11 +116,11 @@ serve(async (req) => {
 
         tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
       } else if (userType === 'porteiro') {
-        // Buscar porteiros na tabela admin_profiles
-        console.log('🔍 Buscando tokens de porteiros na tabela admin_profiles');
-        
+        // Buscar porteiros na tabela profiles
+        console.log('🔍 Buscando tokens de porteiros na tabela profiles');
+
         let query = supabase
-          .from('admin_profiles')
+          .from('profiles')
           .select('push_token, user_type, building_id')
           .not('push_token', 'is', null)
           .eq('is_active', true)
@@ -132,7 +132,7 @@ serve(async (req) => {
         }
 
         const { data, error } = await query;
-        
+
         if (error) {
           console.error('❌ Erro ao buscar tokens de porteiros:', error);
         } else {

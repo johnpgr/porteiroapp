@@ -561,6 +561,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePushToken = async (token: string) => {
     if (!user) return;
 
+    // Não atualiza se o token já é o mesmo
+    if (user.push_token === token) {
+      return;
+    }
+
     try {
       const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
 
@@ -569,7 +574,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .update({ push_token: token })
         .eq('user_id', user.id);
 
-      setUser({ ...user, push_token: token });
+      // Atualiza o estado sem criar um novo objeto se não necessário
+      setUser(prevUser => {
+        if (!prevUser || prevUser.push_token === token) {
+          return prevUser;
+        }
+        return { ...prevUser, push_token: token };
+      });
+
       console.log('🔔 Push token atualizado no estado do usuário');
     } catch (error) {
       console.error('🔔 Erro ao atualizar push token:', error);

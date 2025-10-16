@@ -59,6 +59,63 @@ interface RegistrarVisitanteProps {
   onConfirm?: (message: string) => void;
 }
 
+// Funções auxiliares para CPF
+const formatCPF = (value: string) => {
+  // Remove tudo que não é dígito
+  const cleanValue = value.replace(/\D/g, '');
+
+  // Limita a 11 dígitos
+  const limitedValue = cleanValue.slice(0, 11);
+
+  // Aplica a máscara XXX.XXX.XXX-XX
+  if (limitedValue.length <= 3) {
+    return limitedValue;
+  } else if (limitedValue.length <= 6) {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3)}`;
+  } else if (limitedValue.length <= 9) {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6)}`;
+  } else {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6, 9)}-${limitedValue.slice(9)}`;
+  }
+};
+
+const cleanCPF = (value: string) => {
+  return value.replace(/\D/g, '');
+};
+
+const isValidCPF = (cpf: string) => {
+  const cleanedCPF = cleanCPF(cpf);
+
+  // Verifica se tem exatamente 11 dígitos
+  if (cleanedCPF.length !== 11) {
+    return false;
+  }
+
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cleanedCPF)) {
+    return false;
+  }
+
+  // Validação básica do CPF
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanedCPF.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanedCPF.charAt(9))) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanedCPF.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanedCPF.charAt(10))) return false;
+
+  return true;
+};
+
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');

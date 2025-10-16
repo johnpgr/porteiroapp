@@ -27,22 +27,10 @@ interface Apartment {
   building_id: string;
 }
 
-interface Activity {
-  id: string;
-  visitor_name: string;
-  apartment_number: string;
-  building_name: string;
-  created_at: string;
-}
-
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalActivities, setTotalActivities] = useState(0);
-  const itemsPerPage = 5;
 
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
@@ -50,7 +38,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [currentPage]);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -70,41 +58,17 @@ export default function AdminDashboard() {
         console.log('Nenhum prédio encontrado para este administrador');
         setBuildings([]);
         setApartments([]);
-        setActivities([]);
         return;
       }
 
-      const [apartmentsData, activitiesData] = await Promise.all([
-        supabase
-          .from('apartments')
-          .select('*')
-          .in('building_id', buildingIds)
-          .order('number'),
-        supabase
-          .from('visitor_logs')
-          .select(`
-            *,
-            visitors(name),
-            apartments!inner(number, building_id),
-            buildings!inner(name)
-          `, { count: 'exact' })
-          .in('building_id', buildingIds)
-          .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
-          .order('created_at', { ascending: false }),
-      ]);
-      
+      const apartmentsData = await supabase
+        .from('apartments')
+        .select('*')
+        .in('building_id', buildingIds)
+        .order('number');
+
       setBuildings(adminBuildings || []);
       setApartments(apartmentsData.data || []);
-      setTotalActivities(activitiesData.count || 0);
-      setActivities(
-        (activitiesData.data || []).map((activity) => ({
-          id: activity.id,
-          visitor_name: activity.visitors?.name || 'Não identificado',
-          apartment_number: activity.apartments?.number || 'N/A',
-          building_name: activity.buildings?.name || 'Não identificado',
-          created_at: activity.created_at
-        }))
-      );
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     }
@@ -184,40 +148,6 @@ export default function AdminDashboard() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.activitiesContainer}>
-        <Text style={styles.sectionTitle}>Atividades Recentes</Text>
-        {activities.map((activity, index) => (
-          <View key={index} style={styles.activityItem}>
-            <Text style={styles.activityText}>
-              Visitante {activity.visitor_name} chegou para o apartamento{' '}
-              {activity.apartment_number} em {new Date(activity.created_at).toLocaleString('pt-BR')}{' '}
-              - {activity.building_name}
-            </Text>
-          </View>
-        ))}
-        
-        {totalActivities > itemsPerPage && (
-          <View style={styles.paginationContainer}>
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-              onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}>
-              <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>Anterior</Text>
-            </TouchableOpacity>
-            
-            <Text style={styles.paginationInfo}>
-              Página {currentPage} de {Math.ceil(totalActivities / itemsPerPage)}
-            </Text>
-            
-            <TouchableOpacity
-              style={[styles.paginationButton, currentPage >= Math.ceil(totalActivities / itemsPerPage) && styles.paginationButtonDisabled]}
-              onPress={() => setCurrentPage(prev => Math.min(Math.ceil(totalActivities / itemsPerPage), prev + 1))}
-              disabled={currentPage >= Math.ceil(totalActivities / itemsPerPage)}>
-              <Text style={[styles.paginationButtonText, currentPage >= Math.ceil(totalActivities / itemsPerPage) && styles.paginationButtonTextDisabled]}>Próximo</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
     </ScrollView>
   );
 
@@ -362,26 +292,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  activitiesContainer: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    color: '#333',
-  },
-  activityItem: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
-    elevation: 1,
-  },
-  activityText: {
-    fontSize: 14,
-    color: '#666',
   },
   cardsContainer: {
     flexDirection: 'row',
@@ -632,37 +542,6 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: 14,
     color: '#333',
-    fontWeight: '500',
-  },
-  paginationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-    paddingHorizontal: 10,
-  },
-  paginationButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  paginationButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  paginationButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  paginationButtonTextDisabled: {
-    color: '#999',
-  },
-  paginationInfo: {
-    fontSize: 14,
-    color: '#666',
     fontWeight: '500',
   },
 
