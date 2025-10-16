@@ -8,7 +8,7 @@ import { useColorScheme, Platform } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider } from '../hooks/useAuth';
-import { notificationService } from '../services/notificationService';
+// Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -25,35 +25,8 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-
-    const cleanup = notificationService.setupNotificationListeners(
-      (notification) => {
-      },
-      (response) => {
-        const data = response.notification.request.content.data;
-
-        // Navegar para tela apropriada baseado no tipo
-        if (data.type === 'visitor' && data.apartmentNumber) {
-          // Navegar para tela de visitantes
-          router.push('/morador/notifications');
-        } else if (data.type === 'delivery') {
-          // Navegar para tela de encomendas
-          router.push('/morador/notifications');
-        } else if (data.type === 'emergency') {
-          // Navegar para tela de emergências
-          router.push('/morador/emergency');
-        } else if (data.type === 'communication') {
-          // Navegar para tela de comunicações
-          router.push('/morador/notifications');
-        }
-      }
-    );
-
-    // Cleanup quando componente desmontar
-    return cleanup;
-  }, [router]);
+  // Removed old notification service setup - using Edge Functions for push notifications
+  // Navigation will be handled by the new push notification system
 
   if (!loaded) {
     return null;

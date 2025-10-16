@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import useEnhancedAvisosNotifications from '../hooks/useEnhancedAvisosNotifications';
-import { AvisoNotificationData, NotificationDeliveryStatus } from '../services/avisosNotificationService';
+// Removed old notification service - using Edge Functions for push notifications
+import { AvisoNotificationData } from '../hooks/useEnhancedAvisosNotifications';
 
 interface EnhancedNotificationsListProps {
   onNotificationPress?: (notification: AvisoNotificationData) => void;

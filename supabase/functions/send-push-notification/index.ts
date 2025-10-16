@@ -99,15 +99,49 @@ serve(async (req) => {
       ].filter(Boolean);
     } else if (userType || buildingId || apartmentIds) {
       // Buscar tokens por filtros
+      console.log(`🔍 Buscando tokens para userType: ${userType}, buildingId: ${buildingId}`);
+      
       if (userType === 'admin') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('admin_profiles')
           .select('push_token')
           .not('push_token', 'is', null)
           .eq('is_active', true);
 
+        if (error) {
+          console.error('❌ Erro ao buscar tokens admin:', error);
+        } else {
+          console.log(`📱 Encontrados ${data?.length || 0} tokens admin`);
+        }
+
+        tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
+      } else if (userType === 'porteiro') {
+        // Buscar porteiros na tabela admin_profiles
+        console.log('🔍 Buscando tokens de porteiros na tabela admin_profiles');
+        
+        let query = supabase
+          .from('admin_profiles')
+          .select('push_token, user_type, building_id')
+          .not('push_token', 'is', null)
+          .eq('is_active', true)
+          .eq('user_type', 'porteiro');
+
+        if (buildingId) {
+          query = query.eq('building_id', buildingId);
+          console.log(`🏢 Filtrando por building_id: ${buildingId}`);
+        }
+
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('❌ Erro ao buscar tokens de porteiros:', error);
+        } else {
+          console.log(`📱 Encontrados ${data?.length || 0} tokens de porteiros:`, data);
+        }
+
         tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
       } else {
+        // Para outros tipos de usuário (morador), buscar na tabela profiles
         let query = supabase
           .from('profiles')
           .select('push_token')

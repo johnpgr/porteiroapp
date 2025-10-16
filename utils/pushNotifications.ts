@@ -80,7 +80,7 @@ export async function notifyNewVisitor(params: {
 }) {
   return sendPushNotification({
     title: '🚪 Novo Visitante',
-    message: `${params.visitorName} deseja visitá-lo. Doc: ${params.visitorDocument}`,
+    message: `${params.visitorName} está aguardando autorização para entrar`,
     type: 'visitor',
     apartmentIds: params.apartmentIds,
     data: {

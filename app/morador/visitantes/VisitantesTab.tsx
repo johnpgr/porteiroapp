@@ -25,7 +25,7 @@ import {
   generateWhatsAppMessage,
   type ResidentData 
 } from '../../../utils/whatsapp';
-import { notificationService } from '../../../services/notificationService';
+// Removed old notification service - using Edge Functions for push notifications
 import * as Crypto from 'expo-crypto';
 
 // Funções de formatação

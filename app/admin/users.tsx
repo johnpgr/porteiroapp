@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import { supabase, adminAuth } from '../../utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { notificationService } from '../../services/notificationService';
+import { sendPushNotification } from '../../utils/pushNotifications';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -1847,10 +1847,11 @@ export default function UsersManagement() {
               profile_id: insertedUser.id, // Incluir profile_id obrigatório
               temporaryPassword: temporaryPassword // Incluir senha temporária
             };
-            const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword, whatsappBaseUrl);
-            if (!whatsappResult.success) {
-              errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
-            }
+            // WhatsApp functionality removed - using only Edge Functions for push notifications
+            // const whatsappResult = await sendWhatsAppMessage(residentDataWithPassword, whatsappBaseUrl);
+            // if (!whatsappResult.success) {
+            //   errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
+            // }
           }
         } catch (error) {
           errorCount++;
