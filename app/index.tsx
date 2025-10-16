@@ -41,8 +41,11 @@ export default function Home() {
     handleAutoRedirect();
   }, [user, loading]);
 
-  // Mostra loading enquanto verifica a sessão ou se está redirecionando usuário logado
-  if (loading || isCheckingSession) {
+  // Mostra loading enquanto:
+  // 1. AuthProvider está carregando (loading = true)
+  // 2. Está verificando sessão (isCheckingSession = true)
+  // 3. Usuário está logado (user existe) - nunca mostra tela de seleção
+  if (loading || isCheckingSession || user) {
     return (
       <LinearGradient
         colors={['#667eea', '#764ba2']}
