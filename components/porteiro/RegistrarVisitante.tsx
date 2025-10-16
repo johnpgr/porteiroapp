@@ -716,7 +716,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         notifyNewVisitor({
           visitorName: nomeVisitante,
           visitorDocument: cpfVisitante,
-          apartmentIds: [apartmentData.id],
+          apartmentIds: [selectedApartment.id],
           apartmentNumber: apartamento,
           visitorId: visitorId,
         }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
