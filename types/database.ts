@@ -197,7 +197,7 @@ export interface Database {
           apartment_id: string | null;
           visitor_type: 'comum' | 'frequente' | null;
           status: 'nao_permitido' | 'aprovado' | 'pendente' | null;
-          is_active: boolean | null;
+        
           visit_type: 'pontual' | 'frequente' | 'prestador_servico' | null;
           visit_date: string | null;
           visit_start_time: string | null;
@@ -220,7 +220,7 @@ export interface Database {
           visitor_type?: 'comum' | 'frequente' | null;
           status?: 'nao_permitido' | 'aprovado' | 'pendente' | null;
           is_active?: boolean | null;
-          visit_type?: 'pontual' | 'frequente' | 'prestador_servico' | null;
+          visit_type?: 'pontual' | 'frequente' | null;
           visit_date?: string | null;
           visit_start_time?: string | null;
           visit_end_time?: string | null;
@@ -242,7 +242,7 @@ export interface Database {
           visitor_type?: 'comum' | 'frequente' | null;
           status?: 'nao_permitido' | 'aprovado' | 'pendente' | null;
           is_active?: boolean | null;
-          visit_type?: 'pontual' | 'frequente' | 'prestador_servico' | null;
+          visit_type?: 'pontual' | 'frequente' | null;
           visit_date?: string | null;
           visit_start_time?: string | null;
           visit_end_time?: string | null;

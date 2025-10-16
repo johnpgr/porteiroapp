@@ -24,7 +24,9 @@ export default function AdminLayout() {
         <Stack.Screen name="users" />
         <Stack.Screen name="logs" />
         <Stack.Screen name="communications" />
-        <Stack.Screen name="lembretes" />
+        <Stack.Screen name="communications-create" />
+        <Stack.Screen name="polls" />
+        <Stack.Screen name="Notas" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="buildings" />
         <Stack.Screen name="emergency" />

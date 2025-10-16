@@ -105,12 +105,12 @@ export default function NovoLembrete() {
       await createLembrete(lembreteData);
       Alert.alert(
         'Sucesso',
-        'Lembrete criado com sucesso!',
+        'Nota criado com sucesso!',
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
-      console.error('Erro ao criar lembrete:', error);
-      Alert.alert('Erro', 'Falha ao criar lembrete. Tente novamente.');
+      console.error('Erro ao criar nota:', error);
+      Alert.alert('Erro', 'Falha ao criar nota. Tente novamente.');
     }
   };
 
@@ -210,7 +210,7 @@ export default function NovoLembrete() {
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Novo Lembrete</Text>
+        <Text style={styles.headerTitle}>Nova Nota</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -222,7 +222,7 @@ export default function NovoLembrete() {
               style={[styles.input, errors.titulo && styles.inputError]}
               value={formData.titulo}
               onChangeText={(text) => setFormData(prev => ({ ...prev, titulo: text }))}
-              placeholder="Digite o título do lembrete"
+              placeholder="Digite o título da Nota"
               maxLength={100}
             />
             {errors.titulo && <Text style={styles.errorText}>{errors.titulo}</Text>}
@@ -234,7 +234,7 @@ export default function NovoLembrete() {
               style={[styles.textArea, errors.descricao && styles.inputError]}
               value={formData.descricao}
               onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
-              placeholder="Descreva os detalhes do lembrete"
+              placeholder="Descreva os detalhes da Nota"
               multiline
               numberOfLines={4}
               textAlignVertical="top"
@@ -328,7 +328,7 @@ export default function NovoLembrete() {
           disabled={loading}
         >
           <Text style={styles.submitButtonText}>
-            {loading ? 'Criando...' : 'Criar Lembrete'}
+            {loading ? 'Criando...' : 'Criar Nota'}
           </Text>
         </TouchableOpacity>
       </View>
