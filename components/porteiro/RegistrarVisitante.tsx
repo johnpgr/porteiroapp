@@ -17,6 +17,7 @@ import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notifyNewVisitor } from '../../utils/pushNotifications';
+import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
 type FlowStep =
   | 'apartamento'
