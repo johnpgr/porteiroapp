@@ -12,10 +12,20 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
-import { adminAuth } from '~/utils/supabase';
+import { adminAuth, supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+interface BuildingAdmin {
+  id: string;
+  building_id: string;
+  admin_profile_id: string;
+  building: {
+    name: string;
+    address: string;
+  };
+}
 
 interface FormData {
   titulo: string;
@@ -24,6 +34,7 @@ interface FormData {
   prioridade: 'baixa' | 'media' | 'alta';
   data_vencimento: Date;
   notificar_antes: number;
+  building_admin_id: string;
 }
 
 const initialFormData: FormData = {
@@ -33,6 +44,7 @@ const initialFormData: FormData = {
   prioridade: 'media',
   data_vencimento: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
   notificar_antes: 60, // 1 hour
+  building_admin_id: '',
 };
 
 export default function NovoLembrete() {
@@ -43,6 +55,8 @@ export default function NovoLembrete() {
   const [showTipoPicker, setShowTipoPicker] = useState(false);
   const [showPrioridadePicker, setShowPrioridadePicker] = useState(false);
   const [showNotificacaoPicker, setShowNotificacaoPicker] = useState(false);
+  const [showBuildingPicker, setShowBuildingPicker] = useState(false);
+  const [buildingAdmins, setBuildingAdmins] = useState<BuildingAdmin[]>([]);
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
   useEffect(() => {
@@ -56,6 +70,39 @@ export default function NovoLembrete() {
         Alert.alert('Erro', 'Acesso negado');
         router.push('/');
         return;
+      }
+
+      // Load building_admins for the admin
+      const { data: buildingAdminsData, error } = await supabase
+        .from('building_admins')
+        .select(`
+          id,
+          building_id,
+          admin_profile_id,
+          buildings (
+            name,
+            address
+          )
+        `)
+        .eq('admin_profile_id', currentAdmin.id);
+
+      if (error) {
+        console.error('Erro ao buscar building_admins:', error);
+        return;
+      }
+
+      const buildingAdminsFormatted = buildingAdminsData?.map((item: any) => ({
+        id: item.id,
+        building_id: item.building_id,
+        admin_profile_id: item.admin_profile_id,
+        building: item.buildings
+      })) || [];
+
+      setBuildingAdmins(buildingAdminsFormatted);
+      
+      // Set the first building_admin as default if available
+      if (buildingAdminsFormatted.length > 0) {
+        setFormData(prev => ({ ...prev, building_admin_id: buildingAdminsFormatted[0].id }));
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
@@ -82,6 +129,10 @@ export default function NovoLembrete() {
       newErrors.notificar_antes = 0;
     }
 
+    if (!formData.building_admin_id) {
+      newErrors.building_admin_id = 'Prédio é obrigatório';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -100,6 +151,7 @@ export default function NovoLembrete() {
         prioridade: formData.prioridade,
         data_vencimento: formData.data_vencimento.toISOString(),
         antecedencia_alerta: formData.notificar_antes,
+        building_admin_id: formData.building_admin_id,
       };
 
       await createLembrete(lembreteData);
@@ -201,6 +253,11 @@ export default function NovoLembrete() {
     return prioridades[prioridade] || 'Média';
   };
 
+  const getBuildingName = (buildingAdminId: string) => {
+    const buildingAdmin = buildingAdmins.find((ba: any) => ba.id === buildingAdminId);
+    return buildingAdmin ? buildingAdmin.building.name : 'Selecionar prédio';
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -241,6 +298,20 @@ export default function NovoLembrete() {
               maxLength={500}
             />
             {errors.descricao && <Text style={styles.errorText}>{errors.descricao}</Text>}
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Prédio *</Text>
+            <TouchableOpacity
+              style={[styles.pickerButton, errors.building_admin_id && styles.inputError]}
+              onPress={() => setShowBuildingPicker(true)}
+            >
+              <Text style={styles.pickerButtonText}>
+                {getBuildingName(formData.building_admin_id)}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#6b7280" />
+            </TouchableOpacity>
+            {errors.building_admin_id && <Text style={styles.errorText}>{errors.building_admin_id}</Text>}
           </View>
 
           <View style={styles.formRow}>
@@ -556,6 +627,50 @@ export default function NovoLembrete() {
                     {item.label}
                   </Text>
                   {formData.notificar_antes === item.value && (
+                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Prédio */}
+      <Modal
+        visible={showBuildingPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBuildingPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Selecionar Prédio</Text>
+              <TouchableOpacity onPress={() => setShowBuildingPicker(false)}>
+                <Ionicons name="close" size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {buildingAdmins.map((buildingAdmin) => (
+                <TouchableOpacity
+                  key={buildingAdmin.id}
+                  style={[
+                    styles.modalOption,
+                    formData.building_admin_id === buildingAdmin.id && styles.modalOptionSelected
+                  ]}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, building_admin_id: buildingAdmin.id }));
+                    setShowBuildingPicker(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.modalOptionText,
+                    formData.building_admin_id === buildingAdmin.id && styles.modalOptionTextSelected
+                  ]}>
+                    {buildingAdmin.building.name}
+                  </Text>
+                  {formData.building_admin_id === buildingAdmin.id && (
                     <Ionicons name="checkmark" size={20} color="#3b82f6" />
                   )}
                 </TouchableOpacity>
