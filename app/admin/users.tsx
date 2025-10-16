@@ -16,7 +16,7 @@ import { router } from 'expo-router';
 import { supabase, adminAuth } from '../../utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { notificationService } from '../../services/notificationService';
+import { sendPushNotification } from '../../utils/pushNotifications';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -317,6 +317,7 @@ export default function UsersManagement() {
   // Estados para o modal de listagem de usuários
   const [showUserListModal, setShowUserListModal] = useState(false);
   const [userListFilter, setUserListFilter] = useState<'morador' | 'porteiro'>('morador');
+  const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   
   // Estados para modais de seleção de prédios
@@ -1847,10 +1848,11 @@ export default function UsersManagement() {
               profile_id: insertedUser.id, // Incluir profile_id obrigatório
               temporaryPassword: temporaryPassword // Incluir senha temporária
             };
-            const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword, whatsappBaseUrl);
-            if (!whatsappResult.success) {
-              errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
-            }
+            // WhatsApp functionality removed - using only Edge Functions for push notifications
+            // const whatsappResult = await sendWhatsAppMessage(residentDataWithPassword, whatsappBaseUrl);
+            // if (!whatsappResult.success) {
+            //   errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
+            // }
           }
         } catch (error) {
           errorCount++;
@@ -2346,25 +2348,75 @@ export default function UsersManagement() {
               </TouchableOpacity>
             </View>
 
+            {/* Filtro de Prédio */}
+            <View style={styles.buildingFilterContainer}>
+              <Text style={styles.buildingFilterLabel}>Filtrar por prédio:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.buildingFilterScroll}>
+                <TouchableOpacity
+                  style={[
+                    styles.buildingFilterButton,
+                    buildingFilter === null && styles.buildingFilterButtonActive
+                  ]}
+                  onPress={() => setBuildingFilter(null)}>
+                  <Text style={[
+                    styles.buildingFilterButtonText,
+                    buildingFilter === null && styles.buildingFilterButtonTextActive
+                  ]}>🏢 Todos</Text>
+                </TouchableOpacity>
+                {buildings.map((building) => (
+                  <TouchableOpacity
+                    key={building.id}
+                    style={[
+                      styles.buildingFilterButton,
+                      buildingFilter === building.id && styles.buildingFilterButtonActive
+                    ]}
+                    onPress={() => setBuildingFilter(building.id)}>
+                    <Text style={[
+                      styles.buildingFilterButtonText,
+                      buildingFilter === building.id && styles.buildingFilterButtonTextActive
+                    ]}>🏢 {building.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             {/* Lista de usuários filtrados */}
             <ScrollView style={styles.userListContainer}>
               {adminUsers
                 .filter(user => {
                   // Filter users based on role
                   if (user.role !== userListFilter) return false;
-                  
+
                   // For residents, check if they have apartments in admin's buildings
                   if (user.role === 'morador') {
-                    return user.apartments && user.apartments.some(apt => 
+                    const hasApartmentsInBuildings = user.apartments && user.apartments.some(apt =>
                       buildings.some(building => building.id === apt.apartment?.building_id)
                     );
+
+                    if (!hasApartmentsInBuildings) return false;
+
+                    // Apply building filter if selected
+                    if (buildingFilter) {
+                      return user.apartments.some(apt => apt.apartment?.building_id === buildingFilter);
+                    }
+
+                    return true;
                   }
-                  
+
                   // For doormen, check if they are assigned to admin's buildings
                   if (user.role === 'porteiro') {
-                    return buildings.some(building => building.id === user.building_id);
+                    const isInAdminBuildings = buildings.some(building => building.id === user.building_id);
+
+                    if (!isInAdminBuildings) return false;
+
+                    // Apply building filter if selected
+                    if (buildingFilter) {
+                      return user.building_id === buildingFilter;
+                    }
+
+                    return true;
                   }
-                  
+
                   return false;
                 })
                 .map((user) => (
@@ -2398,14 +2450,48 @@ export default function UsersManagement() {
                   </View>
                 ))
               }
-              {adminUsers.filter(user => user.role === userListFilter).length === 0 && (
-                <View style={styles.emptyListState}>
-                  <Text style={styles.emptyListIcon}>{userListFilter === 'morador' ? '🏠' : '🛡️'}</Text>
-                  <Text style={styles.emptyListText}>
-                    Nenhum {userListFilter} cadastrado ainda
-                  </Text>
-                </View>
-              )}
+              {(() => {
+                const filteredUsers = adminUsers.filter(user => {
+                  if (user.role !== userListFilter) return false;
+                  if (user.role === 'morador') {
+                    const hasApartmentsInBuildings = user.apartments && user.apartments.some(apt =>
+                      buildings.some(building => building.id === apt.apartment?.building_id)
+                    );
+                    if (!hasApartmentsInBuildings) return false;
+                    if (buildingFilter) {
+                      return user.apartments.some(apt => apt.apartment?.building_id === buildingFilter);
+                    }
+                    return true;
+                  }
+                  if (user.role === 'porteiro') {
+                    const isInAdminBuildings = buildings.some(building => building.id === user.building_id);
+                    if (!isInAdminBuildings) return false;
+                    if (buildingFilter) {
+                      return user.building_id === buildingFilter;
+                    }
+                    return true;
+                  }
+                  return false;
+                });
+
+                if (filteredUsers.length === 0) {
+                  const buildingName = buildingFilter
+                    ? buildings.find(b => b.id === buildingFilter)?.name
+                    : null;
+
+                  return (
+                    <View style={styles.emptyListState}>
+                      <Text style={styles.emptyListIcon}>{userListFilter === 'morador' ? '🏠' : '🛡️'}</Text>
+                      <Text style={styles.emptyListText}>
+                        {buildingFilter && buildingName
+                          ? `Nenhum ${userListFilter} cadastrado no prédio ${buildingName}`
+                          : `Nenhum ${userListFilter} cadastrado ainda`}
+                      </Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -3206,6 +3292,39 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   toggleButtonTextActive: {
+    color: '#fff',
+  },
+  buildingFilterContainer: {
+    marginBottom: 16,
+  },
+  buildingFilterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  buildingFilterScroll: {
+    flexGrow: 0,
+  },
+  buildingFilterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  buildingFilterButtonActive: {
+    backgroundColor: '#FF9800',
+    borderColor: '#FF9800',
+  },
+  buildingFilterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  buildingFilterButtonTextActive: {
     color: '#fff',
   },
   userListContainer: {

@@ -16,59 +16,8 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { notificationApi } from '../../services/notificationApi';
+import { notifyNewVisitor } from '../../utils/pushNotifications';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
-
-// Funções utilitárias para formatação e validação de CPF
-const formatCPF = (value: string): string => {
-  // Remove todos os caracteres não numéricos
-  const numericOnly = value.replace(/\D/g, '');
-  
-  // Limita a 11 dígitos
-  const limited = numericOnly.slice(0, 11);
-  
-  // Aplica a máscara XXX.XXX.XXX-XX
-  if (limited.length <= 3) {
-    return limited;
-  } else if (limited.length <= 6) {
-    return `${limited.slice(0, 3)}.${limited.slice(3)}`;
-  } else if (limited.length <= 9) {
-    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6)}`;
-  } else {
-    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6, 9)}-${limited.slice(9)}`;
-  }
-};
-
-const isValidCPF = (cpf: string): boolean => {
-  // Remove caracteres não numéricos
-  const numericOnly = cpf.replace(/\D/g, '');
-  
-  // Verifica se tem exatamente 11 dígitos
-  if (numericOnly.length !== 11) return false;
-  
-  // Verifica se todos os dígitos são iguais (CPF inválido)
-  if (/^(\d)\1{10}$/.test(numericOnly)) return false;
-  
-  // Validação do primeiro dígito verificador
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(numericOnly.charAt(i)) * (10 - i);
-  }
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numericOnly.charAt(9))) return false;
-  
-  // Validação do segundo dígito verificador
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(numericOnly.charAt(i)) * (11 - i);
-  }
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numericOnly.charAt(10))) return false;
-  
-  return true;
-};
 
 type FlowStep =
   | 'apartamento'
@@ -109,6 +58,63 @@ interface RegistrarVisitanteProps {
   onClose: () => void;
   onConfirm?: (message: string) => void;
 }
+
+// Funções auxiliares para CPF
+const formatCPF = (value: string) => {
+  // Remove tudo que não é dígito
+  const cleanValue = value.replace(/\D/g, '');
+
+  // Limita a 11 dígitos
+  const limitedValue = cleanValue.slice(0, 11);
+
+  // Aplica a máscara XXX.XXX.XXX-XX
+  if (limitedValue.length <= 3) {
+    return limitedValue;
+  } else if (limitedValue.length <= 6) {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3)}`;
+  } else if (limitedValue.length <= 9) {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6)}`;
+  } else {
+    return `${limitedValue.slice(0, 3)}.${limitedValue.slice(3, 6)}.${limitedValue.slice(6, 9)}-${limitedValue.slice(9)}`;
+  }
+};
+
+const cleanCPF = (value: string) => {
+  return value.replace(/\D/g, '');
+};
+
+const isValidCPF = (cpf: string) => {
+  const cleanedCPF = cleanCPF(cpf);
+
+  // Verifica se tem exatamente 11 dígitos
+  if (cleanedCPF.length !== 11) {
+    return false;
+  }
+
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{10}$/.test(cleanedCPF)) {
+    return false;
+  }
+
+  // Validação básica do CPF
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanedCPF.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanedCPF.charAt(9))) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cleanedCPF.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(cleanedCPF.charAt(10))) return false;
+
+  return true;
+};
 
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const { user } = useAuth();
@@ -197,25 +203,34 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       </View>
 
       <View style={styles.keypad}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
-          <TouchableOpacity
-            key={num}
-            style={styles.keypadButton}
-            onPress={() => setValue(value + num.toString())}>
-            <Text style={styles.keypadButtonText}>{num}</Text>
-          </TouchableOpacity>
-        ))}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✓'].map((item, index) => {
+          const isBackspace = item === '⌫';
+          const isConfirm = item === '✓';
+          const num = typeof item === 'number' ? item : null;
 
-        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
-          <Text style={styles.keypadButtonText}>⌫</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={flattenStyles([styles.keypadButton, styles.confirmButton])}
-          onPress={onNext}
-          disabled={!value}>
-          <Text style={styles.confirmButtonText}>✓</Text>
-        </TouchableOpacity>
+          return (
+            <TouchableOpacity
+              key={index}
+              style={flattenStyles([
+                styles.keypadButton,
+                isConfirm && styles.confirmButton
+              ])}
+              onPress={() => {
+                if (isBackspace) {
+                  setValue(value.slice(0, -1));
+                } else if (isConfirm) {
+                  onNext();
+                } else if (num !== null) {
+                  setValue(value + num.toString());
+                }
+              }}
+              disabled={isConfirm && !value}>
+              <Text style={isConfirm ? styles.confirmButtonText : styles.keypadButtonText}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -238,12 +253,42 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   const renderApartamentoStep = () => {
-    const floorGroups = groupApartmentsByFloor();
-    
+    const handleApartmentConfirm = () => {
+      if (!apartamento) {
+        Alert.alert('Erro', 'Digite o número do apartamento.');
+        return;
+      }
+
+      // Buscar o apartamento pelo número digitado
+      const foundApartment = availableApartments.find(
+        (apt) => apt.number === apartamento
+      );
+
+      if (!foundApartment) {
+        Alert.alert(
+          'Erro',
+          `Apartamento ${apartamento} não encontrado. Verifique o número e tente novamente.`
+        );
+        return;
+      }
+
+      if (!foundApartment.id) {
+        Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+        return;
+      }
+
+      setSelectedApartment(foundApartment);
+      console.log('Apartamento selecionado com sucesso:', {
+        id: foundApartment.id,
+        number: foundApartment.number,
+      });
+      setCurrentStep('tipo');
+    };
+
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-        <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+        <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
         {isLoadingApartments ? (
           <View style={styles.loadingContainer}>
@@ -253,56 +298,12 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         ) : availableApartments.length === 0 ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-            <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
+            <Text style={styles.errorText}>
+              Não há apartamentos cadastrados neste prédio.
+            </Text>
           </View>
         ) : (
-          <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-            {floorGroups.map(({ floor, apartments }) => (
-              <View key={floor} style={styles.floorSection}>
-                <TouchableOpacity
-                  style={[
-                    styles.floorButton,
-                    selectedFloor === floor && styles.floorButtonSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedFloor(selectedFloor === floor ? null : floor);
-                  }}>
-                  <Text style={styles.floorButtonText}>
-                    {floor}º andar ({apartments?.length || 0} apartamentos)
-                  </Text>
-                  <Text style={styles.floorButtonIcon}>
-                    {selectedFloor === floor ? '▼' : '▶'}
-                  </Text>
-                </TouchableOpacity>
-                
-                {selectedFloor === floor && (
-                  <View style={styles.apartmentsGrid}>
-                    {apartments.map((apartment) => (
-                      <TouchableOpacity
-                        key={apartment.id}
-                        style={[
-                          styles.apartmentButton,
-                          selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
-                        ]}
-                        onPress={() => {
-                          if (!apartment.id) {
-                            Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
-                            return;
-                          }
-                          setSelectedApartment(apartment);
-                          setApartamento(apartment.number);
-                          console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                          setCurrentStep('tipo');
-                        }}>
-                        <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
+          renderNumericKeypad(apartamento, setApartamento, handleApartmentConfirm)
         )}
       </View>
     );
@@ -768,58 +769,16 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-        // Notificação removida - usava métodos inexistentes
+        // Enviar notificação push para os moradores do apartamento (não bloqueia o fluxo)
+        notifyNewVisitor({
+          visitorName: nomeVisitante,
+          visitorDocument: cpfVisitante,
+          apartmentIds: [selectedApartment.id],
+          apartmentNumber: apartamento,
+          visitorId: visitorId,
+        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
 
-        // Enviar notificação via API (WhatsApp)
-        try {
-          // Buscar dados do morador proprietário
-          const { data: residentData, error: residentError } = await supabase
-            .from('apartments')
-            .select(`
-              apartment_residents!inner(
-                profiles!inner(
-                  full_name,
-                  phone,
-                  email
-                ),
-                is_owner
-              ),
-              buildings!inner(
-                name
-              )
-            `)
-            .eq('id', selectedApartment.id)
-            .eq('apartment_residents.is_owner', true)
-            .single();
-
-          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
-            const resident = residentData.apartment_residents[0];
-            const building = residentData.buildings;
-            
-            if (resident.profiles.phone && building) {
-              await notificationApi.sendVisitorAuthorization({
-                visitorName: nomeVisitante,
-                residentName: resident.profiles.full_name,
-                residentPhone: resident.profiles.phone,
-                residentEmail: resident.profiles.email || '',
-                building: building.name,
-                apartment: selectedApartment.number
-              });
-              
-              console.log('Mensagem de autorização WhatsApp enviada com sucesso');
-            } else {
-              console.warn('Dados insuficientes para enviar notificação via API');
-            }
-          }
-        } catch (apiError) {
-          console.error('Erro ao enviar notificação via API:', apiError);
-          // Não bloquear o fluxo se a notificação via API falhar
-        }
-
-        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
-
-        // Reset form after successful registration
-        resetForm();
+        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
 
         if (onConfirm) {
           onConfirm(message);
@@ -1050,7 +1009,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 15,
+    width: '100%',
+    maxWidth: 240,
+    alignSelf: 'center',
+    gap: 10,
   },
   keypadButton: {
     width: 70,
@@ -1066,7 +1028,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   keypadButtonText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -1075,7 +1037,7 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   optionsContainer: {

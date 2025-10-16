@@ -19,6 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { VisitorCard } from '../../components/VisitorCard';
 import { flattenStyles } from '../../utils/styles';
 import BottomNav from '../../components/BottomNav';
+import { notifyPorteiroVisitorAuthorized } from '../../utils/pushNotifications';
 
 interface Visitor {
   id: string;
@@ -87,6 +88,7 @@ export default function AuthorizeScreen() {
     try {
       const newStatus = actionType === 'approve' ? 'approved' : 'denied';
 
+      // Atualizar status do visitante
       const { error } = await supabase
         .from('visitors')
         .update({
@@ -98,7 +100,7 @@ export default function AuthorizeScreen() {
 
       if (error) throw error;
 
-      // Criar log da atividade
+      // Buscar dados do apartamento incluindo building_id
       const { data: apartmentData } = await supabase
         .from('apartments')
         .select('id, building_id')
@@ -106,29 +108,44 @@ export default function AuthorizeScreen() {
         .maybeSingle();
 
       if (apartmentData) {
-         await supabase.from('visitor_logs').insert({
-           visitor_id: selectedVisitor.id,
-           apartment_id: apartmentData.id,
-           building_id: apartmentData.building_id,
-           log_time: new Date().toISOString(),
-           tipo_log: 'IN',
-           visit_session_id: Crypto.randomUUID(),
-           purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
-           authorized_by: user.id,
-           status: newStatus,
-           notification_status: actionType === 'approve' ? 'approved' : 'rejected'
-         });
-       }
+        // Criar log da atividade
+        await supabase.from('visitor_logs').insert({
+          visitor_id: selectedVisitor.id,
+          apartment_id: apartmentData.id,
+          building_id: apartmentData.building_id,
+          log_time: new Date().toISOString(),
+          tipo_log: 'IN',
+          visit_session_id: Crypto.randomUUID(),
+          purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
+          authorized_by: user.id,
+          status: newStatus,
+          notification_status: actionType === 'approve' ? 'approved' : 'rejected'
+        });
 
-      // Criar notificação para o porteiro
-      await supabase.from('communications').insert({
-        title: `Visitante ${actionType === 'approve' ? 'Aprovado' : 'Negado'}`,
-        message: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${selectedVisitor.apartment_number}`,
-        type: 'visitor',
-        priority: 'medium',
-        target_user_type: 'porteiro',
-        created_by: user.id,
-      });
+        // Criar notificação para o porteiro na tabela communications
+        await supabase.from('communications').insert({
+          title: `Visitante ${actionType === 'approve' ? 'Aprovado' : 'Negado'}`,
+          message: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${selectedVisitor.apartment_number}`,
+          type: 'visitor',
+          priority: 'medium',
+          target_user_type: 'porteiro',
+          created_by: user.id,
+        });
+
+        // Enviar notificação push para o porteiro
+        try {
+          await notifyPorteiroVisitorAuthorized({
+            visitorName: selectedVisitor.name,
+            apartmentNumber: selectedVisitor.apartment_number,
+            buildingId: apartmentData.building_id,
+            visitorId: selectedVisitor.id
+          });
+          console.log('Notificação push enviada para o porteiro com sucesso');
+        } catch (pushError) {
+          console.error('Erro ao enviar notificação push para o porteiro:', pushError);
+          // Não interrompe o fluxo principal se a notificação push falhar
+        }
+      }
 
       Alert.alert(
         'Sucesso',

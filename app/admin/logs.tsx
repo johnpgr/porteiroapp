@@ -94,7 +94,6 @@ export default function SystemLogs() {
   const [logSearchType] = useState('all'); // 'all', 'morador', 'porteiro', 'predio', 'acao'
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [logBuildingFilter, setLogBuildingFilter] = useState('');
-  const [logMovementFilter, setLogMovementFilter] = useState('all');
   const [logDateFilter, setLogDateFilter] = useState({
     start: null as Date | null,
     end: null as Date | null,
@@ -121,7 +120,6 @@ export default function SystemLogs() {
     logSearchType,
     logSearchQuery,
     logBuildingFilter,
-    logMovementFilter,
     logDateFilter,
     logs,
   ]);
@@ -261,18 +259,6 @@ export default function SystemLogs() {
     // Filtro por prédio
     if (logBuildingFilter) {
       filtered = filtered.filter((log) => log.building_name === logBuildingFilter);
-    }
-
-    // Filtro por tipo de movimentação
-    if (logMovementFilter !== 'all') {
-      filtered = filtered.filter((log) => {
-        if (logMovementFilter === 'entrada') {
-          return log.tipo_log === 'IN';
-        } else if (logMovementFilter === 'saida') {
-          return log.tipo_log === 'OUT';
-        }
-        return true;
-      });
     }
 
     // Filtro por período
@@ -426,41 +412,6 @@ export default function SystemLogs() {
 
           </View>
 
-          <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[styles.tabButton, logMovementFilter === 'all' && styles.tabButtonActive]}
-              onPress={() => setLogMovementFilter('all')}>
-              <Text
-                style={[
-                  styles.tabButtonText,
-                  logMovementFilter === 'all' && styles.tabButtonTextActive,
-                ]}>
-                Todos
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabButton, logMovementFilter === 'entrada' && styles.tabButtonActive]}
-              onPress={() => setLogMovementFilter('entrada')}>
-              <Text
-                style={[
-                  styles.tabButtonText,
-                  logMovementFilter === 'entrada' && styles.tabButtonTextActive,
-                ]}>
-                Entrada
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabButton, logMovementFilter === 'saida' && styles.tabButtonActive]}
-              onPress={() => setLogMovementFilter('saida')}>
-              <Text
-                style={[
-                  styles.tabButtonText,
-                  logMovementFilter === 'saida' && styles.tabButtonTextActive,
-                ]}>
-                Saída
-              </Text>
-            </TouchableOpacity>
-          </View>
 
           <View style={styles.logsContainer}>
             <ScrollView style={styles.logsList}>

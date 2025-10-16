@@ -1,35 +1,65 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../hooks/useAuth';
 import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
 
 export default function Home() {
-  const { checkAndRedirectUser, loading } = useAuth();
+  const { user, loading } = useAuth();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
-  // Verifica sessão ativa e redireciona automaticamente na inicialização
   useEffect(() => {
     const handleAutoRedirect = async () => {
-      // Aguarda um pouco para garantir que o AuthProvider foi inicializado
-      setTimeout(async () => {
-        await checkAndRedirectUser();
-      }, 1000);
+      // Aguarda o loading do AuthProvider terminar
+      if (!loading) {
+        // Se há usuário logado, redireciona diretamente
+        if (user) {
+          // Mantém splash screen visível por mais tempo
+          await new Promise(resolve => setTimeout(resolve, 2500));
+
+          // Redireciona para a página correta
+          switch (user.user_type) {
+            case 'admin':
+              router.replace('/admin');
+              break;
+            case 'porteiro':
+              router.replace('/porteiro');
+              break;
+            case 'morador':
+              router.replace('/morador');
+              break;
+          }
+        } else {
+          // Sem usuário logado - mostra a tela de seleção
+          setIsCheckingSession(false);
+        }
+      }
     };
 
     handleAutoRedirect();
-  }, [checkAndRedirectUser]);
+  }, [user, loading]);
 
-  // Mostra loading enquanto verifica a sessão
-  if (loading) {
+  // Mostra loading enquanto:
+  // 1. AuthProvider está carregando (loading = true)
+  // 2. Está verificando sessão (isCheckingSession = true)
+  // 3. Usuário está logado (user existe) - nunca mostra tela de seleção
+  if (loading || isCheckingSession || user) {
     return (
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.container}
       >
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Verificando sessão...</Text>
+          <Image
+            source={require('~/assets/logo-james.png')}
+            style={styles.loadingLogo}
+            alt="James Logo"
+          />
+          <Text style={styles.loadingText}>
+            {loading ? 'Verificando sessão...' : 'Redirecionando...'}
+          </Text>
         </View>
       </LinearGradient>
     );
@@ -106,6 +136,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingLogo: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
   },
   loadingText: {
     fontSize: 18,

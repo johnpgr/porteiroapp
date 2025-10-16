@@ -18,8 +18,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { usePorteiroNotifications } from '~/hooks/usePorteiroNotifications';
 import * as Notifications from 'expo-notifications';
 
-console.log('🚀 AUTORIZACOES TAB LOADED');
-
 // Função para verificar se uma string é um UUID válido
 const isValidUUID = (str: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -804,12 +802,42 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
 
       // Verificar se há restrições de horário
-      if (autorizacao.visit_start_time && autorizacao.visit_end_time) {
-        if (currentTime < autorizacao.visit_start_time || currentTime > autorizacao.visit_end_time) {
+      const isOutsideAllowedTime = autorizacao.visit_start_time && autorizacao.visit_end_time &&
+        (currentTime < autorizacao.visit_start_time || currentTime > autorizacao.visit_end_time);
+
+      if (isOutsideAllowedTime) {
+        // Para visitantes pré-autorizados fora do horário, exibir pop-up de confirmação
+        const allowDirectAccess = autorizacao.allow_direct_access === true;
+
+        // Criar promise para aguardar resposta do usuário
+        const userConfirmed = await new Promise<boolean>((resolve) => {
           Alert.alert(
-            'Horário não permitido',
-            `Este visitante só pode entrar entre ${autorizacao.visit_start_time} e ${autorizacao.visit_end_time}.\n\nHorário atual: ${currentTime}`
+            'Fora do Horário Permitido',
+            `Este visitante só pode entrar entre ${autorizacao.visit_start_time} e ${autorizacao.visit_end_time}.\n\nHorário atual: ${currentTime}\n\n${allowDirectAccess ? 'Tem certeza que deseja liberar a entrada direta?' : 'Tem certeza que deseja avisar o morador?'}`,
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+                onPress: () => {
+                  console.log('❌ Entrada cancelada - fora do horário permitido');
+                  resolve(false);
+                }
+              },
+              {
+                text: 'Confirmar',
+                style: 'default',
+                onPress: () => {
+                  console.log('✅ Entrada confirmada pelo porteiro - fora do horário');
+                  resolve(true);
+                }
+              }
+            ],
+            { cancelable: false }
           );
+        });
+
+        // Se o usuário cancelou, interromper a execução
+        if (!userConfirmed) {
           return;
         }
       }
@@ -1203,21 +1231,29 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         const isPending = visit.status === 'pendente';
         const isExpired = visit.status === 'negado';
         const visitorName = visit.name || 'Visitante';
+        const allowDirectAccess = visit.allow_direct_access === true;
+
+        // Determinar o status exibido
+        let displayStatus = isApproved ? 'Respondido' : isPending ? 'Aguardando aprovação' : 'Negado';
+        if (isApproved && allowDirectAccess) {
+          displayStatus = 'Liberação Direta';
+        }
 
         return {
           id: visit.id,
           type: 'visit',
           title: `👤 ${visitorName}`,
           subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: isApproved ? 'Aprovado' : isPending ? 'Aguardando aprovação' : 'Negado',
+          status: displayStatus,
           time: formatDate(visit.visit_date || visit.created_at),
-          icon: isApproved ? '✅' : isPending ? '⏳' : '❌',
-          color: isApproved ? '#4CAF50' : isPending ? '#FF9800' : '#F44336',
+          icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
+          color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
           photo_url: visit.photo_url,
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
             `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+            ...(allowDirectAccess ? ['🚀 Pode subir direto (não precisa avisar morador)'] : []),
             ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
             ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
@@ -1226,7 +1262,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
             primary: {
               label: 'Confirmar Entrada',
               action: () => confirmarChegada(visit),
-              color: '#4CAF50'
+              color: allowDirectAccess ? '#2196F3' : '#4CAF50'
             }
           } : undefined
         };
@@ -1336,7 +1372,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
     switch (notificationStatus?.toLowerCase()) {
       case 'approved':
         return {
-          text: 'Aprovado',
+          text: 'Respondido',
           color: '#4CAF50',
           icon: '✅'
         };
@@ -1391,7 +1427,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       const activity = activities.find(a => a.id === activityId);
       if (!activity) return;
 
-      // Buscar dados do visitante para verificar o access_type
+      // Buscar dados do visitante para verificar o access_type e horários
       const { data: visitorData, error: visitorError } = await supabase
         .from('visitors')
         .select('*, apartments(number)')
@@ -1402,6 +1438,44 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         console.error('Erro ao buscar dados do visitante:', visitorError);
         Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
         return;
+      }
+
+      // Verificar se está fora do horário permitido
+      if (visitorData.visit_start_time && visitorData.visit_end_time) {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        const isOutsideAllowedTime =
+          currentTime < visitorData.visit_start_time ||
+          currentTime > visitorData.visit_end_time;
+
+        if (isOutsideAllowedTime) {
+          // Mostrar popup de confirmação
+          const userConfirmed = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Fora do Horário Permitido',
+              `Este visitante só pode entrar entre ${visitorData.visit_start_time} e ${visitorData.visit_end_time}.\n\nHorário atual: ${currentTime}\n\nTem certeza que deseja avisar o morador?`,
+              [
+                {
+                  text: 'Cancelar',
+                  style: 'cancel',
+                  onPress: () => resolve(false)
+                },
+                {
+                  text: 'Confirmar',
+                  style: 'default',
+                  onPress: () => resolve(true)
+                }
+              ],
+              { cancelable: false }
+            );
+          });
+
+          // Se o usuário cancelou, sair da função
+          if (!userConfirmed) {
+            return;
+          }
+        }
       }
 
       // Função para gerar UUID compatível com React Native
