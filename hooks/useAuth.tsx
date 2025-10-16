@@ -10,12 +10,8 @@ import React, {
 import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
 import { supabase } from '../utils/supabase';
-<<<<<<< Updated upstream
 import { TokenStorage } from '../services/TokenStorage';
-// import { notificationService } from '../services/notificationService'; // DESABILITADO TEMPORARIAMENTE
-=======
 import { notificationService } from '../services/notificationService';
->>>>>>> Stashed changes
 
 export interface AuthUser {
   id: string;
@@ -33,14 +29,10 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
-<<<<<<< Updated upstream
   refreshSession: () => Promise<boolean>;
   isSessionValid: () => Promise<boolean>;
   checkAndRedirectUser: () => Promise<void>;
-  // updatePushToken: (token: string) => Promise<void>; // DESABILITADO TEMPORARIAMENTE
-=======
   updatePushToken: (token: string) => Promise<void>;
->>>>>>> Stashed changes
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -269,30 +261,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Primeiro verifica se há uma sessão salva localmente
       const hasStoredToken = await TokenStorage.hasValidToken();
-      
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      
+
       if (session?.user) {
         // Só salva o token se não há um token válido armazenado ou se é diferente
         if (session.access_token && !hasStoredToken) {
           await TokenStorage.saveToken(session.access_token, SESSION_DURATION / 1000);
         }
-        
+
         await loadUserProfile(session.user);
-        
+
         // Inicia sistemas de manutenção da sessão
         scheduleTokenRefresh();
         startHeartbeat();
       } else if (hasStoredToken) {
         // Tenta fazer refresh da sessão
         const refreshSuccess = await refreshSession();
-        
+
         if (refreshSuccess) {
           // Tenta novamente obter a sessão
           const { data: { session: newSession } } = await supabase.auth.getSession();
-          
+
           if (newSession?.user) {
             await loadUserProfile(newSession.user);
             scheduleTokenRefresh();
@@ -549,21 +541,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await loadUserProfile(data.user);
 
-<<<<<<< Updated upstream
       // Inicia sistemas de manutenção da sessão
       scheduleTokenRefresh();
       startHeartbeat();
 
-      // PUSH NOTIFICATIONS DESABILITADAS TEMPORARIAMENTE
-      // try {
-      //   const pushToken = await notificationService.registerForPushNotifications();
-      //   if (pushToken) {
-      //     await updatePushToken(pushToken);
-      //   }
-      // } catch (pushError) {
-      //   console.warn('Erro ao registrar push token:', pushError);
-      // }
-=======
       // Registrar push token em segundo plano (não bloqueia login)
       try {
         const pushToken = await notificationService.registerForPushNotifications();
@@ -577,7 +558,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (pushError) {
         console.warn('🔔 Erro ao registrar push token (não crítico):', pushError);
       }
->>>>>>> Stashed changes
 
       return { success: true };
     } catch (error) {
@@ -613,14 +593,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn,
     signOut,
-<<<<<<< Updated upstream
     refreshSession,
     isSessionValid,
     checkAndRedirectUser,
-    // updatePushToken // DESABILITADO TEMPORARIAMENTE
-=======
     updatePushToken,
->>>>>>> Stashed changes
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

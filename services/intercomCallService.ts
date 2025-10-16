@@ -11,17 +11,17 @@ export interface IntercomCallData {
   doormanName?: string;
   buildingId: string;
   buildingName?: string;
-  residents: Array<{
+  residents: {
     id: string;
     name: string;
     phone?: string;
     notificationEnabled: boolean;
-  }>;
-  deviceTokens: Array<{
+  }[];
+  deviceTokens: {
     profile_id: string;
     token: string;
     platform: string;
-  }>;
+  }[];
 }
 
 export interface CallNotificationCallback {

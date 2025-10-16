@@ -1,11 +1,11 @@
-console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { shiftService } from '../services/shiftService';
+
+console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
 
 export interface PorteiroNotification {
   id: string;

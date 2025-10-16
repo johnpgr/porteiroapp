@@ -15,20 +15,11 @@
       [
         "expo-notifications",
         {
-<<<<<<< Updated upstream
-          "color": "#ffffff",
-          "defaultChannel": "default"
-        }
-      ],
-      "expo-font"
-=======
           "icon": "./assets/notification-icon.png",
           "color": "#2196F3",
-          "sounds": ["./assets/notification-sound.wav"],
           "mode": "production"
         }
       ]
->>>>>>> Stashed changes
     ],
     "experiments": {
       "typedRoutes": true,
@@ -49,20 +40,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-<<<<<<< Updated upstream
-      "bundleIdentifier": "com.porteiroapp.notifications",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Precisamos acessar a câmera para tirar fotos de visitantes, entregas e documentos dentro do condomínio.",
-        "NSMicrophoneUsageDescription": "Precisamos acessar o microfone para gravar áudios e registrar mensagens e ocorrências.",
-        "NSPhotoLibraryUsageDescription": "Precisamos acessar sua biblioteca de fotos para selecionar e enviar imagens.",
-        "NSPhotoLibraryAddUsageDescription": "Precisamos salvar imagens na sua biblioteca quando você optar por baixar ou salvar fotos.",
-        "UIBackgroundModes": ["audio", "voip", "fetch", "remote-notification"],
-        "NSContactsUsageDescription": "Precisamos acessar seus contatos para identificar chamadas do interfone."
-=======
-      "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
->>>>>>> Stashed changes
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -70,56 +51,26 @@
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-<<<<<<< Updated upstream
-      "package": "com.porteiroapp.notifications",
-      "googleServicesFile": "./google-services.json",
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "CALL_PHONE",
-        "RECORD_AUDIO",
-        "CAMERA",
-        "READ_PHONE_STATE",
-        "MANAGE_OWN_CALLS",
-        "BIND_TELECOM_CONNECTION_SERVICE",
-        "WAKE_LOCK",
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED",
-        "FOREGROUND_SERVICE"
-      ]
-    },
-    "androidStatusBar": {
-      "backgroundColor": "#388E3C",
-      "barStyle": "light-content"
-    },
-    "androidNavigationBar": {
-      "backgroundColor": "#ffffff"
-    },
-    "notification": {
-      "color": "#ffffff",
-      "iosDisplayInForeground": true,
-      "androidMode": "default",
-      "androidCollapsedTitle": "James Avisa"
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "74e123bc-f565-44ba-92f0-86fc00cbe0b1"
-      }
-=======
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "com.google.android.c2dm.permission.RECEIVE"
       ],
       "useNextNotificationsApi": true,
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "package": "com.fi123.porteiroapp"
     },
     "notification": {
       "icon": "./assets/notification-icon.png",
       "color": "#2196F3",
       "androidMode": "default",
       "androidCollapsedTitle": "{{unread_count}} novas notificações"
->>>>>>> Stashed changes
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "74e123bc-f565-44ba-92f0-86fc00cbe0b1"
+      }
     }
   }
 }

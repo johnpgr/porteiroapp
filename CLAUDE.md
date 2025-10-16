@@ -627,3 +627,4 @@ Demonstrates multi-role interaction:
 > * Faça o código expressar sua intenção de forma clara e previsível.
 
 ---
+- em hipotese alguma mude o layout ou design do projeto atual, mude apenas se eu for bem claro e peça pra vc mudar algo no layout ou design, ao contrario nao mude nada do css etc.

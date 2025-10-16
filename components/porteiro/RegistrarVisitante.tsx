@@ -16,63 +16,7 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-<<<<<<< Updated upstream
-import { notificationApi } from '../../services/notificationApi';
-import { uploadVisitorPhoto } from '../../services/photoUploadService';
-
-// Funções utilitárias para formatação e validação de CPF
-const formatCPF = (value: string): string => {
-  // Remove todos os caracteres não numéricos
-  const numericOnly = value.replace(/\D/g, '');
-  
-  // Limita a 11 dígitos
-  const limited = numericOnly.slice(0, 11);
-  
-  // Aplica a máscara XXX.XXX.XXX-XX
-  if (limited.length <= 3) {
-    return limited;
-  } else if (limited.length <= 6) {
-    return `${limited.slice(0, 3)}.${limited.slice(3)}`;
-  } else if (limited.length <= 9) {
-    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6)}`;
-  } else {
-    return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6, 9)}-${limited.slice(9)}`;
-  }
-};
-
-const isValidCPF = (cpf: string): boolean => {
-  // Remove caracteres não numéricos
-  const numericOnly = cpf.replace(/\D/g, '');
-  
-  // Verifica se tem exatamente 11 dígitos
-  if (numericOnly.length !== 11) return false;
-  
-  // Verifica se todos os dígitos são iguais (CPF inválido)
-  if (/^(\d)\1{10}$/.test(numericOnly)) return false;
-  
-  // Validação do primeiro dígito verificador
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(numericOnly.charAt(i)) * (10 - i);
-  }
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numericOnly.charAt(9))) return false;
-  
-  // Validação do segundo dígito verificador
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(numericOnly.charAt(i)) * (11 - i);
-  }
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numericOnly.charAt(10))) return false;
-  
-  return true;
-};
-=======
 import { notifyNewVisitor } from '../../utils/pushNotifications';
->>>>>>> Stashed changes
 
 type FlowStep =
   | 'apartamento'
@@ -772,60 +716,6 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-<<<<<<< Updated upstream
-        // Notificação removida - usava métodos inexistentes
-
-        // Enviar notificação via API (WhatsApp)
-        try {
-          // Buscar dados do morador proprietário
-          const { data: residentData, error: residentError } = await supabase
-            .from('apartments')
-            .select(`
-              apartment_residents!inner(
-                profiles!inner(
-                  full_name,
-                  phone,
-                  email
-                ),
-                is_owner
-              ),
-              buildings!inner(
-                name
-              )
-            `)
-            .eq('id', selectedApartment.id)
-            .eq('apartment_residents.is_owner', true)
-            .single();
-
-          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
-            const resident = residentData.apartment_residents[0];
-            const building = residentData.buildings;
-            
-            if (resident.profiles.phone && building) {
-              await notificationApi.sendVisitorAuthorization({
-                visitorName: nomeVisitante,
-                residentName: resident.profiles.full_name,
-                residentPhone: resident.profiles.phone,
-                residentEmail: resident.profiles.email || '',
-                building: building.name,
-                apartment: selectedApartment.number
-              });
-              
-              console.log('Mensagem de autorização WhatsApp enviada com sucesso');
-            } else {
-              console.warn('Dados insuficientes para enviar notificação via API');
-            }
-          }
-        } catch (apiError) {
-          console.error('Erro ao enviar notificação via API:', apiError);
-          // Não bloquear o fluxo se a notificação via API falhar
-        }
-
-        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
-
-        // Reset form after successful registration
-        resetForm();
-=======
         // Enviar notificação push para os moradores do apartamento (não bloqueia o fluxo)
         notifyNewVisitor({
           visitorName: nomeVisitante,
@@ -836,7 +726,6 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
 
         const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
->>>>>>> Stashed changes
 
         if (onConfirm) {
           onConfirm(message);
