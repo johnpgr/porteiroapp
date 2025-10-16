@@ -5,8 +5,6 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { shiftService } from '../services/shiftService';
 
-console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
-
 export interface PorteiroNotification {
   id: string;
   type: 'visitor' | 'delivery' | 'visitor_log';

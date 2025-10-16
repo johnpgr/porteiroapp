@@ -138,14 +138,6 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const [showImageModal, setShowImageModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
-  // Debug: Log da notificação e URL da imagem
-  console.debug('🔍 NotificationCard renderizada:', {
-    id: notification.id,
-    photo_url: notification.photo_url,
-    guest_name: notification.guest_name,
-    entry_type: notification.entry_type
-  });
-
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
     const sent = new Date(dateString);

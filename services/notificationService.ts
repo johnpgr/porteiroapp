@@ -335,7 +335,6 @@ class NotificationService {
     // Listener para quando notificação é recebida (app aberto)
     const receivedSubscription = Notifications.addNotificationReceivedListener(
       (notification) => {
-        console.log('🔔 Notificação recebida:', notification);
         onNotificationReceived?.(notification);
       }
     );

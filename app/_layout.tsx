@@ -25,21 +25,14 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Configurar listeners de notificação push
   useEffect(() => {
-    // Não configurar na web
     if (Platform.OS === 'web') return;
 
     const cleanup = notificationService.setupNotificationListeners(
-      // Quando notificação é recebida (app em foreground)
       (notification) => {
-        console.log('🔔 Notificação recebida (app aberto):', notification);
-        // Você pode mostrar um banner customizado aqui se quiser
       },
-      // Quando usuário toca na notificação
       (response) => {
         const data = response.notification.request.content.data;
-        console.log('🔔 Usuário tocou na notificação:', data);
 
         // Navegar para tela apropriada baseado no tipo
         if (data.type === 'visitor' && data.apartmentNumber) {

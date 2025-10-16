@@ -65,15 +65,8 @@ export default function MoradorDashboard() {
     respondToNotification
   } = usePendingNotifications();
 
-  // Hook para gerenciar primeiro login
   const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
 
-  // Debug log para verificar o estado
-  useEffect(() => {
-    console.log('🚀 DEBUG MoradorDashboard - isFirstLogin:', isFirstLogin);
-  }, [isFirstLogin]);
-
-  // Handle tab parameter from navigation
   useEffect(() => {
     if (tab && typeof tab === 'string') {
       setActiveTab(tab);
@@ -235,7 +228,6 @@ export default function MoradorDashboard() {
 
     // Cleanup function para remover o subscription
     return () => {
-      console.log('Removendo subscription dos visitor_logs');
       supabase.removeChannel(subscription);
     };
   }, [user?.id, userApartmentId, fetchVisitorsHistory]);

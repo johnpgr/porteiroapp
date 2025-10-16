@@ -395,7 +395,6 @@ export default function VisitantesTab() {
         visit_end_time: visitor.visit_end_time
       }));
 
-      console.log('✅ [VisitantesTab] Mapped visitors:', mappedVisitors);
       setVisitors(mappedVisitors);
     } catch (error) {
       console.error('❌ Erro geral ao buscar visitantes:', error);

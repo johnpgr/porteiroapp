@@ -145,25 +145,34 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       </View>
 
       <View style={styles.keypad}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((num) => (
-          <TouchableOpacity
-            key={num}
-            style={styles.keypadButton}
-            onPress={() => setValue(value + num.toString())}>
-            <Text style={styles.keypadButtonText}>{num}</Text>
-          </TouchableOpacity>
-        ))}
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✓'].map((item, index) => {
+          const isBackspace = item === '⌫';
+          const isConfirm = item === '✓';
+          const num = typeof item === 'number' ? item : null;
 
-        <TouchableOpacity style={styles.keypadButton} onPress={() => setValue(value.slice(0, -1))}>
-          <Text style={styles.keypadButtonText}>⌫</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={flattenStyles([styles.keypadButton, styles.confirmButton])}
-          onPress={onNext}
-          disabled={!value}>
-          <Text style={styles.confirmButtonText}>✓</Text>
-        </TouchableOpacity>
+          return (
+            <TouchableOpacity
+              key={index}
+              style={flattenStyles([
+                styles.keypadButton,
+                isConfirm && styles.confirmButton
+              ])}
+              onPress={() => {
+                if (isBackspace) {
+                  setValue(value.slice(0, -1));
+                } else if (isConfirm) {
+                  onNext();
+                } else if (num !== null) {
+                  setValue(value + num.toString());
+                }
+              }}
+              disabled={isConfirm && !value}>
+              <Text style={isConfirm ? styles.confirmButtonText : styles.keypadButtonText}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -186,12 +195,42 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   const renderApartamentoStep = () => {
-    const floorGroups = groupApartmentsByFloor();
-    
+    const handleApartmentConfirm = () => {
+      if (!apartamento) {
+        Alert.alert('Erro', 'Digite o número do apartamento.');
+        return;
+      }
+
+      // Buscar o apartamento pelo número digitado
+      const foundApartment = availableApartments.find(
+        (apt) => apt.number === apartamento
+      );
+
+      if (!foundApartment) {
+        Alert.alert(
+          'Erro',
+          `Apartamento ${apartamento} não encontrado. Verifique o número e tente novamente.`
+        );
+        return;
+      }
+
+      if (!foundApartment.id) {
+        Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+        return;
+      }
+
+      setSelectedApartment(foundApartment);
+      console.log('Apartamento selecionado com sucesso:', {
+        id: foundApartment.id,
+        number: foundApartment.number,
+      });
+      setCurrentStep('tipo');
+    };
+
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-        <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+        <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
         {isLoadingApartments ? (
           <View style={styles.loadingContainer}>
@@ -201,56 +240,12 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         ) : availableApartments.length === 0 ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-            <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
+            <Text style={styles.errorText}>
+              Não há apartamentos cadastrados neste prédio.
+            </Text>
           </View>
         ) : (
-          <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-            {floorGroups.map(({ floor, apartments }) => (
-              <View key={floor} style={styles.floorSection}>
-                <TouchableOpacity
-                  style={[
-                    styles.floorButton,
-                    selectedFloor === floor && styles.floorButtonSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedFloor(selectedFloor === floor ? null : floor);
-                  }}>
-                  <Text style={styles.floorButtonText}>
-                    {floor}º andar ({apartments?.length || 0} apartamentos)
-                  </Text>
-                  <Text style={styles.floorButtonIcon}>
-                    {selectedFloor === floor ? '▼' : '▶'}
-                  </Text>
-                </TouchableOpacity>
-                
-                {selectedFloor === floor && (
-                  <View style={styles.apartmentsGrid}>
-                    {apartments.map((apartment) => (
-                      <TouchableOpacity
-                        key={apartment.id}
-                        style={[
-                          styles.apartmentButton,
-                          selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
-                        ]}
-                        onPress={() => {
-                          if (!apartment.id) {
-                            Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
-                            return;
-                          }
-                          setSelectedApartment(apartment);
-                          setApartamento(apartment.number);
-                          console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                          setCurrentStep('tipo');
-                        }}>
-                        <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
+          renderNumericKeypad(apartamento, setApartamento, handleApartmentConfirm)
         )}
       </View>
     );
@@ -956,7 +951,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 15,
+    width: '100%',
+    maxWidth: 240,
+    alignSelf: 'center',
+    gap: 10,
   },
   keypadButton: {
     width: 70,
@@ -972,7 +970,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   keypadButtonText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -981,7 +979,7 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   optionsContainer: {
