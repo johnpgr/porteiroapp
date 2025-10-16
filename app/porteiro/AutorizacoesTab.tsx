@@ -1427,7 +1427,7 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
       const activity = activities.find(a => a.id === activityId);
       if (!activity) return;
 
-      // Buscar dados do visitante para verificar o access_type
+      // Buscar dados do visitante para verificar o access_type e horários
       const { data: visitorData, error: visitorError } = await supabase
         .from('visitors')
         .select('*, apartments(number)')
@@ -1438,6 +1438,44 @@ const AutorizacoesTab: React.FC<AutorizacoesTabProps> = ({
         console.error('Erro ao buscar dados do visitante:', visitorError);
         Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
         return;
+      }
+
+      // Verificar se está fora do horário permitido
+      if (visitorData.visit_start_time && visitorData.visit_end_time) {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        const isOutsideAllowedTime =
+          currentTime < visitorData.visit_start_time ||
+          currentTime > visitorData.visit_end_time;
+
+        if (isOutsideAllowedTime) {
+          // Mostrar popup de confirmação
+          const userConfirmed = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              'Fora do Horário Permitido',
+              `Este visitante só pode entrar entre ${visitorData.visit_start_time} e ${visitorData.visit_end_time}.\n\nHorário atual: ${currentTime}\n\nTem certeza que deseja avisar o morador?`,
+              [
+                {
+                  text: 'Cancelar',
+                  style: 'cancel',
+                  onPress: () => resolve(false)
+                },
+                {
+                  text: 'Confirmar',
+                  style: 'default',
+                  onPress: () => resolve(true)
+                }
+              ],
+              { cancelable: false }
+            );
+          });
+
+          // Se o usuário cancelou, sair da função
+          if (!userConfirmed) {
+            return;
+          }
+        }
       }
 
       // Função para gerar UUID compatível com React Native
