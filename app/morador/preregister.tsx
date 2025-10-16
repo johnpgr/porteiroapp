@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { notifyPorteiroVisitorAuthorized } from '../../utils/pushNotifications';
 import BottomNav from '../../components/BottomNav';
 
 export default function PreregisterScreen() {
@@ -130,6 +131,15 @@ export default function PreregisterScreen() {
         target_user_type: 'porteiro',
         created_by: user!.id,
       });
+
+      // Enviar notificação push para porteiros (não bloqueia o fluxo)
+      if (user?.building_id) {
+        notifyPorteiroVisitorAuthorized({
+          visitorName: formData.name,
+          apartmentNumber: user.apartment_number || 'N/A',
+          buildingId: user.building_id,
+        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
+      }
 
       Alert.alert(
         'Sucesso!',

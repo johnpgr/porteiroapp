@@ -16,6 +16,7 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
+<<<<<<< Updated upstream
 import { notificationApi } from '../../services/notificationApi';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
@@ -69,6 +70,9 @@ const isValidCPF = (cpf: string): boolean => {
   
   return true;
 };
+=======
+import { notifyNewVisitor } from '../../utils/pushNotifications';
+>>>>>>> Stashed changes
 
 type FlowStep =
   | 'apartamento'
@@ -768,6 +772,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
+<<<<<<< Updated upstream
         // Notificação removida - usava métodos inexistentes
 
         // Enviar notificação via API (WhatsApp)
@@ -820,6 +825,18 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
         // Reset form after successful registration
         resetForm();
+=======
+        // Enviar notificação push para os moradores do apartamento (não bloqueia o fluxo)
+        notifyNewVisitor({
+          visitorName: nomeVisitante,
+          visitorDocument: cpfVisitante,
+          apartmentIds: [apartmentData.id],
+          apartmentNumber: apartamento,
+          visitorId: visitorId,
+        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
+
+        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${apartamento}.`;
+>>>>>>> Stashed changes
 
         if (onConfirm) {
           onConfirm(message);

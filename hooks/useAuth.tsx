@@ -10,8 +10,12 @@ import React, {
 import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
 import { supabase } from '../utils/supabase';
+<<<<<<< Updated upstream
 import { TokenStorage } from '../services/TokenStorage';
 // import { notificationService } from '../services/notificationService'; // DESABILITADO TEMPORARIAMENTE
+=======
+import { notificationService } from '../services/notificationService';
+>>>>>>> Stashed changes
 
 export interface AuthUser {
   id: string;
@@ -29,10 +33,14 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
+<<<<<<< Updated upstream
   refreshSession: () => Promise<boolean>;
   isSessionValid: () => Promise<boolean>;
   checkAndRedirectUser: () => Promise<void>;
   // updatePushToken: (token: string) => Promise<void>; // DESABILITADO TEMPORARIAMENTE
+=======
+  updatePushToken: (token: string) => Promise<void>;
+>>>>>>> Stashed changes
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -541,6 +549,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await loadUserProfile(data.user);
 
+<<<<<<< Updated upstream
       // Inicia sistemas de manutenção da sessão
       scheduleTokenRefresh();
       startHeartbeat();
@@ -554,6 +563,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // } catch (pushError) {
       //   console.warn('Erro ao registrar push token:', pushError);
       // }
+=======
+      // Registrar push token em segundo plano (não bloqueia login)
+      try {
+        const pushToken = await notificationService.registerForPushNotifications();
+        if (pushToken && data.user) {
+          await notificationService.savePushToken(
+            data.user.id,
+            pushToken,
+            (user?.user_type as 'admin' | 'porteiro' | 'morador') || 'morador'
+          );
+        }
+      } catch (pushError) {
+        console.warn('🔔 Erro ao registrar push token (não crítico):', pushError);
+      }
+>>>>>>> Stashed changes
 
       return { success: true };
     } catch (error) {
@@ -566,31 +590,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
 
-  // FUNÇÃO DESABILITADA TEMPORARIAMENTE
-  // const updatePushToken = async (token: string) => {
-  //   if (!user) return;
+  const updatePushToken = async (token: string) => {
+    if (!user) return;
 
-  //   try {
-  //     await supabase
-  //       .from('profiles')
-  //       .update({ push_token: token })
-  //       .eq('user_id', user.id);
+    try {
+      const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
 
-  //     setUser({ ...user, push_token: token });
-  //   } catch (error) {
-  //     console.error('Erro ao atualizar push token:', error);
-  //   }
-  // };
+      await supabase
+        .from(table)
+        .update({ push_token: token })
+        .eq('user_id', user.id);
+
+      setUser({ ...user, push_token: token });
+      console.log('🔔 Push token atualizado no estado do usuário');
+    } catch (error) {
+      console.error('🔔 Erro ao atualizar push token:', error);
+    }
+  };
 
   const value = {
     user,
     loading,
     signIn,
     signOut,
+<<<<<<< Updated upstream
     refreshSession,
     isSessionValid,
     checkAndRedirectUser,
     // updatePushToken // DESABILITADO TEMPORARIAMENTE
+=======
+    updatePushToken,
+>>>>>>> Stashed changes
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

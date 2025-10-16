@@ -15,11 +15,20 @@
       [
         "expo-notifications",
         {
+<<<<<<< Updated upstream
           "color": "#ffffff",
           "defaultChannel": "default"
         }
       ],
       "expo-font"
+=======
+          "icon": "./assets/notification-icon.png",
+          "color": "#2196F3",
+          "sounds": ["./assets/notification-sound.wav"],
+          "mode": "production"
+        }
+      ]
+>>>>>>> Stashed changes
     ],
     "experiments": {
       "typedRoutes": true,
@@ -40,6 +49,7 @@
     ],
     "ios": {
       "supportsTablet": true,
+<<<<<<< Updated upstream
       "bundleIdentifier": "com.porteiroapp.notifications",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -49,6 +59,10 @@
         "NSPhotoLibraryAddUsageDescription": "Precisamos salvar imagens na sua biblioteca quando você optar por baixar ou salvar fotos.",
         "UIBackgroundModes": ["audio", "voip", "fetch", "remote-notification"],
         "NSContactsUsageDescription": "Precisamos acessar seus contatos para identificar chamadas do interfone."
+=======
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+>>>>>>> Stashed changes
       }
     },
     "android": {
@@ -56,6 +70,7 @@
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
+<<<<<<< Updated upstream
       "package": "com.porteiroapp.notifications",
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
@@ -90,6 +105,21 @@
       "eas": {
         "projectId": "74e123bc-f565-44ba-92f0-86fc00cbe0b1"
       }
+=======
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "com.google.android.c2dm.permission.RECEIVE"
+      ],
+      "useNextNotificationsApi": true,
+      "googleServicesFile": "./google-services.json"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#2196F3",
+      "androidMode": "default",
+      "androidCollapsedTitle": "{{unread_count}} novas notificações"
+>>>>>>> Stashed changes
     }
   }
 }
