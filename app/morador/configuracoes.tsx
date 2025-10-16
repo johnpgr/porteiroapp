@@ -71,9 +71,9 @@ export default function ConfiguracoesScreen() {
               <View style={styles.settingItemLeft}>
                 <Ionicons name="bug-outline" size={24} color="#FF6B35" />
                 <View style={styles.settingItemText}>
-                  <Text style={styles.settingItemTitle}>Sistema de Lembretes</Text>
+                  <Text style={styles.settingItemTitle}>Sistema de Notas</Text>
                   <Text style={styles.settingItemSubtitle}>
-                    Testar sistema completo de lembretes e validação
+                    Testar sistema completo de Notas e validação
                   </Text>
                 </View>
               </View>

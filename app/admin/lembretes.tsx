@@ -78,7 +78,7 @@ export default function LembretesAdmin() {
   const handleDeleteLembrete = (id: string) => {
     Alert.alert(
       'Confirmar Exclusão',
-      'Tem certeza que deseja excluir este lembrete?',
+      'Tem certeza que deseja excluir esta nota?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -119,9 +119,9 @@ export default function LembretesAdmin() {
       setShowEditModal(false);
       setEditingLembrete(null);
       setFormData(null);
-      Alert.alert('Sucesso', 'Lembrete atualizado com sucesso!');
+      Alert.alert('Sucesso', 'Nota atualizado com sucesso!');
     } catch (error) {
-      Alert.alert('Erro', 'Falha ao atualizar lembrete');
+      Alert.alert('Erro', 'Falha ao atualizar Nota');
     }
   };
 
@@ -351,7 +351,7 @@ export default function LembretesAdmin() {
         >
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lembretes</Text>
+        <Text style={styles.headerTitle}>Notas</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -394,11 +394,11 @@ export default function LembretesAdmin() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="document-text-outline" size={64} color="#d1d5db" />
-              <Text style={styles.emptyText}>Nenhum lembrete encontrado</Text>
+              <Text style={styles.emptyText}>Nenhum nota encontrado</Text>
               <Text style={styles.emptySubtext}>
                 {filters.status !== 'all' || filters.prioridade !== 'all' || filters.tipo !== 'all'
                   ? 'Tente ajustar os filtros'
-                  : 'Crie seu primeiro lembrete'}
+                  : 'Crie sua primeira nota'}
               </Text>
             </View>
           }
@@ -430,7 +430,7 @@ export default function LembretesAdmin() {
         <View style={styles.modalOverlay}>
           <View style={styles.editModalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Lembrete</Text>
+              <Text style={styles.modalTitle}>Editar Nota</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <Ionicons name="close" size={24} color="#374151" />
               </TouchableOpacity>
@@ -443,7 +443,7 @@ export default function LembretesAdmin() {
                   style={styles.input}
                   value={formData.titulo}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, titulo: text }))}
-                  placeholder="Digite o título do lembrete"
+                  placeholder="Digite o título da Nota"
                 />
               </View>
 
@@ -453,7 +453,7 @@ export default function LembretesAdmin() {
                   style={[styles.input, styles.textArea]}
                   value={formData.descricao}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
-                  placeholder="Descreva os detalhes do lembrete"
+                  placeholder="Descreva os detalhes da Nota"
                   multiline
                   numberOfLines={3}
                 />

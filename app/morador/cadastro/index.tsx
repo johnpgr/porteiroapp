@@ -407,6 +407,44 @@ export default function CadastroTab() {
     }
   };
 
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    Alert.alert(
+      'Confirmar Exclusão',
+      `Tem certeza que deseja excluir o veículo ${formatLicensePlate(vehicle.license_plate)}?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('vehicles')
+                .delete()
+                .eq('id', vehicle.id);
+
+              if (error) {
+                console.error('Erro ao excluir veículo:', error);
+                alert('Erro ao excluir veículo. Tente novamente.');
+                return;
+              }
+
+              // Remover veículo da lista local
+              setVehicles(prev => prev.filter(v => v.id !== vehicle.id));
+              alert('Veículo excluído com sucesso!');
+            } catch (error) {
+              console.error('Erro ao excluir veículo:', error);
+              alert('Erro ao excluir veículo. Tente novamente.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const resetVehicleForm = () => {
     setNewVehicle({
       license_plate: '',
@@ -918,6 +956,15 @@ export default function CadastroTab() {
                       {vehicle.color && (
                         <Text style={styles.vehicleColor}>🎨 {vehicle.color}</Text>
                       )}
+                      
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity 
+                          style={styles.deleteButton}
+                          onPress={() => handleDeleteVehicle(vehicle)}
+                        >
+                          <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))
                 )}

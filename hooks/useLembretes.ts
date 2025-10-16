@@ -226,9 +226,9 @@ export function useLembretes() {
       // Reagendar notificações para lembretes pendentes
       await rescheduleNotifications(lembretes);
     } catch (err: any) {
-      const errorMessage = err.message || 'Erro ao carregar lembretes';
+      const errorMessage = err.message || 'Erro ao carregar Notas';
       setError(errorMessage);
-      logError('Erro ao carregar lembretes:', err);
+      logError('Erro ao carregar Notas:', err);
     } finally {
       setLoading(false);
     }
@@ -312,7 +312,7 @@ export function useLembretes() {
         .insert({
           lembrete_id: id,
           acao,
-          detalhes: `Lembrete atualizado`,
+          detalhes: `Nota atualizada`,
           sindico_id: user.id
         });
 

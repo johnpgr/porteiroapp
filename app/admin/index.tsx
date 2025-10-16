@@ -179,8 +179,8 @@ export default function AdminDashboard() {
           style={styles.statCard}
           onPress={() => router.push('/admin/lembretes')}>
           <Text style={styles.statIcon}>📝</Text>
-          <Text style={styles.statLabel}>Lembretes</Text>
-          <Text style={styles.statDescription}>Gerenciar lembretes</Text>
+          <Text style={styles.statLabel}>Notas</Text>
+          <Text style={styles.statDescription}>Gerenciar Notas</Text>
         </TouchableOpacity>
       </View>
 

@@ -9,7 +9,6 @@ import {
   StyleSheet,
   SafeAreaView,
   Modal,
-  FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
@@ -20,15 +19,9 @@ type Building = {
   name: string;
 };
 
-type Communication = Database['public']['Tables']['communications']['Row'] & {
-  building: {
-    name: string;
-  };
-};
-
 type CommunicationInsert = Database['public']['Tables']['communications']['Insert'];
 
-export default function Communications() {
+export default function CommunicationsCreate() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [communication, setCommunication] = useState<Omit<CommunicationInsert, 'id' | 'created_at' | 'updated_at'>>({
     title: '',
@@ -44,10 +37,7 @@ export default function Communications() {
   const [showCommunicationPriorityPicker, setShowCommunicationPriorityPicker] = useState(false);
   const [showCommunicationBuildingPicker, setShowCommunicationBuildingPicker] = useState(false);
   
-  // Modal states
-  const [showCommunicationsModal, setShowCommunicationsModal] = useState(false);
-  const [communicationsList, setCommunicationsList] = useState<Communication[]>([]);
-  const [loadingCommunications, setLoadingCommunications] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchBuildings();
@@ -106,67 +96,19 @@ export default function Communications() {
     }
   };
 
-  const fetchCommunications = async () => {
-    setLoadingCommunications(true);
-    try {
-      const currentAdmin = await adminAuth.getCurrentAdmin();
-      if (!currentAdmin) {
-        Alert.alert('Erro', 'Administrador não encontrado');
-        router.push('/');
-        return;
-      }
-
-      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
-      const buildingIds = adminBuildings?.map(building => building.id) || [];
-
-      if (buildingIds.length === 0) {
-        setCommunicationsList([]);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('communications')
-        .select(`
-          id,
-          title,
-          content,
-          type,
-          priority,
-          created_at,
-          building_id
-        `)
-        .in('building_id', buildingIds)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Mapear nome do prédio manualmente para evitar dependência de relacionamento PostgREST
-      const buildingNameMap = Object.fromEntries((adminBuildings || []).map((b: any) => [b.id, (b as any).name]));
-      const normalized: Communication[] = (data || []).map((c: any) => ({
-        ...c,
-        building: { name: buildingNameMap[c.building_id] || '' },
-      }));
-
-      setCommunicationsList(normalized);
-    } catch (error) {
-      console.error('Erro ao carregar comunicações:', error);
-      Alert.alert('Erro', 'Falha ao carregar comunicações');
-    } finally {
-      setLoadingCommunications(false);
-    }
-  };
-
   // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   const sendPushNotifications = async (buildingId: string, title: string, body: string, type: 'communication', itemId?: string) => {
     console.log('📱 Push notifications desativadas - comunicação criada sem notificação');
     return 0;
   };
 
-  const handleSendCommunication = async () => {
+  const handleCreateCommunication = async () => {
     if (!communication.title || !communication.content || !communication.building_id || !communication.created_by) {
       Alert.alert('Erro', 'Título, conteúdo, prédio e criador são obrigatórios');
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       const { data, error } = await supabase
@@ -196,17 +138,32 @@ export default function Communications() {
         data?.id
       );
 
-      Alert.alert('Sucesso', `Comunicação enviada com sucesso para moradores`);
-      setCommunication({
-        title: '',
-        content: '',
-        type: 'notice',
-        priority: 'normal',
-        building_id: '',
-        created_by: communication.created_by,
-      });
+      Alert.alert(
+        'Sucesso', 
+        'Comunicação criada com sucesso!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Limpar formulário
+              setCommunication({
+                title: '',
+                content: '',
+                type: 'notice',
+                priority: 'normal',
+                building_id: '',
+                created_by: communication.created_by,
+              });
+              // Voltar para a tela anterior
+              router.back();
+            }
+          }
+        ]
+      );
     } catch (error: any) {
-      Alert.alert('Erro', 'Falha ao enviar comunicação: ' + (error?.message || 'Erro desconhecido'));
+      Alert.alert('Erro', 'Falha ao criar comunicação: ' + (error?.message || 'Erro desconhecido'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -216,71 +173,90 @@ export default function Communications() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Voltar</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Comunicações</Text>
-        <TouchableOpacity 
-          onPress={() => router.push('/admin/polls')}
-          style={styles.pollsButton}
-        >
-          <Text style={styles.pollsButtonText}>Enquetes</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>Nova Comunicação</Text>
+        <View style={styles.placeholder} />
       </View>
     </View>
   );
 
   const renderCommunicationForm = () => (
     <View style={styles.communicationForm}>
-      <Text style={styles.formTitle}>Nova Comunicação</Text>
+      <Text style={styles.formTitle}>Criar Nova Comunicação</Text>
       
-      <TextInput
-        style={styles.input}
-        value={communication.title}
-        onChangeText={(text) => setCommunication(prev => ({ ...prev, title: text }))}
-        placeholder="Título da comunicação"
-        placeholderTextColor="#999"
-      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Título *</Text>
+        <TextInput
+          style={styles.input}
+          value={communication.title}
+          onChangeText={(text) => setCommunication(prev => ({ ...prev, title: text }))}
+          placeholder="Digite o título da comunicação"
+          placeholderTextColor="#999"
+        />
+      </View>
 
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={communication.content}
-        onChangeText={(text) => setCommunication(prev => ({ ...prev, content: text }))}
-        placeholder="Conteúdo da comunicação"
-        placeholderTextColor="#999"
-        multiline
-        numberOfLines={4}
-      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Conteúdo *</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={communication.content}
+          onChangeText={(text) => setCommunication(prev => ({ ...prev, content: text }))}
+          placeholder="Digite o conteúdo da comunicação"
+          placeholderTextColor="#999"
+          multiline
+          numberOfLines={6}
+        />
+      </View>
 
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => setShowCommunicationTypePicker(true)}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Tipo</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationTypePicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getCommunicationTypeLabel(communication.type)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Prioridade</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationPriorityPicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getCommunicationPriorityLabel(communication.priority)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Prédio *</Text>
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationBuildingPicker(true)}
+        >
+          <Text style={[
+            styles.pickerButtonText,
+            !communication.building_id && styles.placeholderText
+          ]}>
+            {getBuildingLabel(communication.building_id)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity 
+        style={[styles.createButton, isSubmitting && styles.createButtonDisabled]} 
+        onPress={handleCreateCommunication}
+        disabled={isSubmitting}
       >
-        <Text style={styles.pickerButtonText}>
-          {getCommunicationTypeLabel(communication.type)}
+        <Text style={styles.createButtonText}>
+          {isSubmitting ? 'Criando...' : 'Criar Comunicação'}
         </Text>
-        <Text style={styles.pickerChevron}>▼</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => setShowCommunicationPriorityPicker(true)}
-      >
-        <Text style={styles.pickerButtonText}>
-          {getCommunicationPriorityLabel(communication.priority)}
-        </Text>
-        <Text style={styles.pickerChevron}>▼</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.pickerButton}
-        onPress={() => setShowCommunicationBuildingPicker(true)}
-      >
-        <Text style={styles.pickerButtonText}>
-          {getBuildingLabel(communication.building_id)}
-        </Text>
-        <Text style={styles.pickerChevron}>▼</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
-        <Text style={styles.sendButtonText}>Enviar Comunicação</Text>
       </TouchableOpacity>
     </View>
   );
@@ -303,13 +279,21 @@ export default function Communications() {
           ].map((type) => (
             <TouchableOpacity
               key={type.value}
-              style={styles.modalOption}
+              style={[
+                styles.modalOption,
+                communication.type === type.value && styles.modalOptionSelected
+              ]}
               onPress={() => {
                 setCommunication(prev => ({ ...prev, type: type.value }));
                 setShowCommunicationTypePicker(false);
               }}
             >
-              <Text style={styles.modalOptionText}>{type.label}</Text>
+              <Text style={[
+                styles.modalOptionText,
+                communication.type === type.value && styles.modalOptionTextSelected
+              ]}>
+                {type.label}
+              </Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
@@ -341,13 +325,21 @@ export default function Communications() {
           ].map((priority) => (
             <TouchableOpacity
               key={priority.value}
-              style={styles.modalOption}
+              style={[
+                styles.modalOption,
+                communication.priority === priority.value && styles.modalOptionSelected
+              ]}
               onPress={() => {
                 setCommunication(prev => ({ ...prev, priority: priority.value }));
                 setShowCommunicationPriorityPicker(false);
               }}
             >
-              <Text style={styles.modalOptionText}>{priority.label}</Text>
+              <Text style={[
+                styles.modalOptionText,
+                communication.priority === priority.value && styles.modalOptionTextSelected
+              ]}>
+                {priority.label}
+              </Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
@@ -374,13 +366,21 @@ export default function Communications() {
           {buildings.map((building) => (
             <TouchableOpacity
               key={building.id}
-              style={styles.modalOption}
+              style={[
+                styles.modalOption,
+                communication.building_id === building.id && styles.modalOptionSelected
+              ]}
               onPress={() => {
                 setCommunication(prev => ({ ...prev, building_id: building.id }));
                 setShowCommunicationBuildingPicker(false);
               }}
             >
-              <Text style={styles.modalOptionText}>{building.name}</Text>
+              <Text style={[
+                styles.modalOptionText,
+                communication.building_id === building.id && styles.modalOptionTextSelected
+              ]}>
+                {building.name}
+              </Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
@@ -394,90 +394,16 @@ export default function Communications() {
     </Modal>
   );
 
-  const renderCommunicationsModal = () => (
-    <Modal
-      visible={showCommunicationsModal}
-      animationType="slide"
-      onRequestClose={() => setShowCommunicationsModal(false)}
-    >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <TouchableOpacity
-            onPress={() => setShowCommunicationsModal(false)}
-            style={styles.modalCloseButton}
-          >
-            <Text style={styles.modalCloseText}>Fechar</Text>
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>Comunicações Enviadas</Text>
-        </View>
-        
-        {loadingCommunications ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando comunicações...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={communicationsList}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.communicationItem}>
-                <View style={styles.communicationHeader}>
-                  <Text style={styles.communicationTitle}>{item.title}</Text>
-                  <View style={styles.communicationMeta}>
-                    <Text style={styles.communicationType}>
-                      {getCommunicationTypeLabel(item.type)}
-                    </Text>
-                    <Text style={[
-                      styles.communicationPriority,
-                      { color: item.priority === 'urgent' ? '#f44336' : 
-                               item.priority === 'high' ? '#ff9800' : 
-                               item.priority === 'normal' ? '#4caf50' : '#2196f3' }
-                    ]}>
-                      {getCommunicationPriorityLabel(item.priority)}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.communicationContent}>{item.content}</Text>
-                <View style={styles.communicationFooter}>
-                  <Text style={styles.communicationBuilding}>
-                    {item.building?.name}
-                  </Text>
-                  <Text style={styles.communicationDate}>
-                    {new Date(item.created_at).toLocaleDateString('pt-BR')}
-                  </Text>
-                </View>
-              </View>
-            )}
-            contentContainerStyle={styles.modalContent}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </SafeAreaView>
-    </Modal>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       {renderHeader()}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.communicationsHeader}>
-          <TouchableOpacity
-            style={styles.listCommunicationsButton}
-            onPress={() => {
-              fetchCommunications();
-              setShowCommunicationsModal(true);
-            }}
-          >
-            <Text style={styles.listCommunicationsButtonText}>Ver Comunicações Enviadas</Text>
-          </TouchableOpacity>
-        </View>
         {renderCommunicationForm()}
       </ScrollView>
       
       {renderCommunicationTypePicker()}
       {renderCommunicationPriorityPicker()}
       {renderCommunicationBuildingPicker()}
-      {renderCommunicationsModal()}
     </SafeAreaView>
   );
 }
@@ -515,91 +441,82 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
   },
-  pollsButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  pollsButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  placeholder: {
+    width: 60, // Para balancear o layout
   },
   content: {
     flex: 1,
-  },
-  communicationsHeader: {
-    padding: 20,
-    paddingBottom: 0,
-  },
-  listCommunicationsButton: {
-    backgroundColor: '#2196F3',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  listCommunicationsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   communicationForm: {
     padding: 20,
   },
   formTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 30,
     textAlign: 'center',
+    color: '#333',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 15,
-    marginBottom: 15,
     backgroundColor: '#fff',
     fontSize: 16,
     minHeight: 50,
   },
   textArea: {
-    height: 100,
+    height: 120,
     textAlignVertical: 'top',
   },
   pickerButton: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
     backgroundColor: 'white',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    minHeight: 44,
-    marginBottom: 15,
+    minHeight: 50,
   },
   pickerButtonText: {
     fontSize: 16,
     color: '#333',
     flex: 1,
   },
+  placeholderText: {
+    color: '#999',
+  },
   pickerChevron: {
     fontSize: 16,
     color: '#666',
     marginLeft: 8,
   },
-  sendButton: {
+  createButton: {
     backgroundColor: '#4CAF50',
-    padding: 15,
+    padding: 18,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 20,
   },
-  sendButtonText: {
+  createButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  createButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   modalOverlay: {
@@ -612,30 +529,37 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     margin: 20,
     borderRadius: 12,
-    maxHeight: '90%',
+    maxHeight: '80%',
     minWidth: '80%',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#374151',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
     textAlign: 'center',
   },
   modalOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#e3f2fd',
   },
   modalOptionText: {
     fontSize: 16,
     color: '#374151',
   },
+  modalOptionTextSelected: {
+    color: '#1976d2',
+    fontWeight: '600',
+  },
   modalCancelButton: {
-    padding: 15,
+    padding: 20,
     alignItems: 'center',
     marginTop: 10,
   },
@@ -643,100 +567,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     fontWeight: '500',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  modalHeader: {
-    backgroundColor: '#FF9800',
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    gap: 33,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-  },
-  modalCloseButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  modalCloseText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  communicationItem: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  communicationHeader: {
-    marginBottom: 8,
-  },
-  communicationTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  communicationMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  communicationType: {
-    fontSize: 14,
-    color: '#666',
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  communicationPriority: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  communicationContent: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 12,
-    lineHeight: 22,
-  },
-  communicationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    paddingTop: 8,
-  },
-  communicationBuilding: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  communicationDate: {
-    fontSize: 14,
-    color: '#999',
   },
 });
