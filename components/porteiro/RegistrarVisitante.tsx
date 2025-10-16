@@ -71,6 +71,7 @@ const isValidCPF = (cpf: string): boolean => {
 };
 
 type FlowStep =
+  | 'predio'
   | 'apartamento'
   | 'tipo'
   | 'empresa_prestador'
@@ -105,6 +106,12 @@ interface Apartment {
   floor: number;
 }
 
+interface Building {
+  id: string;
+  name: string;
+  address: string;
+}
+
 interface RegistrarVisitanteProps {
   onClose: () => void;
   onConfirm?: (message: string) => void;
@@ -112,7 +119,10 @@ interface RegistrarVisitanteProps {
 
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
+  const [currentStep, setCurrentStep] = useState<FlowStep>('predio');
+  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
+  const [availableBuildings, setAvailableBuildings] = useState<Building[]>([]);
+  const [isLoadingBuildings, setIsLoadingBuildings] = useState(false);
   const [apartamento, setApartamento] = useState('');
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
@@ -133,21 +143,38 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [cameraPermission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
 
+  // Função para solicitar permissão da câmera
+  const requestCameraPermission = async () => {
+    try {
+      const permission = await requestPermission();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permissão Negada',
+          'Para tirar fotos dos visitantes, é necessário permitir o acesso à câmera.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erro ao solicitar permissão da câmera:', error);
+      Alert.alert('Erro', 'Não foi possível solicitar permissão da câmera.');
+    }
+  };
+
   // Obter building_id do porteiro
   useEffect(() => {
     const getDoormanBuildingId = async () => {
       if (user?.id) {
-        const { data: profile, error } = await supabase
+        const { data: profile, error } = await (supabase as any)
           .from('profiles')
           .select('building_id')
           .eq('id', user.id)
           .single();
 
-        if (profile && profile.building_id) {
-          setDoormanBuildingId(profile.building_id);
-        } else {
+        if (error || !profile || !profile.building_id) {
           console.error('Erro ao buscar building_id do porteiro:', error);
           Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
+        } else {
+          setDoormanBuildingId(profile.building_id);
         }
       }
     };
@@ -155,16 +182,44 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     getDoormanBuildingId();
   }, [user]);
 
+  // Carregar prédios disponíveis
+  useEffect(() => {
+    const fetchAvailableBuildings = async () => {
+      setIsLoadingBuildings(true);
+      try {
+        const { data: buildings, error } = await (supabase as any)
+          .from('buildings')
+          .select('id, name, address')
+          .order('name');
+
+        if (error) {
+          console.error('Erro ao buscar prédios:', error);
+          Alert.alert('Erro', 'Não foi possível carregar os prédios.');
+        } else {
+          setAvailableBuildings(buildings || []);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar prédios:', error);
+        Alert.alert('Erro', 'Não foi possível carregar os prédios.');
+      } finally {
+        setIsLoadingBuildings(false);
+      }
+    };
+
+    fetchAvailableBuildings();
+  }, []);
+
   // Carregar apartamentos disponíveis
   useEffect(() => {
     const fetchAvailableApartments = async () => {
-      if (doormanBuildingId) {
+      const buildingId = selectedBuilding?.id || doormanBuildingId;
+      if (buildingId) {
         setIsLoadingApartments(true);
         try {
-          const { data: apartments, error } = await supabase
+          const { data: apartments, error } = await (supabase as any)
             .from('apartments')
             .select('id, number, floor')
-            .eq('building_id', doormanBuildingId)
+            .eq('building_id', buildingId)
             .order('number');
 
           if (error) {
@@ -183,7 +238,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     };
 
     fetchAvailableApartments();
-  }, [doormanBuildingId]);
+  }, [selectedBuilding, doormanBuildingId]);
 
   const renderNumericKeypad = (
     value: string,
@@ -235,6 +290,53 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       .map(Number)
       .sort((a, b) => a - b)
       .map(floor => ({ floor, apartments: grouped[floor] }));
+  };
+
+  const renderPredioStep = () => {
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>🏢 Prédio</Text>
+        <Text style={styles.stepSubtitle}>Selecione o prédio de destino</Text>
+
+        {isLoadingBuildings ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2196F3" />
+            <Text style={styles.loadingText}>Carregando prédios...</Text>
+          </View>
+        ) : availableBuildings.length === 0 ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>⚠️ Nenhum Prédio</Text>
+            <Text style={styles.errorText}>Não há prédios cadastrados no sistema.</Text>
+          </View>
+        ) : (
+          <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
+            <View style={styles.optionsContainer}>
+              {availableBuildings.map((building) => (
+                <TouchableOpacity
+                  key={building.id}
+                  style={[
+                    styles.optionButton,
+                    { borderLeftColor: '#2196F3' },
+                    selectedBuilding?.id === building.id && styles.apartmentButtonSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedBuilding(building);
+                    // Reset apartment selection when building changes
+                    setSelectedApartment(null);
+                    setApartamento('');
+                    setSelectedFloor(null);
+                    setCurrentStep('apartamento');
+                  }}>
+                  <Text style={styles.optionIcon}>🏢</Text>
+                  <Text style={styles.optionTitle}>{building.name}</Text>
+                  <Text style={styles.optionDescription}>{building.address}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+      </View>
+    );
   };
 
   const renderApartamentoStep = () => {
@@ -689,7 +791,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         
         // Só buscar por CPF se foi fornecido e é válido
         if (cpfVisitante && isValidCPF(cpfVisitante)) {
-          const { data } = await supabase
+          const { data } = await (supabase as any)
             .from('visitors')
             .select('id')
             .eq('document', cpfVisitante)
@@ -701,7 +803,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           visitorId = existingVisitor.id;
         } else {
           // Inserir novo visitante
-          const { data: newVisitor, error: visitorError } = await supabase
+          const { data: newVisitor, error: visitorError } = await (supabase as any)
             .from('visitors')
             .insert({
               name: nomeVisitante,
@@ -756,7 +858,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         console.log('💾 PhotoUrl no momento do salvamento:', photoUrl);
         console.log('📋 Dados do visitor_log preparados:', visitorLogData);
         
-        const { data: logData, error: logError } = await supabase
+        const { data: logData, error: logError } = await (supabase as any)
           .from('visitor_logs')
           .insert(visitorLogData)
           .select('id')
@@ -773,7 +875,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         // Enviar notificação via API (WhatsApp)
         try {
           // Buscar dados do morador proprietário
-          const { data: residentData, error: residentError } = await supabase
+          const { data: residentData, error: residentError } = await (supabase as any)
             .from('apartments')
             .select(`
               apartment_residents!inner(
@@ -841,6 +943,11 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <Text style={styles.stepSubtitle}>Revise os dados do visitante</Text>
 
         <View style={styles.summaryContainer}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Prédio:</Text>
+            <Text style={styles.summaryValue}>{selectedBuilding?.name || 'Não selecionado'}</Text>
+          </View>
+
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
             <Text style={styles.summaryValue}>{selectedApartment?.number || 'Não selecionado'}</Text>
@@ -922,6 +1029,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderCurrentStep = () => {
     switch (currentStep) {
+      case 'predio':
+        return renderPredioStep();
       case 'apartamento':
         return renderApartamentoStep();
       case 'tipo':
@@ -941,7 +1050,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       case 'confirmacao':
         return renderConfirmacaoStep();
       default:
-        return renderApartamentoStep();
+        return renderPredioStep();
     }
   };
 
@@ -960,7 +1069,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
+                width: `${(Object.keys({ predio: selectedBuilding, apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 8) * 100}%`,
               },
             ]}
           />

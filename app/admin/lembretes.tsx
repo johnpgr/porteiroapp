@@ -14,29 +14,40 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePickerAndroid from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
-import { adminAuth } from '~/utils/supabase';
+import { adminAuth, supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface FilterOptions {
-  status: 'all' | 'ativo' | 'concluido' | 'cancelado';
-  prioridade: 'all' | 'baixa' | 'media' | 'alta';
-  tipo: 'all' | 'manutencao' | 'reuniao' | 'vencimento' | 'outros';
+  status: string;
+  prioridade: string;
+  tipo: string;
+  predio: string;
+}
+
+interface BuildingAdmin {
+  id: string;
+  building_id: string;
+  admin_profile_id: string;
+  building: {
+    name: string;
+    address: string;
+  };
 }
 
 export default function LembretesAdmin() {
-  const {
-    lembretes,
-    loading,
-    refreshLembretes,
-    deleteLembrete,
-    updateLembrete
+  const { 
+    lembretes, 
+    loading, 
+    error, 
+    refreshLembretes, 
+    deleteLembrete, 
+    updateLembrete 
   } = useLembretes();
-
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -44,16 +55,64 @@ export default function LembretesAdmin() {
   const [formData, setFormData] = useState<any>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [buildingAdmins, setBuildingAdmins] = useState<BuildingAdmin[]>([]);
+  const [adminBuildings, setAdminBuildings] = useState<string[]>([]);
   const [filters, setFilters] = useState<FilterOptions>({
     status: 'all',
     prioridade: 'all',
-    tipo: 'all'
+    tipo: 'all',
+    predio: 'all'
   });
 
   useEffect(() => {
     checkAdminAuth();
     refreshLembretes();
+    loadBuildings();
   }, []);
+
+  const loadBuildings = async () => {
+    try {
+      const currentAdmin = await adminAuth.getCurrentAdmin();
+      if (!currentAdmin) {
+        console.error('Administrador não encontrado');
+        return;
+      }
+      
+      // Load building_admins for the admin
+      const { data: buildingAdminsData, error } = await (supabase as any)
+        .from('building_admins')
+        .select(`
+          id,
+          building_id,
+          admin_profile_id,
+          buildings (
+            name,
+            address
+          )
+        `)
+        .eq('admin_profile_id', currentAdmin.id);
+
+      if (error) {
+        console.error('Erro ao buscar building_admins:', error);
+        return;
+      }
+
+      const buildingAdminsFormatted = buildingAdminsData?.map((item: any) => ({
+        id: item.id,
+        building_id: item.building_id,
+        admin_profile_id: item.admin_profile_id,
+        building: item.buildings
+      })) || [];
+
+      setBuildingAdmins(buildingAdminsFormatted);
+      
+      // Armazenar IDs dos building_admins para filtrar lembretes
+      const buildingAdminIds = buildingAdminsFormatted.map(ba => ba.id);
+      setAdminBuildings(buildingAdminIds);
+    } catch (error) {
+      console.error('Erro ao carregar prédios:', error);
+    }
+  };
 
   const checkAdminAuth = async () => {
     try {
@@ -91,7 +150,7 @@ export default function LembretesAdmin() {
   };
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'ativo' ? 'concluido' : 'ativo';
+    const newStatus = currentStatus === 'pendente' ? 'concluido' : 'pendente';
     await updateLembrete(id, { status: newStatus });
   };
 
@@ -100,13 +159,11 @@ export default function LembretesAdmin() {
     setFormData({
       titulo: lembrete.titulo,
       descricao: lembrete.descricao,
-      tipo: lembrete.tipo,
+      categoria: lembrete.categoria,
       prioridade: lembrete.prioridade,
       status: lembrete.status,
       data_vencimento: new Date(lembrete.data_vencimento),
-      notificar_antes: lembrete.notificar_antes,
-      recorrente: lembrete.recorrente,
-      frequencia_recorrencia: lembrete.frequencia_recorrencia,
+      antecedencia_alerta: lembrete.antecedencia_alerta,
     });
     setShowEditModal(true);
   };
@@ -119,7 +176,7 @@ export default function LembretesAdmin() {
       setShowEditModal(false);
       setEditingLembrete(null);
       setFormData(null);
-      Alert.alert('Sucesso', 'Nota atualizado com sucesso!');
+      Alert.alert('Sucesso', 'Nota atualizada com sucesso!');
     } catch (error) {
       Alert.alert('Erro', 'Falha ao atualizar Nota');
     }
@@ -129,15 +186,7 @@ export default function LembretesAdmin() {
     if (!formData) return;
     
     if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: formData.data_vencimento,
-        onChange: (event, selectedDate) => {
-          if (selectedDate) {
-            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
-          }
-        },
-        mode: 'date',
-      });
+      setShowDatePicker(true);
     } else {
       setShowDatePicker(true);
     }
@@ -147,18 +196,27 @@ export default function LembretesAdmin() {
     if (!formData) return;
     
     if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: formData.data_vencimento,
-        onChange: (event, selectedDate) => {
-          if (selectedDate) {
-            setFormData(prev => ({ ...prev, data_vencimento: selectedDate }));
-          }
-        },
-        mode: 'time',
-        is24Hour: true,
-      });
+      setShowTimePicker(true);
     } else {
       setShowTimePicker(true);
+    }
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setFormData((prev: any) => ({ ...prev, data_vencimento: selectedDate }));
+    }
+  };
+
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const currentDate = formData.data_vencimento;
+      const newDateTime = new Date(currentDate);
+      newDateTime.setHours(selectedTime.getHours());
+      newDateTime.setMinutes(selectedTime.getMinutes());
+      setFormData((prev: any) => ({ ...prev, data_vencimento: newDateTime }));
     }
   };
 
@@ -166,7 +224,13 @@ export default function LembretesAdmin() {
     return lembretes.filter(lembrete => {
       if (filters.status !== 'all' && lembrete.status !== filters.status) return false;
       if (filters.prioridade !== 'all' && lembrete.prioridade !== filters.prioridade) return false;
-      if (filters.tipo !== 'all' && lembrete.tipo !== filters.tipo) return false;
+      if (filters.tipo !== 'all' && lembrete.categoria !== filters.tipo) return false;
+      
+      // Filtro por prédio usando building_admin_id
+      if (filters.predio !== 'all') {
+        return lembrete.building_admin_id === filters.predio;
+      }
+      
       return true;
     });
   };
@@ -327,6 +391,43 @@ export default function LembretesAdmin() {
                 ))}
               </View>
             </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Prédio</Text>
+              <View style={styles.filterOptions}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterOption,
+                    filters.predio === 'all' && styles.filterOptionActive
+                  ]}
+                  onPress={() => setFilters((prev: FilterOptions) => ({ ...prev, predio: 'all' }))}
+                >
+                  <Text style={[
+                    styles.filterOptionText,
+                    filters.predio === 'all' && styles.filterOptionTextActive
+                  ]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                {buildingAdmins.map((buildingAdmin: any) => (
+                  <TouchableOpacity
+                    key={buildingAdmin.id}
+                    style={[
+                      styles.filterOption,
+                      filters.predio === buildingAdmin.id && styles.filterOptionActive
+                    ]}
+                    onPress={() => setFilters((prev: FilterOptions) => ({ ...prev, predio: buildingAdmin.id }))}
+                  >
+                    <Text style={[
+                      styles.filterOptionText,
+                      filters.predio === buildingAdmin.id && styles.filterOptionTextActive
+                    ]}>
+                      {buildingAdmin.building.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </ScrollView>
 
           <TouchableOpacity
@@ -370,9 +471,9 @@ export default function LembretesAdmin() {
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
-              {lembretes.filter(l => l.status === 'ativo').length}
+              {lembretes.filter(l => l.status === 'pendente').length}
             </Text>
-            <Text style={styles.statLabel}>Ativos</Text>
+            <Text style={styles.statLabel}>Pendentes</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>
@@ -442,7 +543,7 @@ export default function LembretesAdmin() {
                 <TextInput
                   style={styles.input}
                   value={formData.titulo}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, titulo: text }))}
+                  onChangeText={(text) => setFormData((prev: any) => ({ ...prev, titulo: text }))}
                   placeholder="Digite o título da Nota"
                 />
               </View>
@@ -452,7 +553,7 @@ export default function LembretesAdmin() {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   value={formData.descricao}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
+                  onChangeText={(text) => setFormData((prev: any) => ({ ...prev, descricao: text }))}
                   placeholder="Descreva os detalhes da Nota"
                   multiline
                   numberOfLines={3}
@@ -461,16 +562,17 @@ export default function LembretesAdmin() {
 
               <View style={styles.formRow}>
                 <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>Tipo</Text>
+                  <Text style={styles.label}>Categoria</Text>
                   <View style={styles.pickerContainer}>
                     <Picker
-                      selectedValue={formData.tipo}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}
+                      selectedValue={formData.categoria}
+                      onValueChange={(value) => setFormData((prev: any) => ({ ...prev, categoria: value }))}
                       style={styles.picker}
                     >
                       <Picker.Item label="Manutenção" value="manutencao" />
                       <Picker.Item label="Reunião" value="reuniao" />
-                      <Picker.Item label="Vencimento" value="vencimento" />
+                      <Picker.Item label="Pagamento" value="pagamento" />
+                      <Picker.Item label="Assembleia" value="assembleia" />
                       <Picker.Item label="Outros" value="outros" />
                     </Picker>
                   </View>
@@ -481,12 +583,13 @@ export default function LembretesAdmin() {
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={formData.prioridade}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, prioridade: value }))}
+                      onValueChange={(value) => setFormData((prev: any) => ({ ...prev, prioridade: value }))}
                       style={styles.picker}
                     >
                       <Picker.Item label="Baixa" value="baixa" />
                       <Picker.Item label="Média" value="media" />
                       <Picker.Item label="Alta" value="alta" />
+                      <Picker.Item label="Urgente" value="urgente" />
                     </Picker>
                   </View>
                 </View>
@@ -497,10 +600,10 @@ export default function LembretesAdmin() {
                 <View style={styles.pickerContainer}>
                   <Picker
                     selectedValue={formData.status}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                    onValueChange={(value) => setFormData((prev: any) => ({ ...prev, status: value }))}
                     style={styles.picker}
                   >
-                    <Picker.Item label="Ativo" value="ativo" />
+                    <Picker.Item label="Pendente" value="pendente" />
                     <Picker.Item label="Concluído" value="concluido" />
                     <Picker.Item label="Cancelado" value="cancelado" />
                   </Picker>
@@ -514,7 +617,7 @@ export default function LembretesAdmin() {
                     style={[styles.dateTimeButton, { flex: 1, marginRight: 8 }]}
                     onPress={showDatePickerModal}
                   >
-                    <Ionicons name="calendar-outline" size={20} color="#6b7280" />
+                    <Ionicons name="calendar-outline" size={20} color="#666" />
                     <Text style={styles.dateTimeText}>
                       {format(formData.data_vencimento, 'dd/MM/yyyy', { locale: ptBR })}
                     </Text>
@@ -524,7 +627,7 @@ export default function LembretesAdmin() {
                     style={[styles.dateTimeButton, { flex: 1, marginLeft: 8 }]}
                     onPress={showTimePickerModal}
                   >
-                    <Ionicons name="time-outline" size={20} color="#6b7280" />
+                    <Ionicons name="time-outline" size={20} color="#666" />
                     <Text style={styles.dateTimeText}>
                       {format(formData.data_vencimento, 'HH:mm', { locale: ptBR })}
                     </Text>
@@ -550,6 +653,24 @@ export default function LembretesAdmin() {
             </View>
           </View>
         </View>
+        
+        {showDatePicker && (
+          <DateTimePicker
+            value={formData.data_vencimento}
+            mode="date"
+            display="default"
+            onChange={onDateChange}
+          />
+        )}
+        
+        {showTimePicker && (
+          <DateTimePicker
+            value={formData.data_vencimento}
+            mode="time"
+            display="default"
+            onChange={onTimeChange}
+          />
+        )}
       </Modal>
     );
   }

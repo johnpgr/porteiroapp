@@ -1333,7 +1333,7 @@ export default function VisitantesTab() {
 
         <TouchableOpacity
           style={styles.vehicleButton}
-          onPress={() => router.push('/morador/cadastro/placa')}>
+          onPress={() => router.push('/morador/veiculo')}>
           <Ionicons name="car" size={24} color="#fff" />
           <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
         </TouchableOpacity>

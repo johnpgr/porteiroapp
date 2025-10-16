@@ -17,6 +17,7 @@ export interface Lembrete {
   status: 'pendente' | 'concluido' | 'cancelado';
   antecedencia_alerta: number;
   sindico_id: string;
+  building_admin_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +38,7 @@ export interface CreateLembreteData {
   categoria: 'reuniao' | 'manutencao' | 'pagamento' | 'assembleia' | 'outros';
   prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
   antecedencia_alerta?: number;
+  building_admin_id: string;
 }
 
 export interface UpdateLembreteData {
