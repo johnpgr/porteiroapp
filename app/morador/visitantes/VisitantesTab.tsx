@@ -451,6 +451,7 @@ export default function VisitantesTab() {
         return '✅';
       case 'rejected':
       case 'negado':
+      case 'nao_permitido':
         return '❌';
       case 'pending':
       case 'pendente':
@@ -466,7 +467,8 @@ export default function VisitantesTab() {
         return 'Aprovado';
       case 'rejected':
       case 'negado':
-        return 'Negado';
+      case 'nao_permitido':
+        return 'Desaprovado';
       case 'pending':
       case 'pendente':
       default:
@@ -1094,8 +1096,36 @@ export default function VisitantesTab() {
     }
   };
 
+  // Função para verificar se o visitante está aprovado
+  const isVisitorApproved = (visitor: Visitor): boolean => {
+    return visitor.status === 'aprovado' || visitor.status === 'approved';
+  };
+
+  // Função para verificar se o visitante está desaprovado
+  const isVisitorDisapproved = (visitor: Visitor): boolean => {
+    return visitor.status === 'nao_permitido' || visitor.status === 'rejected' || visitor.status === 'negado';
+  };
+
+  // Função para verificar se o visitante tem status final (aprovado ou desaprovado)
+  const hasVisitorFinalStatus = (visitor: Visitor): boolean => {
+    return isVisitorApproved(visitor) || isVisitorDisapproved(visitor);
+  };
+
+  // Função para verificar se o visitante pode ser editado
+  const canEditVisitor = (visitor: Visitor): boolean => {
+    return !hasVisitorFinalStatus(visitor);
+  };
+
   // Função para abrir modal de edição com dados do visitante
   const handleEditVisitor = (visitor: Visitor) => {
+    if (!canEditVisitor(visitor)) {
+      Alert.alert(
+        'Ação não permitida',
+        'Visitantes aprovados não podem ser editados. O status foi bloqueado para manter a integridade dos dados.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setEditingVisitor(visitor);
     setEditData({
       name: visitor.name,
@@ -1194,6 +1224,15 @@ export default function VisitantesTab() {
 
   // Função para excluir visitante com confirmação
   const handleDeleteVisitor = (visitor: Visitor) => {
+    if (!canEditVisitor(visitor)) {
+      Alert.alert(
+        'Ação não permitida',
+        'Visitantes aprovados não podem ser excluídos. O status foi bloqueado para manter a integridade dos dados.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     Alert.alert(
       'Confirmar Exclusão',
       `Tem certeza que deseja excluir o visitante "${visitor.name}"?`,
@@ -1252,6 +1291,15 @@ export default function VisitantesTab() {
 
   // Função para aprovar visitante
   const handleApproveVisitor = async (visitor: Visitor) => {
+    if (hasVisitorFinalStatus(visitor)) {
+      Alert.alert(
+        'Ação não permitida',
+        'Este visitante já possui um status final (aprovado ou desaprovado) e não pode ser modificado.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('visitors')
@@ -1275,7 +1323,7 @@ export default function VisitantesTab() {
         return;
       }
 
-      Alert.alert('Sucesso', 'Visitante aprovado com sucesso!');
+      Alert.alert('Sucesso', 'Visitante aprovado com sucesso! O status foi bloqueado para evitar alterações futuras.');
       fetchVisitors(); // Atualizar lista
     } catch (error) {
       console.error('Erro ao aprovar visitante:', error);
@@ -1285,6 +1333,15 @@ export default function VisitantesTab() {
 
   // Função para desaprovar visitante
   const handleDisapproveVisitor = async (visitor: Visitor) => {
+    if (isVisitorDisapproved(visitor)) {
+      Alert.alert(
+        'Ação não permitida',
+        'Este visitante já foi desaprovado.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('visitors')
@@ -1381,10 +1438,16 @@ export default function VisitantesTab() {
           </View>
         ) : (
           visitors.map((visitor) => (
-            <View key={visitor.id} style={styles.visitorCard}>
+            <View key={visitor.id} style={[
+              styles.visitorCard,
+              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved
+            ]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardMainInfo}>
-                  <Text style={styles.visitorName}>{visitor.name}</Text>
+                  <Text style={[
+                    styles.visitorName,
+                    hasVisitorFinalStatus(visitor) && styles.visitorNameApproved
+                  ]}>{visitor.name}</Text>
                   {visitor.document && (
                     <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
                   )}
@@ -1409,10 +1472,22 @@ export default function VisitantesTab() {
                 </View>
                 
                 <View style={styles.cardHeaderActions}>
-                  <View style={styles.statusBadge}>
+                  <View style={[
+                    styles.statusBadge,
+                    isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved
+                  ]}>
                     <Text style={styles.statusIcon}>{getStatusIcon(visitor.status)}</Text>
-                    <Text style={styles.statusText}>{getStatusText(visitor.status)}</Text>
+                    <Text style={[
+                      styles.statusText,
+                      isVisitorDisapproved(visitor) && styles.statusTextDisapproved
+                    ]}>{getStatusText(visitor.status)}</Text>
                   </View>
+                  
+                  {hasVisitorFinalStatus(visitor) && (
+                    <View style={styles.approvedIndicator}>
+                      <Text style={styles.approvedIndicatorText}>🔒 Bloqueado</Text>
+                    </View>
+                  )}
                   
                   <TouchableOpacity 
                     style={styles.menuButton}
@@ -1426,31 +1501,61 @@ export default function VisitantesTab() {
               {expandedCardId === visitor.id && (
                 <View style={styles.expandedActions}>
                   <TouchableOpacity 
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                    ]}
                     onPress={() => handleEditVisitor(visitor)}
+                    disabled={hasVisitorFinalStatus(visitor)}
                   >
-                    <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                    <Text style={[
+                      styles.actionButtonText,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                    ]}>✏️ Editar</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                    ]}
                     onPress={() => handleApproveVisitor(visitor)}
+                    disabled={hasVisitorFinalStatus(visitor)}
                   >
-                    <Text style={styles.actionButtonText}>✅ Aprovar</Text>
+                    <Text style={[
+                      styles.actionButtonText,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                    ]}>✅ Aprovar</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                    ]}
                     onPress={() => handleDisapproveVisitor(visitor)}
+                    disabled={hasVisitorFinalStatus(visitor)}
                   >
-                    <Text style={styles.actionButtonText}>❌ Desaprovar</Text>
+                    <Text style={[
+                      styles.actionButtonText,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                    ]}>❌ Desaprovar</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
-                    style={[styles.actionButton, styles.actionButtonDanger]}
+                    style={[
+                      styles.actionButton, 
+                      styles.actionButtonDanger,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                    ]}
                     onPress={() => handleDeleteVisitor(visitor)}
+                    disabled={hasVisitorFinalStatus(visitor)}
                   >
-                    <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>🗑️ Excluir</Text>
+                    <Text style={[
+                      styles.actionButtonText, 
+                      styles.actionButtonTextDanger,
+                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                    ]}>🗑️ Excluir</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2160,11 +2265,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  visitorCardApproved: {
+    backgroundColor: '#f5f5f5',
+    opacity: 0.7,
+  },
   visitorName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
+  },
+  visitorNameApproved: {
+    color: '#999',
   },
   visitorTypeContainer: {
     flexDirection: 'row',
@@ -2224,12 +2336,25 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  statusBadgeDisapproved: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffebee',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   statusIcon: {
     fontSize: 14,
     marginRight: 4,
   },
   statusText: {
     color: '#2d5a2d',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  statusTextDisapproved: {
+    color: '#c62828',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -2475,6 +2600,26 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDanger: {
     color: '#f44336',
+  },
+  actionButtonDisabled: {
+    backgroundColor: '#f0f0f0',
+    borderColor: '#e0e0e0',
+    opacity: 0.5,
+  },
+  actionButtonTextDisabled: {
+    color: '#ccc',
+  },
+  approvedIndicator: {
+    backgroundColor: '#e0e0e0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  approvedIndicatorText: {
+    color: '#666',
+    fontSize: 10,
+    fontWeight: '600',
   },
   helpText: {
     fontSize: 12,
