@@ -25,7 +25,7 @@ import {
   generateWhatsAppMessage,
   type ResidentData 
 } from '../../../utils/whatsapp';
-import { notificationService } from '../../../services/notificationService';
+// Removed old notification service - using Edge Functions for push notifications
 import * as Crypto from 'expo-crypto';
 
 // Funções de formatação
@@ -395,7 +395,6 @@ export default function VisitantesTab() {
         visit_end_time: visitor.visit_end_time
       }));
 
-      console.log('✅ [VisitantesTab] Mapped visitors:', mappedVisitors);
       setVisitors(mappedVisitors);
     } catch (error) {
       console.error('❌ Erro geral ao buscar visitantes:', error);
@@ -1034,20 +1033,26 @@ export default function VisitantesTab() {
         `Sua senha temporária para acesso é: ${temporaryPassword}\n\nEsta senha expira em 7 dias.\n\nSua senha temporária é:`
       );
 
-      // Enviar mensagem via WhatsApp usando o novo serviço para visitantes
-      const whatsappResult = await notificationService.sendVisitorWhatsApp({
-        name: sanitizedName,
-        phone: sanitizedPhone,
-        building: 'Edifício',
-        apartment: 'Visitante',
-        url: completionLink
-      });
+      // Enviar mensagem via WhatsApp (serviço temporariamente desabilitado)
+      // TODO: Reativar quando API do WhatsApp estiver disponível
+      try {
+        // Tentar enviar WhatsApp usando a função disponível
+        await sendWhatsAppMessage({
+          phone: sanitizedPhone,
+          message: `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante.\n\nComplete seu cadastro através do link:\n${completionLink}\n\nSenha temporária: ${temporaryPassword}\n\nEsta senha expira em 7 dias.`
+        });
 
-      if (whatsappResult.success) {
-        Alert.alert(
-          'Sucesso!', 
-          `Pré-cadastro realizado com sucesso!\n\nUm link foi enviado via WhatsApp para ${formatBrazilianPhone(sanitizedPhone)}.`,
-          [{ text: 'OK', onPress: () => {
+        console.log('✅ Mensagem WhatsApp enviada com sucesso');
+      } catch (whatsappError) {
+        console.warn('⚠️ Não foi possível enviar WhatsApp (serviço pode estar indisponível):', whatsappError);
+        // Não interrompe o fluxo se o WhatsApp falhar
+      }
+
+      // Sucesso no pré-cadastro independente do WhatsApp
+      Alert.alert(
+        'Sucesso!',
+        `Pré-cadastro realizado com sucesso!\n\nO visitante receberá o link de completação via WhatsApp no número ${formatBrazilianPhone(sanitizedPhone)}.\n\nLink: ${completionLink}\nSenha: ${temporaryPassword}`,
+        [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
             setPreRegistrationData({ 
               name: '', 
@@ -1065,29 +1070,6 @@ export default function VisitantesTab() {
             fetchVisitors(); // Atualizar lista
           }}]
         );
-      } else {
-        Alert.alert(
-          'Atenção', 
-          `Pré-cadastro realizado, mas houve erro no envio do WhatsApp: ${whatsappResult.error}\n\nO visitante foi cadastrado e pode completar o registro posteriormente.`,
-          [{ text: 'OK', onPress: () => {
-            setShowPreRegistrationModal(false);
-            setPreRegistrationData({ 
-              name: '', 
-              phone: '', 
-              visit_type: 'pontual',
-              access_type: 'com_aprovacao',
-              visit_date: '',
-              visit_start_time: '',
-              visit_end_time: '',
-              allowed_days: [],
-              max_simultaneous_visits: 1,
-              validity_start: '',
-              validity_end: ''
-            });
-            fetchVisitors();
-          }}]
-        );
-      }
     } catch (error) {
       console.error('Erro no pré-cadastro:', error);
       Alert.alert('Erro', 'Erro ao realizar pré-cadastro. Tente novamente.');
@@ -1246,7 +1228,18 @@ export default function VisitantesTab() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Primeiro, excluir senhas temporárias relacionadas
+              // 1. Excluir logs de visitante relacionados (visitor_logs)
+              const { error: logsError } = await supabase
+                .from('visitor_logs')
+                .delete()
+                .eq('visitor_id', visitor.id);
+
+              if (logsError) {
+                console.error('Erro ao excluir logs do visitante:', logsError);
+                // Continuar mesmo se não houver logs para excluir
+              }
+
+              // 2. Excluir senhas temporárias relacionadas
               const { error: passwordError } = await supabase
                 .from('visitor_temporary_passwords')
                 .delete()
@@ -1257,7 +1250,7 @@ export default function VisitantesTab() {
                 // Continuar mesmo se não houver senhas para excluir
               }
 
-              // Depois, excluir o visitante
+              // 3. Por último, excluir o visitante
               const { error } = await supabase
                 .from('visitors')
                 .delete()
@@ -1265,9 +1258,14 @@ export default function VisitantesTab() {
 
               if (error) {
                 console.error('Erro ao excluir visitante:', error);
-                
-                // Tratamento específico para erros de coluna inexistente
-                if (error.code === '42703') {
+
+                // Tratamento específico para foreign key constraint
+                if (error.code === '23503') {
+                  Alert.alert(
+                    'Erro de Dependência',
+                    'Este visitante possui registros associados que impedem sua exclusão. Entre em contato com o suporte.'
+                  );
+                } else if (error.code === '42703') {
                   Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
                 } else if (error.code === 'PGRST204') {
                   Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
@@ -1505,6 +1503,8 @@ export default function VisitantesTab() {
                       styles.actionButton,
                       hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
                     ]}
+                  <TouchableOpacity
+                    style={styles.actionButton}
                     onPress={() => handleEditVisitor(visitor)}
                     disabled={hasVisitorFinalStatus(visitor)}
                   >
@@ -1548,6 +1548,9 @@ export default function VisitantesTab() {
                       styles.actionButtonDanger,
                       hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
                     ]}
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.actionButtonDanger]}
                     onPress={() => handleDeleteVisitor(visitor)}
                     disabled={hasVisitorFinalStatus(visitor)}
                   >

@@ -11,17 +11,14 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-// PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-// import { useNotifications } from '../../hooks/useNotifications';
+// Old push notification service removed - using Edge Functions for push notifications
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationCard } from '../../components/NotificationCard';
 import BottomNav from '../../components/BottomNav';
 
 export default function NotificationsScreen() {
   const {} = useAuth();
-  // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-  // const { notifications, loading, markAsRead, markAllAsRead, refreshNotifications } =
-  //   useNotifications();
+  // Old push notification service removed - using Edge Functions for push notifications
   const notifications = [];
   const loading = false;
   const markAsRead = async () => {};
@@ -36,14 +33,8 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllAsRead = async () => {
-    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-    Alert.alert('Aviso', 'Notificações push estão temporariamente desativadas');
-    // try {
-    //   await markAllAsRead();
-    //   Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas');
-    // } catch {
-    //   Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas');
-    // }
+    // Old push notification service removed - using Edge Functions for push notifications
+    Alert.alert('Aviso', 'Sistema de notificações atualizado - usando Edge Functions');
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;

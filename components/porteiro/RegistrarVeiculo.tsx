@@ -297,82 +297,118 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       acc[floor].push(apartment);
       return acc;
     }, {} as Record<number, typeof availableApartments>);
-    
+
     return Object.keys(grouped)
       .map(Number)
       .sort((a, b) => a - b)
       .map(floor => ({ floor, apartments: grouped[floor] }));
   };
 
-  const renderApartamentoStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🏠 Apartamento</Text>
-      <Text style={styles.stepSubtitle}>Selecione o apartamento de destino</Text>
+  const renderNumericKeypad = (
+    value: string,
+    setValue: (val: string) => void,
+    onNext: () => void
+  ) => (
+    <View style={styles.keypadContainer}>
+      <View style={styles.displayContainer}>
+        <Text style={styles.displayLabel}>Número do Apartamento</Text>
+        <Text style={styles.displayValue}>{value || '___'}</Text>
+      </View>
 
-      {isLoadingApartments ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2196F3" />
-          <Text style={styles.loadingText}>Carregando apartamentos...</Text>
-        </View>
-      ) : availableApartments.length === 0 ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-          <Text style={styles.errorMessage}>Não há apartamentos cadastrados para este prédio.</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.apartmentsContainer} showsVerticalScrollIndicator={false}>
-          {groupApartmentsByFloor().map(({ floor, apartments }) => (
-            <View key={floor} style={styles.floorSection}>
-              <TouchableOpacity
-                style={[
-                  styles.floorButton,
-                  selectedFloor === floor && styles.floorButtonSelected,
-                ]}
-                onPress={() => {
-                  setSelectedFloor(selectedFloor === floor ? null : floor);
-                }}>
-                <Text style={styles.floorButtonText}>
-                  {floor === 0 ? 'Térreo' : `${floor}º Andar`} ({apartments?.length || 0} apts)
-                </Text>
-                <Text style={styles.floorButtonIcon}>
-                  {selectedFloor === floor ? '▼' : '▶'}
-                </Text>
-              </TouchableOpacity>
-              
-              {selectedFloor === floor && (
-                <View style={styles.apartmentsGrid}>
-                  {apartments.map((apartment) => (
-                    <TouchableOpacity
-                      key={apartment.id}
-                      style={[
-                        styles.apartmentButton,
-                        selectedApartment?.id === apartment.id && styles.apartmentButtonSelected,
-                      ]}
-                      onPress={() => {
-                        console.log('Selecionando apartamento:', apartment);
-                        if (!apartment.id) {
-                          Alert.alert('Erro', 'ID do apartamento não encontrado. Tente novamente.');
-                          return;
-                        }
-                        setSelectedApartment(apartment);
-                        setApartamento(apartment.number);
-                        console.log('Apartamento selecionado com sucesso:', { id: apartment.id, number: apartment.number });
-                        setCurrentStep('convidado');
-                      }}>
-                      <Text style={styles.apartmentNumber}>Apt {apartment.number}</Text>
-                      {apartment.floor && (
-                        <Text style={styles.apartmentFloor}>Andar {apartment.floor}</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          ))}
-        </ScrollView>
-      )}
+      <View style={styles.keypad}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✓'].map((item, index) => {
+          const isBackspace = item === '⌫';
+          const isConfirm = item === '✓';
+          const num = typeof item === 'number' ? item : null;
+
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.keypadButton,
+                isConfirm && styles.confirmButton
+              ]}
+              onPress={() => {
+                if (isBackspace) {
+                  setValue(value.slice(0, -1));
+                } else if (isConfirm) {
+                  onNext();
+                } else if (num !== null) {
+                  setValue(value + num.toString());
+                }
+              }}
+              disabled={isConfirm && !value}>
+              <Text style={isConfirm ? styles.confirmButtonText : styles.keypadButtonText}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
+
+  const renderApartamentoStep = () => {
+    const handleApartmentConfirm = () => {
+      if (!apartamento) {
+        Alert.alert('Erro', 'Digite o número do apartamento.');
+        return;
+      }
+
+      // Buscar o apartamento pelo número digitado
+      const foundApartment = availableApartments.find(
+        (apt) => apt.number === apartamento
+      );
+
+      if (!foundApartment) {
+        Alert.alert(
+          'Erro',
+          `Apartamento ${apartamento} não encontrado. Verifique o número e tente novamente.`
+        );
+        return;
+      }
+
+      if (!foundApartment.id) {
+        Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+        return;
+      }
+
+      console.log('Selecionando apartamento:', foundApartment);
+      setSelectedApartment({
+        id: foundApartment.id,
+        number: foundApartment.number,
+        floor: foundApartment.floor || null
+      });
+      console.log('Apartamento selecionado com sucesso:', {
+        id: foundApartment.id,
+        number: foundApartment.number,
+      });
+      setCurrentStep('convidado');
+    };
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>🏠 Apartamento</Text>
+        <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
+
+        {isLoadingApartments ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2196F3" />
+            <Text style={styles.loadingText}>Carregando apartamentos...</Text>
+          </View>
+        ) : availableApartments.length === 0 ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
+            <Text style={styles.errorMessage}>
+              Não há apartamentos cadastrados para este prédio.
+            </Text>
+          </View>
+        ) : (
+          renderNumericKeypad(apartamento, setApartamento, handleApartmentConfirm)
+        )}
+      </View>
+    );
+  };
 
   const renderEmpresaStep = () => (
     <View style={styles.stepContainer}>
@@ -1072,7 +1108,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 15,
+    width: '100%',
+    maxWidth: 240,
+    alignSelf: 'center',
+    gap: 10,
   },
   keypadButton: {
     width: 70,
@@ -1088,7 +1127,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   keypadButtonText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
   },
@@ -1097,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   inputContainer: {

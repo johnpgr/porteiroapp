@@ -5,8 +5,6 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { shiftService } from '../services/shiftService';
 import { Alert } from 'react-native';
 
-console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
-
 interface PorteiroNotification {
   id: string;
   type: 'visitor' | 'delivery' | 'visitor_log';

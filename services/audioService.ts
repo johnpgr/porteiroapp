@@ -10,7 +10,7 @@ export interface AudioRecording {
 
 export interface AudioPlayback {
   sound: Audio.Sound;
-  status: Audio.AVPlaybackStatus;
+  status: any;
 }
 
 class AudioService {
@@ -18,6 +18,8 @@ class AudioService {
   private sound: Audio.Sound | null = null;
   private isRecording: boolean = false;
   private isPlaying: boolean = false;
+  private audioInitialized: boolean = false;
+  private ringtone: Audio.Sound | null = null;
 
   constructor() {
     // Evitar inicialização de áudio em ambiente web/SSR
@@ -30,6 +32,10 @@ class AudioService {
    * Inicializa as configurações de áudio
    */
   private async initializeAudio(): Promise<void> {
+    if (Platform.OS === 'web' || this.audioInitialized) {
+      return;
+    }
+
     try {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -37,9 +43,14 @@ class AudioService {
         playThroughEarpieceAndroid: false,
         staysActiveInBackground: false,
       });
+      this.audioInitialized = true;
     } catch (error) {
       console.error('Erro ao inicializar áudio:', error);
     }
+  }
+
+  async initialize(): Promise<void> {
+    await this.initializeAudio();
   }
 
   /**
@@ -229,7 +240,7 @@ class AudioService {
   /**
    * Obtém o status da reprodução
    */
-  async getPlaybackStatus(): Promise<Audio.AVPlaybackStatus | null> {
+  async getPlaybackStatus(): Promise<any | null> {
     try {
       if (Platform.OS === 'web') return null;
       if (this.sound) {
@@ -251,7 +262,12 @@ class AudioService {
         console.warn('Salvar arquivo de áudio não suportado via expo-file-system na Web.');
         return null;
       }
-      const directory = `${FileSystem.documentDirectory}audio/`;
+      const baseDirectory = (FileSystem as any).documentDirectory || (FileSystem as any).cacheDirectory;
+      if (!baseDirectory) {
+        console.warn('Diretório de documentos não disponível.');
+        return null;
+      }
+      const directory = `${baseDirectory}audio/`;
       const dest = `${directory}${filename}`;
       await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
       await FileSystem.copyAsync({ from: uri, to: dest });
@@ -276,7 +292,12 @@ class AudioService {
   async listAudioFiles(): Promise<string[]> {
     try {
       if (Platform.OS === 'web') return [];
-      const directory = `${FileSystem.documentDirectory}audio/`;
+      const baseDirectory = (FileSystem as any).documentDirectory || (FileSystem as any).cacheDirectory;
+      if (!baseDirectory) {
+        console.warn('Diretório de documentos não disponível.');
+        return [];
+      }
+      const directory = `${baseDirectory}audio/`;
       const files = await FileSystem.readDirectoryAsync(directory);
       return files;
     } catch (error) {
@@ -296,11 +317,91 @@ class AudioService {
         await this.sound.unloadAsync();
         this.sound = null;
       }
+      if (this.ringtone) {
+        const status = await this.ringtone.getStatusAsync();
+        if (status.isLoaded) {
+          await this.ringtone.stopAsync();
+        }
+        await this.ringtone.unloadAsync();
+        this.ringtone = null;
+      }
     } catch (error) {
       console.error('Erro ao limpar recursos de áudio:', error);
     } finally {
       this.isRecording = false;
       this.isPlaying = false;
+    }
+  }
+
+  async loadRingtone(): Promise<void> {
+    if (Platform.OS === 'web' || this.ringtone) {
+      return;
+    }
+
+    await this.initializeAudio();
+
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/audio/phone-ringing-382734.mp3'),
+        {
+          shouldPlay: false,
+          isLooping: true,
+          volume: 1.0,
+        }
+      );
+      this.ringtone = sound;
+    } catch (error) {
+      console.error('Erro ao carregar ringtone:', error);
+    }
+  }
+
+  async playRingtone(): Promise<void> {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    if (!this.ringtone) {
+      await this.loadRingtone();
+    }
+
+    if (!this.ringtone) {
+      return;
+    }
+
+    try {
+      const status = await this.ringtone.getStatusAsync();
+      if (!status.isLoaded) {
+        await this.ringtone.unloadAsync();
+        this.ringtone = null;
+        await this.loadRingtone();
+      }
+
+      if (!this.ringtone) {
+        return;
+      }
+
+      await this.ringtone.setPositionAsync(0);
+      await this.ringtone.playAsync();
+    } catch (error) {
+      console.error('Erro ao reproduzir ringtone:', error);
+    }
+  }
+
+  async stopRingtone(): Promise<void> {
+    if (Platform.OS === 'web' || !this.ringtone) {
+      return;
+    }
+
+    try {
+      const status = await this.ringtone.getStatusAsync();
+      if (status.isLoaded && status.isPlaying) {
+        await this.ringtone.stopAsync();
+      }
+      if (status.isLoaded) {
+        await this.ringtone.setPositionAsync(0);
+      }
+    } catch (error) {
+      console.error('Erro ao parar ringtone:', error);
     }
   }
 }

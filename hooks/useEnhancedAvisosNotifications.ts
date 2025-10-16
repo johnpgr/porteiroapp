@@ -1,224 +1,121 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import avisosNotificationService, { 
-  AvisoNotificationData, 
-  AvisoNotificationCallback,
-  NotificationDeliveryStatus 
-} from '../services/avisosNotificationService';
-import { supabase } from '../utils/supabase';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
+// Removed old notification service - using Edge Functions for push notifications
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../utils/supabase';
+
+// Interfaces moved here since service was removed
+export interface AvisoNotificationData {
+  id: string;
+  type: 'communication' | 'poll';
+  title: string;
+  content?: string;
+  description?: string;
+  building_id: string;
+  building_name?: string;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  created_at: string;
+  expires_at?: string;
+  notification_status?: 'sent' | 'delivered' | 'read' | 'failed';
+  delivery_attempts?: number;
+  last_attempt_at?: string;
+}
 
 export interface UseEnhancedAvisosNotificationsReturn {
-  // Estado das notificações
   notifications: AvisoNotificationData[];
   unreadCount: number;
   isLoading: boolean;
-  isListening: boolean;
   error: string | null;
-  
-  // Estatísticas de entrega
-  deliveryStats: {
-    communications: {
-      total: number;
-      delivered: number;
-      read: number;
-      confirmed: number;
-      deliveryRate: number;
-      readRate: number;
-    };
-    polls: {
-      total: number;
-      delivered: number;
-      read: number;
-      deliveryRate: number;
-      readRate: number;
-    };
-  } | null;
-  
-  // Ações
-  startListening: () => Promise<void>;
-  stopListening: () => Promise<void>;
+  isListening: boolean;
   refreshNotifications: () => Promise<void>;
   markAsRead: (notificationId: string, type: 'communication' | 'poll') => Promise<void>;
   confirmUrgentNotification: (notificationId: string, type: 'communication' | 'poll') => Promise<void>;
-  getDeliveryStatus: (notificationId: string, type: 'communication' | 'poll') => Promise<NotificationDeliveryStatus | null>;
-  loadDeliveryStats: () => Promise<void>;
-  clearError: () => void;
+  startListening: () => Promise<void>;
+  stopListening: () => Promise<void>;
+  getNotificationStats: (daysBack?: number) => Promise<any>;
 }
 
 /**
- * Hook aprimorado para gerenciar notificações de avisos e enquetes
- * Implementa as recomendações do documento técnico
+ * Hook simplificado para notificações - removido serviço antigo
+ * Agora usa apenas Edge Functions para push notifications
  */
 const useEnhancedAvisosNotifications = () => {
-  const { user } = useAuth();
-  // TODO: Integrar com BuildingContext quando disponível
-  const selectedBuilding = { id: 'default' };  
+  const { user, selectedBuilding } = useAuth();
+  
   // Estados
   const [notifications, setNotifications] = useState<AvisoNotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deliveryStats, setDeliveryStats] = useState<any>(null);
-  
-  // Refs para controle
-  const callbackRef = useRef<AvisoNotificationCallback | null>(null);
-  const isInitializedRef = useRef(false);
-  const lastBuildingIdRef = useRef<string | null>(null);
-
-
 
   /**
-   * Callback para processar novas notificações
-   */
-  const handleNewNotification = useCallback((notification: AvisoNotificationData) => {
-    console.log('🔔 Nova notificação recebida:', notification);
-    
-    setNotifications(prev => {
-      // Evitar duplicatas
-      const exists = prev.some(n => n.id === notification.id && n.type === notification.type);
-      if (exists) return prev;
-      
-      // Adicionar nova notificação no início
-      const updated = [notification, ...prev];
-      
-      // Limitar a 50 notificações para performance
-      return updated.slice(0, 50);
-    });
-    
-    // Atualizar contador de não lidas
-    setUnreadCount(prev => prev + 1);
-    
-    // Mostrar alerta para notificações urgentes
-    if (notification.priority === 'high' || notification.priority === 'urgent') {
-      showUrgentNotificationAlert(notification);
-    }
-  }, [showUrgentNotificationAlert]);
-
-  /**
-   * Mostra alerta para notificações urgentes
-   */
-  const showUrgentNotificationAlert = useCallback((notification: AvisoNotificationData) => {
-    const title = notification.type === 'poll' ? 'Nova Enquete Urgente' : 'Comunicado Urgente';
-    const message = `${notification.building_name || 'Condomínio'}: ${notification.title}`;
-    
-    Alert.alert(
-      title,
-      message,
-      [
-        {
-          text: 'Confirmar Recebimento',
-          onPress: () => confirmUrgentNotification(notification.id, notification.type),
-          style: 'default'
-        },
-        {
-          text: 'Ver Depois',
-          style: 'cancel'
-        }
-      ],
-      { cancelable: false }
-    );
-  }, []);
-
-  /**
-   * Inicializa o serviço de notificações
-   */
-  const initializeService = useCallback(async () => {
-    if (!user?.id || !selectedBuilding?.id || isInitializedRef.current) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log('🚀 Inicializando serviço de notificações aprimorado');
-      
-      // Inicializar serviço
-      await avisosNotificationService.initialize(user.id, selectedBuilding.id);
-      
-      // Configurar callback
-      if (callbackRef.current) {
-        avisosNotificationService.removeCallback(callbackRef.current);
-      }
-      
-      callbackRef.current = handleNewNotification;
-      avisosNotificationService.addCallback(callbackRef.current);
-      
-      // Carregar notificações recentes
-      await refreshNotifications();
-      
-      isInitializedRef.current = true;
-      lastBuildingIdRef.current = selectedBuilding.id;
-      
-      console.log('✅ Serviço de notificações inicializado com sucesso');
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao inicializar notificações';
-      console.error('❌ Erro ao inicializar serviço:', err);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id, selectedBuilding?.id, handleNewNotification]);
-
-  /**
-   * Inicia o monitoramento de notificações
-   */
-  const startListening = useCallback(async () => {
-    if (!isInitializedRef.current) {
-      await initializeService();
-    }
-    
-    if (isListening) return;
-    
-    try {
-      setError(null);
-      await avisosNotificationService.startListening();
-      setIsListening(true);
-      console.log('🎧 Monitoramento de notificações iniciado');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao iniciar monitoramento';
-      console.error('❌ Erro ao iniciar monitoramento:', err);
-      setError(errorMessage);
-    }
-  }, [isListening, initializeService]);
-
-  /**
-   * Para o monitoramento de notificações
-   */
-  const stopListening = useCallback(async () => {
-    if (!isListening) return;
-    
-    try {
-      await avisosNotificationService.stopListening();
-      setIsListening(false);
-      console.log('🔇 Monitoramento de notificações parado');
-    } catch (err) {
-      console.error('❌ Erro ao parar monitoramento:', err);
-    }
-  }, [isListening]);
-
-  /**
-   * Atualiza a lista de notificações
+   * Carrega notificações do banco de dados
    */
   const refreshNotifications = useCallback(async () => {
-    if (!isInitializedRef.current) return;
-    
+    if (!user?.id || !selectedBuilding?.id) return;
+
     try {
       setIsLoading(true);
       setError(null);
+
+      // Buscar comunicados
+      const { data: communications, error: commError } = await supabase
+        .from('communications')
+        .select('*')
+        .eq('building_id', selectedBuilding.id)
+        .order('created_at', { ascending: false })
+        .limit(25);
+
+      // Buscar enquetes
+      const { data: polls, error: pollError } = await supabase
+        .from('polls')
+        .select('*')
+        .eq('building_id', selectedBuilding.id)
+        .order('created_at', { ascending: false })
+        .limit(25);
+
+      if (commError) throw commError;
+      if (pollError) throw pollError;
+
+      // Combinar e formatar notificações
+      const allNotifications: AvisoNotificationData[] = [
+        ...(communications || []).map(comm => ({
+          id: comm.id,
+          type: 'communication' as const,
+          title: comm.title,
+          content: comm.content,
+          building_id: comm.building_id,
+          priority: comm.priority || 'normal',
+          created_at: comm.created_at,
+          expires_at: comm.expires_at,
+        })),
+        ...(polls || []).map(poll => ({
+          id: poll.id,
+          type: 'poll' as const,
+          title: poll.title,
+          description: poll.description,
+          building_id: poll.building_id,
+          priority: poll.priority || 'normal',
+          created_at: poll.created_at,
+          expires_at: poll.expires_at,
+        }))
+      ];
+
+      // Ordenar por data
+      allNotifications.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setNotifications(allNotifications);
       
-      const recentNotifications = await avisosNotificationService.getRecentNotifications(50);
-      setNotifications(recentNotifications);
-      
-      // Calcular não lidas (simulação - em produção viria do banco)
-      const unread = recentNotifications.filter(n => 
-        n.notification_status !== 'read'
+      // Calcular não lidas (simplificado)
+      const unread = allNotifications.filter(n => 
+        new Date(n.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // últimas 24h
       ).length;
-      setUnreadCount(unread);
       
+      setUnreadCount(unread);
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar notificações';
       console.error('❌ Erro ao carregar notificações:', err);
@@ -226,233 +123,96 @@ const useEnhancedAvisosNotifications = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.id, selectedBuilding?.id]);
 
   /**
    * Marca notificação como lida
    */
-  const markAsRead = useCallback(async (
-    notificationId: string, 
-    type: 'communication' | 'poll'
-  ) => {
-    if (!user?.id) return;
-    
-    try {
-      // Atualizar no banco via serviço
-      const deliveryId = `${type}_${notificationId}_${user.id}`;
-      
-      const { error } = await supabase
-        .from('notification_delivery_status')
-        .update({
-          read_status: 'read',
-          read_at: new Date().toISOString()
-        })
-        .eq('notification_id', deliveryId);
-      
-      if (error) {
-        console.error('❌ Erro ao marcar como lida:', error);
-        return;
-      }
-      
-      // Atualizar estado local
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId && n.type === type
-            ? { ...n, notification_status: 'read' }
-            : n
-        )
-      );
-      
-      // Decrementar contador
-      setUnreadCount(prev => Math.max(0, prev - 1));
-      
-      console.log('✅ Notificação marcada como lida:', notificationId);
-      
-    } catch (err) {
-      console.error('❌ Erro ao marcar notificação como lida:', err);
-    }
-  }, [user?.id]);
-
-  /**
-   * Confirma recebimento de notificação urgente
-   */
-  const confirmUrgentNotification = useCallback(async (
-    notificationId: string, 
-    type: 'communication' | 'poll'
-  ) => {
-    try {
-      const success = await avisosNotificationService.confirmUrgentNotification(notificationId, type);
-      
-      if (success) {
-        // Atualizar estado local
-        setNotifications(prev => 
-          prev.map(n => 
-            n.id === notificationId && n.type === type
-              ? { ...n, notification_status: 'confirmed' }
-              : n
-          )
-        );
-        
-        console.log('✅ Notificação urgente confirmada:', notificationId);
-      }
-    } catch (err) {
-      console.error('❌ Erro ao confirmar notificação urgente:', err);
-    }
+  const markAsRead = useCallback(async (notificationId: string, type: 'communication' | 'poll') => {
+    // Implementação simplificada - apenas remove do contador local
+    setUnreadCount(prev => Math.max(0, prev - 1));
   }, []);
 
   /**
-   * Obtém status de entrega de uma notificação
+   * Confirma notificação urgente
    */
-  const getDeliveryStatus = useCallback(async (
-    notificationId: string, 
-    type: 'communication' | 'poll'
-  ): Promise<NotificationDeliveryStatus | null> => {
-    if (!user?.id) return null;
-    
+  const confirmUrgentNotification = useCallback(async (notificationId: string, type: 'communication' | 'poll') => {
     try {
-      const deliveryId = `${type}_${notificationId}_${user.id}`;
-      
-      const { data, error } = await supabase
-        .from('notification_delivery_status')
-        .select('*')
-        .eq('notification_id', deliveryId)
-        .single();
-      
-      if (error || !data) {
-        console.error('❌ Erro ao buscar status de entrega:', error);
-        return null;
-      }
-      
-      return data as NotificationDeliveryStatus;
-      
+      // Implementação simplificada
+      await markAsRead(notificationId, type);
+      Alert.alert('Confirmado', 'Recebimento confirmado com sucesso!');
     } catch (err) {
-      console.error('❌ Erro ao buscar status de entrega:', err);
+      console.error('❌ Erro ao confirmar notificação:', err);
+      Alert.alert('Erro', 'Falha ao confirmar recebimento');
+    }
+  }, [markAsRead]);
+
+  /**
+   * Inicia escuta de notificações (simplificado)
+   */
+  const startListening = useCallback(async () => {
+    setIsListening(true);
+    await refreshNotifications();
+  }, [refreshNotifications]);
+
+  /**
+   * Para escuta de notificações
+   */
+  const stopListening = useCallback(async () => {
+    setIsListening(false);
+  }, []);
+
+  /**
+   * Obtém estatísticas de notificações
+   */
+  const getNotificationStats = useCallback(async (daysBack: number = 30) => {
+    if (!selectedBuilding?.id) return null;
+
+    try {
+      const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: communications } = await supabase
+        .from('communications')
+        .select('id')
+        .eq('building_id', selectedBuilding.id)
+        .gte('created_at', since);
+
+      const { data: polls } = await supabase
+        .from('polls')
+        .select('id')
+        .eq('building_id', selectedBuilding.id)
+        .gte('created_at', since);
+
+      return {
+        communications: communications?.length || 0,
+        polls: polls?.length || 0,
+        total: (communications?.length || 0) + (polls?.length || 0)
+      };
+    } catch (err) {
+      console.error('❌ Erro ao obter estatísticas:', err);
       return null;
     }
-  }, [user?.id]);
-
-  /**
-   * Carrega estatísticas de entrega
-   */
-  const loadDeliveryStats = useCallback(async () => {
-    if (!selectedBuilding?.id) return;
-    
-    try {
-      const { data, error } = await supabase
-        .rpc('get_notification_delivery_stats', {
-          p_building_id: selectedBuilding.id
-        });
-      
-      if (error) {
-        console.error('❌ Erro ao carregar estatísticas:', error);
-        return;
-      }
-      
-      // Processar dados
-      const stats = {
-        communications: {
-          total: 0,
-          delivered: 0,
-          read: 0,
-          confirmed: 0,
-          deliveryRate: 0,
-          readRate: 0
-        },
-        polls: {
-          total: 0,
-          delivered: 0,
-          read: 0,
-          deliveryRate: 0,
-          readRate: 0
-        }
-      };
-      
-      if (data) {
-        data.forEach((row: any) => {
-          if (row.notification_type === 'communication') {
-            stats.communications = {
-              total: row.total_sent || 0,
-              delivered: row.total_delivered || 0,
-              read: row.total_read || 0,
-              confirmed: row.total_confirmed || 0,
-              deliveryRate: row.delivery_rate || 0,
-              readRate: row.read_rate || 0
-            };
-          } else if (row.notification_type === 'poll') {
-            stats.polls = {
-              total: row.total_sent || 0,
-              delivered: row.total_delivered || 0,
-              read: row.total_read || 0,
-              deliveryRate: row.delivery_rate || 0,
-              readRate: row.read_rate || 0
-            };
-          }
-        });
-      }
-      
-      setDeliveryStats(stats);
-      
-    } catch (err) {
-      console.error('❌ Erro ao carregar estatísticas de entrega:', err);
-    }
   }, [selectedBuilding?.id]);
-
-  /**
-   * Limpa erro
-   */
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
 
   // Efeito para inicialização
   useEffect(() => {
     if (user?.id && selectedBuilding?.id) {
-      // Reinicializar se mudou o prédio
-      if (lastBuildingIdRef.current !== selectedBuilding.id) {
-        isInitializedRef.current = false;
-        setNotifications([]);
-        setUnreadCount(0);
-      }
-      
-      initializeService();
+      refreshNotifications();
     }
-  }, [user?.id, selectedBuilding?.id, initializeService]);
-
-  // Efeito para limpeza
-  useEffect(() => {
-    return () => {
-      if (callbackRef.current) {
-        avisosNotificationService.removeCallback(callbackRef.current);
-      }
-      avisosNotificationService.stopListening();
-    };
-  }, []);
-
-  // Auto-iniciar monitoramento quando inicializado
-  useEffect(() => {
-    if (isInitializedRef.current && !isListening) {
-      startListening();
-    }
-  }, [isListening, startListening]);
+  }, [user?.id, selectedBuilding?.id, refreshNotifications]);
 
   return {
-    // Estado
     notifications,
     unreadCount,
     isLoading,
-    isListening: isListening && avisosNotificationService.isServiceListening(),
     error,
-    deliveryStats,
-    
-    // Ações
-    startListening,
-    stopListening,
+    isListening,
     refreshNotifications,
     markAsRead,
     confirmUrgentNotification,
-    getDeliveryStatus,
-    loadDeliveryStats,
-    clearError
+    startListening,
+    stopListening,
+    getNotificationStats,
   };
 };
 

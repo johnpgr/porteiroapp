@@ -99,9 +99,6 @@ router.post('/intercom/call', async (req, res) => {
     // Criar identidade única para o apartamento
     const apartmentIdentity = `apt-${apartment.id}`;
 
-    // Iniciar chamada app-to-app via Twilio
-    const call = await twilioService.makeCall(apartmentIdentity, 'porteiro');
-
     // Buscar tokens de dispositivo dos moradores
     const residentIds = residents.map(r => r.profiles.id);
     const { data: deviceTokens, error: tokensError } = await supabase
@@ -114,15 +111,15 @@ router.post('/intercom/call', async (req, res) => {
       console.error('Erro ao buscar tokens de dispositivo:', tokensError);
     }
 
-    // Criar registro da chamada
+    // Criar registro da chamada SEM Twilio ainda - aguardar confirmação
     const { data: callRecord, error: callError } = await supabase
       .from('intercom_calls')
       .insert({
         apartment_id: apartment.id,
         doorman_id,
-        status: 'calling',
+        status: 'ringing', // Status inicial: tocando/aguardando
         started_at: new Date().toISOString(),
-        twilio_call_sid: call.sid
+        twilio_call_sid: null // Será preenchido após confirmação
       })
       .select()
       .single();
@@ -218,7 +215,7 @@ router.post('/intercom/call', async (req, res) => {
     res.json({
       success: true,
       call_id: callRecord.id,
-      twilio_call_sid: call.sid,
+      status: 'ringing', // Indica que está tocando, aguardando resposta
       apartment_identity: apartmentIdentity,
       apartment: {
         id: apartment.id,
@@ -372,12 +369,41 @@ router.post('/intercom/answer', async (req, res) => {
     const callService = new IntercomCallService();
     callService.stopCall(call_id);
 
-    // Atualizar status da chamada
+    // Buscar informações da chamada para conectar Twilio
+    const { data: callData, error: fetchError } = await supabase
+      .from('intercom_calls')
+      .select('*')
+      .eq('id', call_id)
+      .single();
+
+    if (fetchError || !callData) {
+      console.error('Erro ao buscar chamada:', fetchError);
+      return res.status(404).json({
+        error: 'Chamada não encontrada'
+      });
+    }
+
+    // Agora que o morador atendeu, conectar via Twilio
+    let twilioCallSid = null;
+    try {
+      const twilioCall = await twilioService.makeCall(
+        callData.apartment_identity,
+        callData.doorman_id
+      );
+      twilioCallSid = twilioCall.sid;
+      console.log('✅ Chamada Twilio conectada:', twilioCallSid);
+    } catch (twilioError) {
+      console.error('❌ Erro ao conectar Twilio:', twilioError);
+      // Continuar mesmo se Twilio falhar, para não bloquear o fluxo
+    }
+
+    // Atualizar status da chamada com SID do Twilio
     const { error: callError } = await supabase
       .from('intercom_calls')
       .update({
         status: 'answered',
-        answered_at: new Date().toISOString()
+        answered_at: new Date().toISOString(),
+        twilio_call_sid: twilioCallSid
       })
       .eq('id', call_id);
 

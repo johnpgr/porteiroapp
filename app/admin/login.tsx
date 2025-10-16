@@ -24,6 +24,8 @@ export default function AdminLogin() {
   }, []);
 
   useEffect(() => {
+    // Redireciona para index.tsx se o usuário já estiver logado
+    // O index.tsx irá redirecionar para a página correta com delay
     if (!authLoading && user?.user_type === 'admin') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -31,7 +33,7 @@ export default function AdminLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/admin');
+        router.replace('/');
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
@@ -72,11 +74,8 @@ export default function AdminLogin() {
 
       if (result.user && result.adminProfile) {
         console.log('✅ Login realizado com sucesso!');
-        try {
-          await checkAndRedirectUser();
-        } catch (redirectError) {
-          console.error('⚠️ Erro ao redirecionar após login:', redirectError);
-        }
+        // O redirecionamento será feito automaticamente pelo useEffect
+        // que já tem o delay de 1.5s para melhor experiência visual
         return { success: true };
       } else {
         console.warn('⚠️ Falha na autenticação - dados incompletos');

@@ -10,18 +10,6 @@ import { toast } from 'sonner';
 import NotificationCard from '../../components/NotificationCard';
 import { usePendingNotifications } from '../../hooks/usePendingNotifications';
 
-// Interface para tipagem do histórico de visitantes
-interface VisitorHistory {
-  id: string;
-  visitor_name: string;
-  purpose: string;
-  log_time: string;
-  notification_status: 'approved' | 'pending' | 'rejected';
-  visitor_document?: string;
-  visitor_phone?: string;
-  delivery_destination?: string;
-}
-
 // Interface para notificações pendentes (removida - não utilizada)
 /*
 interface PendingNotification {
@@ -75,6 +63,18 @@ import {
   AlertTriangle,
   Settings
 } from 'lucide-react';
+
+// Interface para tipagem do histórico de visitantes
+interface VisitorHistory {
+  id: string;
+  visitor_name: string;
+  purpose: string;
+  log_time: string;
+  notification_status: 'approved' | 'pending' | 'rejected';
+  visitor_document?: string;
+  visitor_phone?: string;
+  delivery_destination?: string;
+}
 
 // Tipos para o dashboard
 type DashboardTab = 'home' | 'notifications' | 'profile' | 'settings';

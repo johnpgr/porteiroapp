@@ -1,26 +1,81 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect } from 'react';
+import { useColorScheme, Platform } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { AuthProvider } from '../hooks/useAuth';
-import { notificationService } from '../services/notificationService';
-// import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
+import { AuthProvider, useAuth } from '../hooks/useAuth';
 import * as Notifications from 'expo-notifications';
-import CustomSplashScreen from '../components/SplashScreen';
+import * as Device from 'expo-device';
+// Removed old notification service - using Edge Functions for push notifications
+// import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Componente interno para gerenciar push tokens
+function PushTokenManager() {
+  const { user, updatePushToken } = useAuth();
+
+  useEffect(() => {
+    const registerPushToken = async () => {
+      // Só registra em dispositivos físicos
+      if (!Device.isDevice) {
+        console.log('🔔 Push notifications não são suportadas em simulador/emulador');
+        return;
+      }
+
+      // Só registra se o usuário estiver autenticado
+      if (!user?.id) {
+        return;
+      }
+
+      try {
+        // Solicitar permissão
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+          console.log('🚨 Permissão de notificação negada');
+          return;
+        }
+
+        // Obter push token
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+          projectId: '74e123bc-f565-44ba-92f0-86fc00cbe0b1',
+        });
+
+        const token = tokenData.data;
+
+        // Só atualiza se o token mudou ou não existe
+        if (token && token !== user.push_token) {
+          console.log('🔔 Push token obtido:', token);
+          await updatePushToken(token);
+          console.log('✅ Push token registrado no banco de dados');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao registrar push token:', error);
+      }
+    };
+
+    registerPushToken();
+  }, [user?.id, user?.push_token]); // Removido updatePushToken das dependências
+
+  return null;
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({});
-  const [isAppReady, setIsAppReady] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('Carregando fontes...');
+  const router = useRouter();
 
   useEffect(() => {
     if (loaded) {
@@ -28,59 +83,26 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  // Configurar handler de notificações
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        setLoadingMessage('Inicializando notificações...');
-        
-        // Aguardar um pouco para mostrar a mensagem
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Configurar listeners de notificações
-        await notificationService.setupNotificationListeners();
-        
-        // Adicionar callback personalizado para processar notificações
-        notificationService.addCallback((notification) => {
-          console.log('🔔 Notificação processada no RootLayout:', notification);
-          // Aqui você pode adicionar lógica adicional para processar notificações
-        });
-        
-        setLoadingMessage('Finalizando configurações...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        console.log('✅ Sistema de notificações inicializado com sucesso');
-        setIsAppReady(true);
-      } catch (error) {
-        console.error('❌ Erro ao inicializar sistema de notificações:', error);
-        setLoadingMessage('Erro na inicialização');
-        // Mesmo com erro, permitir que o app continue
-        setTimeout(() => setIsAppReady(true), 1000);
-      }
-    };
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }, []);
 
-    if (loaded) {
-      initializeApp();
-    }
-    
-    // Cleanup quando o componente for desmontado
-    return () => {
-      notificationService.stopListening();
-    };
-  }, [loaded]);
-
-
-
-
-
-  // Mostrar splash screen personalizado enquanto carrega
-  if (!loaded || !isAppReady) {
-    return <CustomSplashScreen isLoading={true} message={loadingMessage} />;
+  if (!loaded) {
+    return null;
   }
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1 }}>
         <AuthProvider>
+          <PushTokenManager />
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <Stack>
               <Stack.Screen name="index" options={{ headerShown: false }} />

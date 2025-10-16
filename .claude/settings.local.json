@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(del resolve_conflicts.py)",
+      "Bash(npm run format:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx eas project:info)",
+      "Bash(npm run lint)",
+      "Bash(npm start)",
+      "Bash(find:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

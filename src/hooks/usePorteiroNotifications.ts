@@ -1,5 +1,3 @@
-console.log('🔥 HOOK FILE LOADED - IMMEDIATE LOG');
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

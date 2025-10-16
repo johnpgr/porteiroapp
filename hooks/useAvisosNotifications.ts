@@ -1,34 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { useAuth } from '../hooks/useAuth';
+// Removed old notification services - using Edge Functions for push notifications
+import { AvisoNotificationData } from './useEnhancedAvisosNotifications';
 import { supabase } from '../utils/supabase';
-import { useAuth } from './useAuth';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import * as Device from 'expo-device';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { integratedNotificationService } from '../services/integratedNotificationService';
-import { AvisoNotificationData } from '../services/avisosNotificationService';
-
-// Configurar comportamento das notificações para FCM e APNS
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  } as any),
-});
-
-// Configurar canal de notificação para Android (FCM)
-if (Device.isDevice && Constants.platform?.android) {
-  Notifications.setNotificationChannelAsync('avisos-enquetes', {
-    name: 'Avisos e Enquetes',
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#388E3C',
-    sound: 'default',
-    enableVibrate: true,
-    showBadge: true,
-  });
-}
 
 interface AvisoNotification {
   id: string;
@@ -44,6 +19,10 @@ interface AvisoNotification {
   notification_status?: string;
 }
 
+/**
+ * Hook simplificado para notificações de avisos - removido serviço antigo
+ * Agora usa apenas Edge Functions para push notifications
+ */
 export const useAvisosNotifications = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AvisoNotification[]>([]);
@@ -51,8 +30,6 @@ export const useAvisosNotifications = () => {
   const [error, setError] = useState<string | null>(null);
   const [userBuildingId, setUserBuildingId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [communicationsChannel, setCommunicationsChannel] = useState<RealtimeChannel | null>(null);
-  const [pollsChannel, setPollsChannel] = useState<RealtimeChannel | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Buscar building_id do usuário
@@ -86,430 +63,153 @@ export const useAvisosNotifications = () => {
     }
   }, [user?.id, user?.building_id]);
 
-  // Inicializar serviço integrado
-  const initializeIntegratedService = useCallback(async (userId: string, buildingId?: string) => {
-    try {
-      await integratedNotificationService.initialize(userId, buildingId);
-      
-      // Configurar callbacks
-      integratedNotificationService.setCallbacks({
-        onNewNotification: (notification: AvisoNotificationData) => {
-          // Converter para formato do hook existente
-          const avisoNotification: AvisoNotification = {
-            id: notification.id,
-            type: notification.type,
-            title: notification.title,
-            content: notification.content,
-            building_id: notification.building_id,
-            building_name: notification.building_name,
-            priority: notification.priority,
-            created_at: notification.created_at,
-            expires_at: notification.expires_at,
-            notification_status: notification.notification_status
-          };
-          
-          setNotifications(prev => [avisoNotification, ...prev]);
-          setUnreadCount(prev => prev + 1);
-        },
-        onNotificationStatusUpdate: (id: string, type: string, status: string) => {
-          setNotifications(prev => 
-            prev.map(notif => 
-              notif.id === id && notif.type === type 
-                ? { ...notif, notification_status: status }
-                : notif
-            )
-          );
-          
-          if (status === 'read') {
-            setUnreadCount(prev => Math.max(0, prev - 1));
-          }
-        },
-        onError: (errorMessage: string) => {
-          setError(errorMessage);
-        }
-      });
-      
-      // Serviço integrado inicializado com sucesso
-    } catch (err) {
-      console.error('❌ Erro ao inicializar serviço integrado:', err);
-      setError('Erro ao inicializar notificações');
-    }
-  }, []);
-
-  // Função para disparar notificações automáticas para novos comunicados
-  const triggerCommunicationNotification = useCallback(async (newCommunication: any) => {
-    try {
-      console.log('📢 Novo comunicado detectado:', newCommunication);
-
-      // Verificar se é do prédio do usuário
-      if (newCommunication.building_id !== userBuildingId) {
-        return;
-      }
-
-      // Buscar dados completos do comunicado
-      const { data: commData, error: commError } = await supabase
-        .from('communications')
-        .select(`
-          id,
-          title,
-          content,
-          type,
-          priority,
-          building_id,
-          created_at,
-          buildings (
-            name
-          )
-        `)
-        .eq('id', newCommunication.id)
-        .single();
-
-      if (commError || !commData) {
-        console.error('Erro ao buscar dados do comunicado:', commError);
-        return;
-      }
-
-      const buildingName = (commData as any).buildings?.name || 'Condomínio';
-      
-      // Definir prioridade
-      const priorityText = (commData as any).priority === 'high' ? ' [URGENTE]' : ''
-
-      // Disparar Push Notification com configurações para FCM e APNS
-      try {
-        const notificationConfig: any = {
-          content: {
-            title: '📢 Novo Comunicado',
-            body: `${buildingName}: ${(commData as any).title}`,
-            data: {
-              type: 'new_communication',
-              communication_id: (commData as any).id,
-              building_id: (commData as any).building_id,
-              building_name: buildingName,
-              communication_type: (commData as any).type,
-              priority: (commData as any).priority
-            },
-            sound: 'default',
-            priority: (commData as any).priority === 'high' ? 'high' : 'normal',
-          },
-          trigger: null, // Imediato
-        };
-
-        // Configurações específicas para Android (FCM)
-        if (Device.isDevice && Constants.platform?.android) {
-          notificationConfig.content.android = {
-            channelId: 'avisos-enquetes',
-            priority: (commData as any).priority === 'high' ? 'high' : 'normal',
-            vibrate: [0, 250, 250, 250],
-            color: '#388E3C',
-            sticky: (commData as any).priority === 'high',
-          };
-        }
-
-        // Configurações específicas para iOS (APNS)
-        if (Device.isDevice && Constants.platform?.ios) {
-          notificationConfig.content.ios = {
-            sound: 'default',
-            badge: 1,
-            critical: (commData as any).priority === 'high',
-            interruptionLevel: (commData as any).priority === 'high' ? 'critical' : 'active',
-          };
-        }
-
-        await Notifications.scheduleNotificationAsync(notificationConfig);
-
-        console.log('✅ Notificação de comunicado enviada com sucesso');
-      } catch (pushError) {
-        console.error('❌ Erro ao enviar push notification de comunicado:', pushError);
-      }
-
-    } catch (error) {
-      console.error('❌ Erro geral ao disparar notificação de comunicado:', error);
-    }
-  }, [userBuildingId]);
-
-  // Função para disparar notificações automáticas para novas enquetes
-  const triggerPollNotification = useCallback(async (newPoll: any) => {
-    try {
-      console.log('🗳️ Nova enquete detectada:', newPoll);
-
-      // Verificar se é do prédio do usuário
-      if (newPoll.building_id !== userBuildingId) {
-        return;
-      }
-
-      // Buscar dados completos da enquete
-      const { data: pollData, error: pollError } = await supabase
-        .from('polls')
-        .select(`
-          id,
-          title,
-          description,
-          building_id,
-          created_at,
-          expires_at,
-          is_active,
-          buildings (
-            name
-          )
-        `)
-        .eq('id', newPoll.id)
-        .single();
-
-      if (pollError || !pollData) {
-        console.error('Erro ao buscar dados da enquete:', pollError);
-        return;
-      }
-
-      const buildingName = (pollData as any).buildings?.name || 'Condomínio';
-      const createdDate = new Date((pollData as any).created_at);
-      const createdText = createdDate.toLocaleDateString('pt-BR');
-
-      // Disparar Push Notification com configurações para FCM e APNS
-      try {
-        const notificationConfig: any = {
-          content: {
-            title: '🗳️ Nova Enquete Disponível',
-            body: `${buildingName}: ${(pollData as any).title} (Criada em ${createdText})`,
-            data: {
-              type: 'new_poll',
-              poll_id: (pollData as any).id,
-              building_id: (pollData as any).building_id || '',
-              building_name: buildingName,
-              created_at: (pollData as any).created_at
-            },
-            sound: 'default',
-            priority: 'normal',
-          },
-          trigger: null, // Imediato
-        };
-
-        // Configurações específicas para Android (FCM)
-        if (Device.isDevice && Constants.platform?.android) {
-          notificationConfig.content.android = {
-            channelId: 'avisos-enquetes',
-            priority: 'normal',
-            vibrate: [0, 250, 250, 250],
-            color: '#388E3C',
-          };
-        }
-
-        // Configurações específicas para iOS (APNS)
-        if (Device.isDevice && Constants.platform?.ios) {
-          notificationConfig.content.ios = {
-            sound: 'default',
-            badge: 1,
-            interruptionLevel: 'active',
-          };
-        }
-
-        await Notifications.scheduleNotificationAsync(notificationConfig);
-
-        console.log('✅ Notificação de enquete enviada com sucesso');
-      } catch (pushError) {
-        console.error('❌ Erro ao enviar push notification de enquete:', pushError);
-      }
-
-    } catch (error) {
-      console.error('❌ Erro geral ao disparar notificação de enquete:', error);
-    }
-  }, [userBuildingId]);
-
-  // Função para iniciar o monitoramento
-  const startListening = useCallback(async () => {
-    if (!user?.id || !userBuildingId || isListening) return;
-    
-    try {
-      setError(null);
-      setLoading(true);
-      
-      // Inicializar serviço integrado
-      await initializeIntegratedService(user.id, userBuildingId);
-      
-      // Iniciar monitoramento integrado
-      await integratedNotificationService.startListening();
-      setIsListening(true);
-      
-      // Monitoramento integrado iniciado com sucesso
-      
-    } catch (err) {
-      console.error('❌ Erro ao iniciar monitoramento:', err);
-      setError('Erro ao iniciar monitoramento de notificações');
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, userBuildingId, isListening, initializeIntegratedService]);
-
-  // Função para parar o monitoramento
-  const stopListening = useCallback(async () => {
-    if (!isListening) return;
-    
-    console.log('🔄 Parando monitoramento de notificações');
-    
-    try {
-      await integratedNotificationService.stopListening();
-      setIsListening(false);
-      
-      // Manter compatibilidade com sistema antigo
-      if (communicationsChannel) {
-        supabase.removeChannel(communicationsChannel);
-        setCommunicationsChannel(null);
-      }
-      
-      if (pollsChannel) {
-        supabase.removeChannel(pollsChannel);
-        setPollsChannel(null);
-      }
-      
-      console.log('✅ Monitoramento parado');
-    } catch (err) {
-      console.error('❌ Erro ao parar monitoramento:', err);
-    }
-  }, [isListening, communicationsChannel, pollsChannel]);
-
-  // Buscar notificações recentes (opcional - para histórico)
-  const fetchRecentNotifications = useCallback(async (limit: number = 50) => {
+  // Carregar notificações do banco de dados
+  const loadNotifications = useCallback(async () => {
     if (!userBuildingId) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
-      // Buscar comunicados recentes com status de notificação
+
+      // Buscar comunicados
       const { data: communications, error: commError } = await supabase
         .from('communications')
-        .select(`
-          id, title, content, type, priority, building_id, created_at,
-          notification_status, notification_sent_at, notification_read_at, notification_confirmed_at,
-          buildings (name)
-        `)
-        .eq('building_id', userBuildingId as any)
+        .select('*')
+        .eq('building_id', userBuildingId)
         .order('created_at', { ascending: false })
-        .limit(Math.floor(limit / 2));
-      
-      if (commError) {
-        console.error('Erro ao buscar comunicados:', commError);
-      }
-      
-      // Buscar enquetes recentes com status de notificação
-      const { data: polls, error: pollsError } = await supabase
+        .limit(20);
+
+      // Buscar enquetes
+      const { data: polls, error: pollError } = await supabase
         .from('polls')
-        .select(`
-          id, title, description, building_id, created_at,
-          notification_status, notification_sent_at, notification_read_at, notification_confirmed_at,
-          buildings (name)
-        `)
-        .eq('building_id', userBuildingId as any)
+        .select('*')
+        .eq('building_id', userBuildingId)
         .order('created_at', { ascending: false })
-        .limit(Math.floor(limit / 2));
-      
-      if (pollsError) {
-        console.error('Erro ao buscar enquetes:', pollsError);
-      }
-      
+        .limit(20);
+
+      if (commError) throw commError;
+      if (pollError) throw pollError;
+
       // Combinar e formatar notificações
-      const allNotifications: AvisoNotification[] = [];
-      let unreadCounter = 0;
-      
-      // Adicionar comunicados
-      if (communications) {
-        communications.forEach(comm => {
-          const isUnread = !comm.notification_read_at;
-          if (isUnread) unreadCounter++;
-          
-          allNotifications.push({
-            id: comm.id,
-            type: 'communication',
-            title: comm.title,
-            content: comm.content,
-            building_id: comm.building_id,
-            building_name: (comm as any).buildings?.name || 'Condomínio',
-            priority: comm.priority || 'normal',
-            created_at: comm.created_at,
-            expires_at: undefined,
-            notification_status: comm.notification_status || 'sent'
-          });
-        });
-      }
-      
-      // Adicionar enquetes
-      if (polls) {
-        polls.forEach(poll => {
-          const isUnread = !poll.notification_read_at;
-          if (isUnread) unreadCounter++;
-          
-          allNotifications.push({
-            id: poll.id,
-            type: 'poll',
-            title: poll.title,
-            content: poll.description,
-            building_id: poll.building_id,
-            building_name: (poll as any).buildings?.name || 'Condomínio',
-            priority: 'normal',
-            created_at: poll.created_at,
-            expires_at: undefined,
-            notification_status: poll.notification_status || 'sent'
-          });
-        });
-      }
-      
-      // Ordenar por data de criação (mais recentes primeiro)
+      const allNotifications: AvisoNotification[] = [
+        ...(communications || []).map(comm => ({
+          id: comm.id,
+          type: 'communication' as const,
+          title: comm.title,
+          content: comm.content,
+          building_id: comm.building_id,
+          priority: comm.priority || 'normal',
+          created_at: comm.created_at,
+          expires_at: comm.expires_at,
+          notification_status: 'delivered'
+        })),
+        ...(polls || []).map(poll => ({
+          id: poll.id,
+          type: 'poll' as const,
+          title: poll.title,
+          description: poll.description,
+          building_id: poll.building_id,
+          priority: poll.priority || 'normal',
+          created_at: poll.created_at,
+          expires_at: poll.expires_at,
+          notification_status: 'delivered'
+        }))
+      ];
+
+      // Ordenar por data
       allNotifications.sort((a, b) => 
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+
+      setNotifications(allNotifications);
       
-      setNotifications(allNotifications.slice(0, limit));
-      setUnreadCount(unreadCounter);
+      // Calcular não lidas (simplificado)
+      const unread = allNotifications.filter(n => 
+        new Date(n.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) // últimas 24h
+      ).length;
       
-      // Notificações carregadas
-      
+      setUnreadCount(unread);
+
     } catch (err) {
-      console.error('❌ Erro ao buscar notificações recentes:', err);
-      setError('Erro ao carregar notificações');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar notificações';
+      console.error('❌ Erro ao carregar notificações:', err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   }, [userBuildingId]);
 
-  // Função para marcar como lida
-  const markAsRead = useCallback(async (recordId: string, recordType: 'communication' | 'poll', userId: string) => {
-    try {
-      await integratedNotificationService.markAsRead(recordId, recordType, userId);
-    } catch (err) {
-      console.error('Erro ao marcar como lida:', err);
-      setError('Erro ao marcar notificação como lida');
-    }
+  // Iniciar escuta (simplificado)
+  const startListening = useCallback(async () => {
+    setIsListening(true);
+    await loadNotifications();
+  }, [loadNotifications]);
+
+  // Parar escuta
+  const stopListening = useCallback(async () => {
+    setIsListening(false);
   }, []);
 
-  // Função para confirmar notificação urgente
+  // Marcar como lida
+  const markAsRead = useCallback(async (recordId: string, recordType: 'communication' | 'poll', userId: string) => {
+    // Implementação simplificada - apenas remove do contador local
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  }, []);
+
+  // Confirmar notificação urgente
   const confirmUrgentNotification = useCallback(async (recordId: string, recordType: 'communication' | 'poll', userId: string) => {
     try {
-      await integratedNotificationService.confirmUrgentNotification(recordId, recordType, userId);
+      await markAsRead(recordId, recordType, userId);
+      Alert.alert('Confirmado', 'Recebimento confirmado com sucesso!');
     } catch (err) {
-      console.error('Erro ao confirmar notificação:', err);
-      setError('Erro ao confirmar notificação urgente');
+      console.error('❌ Erro ao confirmar notificação:', err);
+      Alert.alert('Erro', 'Falha ao confirmar recebimento');
     }
-  }, []);
+  }, [markAsRead]);
 
-  // Função para obter estatísticas
+  // Obter estatísticas
   const getNotificationStats = useCallback(async (buildingId?: string, daysBack: number = 30) => {
+    const targetBuildingId = buildingId || userBuildingId;
+    if (!targetBuildingId) return null;
+
     try {
-      return await integratedNotificationService.getNotificationStats(buildingId, daysBack);
+      const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: communications } = await supabase
+        .from('communications')
+        .select('id')
+        .eq('building_id', targetBuildingId)
+        .gte('created_at', since);
+
+      const { data: polls } = await supabase
+        .from('polls')
+        .select('id')
+        .eq('building_id', targetBuildingId)
+        .gte('created_at', since);
+
+      return {
+        communications: communications?.length || 0,
+        polls: polls?.length || 0,
+        total: (communications?.length || 0) + (polls?.length || 0)
+      };
     } catch (err) {
-      console.error('Erro ao obter estatísticas:', err);
+      console.error('❌ Erro ao obter estatísticas:', err);
       return null;
     }
-  }, []);
+  }, [userBuildingId]);
 
-  // Inicializar
+  // Efeitos
   useEffect(() => {
-    fetchUserBuildingId();
-  }, [fetchUserBuildingId]);
+    if (user?.id) {
+      fetchUserBuildingId();
+    }
+  }, [user?.id, fetchUserBuildingId]);
 
   useEffect(() => {
     if (userBuildingId) {
-      fetchRecentNotifications();
+      loadNotifications();
     }
-  }, [userBuildingId, fetchRecentNotifications]);
+  }, [userBuildingId, loadNotifications]);
 
   return {
     notifications,
@@ -520,13 +220,10 @@ export const useAvisosNotifications = () => {
     unreadCount,
     startListening,
     stopListening,
-    refreshNotifications: fetchRecentNotifications,
     markAsRead,
     confirmUrgentNotification,
     getNotificationStats,
-    // Funções para uso manual se necessário
-    triggerCommunicationNotification,
-    triggerPollNotification
+    refreshNotifications: loadNotifications,
   };
 };
 

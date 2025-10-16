@@ -418,6 +418,3 @@ export const deletePhoto = async (photoUrl: string): Promise<{ success: boolean;
     return { success: false, error: errorMessage }
   }
 }
-
-// Log para confirmar que o serviço foi carregado
-console.log('🔧 PhotoUploadService carregado com sucesso!')

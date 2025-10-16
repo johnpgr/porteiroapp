@@ -22,6 +22,8 @@ export default function MoradorLogin() {
   }, []);
 
   useEffect(() => {
+    // Redireciona para index.tsx se o usuário já estiver logado
+    // O index.tsx irá redirecionar para a página correta com delay
     if (!authLoading && user?.user_type === 'morador') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -29,7 +31,7 @@ export default function MoradorLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/morador');
+        router.replace('/');
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
@@ -61,12 +63,8 @@ export default function MoradorLogin() {
         return { success: false, error: result.error };
       }
 
-      try {
-        await checkAndRedirectUser();
-      } catch (redirectError) {
-        console.error('Erro ao redirecionar morador:', redirectError);
-      }
-
+      // O redirecionamento será feito automaticamente pelo useEffect
+      // que já tem o delay de 1.5s para melhor experiência visual
       return { success: true };
     } catch (error) {
       console.error('Erro durante login do morador:', error);

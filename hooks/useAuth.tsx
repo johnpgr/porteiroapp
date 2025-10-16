@@ -11,7 +11,7 @@ import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
-// import { notificationService } from '../services/notificationService'; // DESABILITADO TEMPORARIAMENTE
+// Removed old notification service - using Edge Functions for push notifications
 
 export interface AuthUser {
   id: string;
@@ -32,7 +32,7 @@ interface AuthContextType {
   refreshSession: () => Promise<boolean>;
   isSessionValid: () => Promise<boolean>;
   checkAndRedirectUser: () => Promise<void>;
-  // updatePushToken: (token: string) => Promise<void>; // DESABILITADO TEMPORARIAMENTE
+  updatePushToken: (token: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -261,30 +261,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Primeiro verifica se há uma sessão salva localmente
       const hasStoredToken = await TokenStorage.hasValidToken();
-      
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      
+
       if (session?.user) {
         // Só salva o token se não há um token válido armazenado ou se é diferente
         if (session.access_token && !hasStoredToken) {
           await TokenStorage.saveToken(session.access_token, SESSION_DURATION / 1000);
         }
-        
+
         await loadUserProfile(session.user);
-        
+
         // Inicia sistemas de manutenção da sessão
         scheduleTokenRefresh();
         startHeartbeat();
       } else if (hasStoredToken) {
         // Tenta fazer refresh da sessão
         const refreshSuccess = await refreshSession();
-        
+
         if (refreshSuccess) {
           // Tenta novamente obter a sessão
           const { data: { session: newSession } } = await supabase.auth.getSession();
-          
+
           if (newSession?.user) {
             await loadUserProfile(newSession.user);
             scheduleTokenRefresh();
@@ -545,15 +545,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleTokenRefresh();
       startHeartbeat();
 
-      // PUSH NOTIFICATIONS DESABILITADAS TEMPORARIAMENTE
-      // try {
-      //   const pushToken = await notificationService.registerForPushNotifications();
-      //   if (pushToken) {
-      //     await updatePushToken(pushToken);
-      //   }
-      // } catch (pushError) {
-      //   console.warn('Erro ao registrar push token:', pushError);
-      // }
+      // Push token registration now handled by Edge Functions
 
       return { success: true };
     } catch (error) {
@@ -566,21 +558,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
 
-  // FUNÇÃO DESABILITADA TEMPORARIAMENTE
-  // const updatePushToken = async (token: string) => {
-  //   if (!user) return;
+  const updatePushToken = async (token: string) => {
+    if (!user) return;
 
-  //   try {
-  //     await supabase
-  //       .from('profiles')
-  //       .update({ push_token: token })
-  //       .eq('user_id', user.id);
+    // Não atualiza se o token já é o mesmo
+    if (user.push_token === token) {
+      return;
+    }
 
-  //     setUser({ ...user, push_token: token });
-  //   } catch (error) {
-  //     console.error('Erro ao atualizar push token:', error);
-  //   }
-  // };
+    try {
+      const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
+
+      await supabase
+        .from(table)
+        .update({ push_token: token })
+        .eq('user_id', user.id);
+
+      // Atualiza o estado sem criar um novo objeto se não necessário
+      setUser(prevUser => {
+        if (!prevUser || prevUser.push_token === token) {
+          return prevUser;
+        }
+        return { ...prevUser, push_token: token };
+      });
+
+      console.log('🔔 Push token atualizado no estado do usuário');
+    } catch (error) {
+      console.error('🔔 Erro ao atualizar push token:', error);
+    }
+  };
 
   const value = {
     user,
@@ -590,7 +596,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession,
     isSessionValid,
     checkAndRedirectUser,
-    // updatePushToken // DESABILITADO TEMPORARIAMENTE
+    updatePushToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

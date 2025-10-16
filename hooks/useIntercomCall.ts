@@ -35,6 +35,7 @@ export const useIntercomCall = (): UseIntercomCallReturn => {
       try {
         await IntercomCallService.initialize();
         await CallKeepService.initialize();
+        
         console.log('✅ Serviços de chamadas inicializados');
       } catch (error) {
         console.error('❌ Erro ao inicializar serviços de chamadas:', error);
@@ -50,73 +51,162 @@ export const useIntercomCall = (): UseIntercomCallReturn => {
     };
   }, []);
 
-  // Listener para notificações de chamada recebidas
+  // FUNÇÃO PRINCIPAL: Processar chamada recebida
+  const processIncomingCall = useCallback((data: any) => {
+    console.log('📞 [PROCESSO] Processando chamada recebida:', data);
+    
+    if (data?.action === 'incoming_call' || data?.type === 'intercom_call') {
+      const callData: CallData = {
+        callId: data.callId,
+        apartmentNumber: data.apartmentNumber,
+        doormanName: data.doormanName,
+        buildingName: data.buildingName,
+        doormanId: data.doormanId,
+        buildingId: data.buildingId,
+      };
+
+      console.log('📞 [PROCESSO] Dados da chamada:', callData);
+
+      // Exibir chamada via CallKeep
+      CallKeepService.displayIncomingCall(
+        data.callId,
+        `Interfone - Apt ${data.apartmentNumber}`,
+        data.doormanName || 'Porteiro'
+      );
+
+      // FORÇAR exibição do modal IMEDIATAMENTE
+      console.log('📞 [PROCESSO] FORÇANDO exibição do modal...');
+      setCurrentCall(callData);
+      setIsCallActive(true);
+      setShowCallScreen(true);
+      
+      console.log('📞 [PROCESSO] Estados definidos - Modal deve aparecer AGORA!');
+      
+      // Garantir que o modal apareça mesmo se houver problemas de estado
+      setTimeout(() => {
+        console.log('📞 [TIMEOUT] Verificando se modal está visível...');
+        setShowCallScreen(true);
+        setIsCallActive(true);
+      }, 100);
+      
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // LISTENER PRINCIPAL: Notificações recebidas (app em foreground)
   useEffect(() => {
+    console.log('🔧 [SETUP] Configurando listener de notificações...');
+    
     const notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
+        console.log('📨 [FOREGROUND] Notificação recebida:', notification);
         const data = notification.request.content.data;
+        console.log('📨 [FOREGROUND] Dados:', data);
         
-        if (data?.type === 'intercom_call') {
-          console.log('📞 Notificação de chamada recebida:', data);
-          
-          const callData: CallData = {
-            callId: data.callId,
-            apartmentNumber: data.apartmentNumber,
-            doormanName: data.doormanName,
-            buildingName: data.buildingName,
-            doormanId: data.doormanId,
-            buildingId: data.buildingId,
-          };
-
-          // Exibir chamada via CallKeep
-          CallKeepService.displayIncomingCall(
-            data.callId,
-            `Interfone - Apt ${data.apartmentNumber}`,
-            data.doormanName || 'Porteiro'
-          );
-
-          setCurrentCall(callData);
-          setIsCallActive(true);
-          setShowCallScreen(true);
-        }
-      }
-    );
-
-    // Listener para respostas às notificações
-    const responseListener = Notifications.addNotificationResponseReceivedListener(
-      async (response) => {
-        const data = response.notification.request.content.data;
-        
-        if (data?.type === 'intercom_call') {
-          const callId = data.callId;
-          const actionIdentifier = response.actionIdentifier;
-
-          if (actionIdentifier === 'ANSWER_CALL' || 
-              actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-            await answerCall(callId);
-          } else if (actionIdentifier === 'DECLINE_CALL') {
-            await declineCall(callId);
-          }
+        const processed = processIncomingCall(data);
+        if (processed) {
+          console.log('📞 [FOREGROUND] Chamada processada com sucesso');
         }
       }
     );
 
     return () => {
       notificationListener.remove();
+    };
+  }, [processIncomingCall]);
+
+  // LISTENER SECUNDÁRIO: Respostas de notificação (app em background/fechado)
+  useEffect(() => {
+    console.log('🔧 [SETUP] Configurando listener de respostas...');
+    
+    const responseListener = Notifications.addNotificationResponseReceivedListener(
+      async (response) => {
+        console.log('📨 [BACKGROUND] Resposta de notificação:', response);
+        const data = response.notification.request.content.data;
+        console.log('📨 [BACKGROUND] Dados:', data);
+        
+        const processed = processIncomingCall(data);
+        if (processed) {
+          console.log('📞 [BACKGROUND] Chamada processada com sucesso');
+        }
+      }
+    );
+
+    return () => {
       responseListener.remove();
     };
-  }, []);
+  }, [processIncomingCall]);
+
+  // LISTENER DE EMERGÊNCIA: Verificar notificações ao abrir o app
+  useEffect(() => {
+    const checkPendingNotifications = async () => {
+      try {
+        console.log('🔍 [STARTUP] Verificando notificações pendentes...');
+        
+        // Verificar se há notificações não lidas
+        const notifications = await Notifications.getPresentedNotificationsAsync();
+        console.log('🔍 [STARTUP] Notificações encontradas:', notifications.length);
+        
+        for (const notification of notifications) {
+          const data = notification.request.content.data;
+          if (data?.action === 'incoming_call' || data?.type === 'intercom_call') {
+            console.log('🔍 [STARTUP] Chamada pendente encontrada:', data);
+            processIncomingCall(data);
+            break; // Processar apenas a primeira chamada encontrada
+          }
+        }
+      } catch (error) {
+        console.error('❌ [STARTUP] Erro ao verificar notificações:', error);
+      }
+    };
+
+    checkPendingNotifications();
+  }, [processIncomingCall]);
+
+  // Configurar callbacks do CallKeep
+  useEffect(() => {
+    // Configurar callback para chamadas recebidas (modal)
+    CallKeepService.setOnIncomingCall((callData) => {
+      console.log('📞 CallKeep: Chamada recebida via modal', callData);
+      
+      const callInfo: CallData = {
+        callId: callData.callUUID,
+        apartmentNumber: callData.callerName.replace('Interfone - Apt ', ''),
+        doormanName: callData.handle,
+        buildingName: '',
+        doormanId: '',
+        buildingId: '',
+      };
+
+      setCurrentCall(callInfo);
+      setIsCallActive(true);
+      setShowCallScreen(true);
+    });
+
+    CallKeepService.setOnCallAnswered(async (callUUID: string) => {
+      console.log('📞 CallKeep: Chamada atendida via modal', callUUID);
+      if (currentCall?.callId === callUUID) {
+        await answerCall(callUUID);
+      }
+    });
+
+    CallKeepService.setOnCallEnded((callUUID: string) => {
+      console.log('📞 CallKeep: Chamada encerrada via modal', callUUID);
+      if (currentCall?.callId === callUUID) {
+        declineCall(callUUID);
+      }
+    });
+  }, [currentCall]);
 
   // Atender chamada
   const answerCall = useCallback(async (callId: string) => {
     try {
       console.log('✅ Atendendo chamada:', callId);
 
-      // Reportar chamada como conectada no CallKeep
-      CallKeepService.reportCallConnected(callId);
-
-      // Fazer requisição para o backend
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/intercom/answer`, {
+      // Fazer requisição para o backend para confirmar atendimento
+      const response = await fetch(`${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL}/api/intercom/answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,6 +221,12 @@ export const useIntercomCall = (): UseIntercomCallReturn => {
         throw new Error('Erro ao atender chamada no servidor');
       }
 
+      const result = await response.json();
+      console.log('✅ Resposta do servidor:', result);
+
+      // Reportar chamada como conectada no CallKeep APÓS confirmação do servidor
+      CallKeepService.reportCallConnected(callId);
+
       // Limpar estado local
       setIsCallActive(false);
       setCurrentCall(null);
@@ -139,7 +235,7 @@ export const useIntercomCall = (): UseIntercomCallReturn => {
       // Mostrar feedback de sucesso
       Alert.alert(
         'Chamada Atendida',
-        'Você atendeu a chamada do interfone. O porteiro foi notificado.',
+        'Você atendeu a chamada do interfone. A conexão com o porteiro foi estabelecida.',
         [{ text: 'OK' }]
       );
 
@@ -166,7 +262,7 @@ export const useIntercomCall = (): UseIntercomCallReturn => {
       CallKeepService.reportCallEnded(callId, 'rejected');
 
       // Fazer requisição para o backend
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/intercom/hangup`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL}/api/intercom/hangup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
