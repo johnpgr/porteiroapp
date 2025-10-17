@@ -97,6 +97,24 @@ const isValidLicensePlate = (plate: string): boolean => {
   return oldFormat || mercosulFormat;
 };
 
+// Função para obter ícone e cor do tipo de veículo
+const getVehicleTypeInfo = (type: string) => {
+  switch (type) {
+    case 'car':
+      return { icon: 'car-sport', color: '#4CAF50', label: 'Carro' };
+    case 'motorcycle':
+      return { icon: 'bicycle', color: '#FF9800', label: 'Moto' };
+    case 'truck':
+      return { icon: 'car', color: '#795548', label: 'Caminhão' };
+    case 'van':
+      return { icon: 'bus', color: '#2196F3', label: 'Van' };
+    case 'bus':
+      return { icon: 'bus-outline', color: '#9C27B0', label: 'Ônibus' };
+    default:
+      return { icon: 'car-outline', color: '#607D8B', label: 'Outro' };
+  }
+};
+
 // Interface para dados do morador
 interface ResidentData {
   name: string;
@@ -268,10 +286,21 @@ interface Vehicle {
   license_plate: string;
   model: string;
   color: string;
+  brand?: string;
+  type?: string;
   parking_spot?: string;
   owner_id: string;
   building_id: string;
+  apartment_id?: string;
   created_at: string;
+  apartments?: {
+    id: string;
+    number: string;
+    building_id: string;
+    buildings?: {
+      name: string;
+    };
+  };
 }
 
 export default function UsersManagement() {
@@ -333,6 +362,7 @@ export default function UsersManagement() {
     setShowVehicleForm(false);
     setShowBulkForm(false);
     setShowUserListModal(false);
+    setShowVehicleListModal(false);
     setShowBuildingModal(false);
   };
 
@@ -368,6 +398,12 @@ export default function UsersManagement() {
     closeAllModals();
     loadAdminUsers();
     setShowUserListModal(true);
+  };
+
+  const openVehicleListModal = () => {
+    closeAllModals();
+    loadAdminVehicles();
+    setShowVehicleListModal(true);
   };
 
   // Função para carregar usuários criados pelo admin logado
@@ -483,6 +519,87 @@ export default function UsersManagement() {
       setAdminUsers(filteredUsers);
     } catch (error) {
       console.error('Erro ao carregar usuários do admin:', error);
+    }
+  };
+
+  // Função para carregar veículos dos prédios gerenciados pelo admin
+  const loadAdminVehicles = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Obter o perfil do administrador atual
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admin_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (adminError || !adminProfile) {
+        console.error('Erro ao obter perfil do admin:', adminError);
+        return;
+      }
+
+      // 2. Consultar building_admins para obter os prédios gerenciados pelo admin
+      const { data: buildingAdmins, error: buildingAdminsError } = await supabase
+        .from('building_admins')
+        .select('building_id')
+        .eq('admin_profile_id', adminProfile.id);
+
+      if (buildingAdminsError) {
+        console.error('Erro ao carregar prédios do admin:', buildingAdminsError);
+        return;
+      }
+
+      if (!buildingAdmins || buildingAdmins.length === 0) {
+        console.log('Admin não possui prédios associados');
+        setAdminVehicles([]);
+        return;
+      }
+
+      // 3. Extrair os IDs dos prédios gerenciados
+      const managedBuildingIds = buildingAdmins.map(ba => ba.building_id);
+
+      // 4. Buscar veículos vinculados aos apartamentos dos prédios gerenciados
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          id,
+          license_plate,
+          model,
+          color,
+          brand,
+          type,
+          created_at,
+          apartment_id,
+          apartments(
+            id,
+            number,
+            building_id,
+            buildings(name)
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao carregar veículos:', error);
+        return;
+      }
+
+      // 5. Filtrar veículos baseado nos prédios gerenciados
+      const filteredVehicles = (data || []).filter(vehicle => {
+        // Se tem apartamento, verificar se o prédio do apartamento está na lista
+        if (vehicle.apartments && vehicle.apartments.building_id) {
+          return managedBuildingIds.includes(vehicle.apartments.building_id);
+        }
+        // Veículos sem apartamento (cadastrados pelo admin) não são filtrados
+        return false;
+      });
+
+      console.log('🚗 Total de veículos filtrados:', filteredVehicles.length);
+      setAdminVehicles(filteredVehicles);
+    } catch (error) {
+      console.error('Erro ao carregar veículos do admin:', error);
     }
   };
 
@@ -648,6 +765,8 @@ export default function UsersManagement() {
 
   // Estados para cadastro de veículos
   const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [showVehicleListModal, setShowVehicleListModal] = useState(false);
+  const [adminVehicles, setAdminVehicles] = useState<Vehicle[]>([]);
   const [newVehicle, setNewVehicle] = useState({
     license_plate: '',
     brand: '',
@@ -2107,6 +2226,10 @@ export default function UsersManagement() {
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.listVehiclesButton} onPress={openVehicleListModal}>
+          <Text style={styles.listVehiclesButtonText}>🚙 Listar Veículos</Text>
+        </TouchableOpacity>
+
       </View>
 
 
@@ -2124,28 +2247,16 @@ export default function UsersManagement() {
       </Modal>
 
       {/* Modal de Cadastro de Veículos */}
-      <Modal visible={showVehicleForm} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={showVehicleForm} animationType="slide" presentationStyle="fullScreen">
         <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.vehicleHeader}>
-            <View style={styles.vehicleHeaderContent}>
-              <View style={styles.vehicleIconContainer}>
-                <Ionicons name="car-sport" size={28} color="#4CAF50" />
-              </View>
-              <View style={styles.vehicleHeaderText}>
-                <Text style={styles.vehicleTitle}>Cadastrar Novo Veículo</Text>
-                <Text style={styles.vehicleSubtitle}>Preencha os dados do veículo</Text>
-              </View>
-            </View>
-            <TouchableOpacity 
-              style={styles.closeButtonContainer}
-              onPress={() => setShowVehicleForm(false)}
-            >
-              <Ionicons name="close" size={24} color="#666" />
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>🚗 Cadastrar Novo Veículo</Text>
+            <TouchableOpacity onPress={() => setShowVehicleForm(false)}>
+              <Text style={styles.closeButton}>✕</Text>
             </TouchableOpacity>
           </View>
           <ScrollView
-            style={styles.vehicleForm}
-            contentContainerStyle={styles.vehicleScrollContent}
+            style={styles.modalContent}
             showsVerticalScrollIndicator={false}>
 
           <View style={styles.inputGroup}>
@@ -2493,6 +2604,125 @@ export default function UsersManagement() {
                 }
                 return null;
               })()}
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal de Lista de Veículos */}
+      <Modal visible={showVehicleListModal} animationType="slide" presentationStyle="fullScreen">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>🚙 Veículos Cadastrados</Text>
+            <TouchableOpacity onPress={() => setShowVehicleListModal(false)}>
+              <Text style={styles.closeButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            {/* Filtro de Prédio */}
+            <View style={styles.buildingFilterContainer}>
+              <Text style={styles.buildingFilterLabel}>Filtrar por prédio:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.buildingFilterScroll}>
+                <TouchableOpacity
+                  style={[
+                    styles.buildingFilterButton,
+                    buildingFilter === null && styles.buildingFilterButtonActive
+                  ]}
+                  onPress={() => setBuildingFilter(null)}>
+                  <Text style={[
+                    styles.buildingFilterButtonText,
+                    buildingFilter === null && styles.buildingFilterButtonTextActive
+                  ]}>🏢 Todos</Text>
+                </TouchableOpacity>
+                {buildings.map((building) => (
+                  <TouchableOpacity
+                    key={building.id}
+                    style={[
+                      styles.buildingFilterButton,
+                      buildingFilter === building.id && styles.buildingFilterButtonActive
+                    ]}
+                    onPress={() => setBuildingFilter(building.id)}>
+                    <Text style={[
+                      styles.buildingFilterButtonText,
+                      buildingFilter === building.id && styles.buildingFilterButtonTextActive
+                    ]}>{building.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Lista de Veículos */}
+            <ScrollView style={styles.vehicleList} showsVerticalScrollIndicator={false}>
+              {adminVehicles
+                .filter(vehicle => !buildingFilter || vehicle.apartments?.building_id === buildingFilter)
+                .map((vehicle) => {
+                  const vehicleInfo = getVehicleTypeInfo(vehicle.type || 'car');
+                  return (
+                    <View key={vehicle.id} style={styles.vehicleCard}>
+                      <View style={styles.vehicleCardHeader}>
+                        <View style={[styles.vehicleIconContainer, { backgroundColor: `${vehicleInfo.color}15` }]}>
+                          <Ionicons name={vehicleInfo.icon as any} size={24} color={vehicleInfo.color} />
+                        </View>
+                        <View style={styles.vehicleMainInfo}>
+                          <Text style={styles.vehiclePlate}>{formatLicensePlate(vehicle.license_plate)}</Text>
+                          <Text style={styles.vehicleType}>{vehicleInfo.label}</Text>
+                        </View>
+                        <View style={styles.vehicleStatusBadge}>
+                          <Text style={styles.vehicleStatusText}>Ativo</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.vehicleCardBody}>
+                        <View style={styles.vehicleInfoRow}>
+                          <View style={styles.vehicleInfoItem}>
+                            <Ionicons name="car-outline" size={16} color="#666" />
+                            <Text style={styles.vehicleInfoLabel}>Modelo</Text>
+                            <Text style={styles.vehicleInfoValue}>
+                              {vehicle.brand ? `${vehicle.brand} ${vehicle.model}` : vehicle.model || 'N/A'}
+                            </Text>
+                          </View>
+                          <View style={styles.vehicleInfoItem}>
+                            <Ionicons name="color-palette-outline" size={16} color="#666" />
+                            <Text style={styles.vehicleInfoLabel}>Cor</Text>
+                            <Text style={styles.vehicleInfoValue}>{vehicle.color || 'N/A'}</Text>
+                          </View>
+                        </View>
+                        
+                        <View style={styles.vehicleInfoRow}>
+                          <View style={styles.vehicleInfoItem}>
+                            <Ionicons name="business-outline" size={16} color="#666" />
+                            <Text style={styles.vehicleInfoLabel}>Prédio</Text>
+                            <Text style={styles.vehicleInfoValue}>
+                              {vehicle.apartments?.buildings?.name || 
+                               buildings.find(b => b.id === vehicle.apartments?.building_id)?.name || 'N/A'}
+                            </Text>
+                          </View>
+                          <View style={styles.vehicleInfoItem}>
+                            <Ionicons name="home-outline" size={16} color="#666" />
+                            <Text style={styles.vehicleInfoLabel}>Apartamento</Text>
+                            <Text style={styles.vehicleInfoValue}>{vehicle.apartments?.number || 'N/A'}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.vehicleCardFooter}>
+                        <Text style={styles.vehicleCreatedDate}>
+                          Cadastrado em {new Date(vehicle.created_at).toLocaleDateString('pt-BR')}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              {adminVehicles.filter(v => !buildingFilter || v.apartments?.building_id === buildingFilter).length === 0 && (
+                <View style={styles.emptyVehicleState}>
+                  <Ionicons name="car-outline" size={64} color="#ccc" />
+                  <Text style={styles.emptyVehicleStateTitle}>Nenhum veículo encontrado</Text>
+                  <Text style={styles.emptyVehicleStateText}>
+                    {buildingFilter ? 'Não há veículos cadastrados neste prédio.' : 'Não há veículos cadastrados.'}
+                  </Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -3104,6 +3334,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  listVehiclesButton: {
+    backgroundColor: '#2196F3',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  listVehiclesButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   vehicleForm: {
     backgroundColor: '#fff',
     margin: 20,
@@ -3506,5 +3748,126 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     fontWeight: '500',
+  },
+  // Estilos modernos para os cards de veículos
+  vehicleList: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  vehicleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  vehicleCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  vehicleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  vehicleMainInfo: {
+    flex: 1,
+  },
+  vehiclePlate: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    letterSpacing: 1,
+  },
+  vehicleType: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  vehicleStatusBadge: {
+    backgroundColor: '#e8f5e9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  vehicleStatusText: {
+    fontSize: 12,
+    color: '#2e7d32',
+    fontWeight: '600',
+  },
+  vehicleCardBody: {
+    padding: 16,
+  },
+  vehicleInfoRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  vehicleInfoItem: {
+    flex: 1,
+    marginRight: 8,
+  },
+  vehicleInfoLabel: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 4,
+    marginBottom: 2,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  vehicleInfoValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  vehicleCardFooter: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f5f5f5',
+    paddingTop: 12,
+  },
+  vehicleCreatedDate: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  emptyVehicleState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyVehicleStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyVehicleStateText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
