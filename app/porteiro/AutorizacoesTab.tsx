@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollView, TextInput } from 'react-native';
 import { supabase } from '../../utils/supabase';
+import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
 
 const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFilter }) => {
   const [activities, setActivities] = useState([]);
@@ -397,7 +398,31 @@ const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFil
         console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
       }
 
-      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador será notificado.');
+      // NOVA IMPLEMENTAÇÃO: Disparar notificação para o morador
+      try {
+        console.log('🔔 [confirmarChegada] Iniciando notificação para morador...');
+        
+        const notificationResult = await notifyResidentOfVisitorArrival({
+          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          apartmentNumber: apartmentData?.number || 'N/A',
+          buildingId: buildingId,
+          visitorId: visit.id,
+          purpose: visitorData.purpose || 'Visita',
+          photo_url: visitorData.photo_url,
+          entry_type: 'visitor'
+        });
+
+        if (notificationResult.success) {
+          console.log('✅ [confirmarChegada] Notificação enviada com sucesso:', notificationResult.message);
+        } else {
+          console.warn('⚠️ [confirmarChegada] Falha ao enviar notificação:', notificationResult.message);
+        }
+      } catch (notificationError) {
+        console.error('❌ [confirmarChegada] Erro ao enviar notificação:', notificationError);
+        // Não interromper o fluxo principal, apenas logar o erro
+      }
+
+      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador foi notificado.');
       fetchActivities(); // Recarregar atividades
       fetchVisitorLogs(); // Recarregar logs
     } catch (error) {

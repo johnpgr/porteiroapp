@@ -14,7 +14,7 @@ import {
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-// Removed old notification service - using Edge Functions for push notifications
+import notificationService from '../../services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -368,7 +368,7 @@ export default function UsersCreate() {
       console.log('Enviando WhatsApp para:', residentData);
 
       // Usar o notificationService para enviar WhatsApp
-      const success = await notificationService.sendResidentWhatsApp({
+      const result = await notificationService.sendResidentWhatsApp({
         name: residentData.name,
         phone: residentData.phone,
         email: residentData.email,
@@ -378,10 +378,10 @@ export default function UsersCreate() {
         temporary_password: residentData.temporary_password || ''
       });
 
-      if (success) {
+      if (result.success) {
         Alert.alert('Sucesso', `WhatsApp enviado para ${residentData.name}`);
       } else {
-        Alert.alert('Erro', 'Falha ao enviar WhatsApp. Tente novamente.');
+        Alert.alert('Erro', result.error || 'Falha ao enviar WhatsApp. Tente novamente.');
       }
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
@@ -400,7 +400,17 @@ export default function UsersCreate() {
 
     setWhatsappLoading(true);
     try {
-      const result = await notificationService.sendPorteiroWhatsApp(porteiroData);
+      const result = await notificationService.sendPorteiroWhatsApp({
+        name: porteiroData.name,
+        phone: porteiroData.phone,
+        email: porteiroData.email,
+        building: porteiroData.building,
+        cpf: porteiroData.cpf,
+        work_schedule: porteiroData.work_schedule,
+        profile_id: porteiroData.profile_id,
+        temporary_password: porteiroData.temporary_password
+      });
+
       if (result.success) {
         Alert.alert('Sucesso', 'Mensagem WhatsApp enviada com sucesso!');
       } else {

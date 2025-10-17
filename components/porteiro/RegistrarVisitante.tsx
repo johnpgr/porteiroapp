@@ -20,7 +20,6 @@ import { notifyNewVisitor } from '../../utils/pushNotifications';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 
 type FlowStep =
-  | 'predio'
   | 'apartamento'
   | 'tipo'
   | 'empresa_prestador'
@@ -125,15 +124,13 @@ const isValidCPF = (cpf: string) => {
 
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<FlowStep>('predio');
-  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
-  const [availableBuildings, setAvailableBuildings] = useState<Building[]>([]);
-  const [isLoadingBuildings, setIsLoadingBuildings] = useState(false);
+  const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [doormanBuildingName, setDoormanBuildingName] = useState<string>('');
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
   const [empresaPrestador, setEmpresaPrestador] = useState<EmpresaPrestador | null>(null);
@@ -166,13 +163,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     }
   };
 
-  // Obter building_id do porteiro
+  // Obter building_id e nome do prédio do porteiro
   useEffect(() => {
-    const getDoormanBuildingId = async () => {
+    const getDoormanBuildingInfo = async () => {
       if (user?.id) {
         const { data: profile, error } = await (supabase as any)
           .from('profiles')
-          .select('building_id')
+          .select('building_id, buildings(name)')
           .eq('id', user.id)
           .single();
 
@@ -181,44 +178,18 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
         } else {
           setDoormanBuildingId(profile.building_id);
+          setDoormanBuildingName(profile.buildings?.name || 'Prédio não identificado');
         }
       }
     };
 
-    getDoormanBuildingId();
+    getDoormanBuildingInfo();
   }, [user]);
-
-  // Carregar prédios disponíveis
-  useEffect(() => {
-    const fetchAvailableBuildings = async () => {
-      setIsLoadingBuildings(true);
-      try {
-        const { data: buildings, error } = await (supabase as any)
-          .from('buildings')
-          .select('id, name, address')
-          .order('name');
-
-        if (error) {
-          console.error('Erro ao buscar prédios:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os prédios.');
-        } else {
-          setAvailableBuildings(buildings || []);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar prédios:', error);
-        Alert.alert('Erro', 'Não foi possível carregar os prédios.');
-      } finally {
-        setIsLoadingBuildings(false);
-      }
-    };
-
-    fetchAvailableBuildings();
-  }, []);
 
   // Carregar apartamentos disponíveis
   useEffect(() => {
     const fetchAvailableApartments = async () => {
-      const buildingId = selectedBuilding?.id || doormanBuildingId;
+      const buildingId = doormanBuildingId;
       if (buildingId) {
         setIsLoadingApartments(true);
         try {
@@ -244,7 +215,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     };
 
     fetchAvailableApartments();
-  }, [selectedBuilding, doormanBuildingId]);
+  }, [doormanBuildingId]);
 
   const renderNumericKeypad = (
     value: string,
@@ -307,52 +278,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       .map(floor => ({ floor, apartments: grouped[floor] }));
   };
 
-  const renderPredioStep = () => {
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🏢 Prédio</Text>
-        <Text style={styles.stepSubtitle}>Selecione o prédio de destino</Text>
 
-        {isLoadingBuildings ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2196F3" />
-            <Text style={styles.loadingText}>Carregando prédios...</Text>
-          </View>
-        ) : availableBuildings.length === 0 ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>⚠️ Nenhum Prédio</Text>
-            <Text style={styles.errorText}>Não há prédios cadastrados no sistema.</Text>
-          </View>
-        ) : (
-          <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
-            <View style={styles.optionsContainer}>
-              {availableBuildings.map((building) => (
-                <TouchableOpacity
-                  key={building.id}
-                  style={[
-                    styles.optionButton,
-                    { borderLeftColor: '#2196F3' },
-                    selectedBuilding?.id === building.id && styles.apartmentButtonSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedBuilding(building);
-                    // Reset apartment selection when building changes
-                    setSelectedApartment(null);
-                    setApartamento('');
-                    setSelectedFloor(null);
-                    setCurrentStep('apartamento');
-                  }}>
-                  <Text style={styles.optionIcon}>🏢</Text>
-                  <Text style={styles.optionTitle}>{building.name}</Text>
-                  <Text style={styles.optionDescription}>{building.address}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        )}
-      </View>
-    );
-  };
 
   const renderApartamentoStep = () => {
     const handleApartmentConfirm = () => {
@@ -953,7 +879,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Prédio:</Text>
-            <Text style={styles.summaryValue}>{selectedBuilding?.name || 'Não selecionado'}</Text>
+            <Text style={styles.summaryValue}>{doormanBuildingName}</Text>
           </View>
 
           <View style={styles.summaryItem}>
@@ -1037,8 +963,6 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 'predio':
-        return renderPredioStep();
       case 'apartamento':
         return renderApartamentoStep();
       case 'tipo':
@@ -1058,7 +982,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       case 'confirmacao':
         return renderConfirmacaoStep();
       default:
-        return renderPredioStep();
+        return renderApartamentoStep();
     }
   };
 
@@ -1077,7 +1001,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ predio: selectedBuilding, apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 8) * 100}%`,
+                width: `${(Object.keys({ apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
               },
             ]}
           />

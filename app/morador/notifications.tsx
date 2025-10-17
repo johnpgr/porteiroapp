@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,18 +13,52 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 // Old push notification service removed - using Edge Functions for push notifications
 import { useAuth } from '../../hooks/useAuth';
+import { useNotificationService } from '../../hooks/useNotificationService';
 import { NotificationCard } from '../../components/NotificationCard';
 import BottomNav from '../../components/BottomNav';
 
 export default function NotificationsScreen() {
-  const {} = useAuth();
-  // Old push notification service removed - using Edge Functions for push notifications
-  const notifications = [];
-  const loading = false;
-  const markAsRead = async () => {};
-  const markAllAsRead = async () => {};
-  const refreshNotifications = async () => {};
+  const { user } = useAuth();
+  const { 
+    getNotificationHistory, 
+    markNotificationAsRead, 
+    isLoading: loading 
+  } = useNotificationService();
+  
+  const [notifications, setNotifications] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const refreshNotifications = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const history = await getNotificationHistory(50);
+      setNotifications(history);
+    } catch (error) {
+      console.error('Erro ao carregar notificações:', error);
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationAsRead(notificationId);
+      await refreshNotifications(); // Recarregar lista
+    } catch (error) {
+      console.error('Erro ao marcar como lida:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => n.status !== 'read');
+      await Promise.all(
+        unreadNotifications.map(n => markNotificationAsRead(n.id))
+      );
+      await refreshNotifications();
+    } catch (error) {
+      console.error('Erro ao marcar todas como lidas:', error);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -33,11 +67,20 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAllAsRead = async () => {
-    // Old push notification service removed - using Edge Functions for push notifications
-    Alert.alert('Aviso', 'Sistema de notificações atualizado - usando Edge Functions');
+    try {
+      await markAllAsRead();
+      Alert.alert('Sucesso', 'Todas as notificações foram marcadas como lidas');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível marcar todas as notificações como lidas');
+    }
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => n.status !== 'read').length;
+
+  // Carregar notificações ao montar o componente
+  useEffect(() => {
+    refreshNotifications();
+  }, [user?.id]);
 
   return (
     <SafeAreaView style={styles.container}>

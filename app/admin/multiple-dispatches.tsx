@@ -14,7 +14,7 @@ import {
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '../../utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-// Removed old notification service - using Edge Functions for push notifications
+import notificationService from '../../services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -122,9 +122,6 @@ export default function MultipleDispatchesScreen() {
   const [loading, setLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  
-  // Estados para WhatsApp (sempre ativado)
-  const [whatsappBaseUrl] = useState('https://jamesavisa.jamesconcierge.com');
 
   // Estados para múltiplos residentes
   const [multipleResidents, setMultipleResidents] = useState<MultipleResident[]>([
@@ -519,8 +516,8 @@ export default function MultipleDispatchesScreen() {
                 profile_id: user.id,
                 temporary_password: user.temporary_password
               };
-              
-              const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword, whatsappBaseUrl);
+
+              const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword);
               if (!whatsappResult.success) {
                 errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
               }

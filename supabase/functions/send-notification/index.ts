@@ -5,7 +5,7 @@ interface NotificationRequest {
   user_id: string;
   title: string;
   body: string;
-  type: 'visitor_approval' | 'visitor_arrival' | 'system' | 'security';
+  type: 'visitor_approval' | 'visitor_arrival' | 'system' | 'security' | 'general';
   data?: Record<string, any>;
   priority?: 'high' | 'normal' | 'low';
 }
@@ -71,7 +71,7 @@ serve(async (req) => {
     // 2. Buscar tokens ativos do usuário
     const { data: tokens, error: tokensError } = await supabaseClient
       .from('user_notification_tokens')
-      .select('notification_token, device_type')
+      .select('token, device_type')
       .eq('user_id', user_id)
       .eq('is_active', true);
 
@@ -102,7 +102,7 @@ serve(async (req) => {
 
     // 3. Preparar mensagens para Expo Push API
     const messages: ExpoPushMessage[] = tokens.map(token => ({
-      to: token.notification_token,
+      to: token.token,
       title,
       body,
       data: {
@@ -138,7 +138,7 @@ serve(async (req) => {
 
       const logEntry = {
         notification_id: notification.id,
-        device_token: token.notification_token,
+        device_token: token.token,
         device_type: token.device_type,
         status: result.status === 'ok' ? 'sent' : 'failed',
         error_message: result.status !== 'ok' ? result.message || 'Unknown error' : null,
@@ -151,7 +151,7 @@ serve(async (req) => {
         successCount++;
       } else {
         failureCount++;
-        console.error(`Push notification failed for token ${token.notification_token}:`, result);
+        console.error(`Push notification failed for token ${token.token}:`, result);
       }
     }
 

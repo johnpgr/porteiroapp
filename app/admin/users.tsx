@@ -17,6 +17,7 @@ import { supabase, adminAuth } from '../../utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { sendPushNotification } from '../../utils/pushNotifications';
+import notificationService from '../../services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -1967,8 +1968,8 @@ export default function UsersManagement() {
 
           console.log('📱 [DEBUG] residentData criado:', residentData);
           console.log('📱 [DEBUG] Chamando notificationService.sendResidentWhatsApp...');
-          
-          const result = await notificationService.sendResidentWhatsApp(residentData, whatsappBaseUrl);
+
+          const result = await notificationService.sendResidentWhatsApp(residentData);
           console.log('📱 [DEBUG] Resultado do sendResidentWhatsApp:', result);
           
           if (!result.success) {

@@ -80,98 +80,125 @@ serve(async (req) => {
       // Tokens fornecidos diretamente
       tokens = pushTokens;
     } else if (userIds && userIds.length > 0) {
-      // Buscar tokens por IDs de usuários
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('push_token')
+      // Buscar tokens por IDs de usuários na tabela user_notification_tokens
+      const { data: userTokens } = await supabase
+        .from('user_notification_tokens')
+        .select('token')
         .in('user_id', userIds)
-        .not('push_token', 'is', null);
+        .eq('is_active', true);
 
-      const { data: adminProfiles } = await supabase
-        .from('admin_profiles')
-        .select('push_token')
-        .in('user_id', userIds)
-        .not('push_token', 'is', null);
-
-      tokens = [
-        ...(profiles?.map((p) => p.push_token) || []),
-        ...(adminProfiles?.map((p) => p.push_token) || []),
-      ].filter(Boolean);
+      tokens = userTokens?.map((t) => t.token).filter(Boolean) || [];
     } else if (userType || buildingId || apartmentIds) {
       // Buscar tokens por filtros
       console.log(`🔍 Buscando tokens para userType: ${userType}, buildingId: ${buildingId}`);
       
       if (userType === 'admin') {
-        const { data, error } = await supabase
+        // Buscar tokens de admins via user_notification_tokens
+        const { data: adminProfiles } = await supabase
           .from('admin_profiles')
-          .select('push_token')
-          .not('push_token', 'is', null)
-          .eq('is_active', true);
+          .select('user_id');
 
-        if (error) {
-          console.error('❌ Erro ao buscar tokens admin:', error);
-        } else {
-          console.log(`📱 Encontrados ${data?.length || 0} tokens admin`);
+        if (adminProfiles && adminProfiles.length > 0) {
+          const adminUserIds = adminProfiles.map(p => p.user_id);
+          const { data, error } = await supabase
+            .from('user_notification_tokens')
+            .select('token')
+            .in('user_id', adminUserIds)
+            .eq('is_active', true);
+
+          if (error) {
+            console.error('❌ Erro ao buscar tokens admin:', error);
+          } else {
+            console.log(`📱 Encontrados ${data?.length || 0} tokens admin`);
+          }
+
+          tokens = data?.map((t) => t.token).filter(Boolean) || [];
         }
-
-        tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
       } else if (userType === 'porteiro') {
-        // Buscar porteiros na tabela profiles
-        console.log('🔍 Buscando tokens de porteiros na tabela profiles');
+        // Buscar porteiros na tabela profiles e seus tokens em user_notification_tokens
+        console.log('🔍 Buscando tokens de porteiros via user_notification_tokens');
 
-        let query = supabase
+        let profileQuery = supabase
           .from('profiles')
-          .select('push_token, user_type, building_id')
-          .not('push_token', 'is', null)
-          .eq('is_active', true)
+          .select('user_id')
           .eq('user_type', 'porteiro');
 
         if (buildingId) {
-          query = query.eq('building_id', buildingId);
+          profileQuery = profileQuery.eq('building_id', buildingId);
           console.log(`🏢 Filtrando por building_id: ${buildingId}`);
         }
 
-        const { data, error } = await query;
+        const { data: porteiroProfiles, error: profileError } = await profileQuery;
 
-        if (error) {
-          console.error('❌ Erro ao buscar tokens de porteiros:', error);
-        } else {
-          console.log(`📱 Encontrados ${data?.length || 0} tokens de porteiros:`, data);
+        if (profileError) {
+          console.error('❌ Erro ao buscar perfis de porteiros:', profileError);
+        } else if (porteiroProfiles && porteiroProfiles.length > 0) {
+          const porteiroUserIds = porteiroProfiles.map(p => p.user_id);
+          const { data, error } = await supabase
+            .from('user_notification_tokens')
+            .select('token')
+            .in('user_id', porteiroUserIds)
+            .eq('is_active', true);
+
+          if (error) {
+            console.error('❌ Erro ao buscar tokens de porteiros:', error);
+          } else {
+            console.log(`📱 Encontrados ${data?.length || 0} tokens de porteiros`);
+          }
+
+          tokens = data?.map((t) => t.token).filter(Boolean) || [];
         }
-
-        tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
       } else {
-        // Para outros tipos de usuário (morador), buscar na tabela profiles
-        let query = supabase
+        // Para outros tipos de usuário (morador), buscar via user_notification_tokens
+        let profileQuery = supabase
           .from('profiles')
-          .select('push_token')
-          .not('push_token', 'is', null)
-          .eq('is_active', true);
+          .select('user_id');
 
         if (userType) {
-          query = query.eq('user_type', userType);
+          profileQuery = profileQuery.eq('user_type', userType);
         }
 
         if (buildingId) {
-          query = query.eq('building_id', buildingId);
+          profileQuery = profileQuery.eq('building_id', buildingId);
         }
 
-        const { data } = await query;
-        tokens = data?.map((p) => p.push_token).filter(Boolean) || [];
+        const { data: profiles } = await profileQuery;
+        
+        if (profiles && profiles.length > 0) {
+          const userIds = profiles.map(p => p.user_id);
+          const { data } = await supabase
+            .from('user_notification_tokens')
+            .select('token')
+            .in('user_id', userIds)
+            .eq('is_active', true);
+
+          tokens = data?.map((t) => t.token).filter(Boolean) || [];
+        }
 
         // Se temos apartmentIds, buscar moradores desses apartamentos
         if (apartmentIds && apartmentIds.length > 0) {
           const { data: residents } = await supabase
             .from('apartment_residents')
-            .select('profiles!inner(push_token)')
-            .in('apartment_id', apartmentIds)
-            .not('profiles.push_token', 'is', null);
+            .select('profiles!inner(user_id)')
+            .in('apartment_id', apartmentIds);
 
-          if (residents) {
-            const residentTokens = residents
-              .map((r: any) => r.profiles?.push_token)
+          if (residents && residents.length > 0) {
+            const residentUserIds = residents
+              .map((r: any) => r.profiles?.user_id)
               .filter(Boolean);
-            tokens = [...tokens, ...residentTokens];
+            
+            if (residentUserIds.length > 0) {
+              const { data: residentTokens } = await supabase
+                .from('user_notification_tokens')
+                .select('token')
+                .in('user_id', residentUserIds)
+                .eq('is_active', true);
+
+              if (residentTokens) {
+                const additionalTokens = residentTokens.map(t => t.token).filter(Boolean);
+                tokens = [...tokens, ...additionalTokens];
+              }
+            }
           }
         }
       }
