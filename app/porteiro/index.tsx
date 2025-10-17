@@ -1190,6 +1190,38 @@ export default function PorteiroDashboard() {
         });
       };
 
+      // Buscar o morador responsável pelo apartamento
+      // Primeiro tenta buscar o proprietário (is_owner = true)
+      let { data: apartmentResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('profile_id, profiles!inner(full_name)')
+        .eq('apartment_id', autorizacao.apartamento_id)
+        .eq('is_owner', true)
+        .maybeSingle();
+
+      // Se não encontrar proprietário, busca qualquer morador do apartamento
+      if (!apartmentResident || residentError) {
+        console.log('🔍 [confirmarChegada - index.tsx] Proprietário não encontrado, buscando qualquer morador do apartamento');
+        const result = await supabase
+          .from('apartment_residents')
+          .select('profile_id, profiles!inner(full_name)')
+          .eq('apartment_id', autorizacao.apartamento_id)
+          .limit(1)
+          .maybeSingle();
+
+        apartmentResident = result.data;
+        residentError = result.error;
+      }
+
+      let residentId = null;
+
+      if (apartmentResident && !residentError) {
+        residentId = apartmentResident.profile_id;
+        console.log(`✅ [confirmarChegada - index.tsx] Morador encontrado: ${apartmentResident.profiles.full_name} (ID: ${residentId})`);
+      } else {
+        console.error('❌ [confirmarChegada - index.tsx] Nenhum morador encontrado para apartment_id:', autorizacao.apartamento_id);
+      }
+
       // Registrar novo log de entrada (IN)
       const { error: logError } = await supabase
         .from('visitor_logs')
@@ -1201,7 +1233,7 @@ export default function PorteiroDashboard() {
           tipo_log: 'IN',
           visit_session_id: generateUUID(),
           purpose: `ACESSO PRÉ-AUTORIZADO - Visitante já aprovado pelo morador. Porteiro realizou verificação de entrada. Check-in por: ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Status: ${newStatus}`,
-          authorized_by: user.id, // ID do porteiro que está confirmando
+          resident_response_by: residentId, // ID do morador que pré-autorizou
           guest_name: autorizacao.nomeConvidado, // Nome do visitante para exibição
           entry_type: autorizacao.isEncomenda ? 'delivery' : 'visitor', // Tipo de entrada
           requires_notification: !autorizacao.jaAutorizado, // Se precisa notificar morador
@@ -1851,7 +1883,7 @@ export default function PorteiroDashboard() {
             countdown={countdown}
             supabase={supabase}
             user={user}
-            buildingIdRef={buildingIdRef}
+            buildingId={buildingIdRef.current}
             showConfirmationModal={showConfirmationModal}
           />
         );

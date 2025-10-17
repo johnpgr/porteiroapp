@@ -58,7 +58,7 @@
       ],
       "useNextNotificationsApi": true,
       "googleServicesFile": "./google-services.json",
-      "package": "com.fi123.porteiroapp"
+      "package": "com.porteiroapp.notifications"
     },
     "notification": {
       "icon": "./assets/notification-icon.png",

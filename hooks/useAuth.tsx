@@ -55,9 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Função para logs apenas de erros críticos
   const logError = (message: string, error?: any) => {
-    if (__DEV__) {
-      console.error(`[AuthProvider] ${message}`, error || '');
-    }
+    console.error(`[AuthProvider] ${message}`, error || '');
   };
 
   // Função para verificar se a sessão é válida
@@ -258,13 +256,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Função melhorada para verificar sessão
   const checkSession = useCallback(async () => {
+    const timeout = setTimeout(() => {
+      console.error('[AuthProvider] ⚠️ checkSession timeout - forçando setLoading(false)');
+      setLoading(false);
+    }, 10000); // 10 segundos timeout
+
     try {
+      console.log('[AuthProvider] 🔍 Verificando sessão...');
+
       // Primeiro verifica se há uma sessão salva localmente
       const hasStoredToken = await TokenStorage.hasValidToken();
+      console.log('[AuthProvider] hasStoredToken:', hasStoredToken);
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      console.log('[AuthProvider] session existe:', !!session?.user);
 
       if (session?.user) {
         // Só salva o token se não há um token válido armazenado ou se é diferente
@@ -278,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         scheduleTokenRefresh();
         startHeartbeat();
       } else if (hasStoredToken) {
+        console.log('[AuthProvider] Tentando refresh da sessão...');
         // Tenta fazer refresh da sessão
         const refreshSuccess = await refreshSession();
 
@@ -294,9 +303,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await TokenStorage.clearAll();
         }
       }
+
+      console.log('[AuthProvider] ✅ checkSession concluído');
     } catch (error) {
       logError('Erro ao verificar sessão:', error);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, [SESSION_DURATION, refreshSession, scheduleTokenRefresh, startHeartbeat]);

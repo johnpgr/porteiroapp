@@ -3,8 +3,8 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { useColorScheme, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { useColorScheme, Platform, View, Text, ActivityIndicator } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
@@ -14,7 +14,9 @@ import * as Device from 'expo-device';
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(error => {
+  console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
+});
 
 // Componente interno para gerenciar push tokens
 function PushTokenManager() {
@@ -76,10 +78,32 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({});
   const router = useRouter();
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
+    async function prepare() {
+      try {
+        console.log('🚀 Iniciando preparação do app...');
+
+        // Aguarda um pouco para garantir que tudo está pronto
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        console.log('✅ App pronto, escondendo splash screen');
+        setAppReady(true);
+
+        // Esconde a splash screen
+        await SplashScreen.hideAsync();
+        console.log('✅ Splash screen escondida');
+      } catch (error) {
+        console.error('❌ Erro ao preparar app:', error);
+        // Mesmo com erro, esconde a splash screen
+        setAppReady(true);
+        SplashScreen.hideAsync().catch(e => console.error('❌ Erro ao esconder splash:', e));
+      }
+    }
+
     if (loaded) {
-      SplashScreen.hideAsync();
+      prepare();
     }
   }, [loaded]);
 
@@ -94,7 +118,7 @@ export default function RootLayout() {
     });
   }, []);
 
-  if (!loaded) {
+  if (!loaded || !appReady) {
     return null;
   }
 
