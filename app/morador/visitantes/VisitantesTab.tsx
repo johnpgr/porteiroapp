@@ -176,6 +176,18 @@ interface Visitor {
   visit_end_time?: string | null;
 }
 
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  type?: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other' | null;
+  apartment_id: string;
+  ownership_type: 'visita' | 'proprietario';
+  created_at: string;
+}
+
 interface PreRegistrationData {
   name: string;
   phone: string;
@@ -236,6 +248,9 @@ export default function VisitantesTab() {
   
   // Estado para controlar expansão dos cards
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  
+  // Estado para armazenar veículos
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   
   // Função para alternar expansão do card
   const toggleCardExpansion = (visitorId: string) => {
@@ -377,7 +392,34 @@ export default function VisitantesTab() {
       console.log('✅ Visitantes encontrados para o apartamento:', visitorsData?.length || 0);
       console.log('📊 Dados dos visitantes:', visitorsData);
 
-      // Mapear os dados
+      // Buscar veículos filtrados por apartment_id e ownership_type = 'visita'
+      console.log('🚗 Buscando veículos de visitantes do apartamento...');
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select(`
+          id,
+          license_plate,
+          brand,
+          model,
+          color,
+          type,
+          apartment_id,
+          ownership_type,
+          created_at
+        `)
+        .eq('apartment_id', currentApartmentId)
+        .eq('ownership_type', 'visita')
+        .order('created_at', { ascending: false });
+
+      if (vehiclesError) {
+        console.error('❌ Erro ao buscar veículos:', vehiclesError);
+        // Não interrompe o fluxo se houver erro nos veículos, apenas loga
+      } else {
+        console.log('✅ Veículos encontrados para o apartamento:', vehiclesData?.length || 0);
+        console.log('📊 Dados dos veículos:', vehiclesData);
+      }
+
+      // Mapear os dados dos visitantes
       const mappedVisitors: Visitor[] = (visitorsData || []).map(visitor => ({
         id: visitor.id,
         name: visitor.name || 'Nome não informado',
@@ -395,7 +437,21 @@ export default function VisitantesTab() {
         visit_end_time: visitor.visit_end_time
       }));
 
+      // Mapear os dados dos veículos
+      const mappedVehicles: Vehicle[] = (vehiclesData || []).map(vehicle => ({
+        id: vehicle.id,
+        license_plate: vehicle.license_plate,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        color: vehicle.color,
+        type: vehicle.type,
+        apartment_id: vehicle.apartment_id,
+        ownership_type: vehicle.ownership_type || 'proprietario',
+        created_at: vehicle.created_at
+      }));
+
       setVisitors(mappedVisitors);
+      setVehicles(mappedVehicles);
     } catch (error) {
       console.error('❌ Erro geral ao buscar visitantes:', error);
       setError('Erro ao carregar visitantes');
@@ -641,6 +697,42 @@ export default function VisitantesTab() {
     } catch (error) {
       console.error('Erro ao verificar conflitos:', error);
       return { hasConflict: false }; // Em caso de erro, permitir o cadastro
+    }
+  };
+
+  // Função para obter ícone do tipo de veículo
+  const getVehicleTypeIcon = (type: string | null | undefined) => {
+    switch (type) {
+      case 'car':
+        return '🚗';
+      case 'motorcycle':
+        return '🏍️';
+      case 'truck':
+        return '🚛';
+      case 'van':
+        return '🚐';
+      case 'bus':
+        return '🚌';
+      default:
+        return '🚗';
+    }
+  };
+
+  // Função para obter texto do tipo de veículo
+  const getVehicleTypeText = (type: string | null | undefined) => {
+    switch (type) {
+      case 'car':
+        return 'Carro';
+      case 'motorcycle':
+        return 'Moto';
+      case 'truck':
+        return 'Caminhão';
+      case 'van':
+        return 'Van';
+      case 'bus':
+        return 'Ônibus';
+      default:
+        return 'Veículo';
     }
   };
 
@@ -1429,16 +1521,56 @@ export default function VisitantesTab() {
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
-        ) : visitors.length === 0 ? (
+        ) : visitors.length === 0 && vehicles.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>Nenhum visitante pré-cadastrado</Text>
+            <Text style={styles.emptyText}>Nenhum visitante ou veículo cadastrado</Text>
             <Text style={styles.emptySubtext}>
-              Cadastre visitantes esperados para facilitar a entrada
+              Cadastre visitantes e veículos para facilitar a entrada
             </Text>
           </View>
         ) : (
-          visitors.map((visitor) => (
+          <>
+            {/* Renderizar veículos */}
+            {vehicles.map((vehicle) => (
+              <View key={`vehicle-${vehicle.id}`} style={[styles.visitorCard, styles.vehicleCard]}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardMainInfo}>
+                    <Text style={styles.visitorName}>{vehicle.license_plate}</Text>
+                    <View style={styles.visitorTypeContainer}>
+                      <Text style={styles.visitorTypeIcon}>{getVehicleTypeIcon(vehicle.type)}</Text>
+                      <Text style={styles.visitorTypeText}>{getVehicleTypeText(vehicle.type)}</Text>
+                    </View>
+                    {vehicle.brand && (
+                      <Text style={styles.visitorDocument}>🏷️ {vehicle.brand} {vehicle.model || ''}</Text>
+                    )}
+                    {vehicle.color && (
+                      <Text style={styles.visitorPhone}>🎨 {vehicle.color}</Text>
+                    )}
+                    <Text style={styles.visitorDate}>
+                      Cadastrado: {formatDisplayDate(vehicle.created_at)}
+                    </Text>
+                    <View style={styles.visitorTypeContainer}>
+                      <Text style={styles.visitorTypeIcon}>
+                        {vehicle.ownership_type === 'visita' ? '👥' : '🏠'}
+                      </Text>
+                      <Text style={styles.visitorTypeText}>
+                        {vehicle.ownership_type === 'visita' ? 'Veículo de Visita' : 'Veículo do Proprietário'}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.cardHeaderActions}>
+                    <View style={styles.vehicleBadge}>
+                      <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ))}
+            
+            {/* Renderizar visitantes */}
+            {visitors.map((visitor) => (
             <View key={visitor.id} style={[
               styles.visitorCard,
               hasVisitorFinalStatus(visitor) && styles.visitorCardApproved
@@ -1535,7 +1667,8 @@ export default function VisitantesTab() {
                 </View>
               )}
             </View>
-          ))
+          ))}
+          </>
         )}
       </View>
 
@@ -2636,6 +2769,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  vehicleCard: {
+    backgroundColor: '#f0f8ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+  },
+  vehicleBadge: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  vehicleBadgeText: {
+    color: '#1976d2',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
 });

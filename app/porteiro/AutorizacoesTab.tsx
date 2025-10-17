@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollVi
 import { supabase } from '../../utils/supabase';
 import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
 
-const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFilter }) => {
+const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }) => {
   const [activities, setActivities] = useState([]);
   const [visitorLogs, setVisitorLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -353,6 +353,17 @@ const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFil
         console.error('❌ [confirmarChegada] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
       }
 
+      // Buscar dados do apartamento
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select('number')
+        .eq('id', visitorData.apartment_id)
+        .single();
+
+      if (apartmentError) {
+        console.error('❌ [confirmarChegada] Erro ao buscar dados do apartamento:', apartmentError);
+      }
+
       // Criar dados do log baseado no access_type
       const logData = {
         visitor_id: visit.id,
@@ -435,8 +446,13 @@ const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFil
 
   // Função principal para buscar atividades otimizada
   const fetchActivities = useCallback(async () => {
-    if (!user || !buildingId) return;
-    
+    console.log('🔍 [fetchActivities] INICIANDO - user:', user, 'buildingId:', buildingId, 'filter:', filter);
+
+    if (!user || !buildingId) {
+      console.log('⚠️ [fetchActivities] user ou buildingId ausente, abortando');
+      return;
+    }
+
     try {
       setLoading(true);
       const promises = [];
@@ -557,8 +573,18 @@ const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFil
 
       const [deliveryResult, visitResult] = await Promise.all(promises);
 
-      if (deliveryResult.error) throw deliveryResult.error;
-      if (visitResult.error) throw visitResult.error;
+      console.log('✅ [fetchActivities] Queries executadas:');
+      console.log('  - Entregas:', deliveryResult.data?.length || 0, 'registros');
+      console.log('  - Visitas:', visitResult.data?.length || 0, 'registros');
+
+      if (deliveryResult.error) {
+        console.error('❌ [fetchActivities] Erro nas entregas:', deliveryResult.error);
+        throw deliveryResult.error;
+      }
+      if (visitResult.error) {
+        console.error('❌ [fetchActivities] Erro nas visitas:', visitResult.error);
+        throw visitResult.error;
+      }
 
       // Buscar logs de entrega para obter destinos
       const { data: deliveryLogs } = await supabase
@@ -659,11 +685,17 @@ const AutorizacoesTab = ({ buildingId, user, filter, timeFilter: externalTimeFil
         (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
       );
 
+      console.log('📊 [fetchActivities] Atividades processadas:');
+      console.log('  - Total de entregas processadas:', deliveryActivities.length);
+      console.log('  - Total de visitas processadas:', visitActivities.length);
+      console.log('  - Total combinado:', allActivities.length);
+
       setActivities(allActivities);
     } catch (error) {
-      console.error('Erro ao carregar atividades:', error);
+      console.error('❌ [fetchActivities] ERRO:', error);
     } finally {
       setLoading(false);
+      console.log('🏁 [fetchActivities] FINALIZADO');
     }
   }, [filter, timeFilter, user, buildingId]);
 

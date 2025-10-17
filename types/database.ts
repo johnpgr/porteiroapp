@@ -395,6 +395,7 @@ export interface Database {
           model: string | null;
           color: string | null;
           owner_id: string | null;
+          ownership_type: 'visita' | 'proprietario';
           created_at: string;
           updated_at: string;
         };
@@ -404,6 +405,7 @@ export interface Database {
           model?: string | null;
           color?: string | null;
           owner_id?: string | null;
+          ownership_type?: 'visita' | 'proprietario';
           created_at?: string;
           updated_at?: string;
         };
@@ -413,6 +415,7 @@ export interface Database {
           model?: string | null;
           color?: string | null;
           owner_id?: string | null;
+          ownership_type?: 'visita' | 'proprietario';
           created_at?: string;
           updated_at?: string;
         };
