@@ -28,6 +28,14 @@ interface PorteiroWhatsAppData {
   temporary_password?: string;
 }
 
+interface VisitorWhatsAppData {
+  name: string;
+  phone: string;
+  building: string;
+  apartment: string;
+  url?: string;
+}
+
 interface WhatsAppResponse {
   success: boolean;
   message?: string;
@@ -148,11 +156,66 @@ export const sendPorteiroWhatsApp = async (
 };
 
 /**
+ * Envia WhatsApp para visitante com link de acesso
+ */
+export const sendVisitorWhatsApp = async (
+  data: VisitorWhatsAppData
+): Promise<WhatsAppResponse> => {
+  try {
+    console.log('📱 [WhatsAppService] Enviando WhatsApp para visitante:', {
+      name: data.name,
+      phone: data.phone,
+      building: data.building,
+      apartment: data.apartment
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/send-visitor-whatsapp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: data.name,
+        phone: data.phone,
+        building: data.building,
+        apartment: data.apartment,
+        url: data.url
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('❌ [WhatsAppService] Erro da API:', result);
+      return {
+        success: false,
+        error: result.error || 'Erro ao enviar WhatsApp'
+      };
+    }
+
+    console.log('✅ [WhatsAppService] WhatsApp enviado com sucesso para visitante');
+    return {
+      success: true,
+      message: result.message,
+      data: result.data
+    };
+
+  } catch (error) {
+    console.error('❌ [WhatsAppService] Erro ao enviar WhatsApp para visitante:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido ao enviar WhatsApp'
+    };
+  }
+};
+
+/**
  * Objeto compatível com a interface antiga de notificationService
  */
 export const notificationService = {
   sendResidentWhatsApp,
-  sendPorteiroWhatsApp
+  sendPorteiroWhatsApp,
+  sendVisitorWhatsApp
 };
 
 export default notificationService;

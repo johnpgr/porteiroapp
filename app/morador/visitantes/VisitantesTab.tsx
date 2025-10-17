@@ -1006,43 +1006,46 @@ export default function VisitantesTab() {
         insertedVisitor.id // visitor_id do visitante inserido
       );
 
+      // Buscar dados do apartamento e prédio para o WhatsApp
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select(`
+          number,
+          buildings!inner (
+            name
+          )
+        `)
+        .eq('id', currentApartmentId)
+        .single();
+
+      if (apartmentError || !apartmentData) {
+        console.warn('⚠️ Não foi possível buscar dados do apartamento:', apartmentError);
+      }
+
+      const buildingName = apartmentData?.buildings?.name || 'Edifício';
+      const apartmentNumber = apartmentData?.number || 'Apartamento';
+
       // Gerar link de completação do cadastro para visitantes
       const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
       const completionLink = `${baseRegistrationUrl}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
-      // Preparar dados para WhatsApp seguindo o mesmo formato dos moradores
-      const visitorData: ResidentData = {
-        name: sanitizedName,
-        phone: sanitizedPhone,
-        building: 'Edifício', // Pode ser obtido dos dados do apartamento se necessário
-        apartment: 'Visitante' // Identificar como visitante
-      };
-
-      // Gerar mensagem personalizada para visitante
-      const whatsappData = generateWhatsAppMessage(visitorData, completionLink);
-      
-      // Personalizar mensagem para visitante
-      const visitorMessage = whatsappData.message.replace(
-        'Olá! Você foi cadastrado como morador',
-        `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante`
-      ).replace(
-        'complete seu cadastro de morador',
-        'complete seu cadastro de visitante'
-      ).replace(
-        'Sua senha temporária é:',
-        `Sua senha temporária para acesso é: ${temporaryPassword}\n\nEsta senha expira em 7 dias.\n\nSua senha temporária é:`
-      );
-
-      // Enviar mensagem via WhatsApp (serviço temporariamente desabilitado)
-      // TODO: Reativar quando API do WhatsApp estiver disponível
+      // Enviar mensagem via WhatsApp usando o serviço correto
       try {
-        // Tentar enviar WhatsApp usando a função disponível
-        await sendWhatsAppMessage({
-          phone: sanitizedPhone,
-          message: `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante.\n\nComplete seu cadastro através do link:\n${completionLink}\n\nSenha temporária: ${temporaryPassword}\n\nEsta senha expira em 7 dias.`
+        const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
+
+        const whatsappResult = await sendVisitorWhatsApp({
+          name: sanitizedName,
+          phone: sanitizedPhone.replace(/\D/g, ''),
+          building: buildingName,
+          apartment: apartmentNumber,
+          url: completionLink
         });
 
-        console.log('✅ Mensagem WhatsApp enviada com sucesso');
+        if (whatsappResult.success) {
+          console.log('✅ Mensagem WhatsApp enviada com sucesso para visitante');
+        } else {
+          console.warn('⚠️ Erro ao enviar WhatsApp:', whatsappResult.error);
+        }
       } catch (whatsappError) {
         console.warn('⚠️ Não foi possível enviar WhatsApp (serviço pode estar indisponível):', whatsappError);
         // Não interrompe o fluxo se o WhatsApp falhar
@@ -1483,7 +1486,7 @@ export default function VisitantesTab() {
                   
                   {hasVisitorFinalStatus(visitor) && (
                     <View style={styles.approvedIndicator}>
-                      <Text style={styles.approvedIndicatorText}>🔒 Bloqueado</Text>
+                      <Text style={styles.approvedIndicatorText}>🔒 Expirado</Text>
                     </View>
                   )}
                   
@@ -1512,33 +1515,7 @@ export default function VisitantesTab() {
                     ]}>✏️ Editar</Text>
                   </TouchableOpacity>
                   
-                  <TouchableOpacity 
-                    style={[
-                      styles.actionButton,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
-                    ]}
-                    onPress={() => handleApproveVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
-                    ]}>✅ Aprovar</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[
-                      styles.actionButton,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
-                    ]}
-                    onPress={() => handleDisapproveVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
-                    ]}>❌ Desaprovar</Text>
-                  </TouchableOpacity>
+
                   
                   <TouchableOpacity
                     style={[
