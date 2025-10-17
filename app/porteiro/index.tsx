@@ -11,6 +11,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
@@ -25,6 +26,7 @@ import { useAuth } from '~/hooks/useAuth';
 import { useShiftControl } from '~/hooks/useShiftControl';
 import ActivityLogs from './logs';
 import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
+import notificationService from '~/services/notificationService';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -704,6 +706,28 @@ export default function PorteiroDashboard() {
             shift_end: schedule.end,
             building_id: profile.building_id
           });
+
+          // 🔔 REGISTRAR PUSH TOKEN para notificações
+          try {
+            console.log('🔔 [PorteiroDashboard] Registrando push token para porteiro:', user.id);
+            const pushToken = await notificationService.registerForPushNotificationsAsync();
+
+            if (pushToken) {
+              const deviceType = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+              const saved = await notificationService.savePushToken(user.id, pushToken, deviceType);
+
+              if (saved) {
+                console.log('✅ [PorteiroDashboard] Push token registrado com sucesso');
+              } else {
+                console.warn('⚠️ [PorteiroDashboard] Falha ao salvar push token no banco');
+              }
+            } else {
+              console.warn('⚠️ [PorteiroDashboard] Push token não obtido (emulador ou permissão negada)');
+            }
+          } catch (pushError) {
+            console.error('❌ [PorteiroDashboard] Erro ao registrar push token:', pushError);
+            // Não bloquear o carregamento por erro de push token
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar dados do porteiro:', error);

@@ -44,6 +44,17 @@ interface WhatsAppResponse {
 }
 
 /**
+ * Verifica se o erro é relacionado ao WhatsApp não encontrado/ativo
+ */
+const isWhatsAppNotFoundError = (errorMessage: string): boolean => {
+  const lowerError = errorMessage.toLowerCase();
+  return lowerError.includes('não possui whatsapp ativo') || 
+         lowerError.includes('não foi encontrado') ||
+         lowerError.includes('whatsapp não encontrado') ||
+         lowerError.includes('número inválido');
+};
+
+/**
  * Envia WhatsApp para morador com credenciais de acesso
  */
 export const sendResidentWhatsApp = async (
@@ -76,10 +87,21 @@ export const sendResidentWhatsApp = async (
     const result = await response.json();
 
     if (!response.ok) {
+      const errorMessage = result.error || 'Erro ao enviar WhatsApp';
+      
+      // Verificar se é erro de WhatsApp não encontrado
+      if (isWhatsAppNotFoundError(errorMessage)) {
+        console.warn('⚠️ NOTIFICAÇÃO POR WPP NÃO ENVIADA POIS WPP NÃO EXISTIA');
+        return {
+          success: false,
+          error: 'Número não possui WhatsApp ativo. Notificação não enviada.'
+        };
+      }
+      
       console.error('❌ [WhatsAppService] Erro da API:', result);
       return {
         success: false,
-        error: result.error || 'Erro ao enviar WhatsApp'
+        error: errorMessage
       };
     }
 
@@ -132,10 +154,21 @@ export const sendPorteiroWhatsApp = async (
     const result = await response.json();
 
     if (!response.ok) {
+      const errorMessage = result.error || 'Erro ao enviar WhatsApp';
+      
+      // Verificar se é erro de WhatsApp não encontrado
+      if (isWhatsAppNotFoundError(errorMessage)) {
+        console.warn('⚠️ NOTIFICAÇÃO POR WPP NÃO ENVIADA POIS WPP NÃO EXISTIA');
+        return {
+          success: false,
+          error: 'Número não possui WhatsApp ativo. Notificação não enviada.'
+        };
+      }
+      
       console.error('❌ [WhatsAppService] Erro da API:', result);
       return {
         success: false,
-        error: result.error || 'Erro ao enviar WhatsApp'
+        error: errorMessage
       };
     }
 
@@ -186,10 +219,21 @@ export const sendVisitorWhatsApp = async (
     const result = await response.json();
 
     if (!response.ok) {
+      const errorMessage = result.error || 'Erro ao enviar WhatsApp';
+      
+      // Verificar se é erro de WhatsApp não encontrado
+      if (isWhatsAppNotFoundError(errorMessage)) {
+        console.warn('⚠️ NOTIFICAÇÃO POR WPP NÃO ENVIADA POIS WPP NÃO EXISTIA');
+        return {
+          success: false,
+          error: 'Número não possui WhatsApp ativo. Notificação não enviada.'
+        };
+      }
+      
       console.error('❌ [WhatsAppService] Erro da API:', result);
       return {
         success: false,
-        error: result.error || 'Erro ao enviar WhatsApp'
+        error: errorMessage
       };
     }
 

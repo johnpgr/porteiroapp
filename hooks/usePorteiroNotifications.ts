@@ -3,7 +3,8 @@ import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { shiftService } from '../services/shiftService';
-import { Alert } from 'react-native';
+import { Alert, AppState, AppStateStatus } from 'react-native';
+import notificationService from '../services/notificationService';
 
 interface PorteiroNotification {
   id: string;
@@ -25,16 +26,11 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   
   const channelsRef = useRef<RealtimeChannel[]>([]);
   
-  // Configurar notificações push
+  // Configurar notificações push e listeners de foreground
   useEffect(() => {
     const configurePushNotifications = async () => {
       try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-          console.warn('🚨 [usePorteiroNotifications] Permissão de notificação negada');
-          return;
-        }
-        
+        // Configurar handler para notificações
         Notifications.setNotificationHandler({
           handleNotification: async () => ({
             shouldShowAlert: true,
@@ -42,15 +38,55 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
             shouldSetBadge: true,
           }),
         });
-        
+
+        // Solicitar permissões
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('🚨 [usePorteiroNotifications] Permissão de notificação negada');
+          return;
+        }
+
         console.log('✅ [usePorteiroNotifications] Push notifications configuradas');
       } catch (err) {
         console.error('❌ [usePorteiroNotifications] Erro ao configurar push notifications:', err);
         setError('Erro ao configurar notificações push');
       }
     };
-    
+
     configurePushNotifications();
+
+    // Listener para notificações recebidas enquanto app está em foreground
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📩 [usePorteiroNotifications] Notificação recebida (foreground):', notification);
+
+      const data = notification.request.content.data;
+
+      // Exibir Alert baseado no tipo de notificação
+      if (data.type === 'visitor_approved' || data.type === 'visitor_rejected') {
+        const isApproved = data.type === 'visitor_approved';
+        const title = isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Rejeitado';
+        const message = isApproved
+          ? `${data.visitor_name} foi aprovado para o apartamento ${data.apartment_number}`
+          : `A entrada de ${data.visitor_name} foi rejeitada pelo apartamento ${data.apartment_number}`;
+
+        Alert.alert(title, message, [{ text: 'OK', style: 'default' }], { cancelable: true });
+      }
+    });
+
+    // Listener para quando usuário toca na notificação
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('👆 [usePorteiroNotifications] Notificação tocada:', response);
+
+      const data = response.notification.request.content.data;
+
+      // Aqui você pode navegar para uma tela específica baseado no tipo
+      // Por exemplo: router.push('/porteiro/autorizacoes')
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener);
+      Notifications.removeNotificationSubscription(responseListener);
+    };
   }, []);
   
   // Função para criar notificação local
