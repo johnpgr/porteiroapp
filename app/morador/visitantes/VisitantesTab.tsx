@@ -124,35 +124,14 @@ const hashPassword = async (password: string): Promise<string> => {
   return hash;
 };
 
-// Função para armazenar senha temporária no banco de dados para visitantes
-const storeTemporaryPassword = async (visitorName: string, visitorPhone: string, plainPassword: string, hashedPassword: string, visitorId: string): Promise<void> => {
+// Função para gerar senha temporária (removida a funcionalidade de armazenamento)
+const generateTemporaryPasswordForVisitor = async (visitorName: string, visitorPhone: string, visitorId: string): Promise<string> => {
   try {
-    const insertData = {
-      visitor_name: visitorName,
-      visitor_phone: visitorPhone,
-      plain_password: plainPassword,
-      hashed_password: hashedPassword,
-      visitor_id: visitorId,
-      used: false,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
-    };
-
-    console.log('🔑 Armazenando senha temporária para visitante:', visitorName, visitorPhone);
-
-    const { error } = await supabase
-      .from('visitor_temporary_passwords')
-      .insert(insertData);
-    
-    if (error) {
-      console.error('Erro ao armazenar senha temporária:', error);
-      throw error;
-    }
-    
-    console.log('✅ Senha temporária armazenada com sucesso na tabela visitor_temporary_passwords');
+    const plainPassword = generateTemporaryPassword();
+    console.log('🔑 Senha temporária gerada para visitante:', visitorName, visitorPhone);
+    return plainPassword;
   } catch (error) {
-    console.error('❌ Erro ao armazenar senha temporária:', error);
+    console.error('❌ Erro ao gerar senha temporária:', error);
     throw error;
   }
 };
@@ -1089,12 +1068,10 @@ export default function VisitantesTab() {
       const hashedPassword = await hashPassword(temporaryPassword);
       console.log('Senha temporária gerada para visitante:', sanitizedPhone.replace(/\D/g, ''));
 
-      // Armazenar senha temporária usando a função auxiliar
-      await storeTemporaryPassword(
+      // Gerar senha temporária (removida funcionalidade de armazenamento)
+      const temporaryPasswordGenerated = await generateTemporaryPasswordForVisitor(
         sanitizedName, // nome do visitante
         sanitizedPhone.replace(/\D/g, ''), // telefone do visitante
-        temporaryPassword,
-        hashedPassword,
         insertedVisitor.id // visitor_id do visitante inserido
       );
 
@@ -1334,16 +1311,7 @@ export default function VisitantesTab() {
                 // Continuar mesmo se não houver logs para excluir
               }
 
-              // 2. Excluir senhas temporárias relacionadas
-              const { error: passwordError } = await supabase
-                .from('visitor_temporary_passwords')
-                .delete()
-                .eq('visitor_id', visitor.id);
-
-              if (passwordError) {
-                console.error('Erro ao excluir senhas temporárias:', passwordError);
-                // Continuar mesmo se não houver senhas para excluir
-              }
+              // 2. Senhas temporárias removidas (não mais necessárias)
 
               // 3. Por último, excluir o visitante
               const { error } = await supabase

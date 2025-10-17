@@ -29,38 +29,12 @@ router.post('/send-visitor-whatsapp', async (req, res) => {
 
     const { name, phone, building, apartment, url } = req.body;
     
-    // Buscar visitante na tabela visitor_temporary_passwords
-    console.log('🔍 Buscando visitante na tabela visitor_temporary_passwords...');
-    const { data: visitorData, error: visitorError } = await supabase
-      .from('visitor_temporary_passwords')
-      .select('*, plain_password')
-      .eq('visitor_name', name)
-      .eq('visitor_phone', phone)
-      .eq('status', 'active')
-      .single();
-
-    if (visitorError) {
-      console.error('❌ Erro ao buscar visitante:', visitorError);
-      return res.status(404).json({
-        success: false,
-        error: 'Visitante não encontrado ou senha temporária inválida'
-      });
-    }
-
-    if (!visitorData) {
-      console.log('❌ Visitante não encontrado');
-      return res.status(404).json({
-        success: false,
-        error: 'Visitante não encontrado'
-      });
-    }
-
-    console.log('✅ Visitante encontrado:', {
-      id: visitorData.id,
-      name: visitorData.visitor_name,
-      phone: visitorData.visitor_phone,
-      has_password: !!visitorData.plain_password,
-      created_at: visitorData.created_at
+    // Funcionalidade de busca de senhas temporárias removida
+    console.log('✅ Processando notificação para visitante:', {
+      name: name,
+      phone: phone,
+      building: building,
+      apartment: apartment
     });
 
     const messageTemplate = `Olá, ${name} 👋
@@ -96,8 +70,8 @@ Identifique-se na portaria para liberar o acesso.
       success: true,
       message: 'Mensagem WhatsApp enviada com sucesso para o visitante',
       data: {
-        visitor_name: visitorData.visitor_name,
-        visitor_phone: visitorData.visitor_phone,
+        visitor_name: name,
+        visitor_phone: phone,
         message_id: whatsappResult.messageId,
         sent_at: new Date().toISOString()
       }
