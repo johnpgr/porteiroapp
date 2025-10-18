@@ -1625,7 +1625,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             </Text>
           </View>
         ) : (
-
+          
           filteredActivities.map((activity) => (
             <TouchableOpacity
               key={activity.id}
@@ -1694,9 +1694,12 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
               )}
             </TouchableOpacity>
           ))
+          
         )}
           </>
+          
         )}
+        
 
       </ScrollView>
 
@@ -2096,7 +2099,7 @@ const styles = StyleSheet.create({
   activityCard: {
     backgroundColor: '#fff',
     marginHorizontal: 8, // Reduzido de 12 para 8 para mais espaço
-    marginVertical: 4, // Reduzido de 6 para 4
+    marginVertical: 12, 
     borderRadius: 12,
     elevation: 2,
     overflow: 'hidden',
@@ -2342,7 +2345,7 @@ const styles = StyleSheet.create({
   // Estilos para LogCard
   logsList: {
     paddingHorizontal: 8, // Reduzido de 12 para 8
-    paddingBottom: 20
+    paddingBottom: 20,
   },
   logCard: {
     backgroundColor: '#fff',
