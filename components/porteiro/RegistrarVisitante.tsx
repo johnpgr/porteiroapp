@@ -16,9 +16,9 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { notifyNewVisitor } from '../../utils/pushNotifications';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 import { notificationApi } from '../../services/notificationApi';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 type FlowStep =
   | 'apartamento'
@@ -798,14 +798,38 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-        // Enviar notificação push para os moradores do apartamento (não bloqueia o fluxo)
-        notifyNewVisitor({
-          visitorName: nomeVisitante,
-          visitorDocument: cpfVisitante,
-          apartmentIds: [selectedApartment.id],
-          apartmentNumber: apartamento,
-          visitorId: visitorId,
-        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
+        // Enviar notificação push para os moradores do apartamento via Edge Function
+        try {
+          console.log('📱 [RegistrarVisitante] ==================== INICIO PUSH NOTIFICATION ====================');
+          console.log('📱 [RegistrarVisitante] Apartamento ID:', selectedApartment.id);
+          console.log('📱 [RegistrarVisitante] Apartamento Number:', apartamento);
+          console.log('📱 [RegistrarVisitante] Visitor Name:', nomeVisitante);
+          console.log('📱 [RegistrarVisitante] Chamando notifyResidentsVisitorArrival...');
+
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [selectedApartment.id],
+            visitorName: nomeVisitante,
+            apartmentNumber: apartamento,
+            purpose: observacoes || purpose,
+            photoUrl: photoUrl || undefined,
+          });
+
+          console.log('📱 [RegistrarVisitante] Resultado completo do push:', JSON.stringify(pushResult, null, 2));
+
+          if (pushResult.success && pushResult.sent > 0) {
+            console.log(`✅ [RegistrarVisitante] Push notification enviada para ${pushResult.sent} morador(es)`);
+          } else {
+            console.warn('⚠️ [RegistrarVisitante] Push notification não enviada:', pushResult.message);
+            console.warn('⚠️ [RegistrarVisitante] Total tokens encontrados:', pushResult.total);
+            console.warn('⚠️ [RegistrarVisitante] Enviados:', pushResult.sent);
+            console.warn('⚠️ [RegistrarVisitante] Falhas:', pushResult.failed);
+          }
+          console.log('📱 [RegistrarVisitante] ==================== FIM PUSH NOTIFICATION ====================');
+        } catch (pushError) {
+          console.error('❌ [RegistrarVisitante] Erro ao enviar push notification:', pushError);
+          console.error('❌ [RegistrarVisitante] Stack:', pushError instanceof Error ? pushError.stack : 'N/A');
+          // Não bloqueia o fluxo se a notificação push falhar
+        }
 
         // Enviar notificação via API (WhatsApp)
         try {

@@ -2,7 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 interface NotificationRequest {
-  user_id: string;
+  user_id?: string;
+  profile_id?: string; // Aceita tanto user_id quanto profile_id
   title: string;
   body: string;
   type: 'visitor_approval' | 'visitor_arrival' | 'system' | 'security' | 'general';
@@ -36,85 +37,64 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { user_id, title, body, type, data, priority = 'normal' }: NotificationRequest = await req.json();
+    const { user_id, profile_id, title, body, type, data, priority = 'normal' }: NotificationRequest = await req.json();
 
-    if (!user_id || !title || !body || !type) {
+    // Aceita tanto user_id quanto profile_id (profile_id tem prioridade)
+    const targetId = profile_id || user_id;
+
+    if (!targetId || !title || !body || !type) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: user_id, title, body, type' }),
+        JSON.stringify({ error: 'Missing required fields: user_id/profile_id, title, body, type' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 1. Criar registro na tabela notifications
-    const { data: notification, error: notificationError } = await supabaseClient
-      .from('notifications')
-      .insert({
-        user_id,
-        title,
-        body,
-        type,
-        data: data || {},
-        status: 'pending',
-        priority
-      })
-      .select()
+    console.log('🔔 [send-notification] Processing notification:', { targetId, title, type });
+
+    // 1. Buscar push_token do perfil
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('push_token, notification_enabled, full_name')
+      .eq('id', targetId)
       .single();
 
-    if (notificationError) {
-      console.error('Error creating notification:', notificationError);
+    if (profileError) {
+      console.error('❌ [send-notification] Error fetching profile:', profileError);
       return new Response(
-        JSON.stringify({ error: 'Failed to create notification record' }),
+        JSON.stringify({ error: 'Failed to fetch user profile' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 2. Buscar tokens ativos do usuário
-    const { data: tokens, error: tokensError } = await supabaseClient
-      .from('user_notification_tokens')
-      .select('notification_token, device_type')
-      .eq('user_id', user_id)
-      .eq('is_active', true);
-
-    if (tokensError) {
-      console.error('Error fetching tokens:', tokensError);
+    if (!profile || !profile.push_token || !profile.notification_enabled) {
+      console.warn('⚠️ [send-notification] No active push token for user:', targetId);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch user tokens' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!tokens || tokens.length === 0) {
-      // Atualizar status para 'failed' - usuário sem tokens
-      await supabaseClient
-        .from('notifications')
-        .update({ status: 'failed' })
-        .eq('id', notification.id);
-
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'No active tokens found for user',
-          notification_id: notification.id
+        JSON.stringify({
+          success: false,
+          message: 'No active push token found for user',
+          user_id: targetId
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 3. Preparar mensagens para Expo Push API
-    const messages: ExpoPushMessage[] = tokens.map(token => ({
-      to: token.notification_token,
+    // 2. Preparar mensagem para Expo Push API
+    const message: ExpoPushMessage = {
+      to: profile.push_token,
       title,
       body,
       data: {
         ...data,
-        notificationId: notification.id,
-        type
+        type,
+        user_id: targetId
       },
       priority,
       sound: 'default',
-    }));
+    };
 
-    // 4. Enviar para Expo Push API
+    console.log('📤 [send-notification] Sending push notification to:', profile.full_name || targetId);
+
+    // 3. Enviar para Expo Push API
     const expoPushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
@@ -122,78 +102,35 @@ serve(async (req) => {
         'Accept-encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(messages),
+      body: JSON.stringify([message]),
     });
 
     const expoPushResult = await expoPushResponse.json();
+    console.log('📱 [send-notification] Expo response:', expoPushResult);
 
-    // 5. Processar resultados e criar logs
-    let successCount = 0;
-    let failureCount = 0;
-    const logs = [];
+    // 4. Processar resultado
+    const firstResult = expoPushResult.data?.[0];
+    const success = firstResult?.status === 'ok';
 
-    for (let i = 0; i < expoPushResult.data.length; i++) {
-      const result = expoPushResult.data[i];
-      const token = tokens[i];
-
-      const logEntry = {
-        notification_id: notification.id,
-        device_token: token.notification_token,
-        device_type: token.device_type,
-        status: result.status === 'ok' ? 'sent' : 'failed',
-        error_message: result.status !== 'ok' ? result.message || 'Unknown error' : null,
-        expo_receipt_id: result.id || null
-      };
-
-      logs.push(logEntry);
-
-      if (result.status === 'ok') {
-        successCount++;
-      } else {
-        failureCount++;
-        console.error(`Push notification failed for token ${token.token}:`, result);
-      }
+    if (!success) {
+      console.error('❌ [send-notification] Push failed:', firstResult);
     }
-
-    // 6. Salvar logs no banco
-    if (logs.length > 0) {
-      const { error: logsError } = await supabaseClient
-        .from('notification_logs')
-        .insert(logs);
-
-      if (logsError) {
-        console.error('Error saving notification logs:', logsError);
-      }
-    }
-
-    // 7. Atualizar status da notificação
-    const finalStatus = successCount > 0 ? 'sent' : 'failed';
-    await supabaseClient
-      .from('notifications')
-      .update({ 
-        status: finalStatus,
-        sent_at: finalStatus === 'sent' ? new Date().toISOString() : null
-      })
-      .eq('id', notification.id);
 
     return new Response(
       JSON.stringify({
-        success: true,
-        notification_id: notification.id,
-        results: {
-          total_tokens: tokens.length,
-          success_count: successCount,
-          failure_count: failureCount
-        },
-        expo_response: expoPushResult
+        success,
+        message: success ? 'Notification sent successfully' : 'Failed to send notification',
+        user_id: targetId,
+        expo_result: firstResult,
+        timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('❌ [send-notification] Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', message: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

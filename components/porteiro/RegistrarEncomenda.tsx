@@ -16,6 +16,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
 import { notificationApi } from '../../services/notificationApi';
 import { uploadDeliveryPhoto } from '../../services/photoUploadService';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
@@ -625,6 +626,39 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         }
 
         console.log('Log de visitante inserido com sucesso:', visitorLogData);
+
+        // Enviar notificação push para os moradores via Edge Function
+        try {
+          console.log('📱 [RegistrarEncomenda] ==================== INICIO PUSH NOTIFICATION ====================');
+          console.log('📱 [RegistrarEncomenda] Apartamento ID:', selectedApartment.id);
+          console.log('📱 [RegistrarEncomenda] Apartamento Number:', selectedApartment.number);
+          console.log('📱 [RegistrarEncomenda] Empresa:', empresaSelecionada.nome);
+          console.log('📱 [RegistrarEncomenda] Chamando notifyResidentsVisitorArrival...');
+
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [selectedApartment.id],
+            visitorName: `Entrega de ${empresaSelecionada.nome}`,
+            apartmentNumber: selectedApartment.number,
+            purpose: `Encomenda: ${descricaoEncomenda}`,
+            photoUrl: photoUrl || undefined,
+          });
+
+          console.log('📱 [RegistrarEncomenda] Resultado completo do push:', JSON.stringify(pushResult, null, 2));
+
+          if (pushResult.success && pushResult.sent > 0) {
+            console.log(`✅ [RegistrarEncomenda] Push notification enviada para ${pushResult.sent} morador(es)`);
+          } else {
+            console.warn('⚠️ [RegistrarEncomenda] Push notification não enviada:', pushResult.message);
+            console.warn('⚠️ [RegistrarEncomenda] Total tokens encontrados:', pushResult.total);
+            console.warn('⚠️ [RegistrarEncomenda] Enviados:', pushResult.sent);
+            console.warn('⚠️ [RegistrarEncomenda] Falhas:', pushResult.failed);
+          }
+          console.log('📱 [RegistrarEncomenda] ==================== FIM PUSH NOTIFICATION ====================');
+        } catch (pushError) {
+          console.error('❌ [RegistrarEncomenda] Erro ao enviar push notification:', pushError);
+          console.error('❌ [RegistrarEncomenda] Stack:', pushError instanceof Error ? pushError.stack : 'N/A');
+          // Não bloqueia o fluxo se a notificação push falhar
+        }
 
         // Enviar notificação WhatsApp para o morador sobre entrega aguardando
         try {

@@ -13,6 +13,7 @@ import {
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {
@@ -829,6 +830,27 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       }
 
       console.log('✅ [RegistrarVeiculo] Log registrado com sucesso');
+
+      // Enviar notificação push para os moradores via Edge Function
+      try {
+        console.log('📱 [RegistrarVeiculo] Enviando push notification para moradores...');
+        const pushResult = await notifyResidentsVisitorArrival({
+          apartmentIds: [apartmentData.id],
+          visitorName: nomeConvidado,
+          apartmentNumber: apartmentData.number,
+          purpose: `Veículo: ${placa}${modelo ? ' - ' + modelo : ''}`,
+          photoUrl: undefined,
+        });
+
+        if (pushResult.success && pushResult.sent > 0) {
+          console.log(`✅ [RegistrarVeiculo] Push notification enviada para ${pushResult.sent} morador(es)`);
+        } else {
+          console.warn('⚠️ [RegistrarVeiculo] Push notification não enviada:', pushResult.message);
+        }
+      } catch (pushError) {
+        console.error('❌ [RegistrarVeiculo] Erro ao enviar push notification:', pushError);
+        // Não bloqueia o fluxo se a notificação push falhar
+      }
 
       // Enviar notificação via API (WhatsApp) após registro bem-sucedido
       if (visitorLogData?.id) {

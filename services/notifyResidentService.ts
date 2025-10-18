@@ -1,5 +1,5 @@
 import { supabase } from '../utils/supabase';
-import { notifyMoradorVisitorArrival } from './notificationService';
+import { notifyResidentsVisitorArrival } from './pushNotificationService';
 
 interface VisitorArrivalData {
   visitorName: string;
@@ -48,32 +48,32 @@ export class NotifyResidentService {
         };
       }
 
-      // 2. Enviar notificação usando o novo sistema
-      const result = await notifyMoradorVisitorArrival({
-        apartmentId,
+      // 2. Enviar notificação push usando Edge Function
+      const result = await notifyResidentsVisitorArrival({
+        apartmentIds: [apartmentId],
         visitorName: visitorData.visitorName,
         apartmentNumber: visitorData.apartmentNumber,
         purpose: visitorData.purpose,
-        visitorId: visitorData.visitorId,
+        photoUrl: visitorData.photo_url,
       });
 
-      if (result.success) {
-        console.log('✅ [NotifyResidentService] Notificação enviada com sucesso');
+      if (result.success && result.sent > 0) {
+        console.log('✅ [NotifyResidentService] Push notification enviada:', `${result.sent} morador(es) notificado(s)`);
         // 3. Registrar log da notificação
         await this.logNotificationAttempt(visitorData, apartmentId, true);
 
         return {
           success: true,
-          message: 'Notificação enviada com sucesso',
+          message: `Notificação enviada com sucesso para ${result.sent} morador(es)`,
           notificationId: `visitor_arrival_${Date.now()}`
         };
       } else {
-        console.warn('⚠️ [NotifyResidentService] Falha ao enviar notificação');
+        console.warn('⚠️ [NotifyResidentService] Falha ao enviar notificação:', result.message);
         await this.logNotificationAttempt(visitorData, apartmentId, false);
 
         return {
           success: false,
-          message: 'Nenhum morador pôde ser notificado (sem tokens cadastrados)',
+          message: result.message || 'Nenhum morador pôde ser notificado (sem tokens cadastrados)',
         };
       }
 

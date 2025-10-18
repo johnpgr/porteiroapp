@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollView, TextInput } from 'react-native';
 import { supabase } from '../../utils/supabase';
 import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }) => {
   const [activities, setActivities] = useState([]);
@@ -412,7 +413,8 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       // NOVA IMPLEMENTAÇÃO: Disparar notificação para o morador
       try {
         console.log('🔔 [confirmarChegada] Iniciando notificação para morador...');
-        
+
+        // 1. Enviar via WhatsApp/SMS (método antigo)
         const notificationResult = await notifyResidentOfVisitorArrival({
           visitorName: visitorData.name || activity.title.replace('👤 ', ''),
           apartmentNumber: apartmentData?.number || 'N/A',
@@ -424,10 +426,31 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         });
 
         if (notificationResult.success) {
-          console.log('✅ [confirmarChegada] Notificação enviada com sucesso:', notificationResult.message);
+          console.log('✅ [confirmarChegada] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
         } else {
-          console.warn('⚠️ [confirmarChegada] Falha ao enviar notificação:', notificationResult.message);
+          console.warn('⚠️ [confirmarChegada] Falha ao enviar WhatsApp:', notificationResult.message);
         }
+
+        // 2. Enviar Push Notification via Edge Function
+        try {
+          console.log('📱 [confirmarChegada] Enviando push notification para morador...');
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [visitorData.apartment_id],
+            visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+            apartmentNumber: apartmentData?.number || 'N/A',
+            purpose: visitorData.purpose || 'Visita',
+            photoUrl: visitorData.photo_url
+          });
+
+          if (pushResult.success) {
+            console.log('✅ [confirmarChegada] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+          } else {
+            console.warn('⚠️ [confirmarChegada] Falha ao enviar push:', pushResult.message);
+          }
+        } catch (pushError) {
+          console.error('❌ [confirmarChegada] Erro ao enviar push notification:', pushError);
+        }
+
       } catch (notificationError) {
         console.error('❌ [confirmarChegada] Erro ao enviar notificação:', notificationError);
         // Não interromper o fluxo principal, apenas logar o erro
@@ -985,11 +1008,27 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       }
 
       // Enviar notificação push para o morador
-      // TODO: Implementar envio de push notification
-      console.log('Enviando notificação push para o morador...');
+      try {
+        console.log('📱 [handleNotifyResident] Enviando push notification para morador...');
+        const pushResult = await notifyResidentsVisitorArrival({
+          apartmentIds: [visitorData.apartment_id],
+          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          apartmentNumber: visitorData.apartments?.number || 'N/A',
+          purpose: visitorData.purpose || 'Visita',
+          photoUrl: visitorData.photo_url
+        });
 
-      const statusMessage = visitorData.access_type === 'com_aprovacao' 
-        ? 'Morador notificado! Aguardando aprovação.' 
+        if (pushResult.success) {
+          console.log('✅ [handleNotifyResident] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+        } else {
+          console.warn('⚠️ [handleNotifyResident] Falha ao enviar push:', pushResult.message);
+        }
+      } catch (pushError) {
+        console.error('❌ [handleNotifyResident] Erro ao enviar push notification:', pushError);
+      }
+
+      const statusMessage = visitorData.access_type === 'com_aprovacao'
+        ? 'Morador notificado! Aguardando aprovação.'
         : 'Visitante autorizado e morador notificado!';
 
       Alert.alert('Sucesso', statusMessage);
