@@ -11,7 +11,7 @@ import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
-// Removed old notification service - using Edge Functions for push notifications
+import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 
 export interface AuthUser {
   id: string;
@@ -557,7 +557,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleTokenRefresh();
       startHeartbeat();
 
-      // Push token registration now handled by Edge Functions
+      // Registra push token após login bem-sucedido
+      try {
+        const pushToken = await registerForPushNotificationsAsync();
+        if (pushToken && data.user) {
+          // Busca o profile_id do usuário
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .single();
+
+          if (profileData?.id) {
+            await savePushToken(profileData.id, pushToken);
+            console.log('✅ [useAuth] Push token registrado no login');
+          }
+        }
+      } catch (pushError) {
+        console.error('⚠️ [useAuth] Erro ao registrar push token:', pushError);
+        // Não bloqueia o login se falhar o registro do push token
+      }
 
       return { success: true };
     } catch (error) {

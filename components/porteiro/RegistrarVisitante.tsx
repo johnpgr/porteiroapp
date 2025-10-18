@@ -18,6 +18,7 @@ import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notifyNewVisitor } from '../../utils/pushNotifications';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
+import { notificationApi } from '../../services/notificationApi';
 
 type FlowStep =
   | 'apartamento'

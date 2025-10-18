@@ -114,9 +114,37 @@ export default function RootLayout() {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
       }),
     });
-  }, []);
+
+    // Listener para notificações recebidas enquanto app está em foreground
+    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('🔔 [Foreground] Notificação recebida:', notification);
+      // A notificação será exibida automaticamente devido ao handler acima
+    });
+
+    // Listener para quando usuário clica na notificação
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('👆 [Click] Usuário clicou na notificação:', response);
+      const data = response.notification.request.content.data;
+
+      // Navegação baseada no tipo de notificação
+      if (data?.type === 'visitor_arrival') {
+        // Navegar para tela de autorizações do morador
+        router.push('/morador/authorize');
+      } else if (data?.type === 'visitor_approved' || data?.type === 'visitor_rejected') {
+        // Navegar para tela do porteiro
+        router.push('/porteiro');
+      }
+    });
+
+    // Cleanup
+    return () => {
+      foregroundSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, [router]);
 
   if (!loaded || !appReady) {
     return null;

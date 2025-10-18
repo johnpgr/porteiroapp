@@ -132,9 +132,9 @@ export default function AuthorizeScreen() {
           created_by: user.id,
         });
 
-        // Enviar notificação push para o porteiro
+        // Enviar notificação push para o porteiro via Edge Function
         try {
-          const { sendPushNotification } = await import('../../services/notificationService');
+          const { sendPushNotification } = await import('../../utils/pushNotifications');
 
           const isApproved = actionType === 'approve';
           const title = isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Rejeitado';
@@ -142,7 +142,7 @@ export default function AuthorizeScreen() {
             ? `${selectedVisitor.name} foi aprovado para o apartamento ${selectedVisitor.apartment_number}`
             : `A entrada de ${selectedVisitor.name} foi rejeitada pelo apartamento ${selectedVisitor.apartment_number}`;
 
-          await sendPushNotification({
+          const result = await sendPushNotification({
             title,
             message,
             type: 'visitor',
@@ -156,7 +156,11 @@ export default function AuthorizeScreen() {
             },
           });
 
-          console.log('✅ Notificação push enviada para o porteiro com sucesso');
+          if (result.success) {
+            console.log(`✅ Notificação push enviada para ${result.sent} porteiro(s)`);
+          } else {
+            console.warn('⚠️ Nenhuma notificação enviada:', result.error);
+          }
         } catch (pushError) {
           console.error('❌ Erro ao enviar notificação push para o porteiro:', pushError);
           // Não interrompe o fluxo principal se a notificação push falhar

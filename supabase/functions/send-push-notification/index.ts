@@ -62,6 +62,16 @@ serve(async (req) => {
     const { title, message, type, data, userIds, pushTokens, userType, buildingId, apartmentIds } =
       body;
 
+    console.log('🔔 [send-push-notification] Request received:', {
+      title,
+      type,
+      userType,
+      buildingId,
+      hasUserIds: !!userIds,
+      hasPushTokens: !!pushTokens,
+      hasApartmentIds: !!apartmentIds
+    });
+
     // Validação básica
     if (!title || !message || !type) {
       return new Response(
@@ -79,126 +89,93 @@ serve(async (req) => {
     if (pushTokens && pushTokens.length > 0) {
       // Tokens fornecidos diretamente
       tokens = pushTokens;
+      console.log(`📱 [send-push-notification] Usando ${tokens.length} tokens fornecidos diretamente`);
     } else if (userIds && userIds.length > 0) {
-      // Buscar tokens por IDs de usuários na tabela user_notification_tokens
-      const { data: userTokens } = await supabase
-        .from('user_notification_tokens')
-        .select('token')
-        .in('user_id', userIds)
-        .eq('is_active', true);
+      // Buscar tokens por IDs de usuários na tabela profiles
+      console.log(`🔍 [send-push-notification] Buscando tokens por userIds: ${userIds.length} IDs`);
 
-      tokens = userTokens?.map((t) => t.token).filter(Boolean) || [];
+      const { data: profileTokens, error } = await supabase
+        .from('profiles')
+        .select('push_token')
+        .in('id', userIds)
+        .eq('notification_enabled', true)
+        .not('push_token', 'is', null);
+
+      if (error) {
+        console.error('❌ [send-push-notification] Erro ao buscar tokens por userIds:', error);
+      } else {
+        tokens = profileTokens?.map((t) => t.push_token).filter(Boolean) || [];
+        console.log(`📱 [send-push-notification] Encontrados ${tokens.length} tokens por userIds`);
+      }
     } else if (userType || buildingId || apartmentIds) {
       // Buscar tokens por filtros
-      console.log(`🔍 Buscando tokens para userType: ${userType}, buildingId: ${buildingId}`);
-      
-      if (userType === 'admin') {
-        // Buscar tokens de admins via user_notification_tokens
-        const { data: adminProfiles } = await supabase
-          .from('admin_profiles')
-          .select('user_id');
+      console.log(`🔍 [send-push-notification] Buscando tokens para userType: ${userType}, buildingId: ${buildingId}`);
 
-        if (adminProfiles && adminProfiles.length > 0) {
-          const adminUserIds = adminProfiles.map(p => p.user_id);
-          const { data, error } = await supabase
-            .from('user_notification_tokens')
-            .select('token')
-            .in('user_id', adminUserIds)
-            .eq('is_active', true);
-
-          if (error) {
-            console.error('❌ Erro ao buscar tokens admin:', error);
-          } else {
-            console.log(`📱 Encontrados ${data?.length || 0} tokens admin`);
-          }
-
-          tokens = data?.map((t) => t.token).filter(Boolean) || [];
-        }
-      } else if (userType === 'porteiro') {
-        // Buscar porteiros na tabela profiles e seus tokens em user_notification_tokens
-        console.log('🔍 Buscando tokens de porteiros via user_notification_tokens');
+      if (userType === 'porteiro') {
+        // Buscar porteiros diretamente da tabela profiles usando push_token
+        console.log('🔍 [send-push-notification] Buscando tokens de porteiros via profiles.push_token');
 
         let profileQuery = supabase
           .from('profiles')
-          .select('user_id')
-          .eq('user_type', 'porteiro');
+          .select('push_token, full_name, id')
+          .eq('user_type', 'porteiro')
+          .eq('notification_enabled', true)
+          .not('push_token', 'is', null);
 
         if (buildingId) {
           profileQuery = profileQuery.eq('building_id', buildingId);
-          console.log(`🏢 Filtrando por building_id: ${buildingId}`);
+          console.log(`🏢 [send-push-notification] Filtrando por building_id: ${buildingId}`);
         }
 
         const { data: porteiroProfiles, error: profileError } = await profileQuery;
 
         if (profileError) {
-          console.error('❌ Erro ao buscar perfis de porteiros:', profileError);
+          console.error('❌ [send-push-notification] Erro ao buscar perfis de porteiros:', profileError);
         } else if (porteiroProfiles && porteiroProfiles.length > 0) {
-          const porteiroUserIds = porteiroProfiles.map(p => p.user_id);
-          const { data, error } = await supabase
-            .from('user_notification_tokens')
-            .select('token')
-            .in('user_id', porteiroUserIds)
-            .eq('is_active', true);
-
-          if (error) {
-            console.error('❌ Erro ao buscar tokens de porteiros:', error);
-          } else {
-            console.log(`📱 Encontrados ${data?.length || 0} tokens de porteiros`);
-          }
-
-          tokens = data?.map((t) => t.token).filter(Boolean) || [];
+          tokens = porteiroProfiles.map(p => p.push_token).filter(Boolean);
+          console.log(`📱 [send-push-notification] Encontrados ${tokens.length} tokens de porteiros`);
+          console.log(`📱 [send-push-notification] Porteiros:`, porteiroProfiles.map(p => p.full_name));
+        } else {
+          console.warn(`⚠️ [send-push-notification] Nenhum porteiro encontrado para buildingId: ${buildingId}`);
         }
-      } else {
-        // Para outros tipos de usuário (morador), buscar via user_notification_tokens
+      } else if (userType === 'morador') {
+        // Buscar moradores
         let profileQuery = supabase
           .from('profiles')
-          .select('user_id');
-
-        if (userType) {
-          profileQuery = profileQuery.eq('user_type', userType);
-        }
+          .select('push_token')
+          .eq('user_type', 'morador')
+          .eq('notification_enabled', true)
+          .not('push_token', 'is', null);
 
         if (buildingId) {
           profileQuery = profileQuery.eq('building_id', buildingId);
         }
 
         const { data: profiles } = await profileQuery;
-        
-        if (profiles && profiles.length > 0) {
-          const userIds = profiles.map(p => p.user_id);
-          const { data } = await supabase
-            .from('user_notification_tokens')
-            .select('token')
-            .in('user_id', userIds)
-            .eq('is_active', true);
 
-          tokens = data?.map((t) => t.token).filter(Boolean) || [];
+        if (profiles && profiles.length > 0) {
+          tokens = profiles.map(p => p.push_token).filter(Boolean);
+          console.log(`📱 [send-push-notification] Encontrados ${tokens.length} tokens de moradores`);
         }
 
         // Se temos apartmentIds, buscar moradores desses apartamentos
         if (apartmentIds && apartmentIds.length > 0) {
-          const { data: residents } = await supabase
+          console.log(`🏠 [send-push-notification] Buscando moradores por apartmentIds: ${apartmentIds.length} apartamentos`);
+
+          const { data: residents, error: residentError } = await supabase
             .from('apartment_residents')
-            .select('profiles!inner(user_id)')
+            .select('profiles!inner(push_token, notification_enabled)')
             .in('apartment_id', apartmentIds);
 
-          if (residents && residents.length > 0) {
-            const residentUserIds = residents
-              .map((r: any) => r.profiles?.user_id)
+          if (residentError) {
+            console.error('❌ [send-push-notification] Erro ao buscar moradores por apartamento:', residentError);
+          } else if (residents && residents.length > 0) {
+            const apartmentTokens = residents
+              .map((r: any) => r.profiles?.push_token)
               .filter(Boolean);
-            
-            if (residentUserIds.length > 0) {
-              const { data: residentTokens } = await supabase
-                .from('user_notification_tokens')
-                .select('token')
-                .in('user_id', residentUserIds)
-                .eq('is_active', true);
 
-              if (residentTokens) {
-                const additionalTokens = residentTokens.map(t => t.token).filter(Boolean);
-                tokens = [...tokens, ...additionalTokens];
-              }
-            }
+            tokens = [...tokens, ...apartmentTokens];
+            console.log(`📱 [send-push-notification] Adicionados ${apartmentTokens.length} tokens de moradores do apartamento`);
           }
         }
       }
@@ -207,9 +184,18 @@ serve(async (req) => {
     // Remover duplicatas
     tokens = [...new Set(tokens)];
 
+    console.log(`📊 [send-push-notification] Total de tokens únicos: ${tokens.length}`);
+
     if (tokens.length === 0) {
+      console.warn('⚠️ [send-push-notification] Nenhum token encontrado');
       return new Response(
-        JSON.stringify({ error: 'No push tokens found', sent: 0, failed: 0 }),
+        JSON.stringify({
+          success: false,
+          error: 'No push tokens found',
+          sent: 0,
+          failed: 0,
+          message: 'Nenhum usuário com token de notificação ativo encontrado'
+        }),
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -227,6 +213,8 @@ serve(async (req) => {
       channelId: type,
       priority: type === 'emergency' ? 'high' : 'default',
     }));
+
+    console.log(`📤 [send-push-notification] Enviando ${messages.length} notificações`);
 
     // Enviar notificações em lotes de 100 (limite da API Expo)
     const batchSize = 100;
@@ -270,6 +258,8 @@ serve(async (req) => {
       }
     }
 
+    console.log(`✅ [send-push-notification] Resultado: ${sentCount} enviadas, ${failedCount} falharam`);
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -284,7 +274,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error sending push notifications:', error);
+    console.error('❌ [send-push-notification] Error:', error);
 
     return new Response(
       JSON.stringify({

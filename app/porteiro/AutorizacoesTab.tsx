@@ -1201,7 +1201,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       });
 
       setApartmentVisitors(processedVisitors);
-      Alert.alert('Sucesso', `Encontrados ${processedVisitors.length} visitante(s) pré-autorizado(s) para o apartamento ${aptNumber}`);
+      console.log(`✅ Encontrados ${processedVisitors.length} visitante(s) pré-autorizado(s) para o apartamento ${aptNumber}`);
     } catch (error) {
       console.error('Erro ao buscar visitantes do apartamento:', error);
       Alert.alert('Erro', 'Não foi possível buscar os visitantes');
@@ -2382,14 +2382,15 @@ const styles = StyleSheet.create({
   apartmentModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   apartmentModalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     padding: 20,
-    maxHeight: '90%',
+    width: '90%',
+    maxHeight: '85%',
   },
   apartmentModalHeader: {
     flexDirection: 'row',
@@ -2470,7 +2471,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   apartmentVisitorsList: {
-    maxHeight: 300,
+    flex: 1,
   },
   apartmentVisitorsTitle: {
     fontSize: 18,

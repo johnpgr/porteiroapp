@@ -5,11 +5,12 @@ import { useAuth } from './useAuth';
 interface NotificationToken {
   id: string;
   user_id: string;
-  device_token: string;
-  platform: 'ios' | 'android' | 'web';
+  notification_token: string;
+  device_type: 'ios' | 'android' | 'web';
+  device_info?: any;
   is_active: boolean;
   created_at: string;
-  updated_at: string;
+  last_updated: string;
 }
 
 interface NotificationLog {
@@ -67,23 +68,23 @@ export const useNotificationService = (): UseNotificationServiceReturn => {
       console.log('📱 [useNotificationService] Registrando token:', { userId: user.id, platform, token: token.substring(0, 20) + '...' });
 
       // Verificar se o token já existe
-      const { data: existingToken } = await supabase
-        .from('user_notification_tokens')
-        .select('id, is_active')
-        .eq('user_id', user.id)
-        .eq('device_token', token)
-        .single();
+       const { data: existingToken } = await supabase
+         .from('user_notification_tokens')
+         .select('id, is_active')
+         .eq('user_id', user.id)
+         .eq('notification_token', token)
+         .single();
 
       if (existingToken) {
         // Token já existe, apenas ativar se necessário
         if (!existingToken.is_active) {
           const { error: updateError } = await supabase
-            .from('user_notification_tokens')
-            .update({ 
-              is_active: true, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', existingToken.id);
+             .from('user_notification_tokens')
+             .update({ 
+               is_active: true, 
+               last_updated: new Date().toISOString() 
+             })
+             .eq('id', existingToken.id);
 
           if (updateError) {
             console.error('❌ [useNotificationService] Erro ao ativar token existente:', updateError);
@@ -97,16 +98,16 @@ export const useNotificationService = (): UseNotificationServiceReturn => {
       }
 
       // Criar novo token
-      const { error: insertError } = await supabase
-        .from('user_notification_tokens')
-        .insert({
-          user_id: user.id,
-          device_token: token,
-          platform,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+       const { error: insertError } = await supabase
+         .from('user_notification_tokens')
+         .insert({
+           user_id: user.id,
+           notification_token: token,
+           device_type: platform,
+           is_active: true,
+           created_at: new Date().toISOString(),
+           last_updated: new Date().toISOString()
+         });
 
       if (insertError) {
         console.error('❌ [useNotificationService] Erro ao registrar novo token:', insertError);
@@ -138,10 +139,10 @@ export const useNotificationService = (): UseNotificationServiceReturn => {
       setError(null);
 
       const { error } = await supabase
-        .from('user_notification_tokens')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('device_token', token);
+         .from('user_notification_tokens')
+         .update({ is_active: false, last_updated: new Date().toISOString() })
+         .eq('user_id', user.id)
+         .eq('notification_token', token);
 
       if (error) {
         console.error('❌ [useNotificationService] Erro ao desregistrar token:', error);

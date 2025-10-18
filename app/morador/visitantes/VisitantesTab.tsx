@@ -478,8 +478,14 @@ export default function VisitantesTab() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusIcon = (visitor: Visitor) => {
+    // Visitantes com acesso direto são automaticamente aprovados
+    if (visitor.access_type === 'direto') {
+      return '✅';
+    }
+    
+    // Para visitantes com aprovação, verificar o status
+    switch (visitor.status?.toLowerCase()) {
       case 'approved':
       case 'aprovado':
         return '✅';
@@ -494,8 +500,14 @@ export default function VisitantesTab() {
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusText = (visitor: Visitor) => {
+    // Visitantes com acesso direto são automaticamente aprovados
+    if (visitor.access_type === 'direto') {
+      return 'Aprovado';
+    }
+    
+    // Para visitantes com aprovação, verificar o status
+    switch (visitor.status?.toLowerCase()) {
       case 'approved':
       case 'aprovado':
         return 'Aprovado';
@@ -1123,7 +1135,7 @@ export default function VisitantesTab() {
       // Sucesso no pré-cadastro independente do WhatsApp
       Alert.alert(
         'Sucesso!',
-        `Pré-cadastro realizado com sucesso!\n\nO visitante receberá o link de completação via WhatsApp no número ${formatBrazilianPhone(sanitizedPhone)}.\n\nLink: ${completionLink}\nSenha: ${temporaryPassword}`,
+        `Pré-cadastro realizado com sucesso!\n\nO visitante receberá o link de completação via WhatsApp no número ${formatBrazilianPhone(sanitizedPhone)}.`,
         [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
             setPreRegistrationData({ 
@@ -1152,11 +1164,21 @@ export default function VisitantesTab() {
 
   // Função para verificar se o visitante está aprovado
   const isVisitorApproved = (visitor: Visitor): boolean => {
+    // Visitantes com acesso direto são automaticamente aprovados
+    if (visitor.access_type === 'direto') {
+      return true;
+    }
+    // Para visitantes com aprovação, verificar o status
     return visitor.status === 'aprovado' || visitor.status === 'approved';
   };
 
   // Função para verificar se o visitante está desaprovado
   const isVisitorDisapproved = (visitor: Visitor): boolean => {
+    // Visitantes com acesso direto nunca são desaprovados
+    if (visitor.access_type === 'direto') {
+      return false;
+    }
+    // Para visitantes com aprovação, verificar o status
     return visitor.status === 'nao_permitido' || visitor.status === 'rejected' || visitor.status === 'negado';
   };
 
@@ -1577,18 +1599,14 @@ export default function VisitantesTab() {
                     styles.statusBadge,
                     isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved
                   ]}>
-                    <Text style={styles.statusIcon}>{getStatusIcon(visitor.status)}</Text>
+                    <Text style={styles.statusIcon}>{getStatusIcon(visitor)}</Text>
                     <Text style={[
                       styles.statusText,
                       isVisitorDisapproved(visitor) && styles.statusTextDisapproved
-                    ]}>{getStatusText(visitor.status)}</Text>
+                    ]}>{getStatusText(visitor)}</Text>
                   </View>
                   
-                  {hasVisitorFinalStatus(visitor) && (
-                    <View style={styles.approvedIndicator}>
-                      <Text style={styles.approvedIndicatorText}>🔒 Expirado</Text>
-                    </View>
-                  )}
+                  {/* Removido indicador "Expirado" incorreto - visitantes aprovados não devem mostrar como expirados */}
                   
                   <TouchableOpacity 
                     style={styles.menuButton}

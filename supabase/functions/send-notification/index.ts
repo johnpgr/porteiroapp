@@ -71,7 +71,7 @@ serve(async (req) => {
     // 2. Buscar tokens ativos do usuário
     const { data: tokens, error: tokensError } = await supabaseClient
       .from('user_notification_tokens')
-      .select('token, device_type')
+      .select('notification_token, device_type')
       .eq('user_id', user_id)
       .eq('is_active', true);
 
@@ -102,7 +102,7 @@ serve(async (req) => {
 
     // 3. Preparar mensagens para Expo Push API
     const messages: ExpoPushMessage[] = tokens.map(token => ({
-      to: token.token,
+      to: token.notification_token,
       title,
       body,
       data: {
@@ -138,7 +138,7 @@ serve(async (req) => {
 
       const logEntry = {
         notification_id: notification.id,
-        device_token: token.token,
+        device_token: token.notification_token,
         device_type: token.device_type,
         status: result.status === 'ok' ? 'sent' : 'failed',
         error_message: result.status !== 'ok' ? result.message || 'Unknown error' : null,
