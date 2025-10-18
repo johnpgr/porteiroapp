@@ -1805,7 +1805,7 @@ export default function VisitantesTab() {
       <Modal
         visible={showPreRegistrationModal}
         animationType="slide"
-        transparent={true}
+        transparent={false}
         onRequestClose={() => setShowPreRegistrationModal(false)}
       >
         <SafeAreaView style={styles.modalOverlay}>
@@ -2070,6 +2070,67 @@ export default function VisitantesTab() {
                     </Text>
                   </View>
 
+                </>
+              )}
+
+              {/* Campos condicionais para prestador de serviço */}
+              {preRegistrationData.visit_type === 'prestador_servico' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Data da Visita *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.visit_date}
+                      onChangeText={(text) => {
+                        const formattedDate = formatDate(text);
+                        setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
+                      }}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+
+                  <View style={styles.timeInputRow}>
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_start_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setPreRegistrationData(prev => ({ ...prev, visit_start_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 08:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_end_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setPreRegistrationData(prev => ({ ...prev, visit_end_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 18:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
+                  </View>
                 </>
               )}
 
@@ -2747,23 +2808,17 @@ const styles = StyleSheet.create({
   },
   // Estilos do Modal
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'flex-start',
   },
   modalContent: {
     backgroundColor: '#fff',
-    width: '90%',
-    maxWidth: 400,
-    maxHeight: '85%',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    borderRadius: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -3176,17 +3231,15 @@ const styles = StyleSheet.create({
   
   // Estilos do modal
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContainer: {
     backgroundColor: '#fff',
-    borderRadius: 12,
     width: '90%',
     maxWidth: 400,
-    maxHeight: '80%',
+    height: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
