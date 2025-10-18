@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 export interface SendPushNotificationParams {
   title: string;
@@ -184,4 +186,71 @@ export async function sendEmergencyAlert(params: {
       buildingId: params.buildingId,
     },
   });
+}
+
+/**
+ * Registra push token para o usuário após login
+ * Deve ser chamado imediatamente após autenticação bem-sucedida
+ */
+export async function registerPushTokenAfterLogin(userId: string, userType: 'admin' | 'porteiro' | 'morador'): Promise<boolean> {
+  try {
+    // Só registra em dispositivos físicos
+    if (!Device.isDevice) {
+      console.log('🔔 [registerPushToken] Push notifications não são suportadas em simulador/emulador');
+      return false;
+    }
+
+    console.log('🔔 [registerPushToken] Iniciando registro de push token para userId:', userId);
+
+    // Solicitar permissão
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      console.log('🔔 [registerPushToken] Solicitando permissão de notificação...');
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('🚨 [registerPushToken] Permissão de notificação negada');
+      return false;
+    }
+
+    console.log('✅ [registerPushToken] Permissão concedida, obtendo token...');
+
+    // Obter push token
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '74e123bc-f565-44ba-92f0-86fc00cbe0b1',
+    });
+
+    const token = tokenData.data;
+
+    if (!token) {
+      console.error('❌ [registerPushToken] Falha ao obter push token');
+      return false;
+    }
+
+    console.log('🔔 [registerPushToken] Push token obtido:', token);
+
+    // Determinar tabela baseada no tipo de usuário
+    const table = userType === 'admin' ? 'admin_profiles' : 'profiles';
+
+    // Atualizar push token no banco
+    const { error } = await supabase
+      .from(table)
+      .update({ push_token: token })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('❌ [registerPushToken] Erro ao salvar push token no banco:', error);
+      return false;
+    }
+
+    console.log('✅ [registerPushToken] Push token registrado com sucesso no banco de dados');
+    return true;
+  } catch (error) {
+    console.error('❌ [registerPushToken] Erro ao registrar push token:', error);
+    return false;
+  }
 }

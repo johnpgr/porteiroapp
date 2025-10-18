@@ -183,26 +183,10 @@ export const usePendingNotifications = () => {
       const buildingName = building?.name || 'Edifício';
       const apartmentNumber = logData.apartments?.number || 'N/A';
 
-      // 1. Disparar Push Notification
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '📢 Visitante na Portaria',
-            body: `${visitorName} está aguardando autorização para subir ao apartamento ${apartmentNumber}.`,
-            data: {
-              type: 'visitor_waiting',
-              visitor_log_id: newLog.id,
-              visitor_name: visitorName,
-              apartment: apartmentNumber,
-              building: buildingName
-            },
-          },
-          trigger: null, // Imediato
-        });
-
-      } catch (pushError) {
-        console.error('❌ Erro ao enviar push notification:', pushError);
-      }
+      // 1. Push Notification agora é enviada pela Edge Function no momento do registro
+      // Não precisamos mais disparar notificação local aqui para evitar duplicatas
+      console.log('ℹ️ [usePendingNotifications] Notificação push será enviada pela Edge Function durante o registro');
+      // A Edge Function send-push-notification já foi chamada em RegistrarVisitante/Encomenda/Veiculo
 
       // 2. Enviar WhatsApp se tiver telefone do morador
       if (residentPhone) {

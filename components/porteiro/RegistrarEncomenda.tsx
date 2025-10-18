@@ -633,6 +633,26 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           console.log('📱 [RegistrarEncomenda] Apartamento ID:', selectedApartment.id);
           console.log('📱 [RegistrarEncomenda] Apartamento Number:', selectedApartment.number);
           console.log('📱 [RegistrarEncomenda] Empresa:', empresaSelecionada.nome);
+
+          // Verificar se há moradores com push_token neste apartamento
+          const { data: residentsCheck, error: checkError } = await supabase
+            .from('apartment_residents')
+            .select('profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)')
+            .eq('apartment_id', selectedApartment.id);
+
+          console.log('🔍 [RegistrarEncomenda] Verificação de moradores:', {
+            apartmentId: selectedApartment.id,
+            residentsCount: residentsCheck?.length,
+            error: checkError,
+            residents: residentsCheck?.map((r: any) => ({
+              name: r.profiles?.full_name,
+              user_type: r.profiles?.user_type,
+              has_token: !!r.profiles?.push_token,
+              notification_enabled: r.profiles?.notification_enabled,
+              token_preview: r.profiles?.push_token ? r.profiles.push_token.substring(0, 20) + '...' : null
+            }))
+          });
+
           console.log('📱 [RegistrarEncomenda] Chamando notifyResidentsVisitorArrival...');
 
           const pushResult = await notifyResidentsVisitorArrival({

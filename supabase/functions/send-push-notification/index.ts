@@ -160,22 +160,40 @@ serve(async (req) => {
 
         // Se temos apartmentIds, buscar moradores desses apartamentos
         if (apartmentIds && apartmentIds.length > 0) {
-          console.log(`🏠 [send-push-notification] Buscando moradores por apartmentIds: ${apartmentIds.length} apartamentos`);
+          console.log(`🏠 [send-push-notification] Buscando moradores por apartmentIds:`, apartmentIds);
 
           const { data: residents, error: residentError } = await supabase
             .from('apartment_residents')
-            .select('profiles!inner(push_token, notification_enabled)')
+            .select('profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)')
             .in('apartment_id', apartmentIds);
+
+          console.log(`🔍 [send-push-notification] Residents query result:`, {
+            count: residents?.length,
+            error: residentError,
+            residents: residents
+          });
 
           if (residentError) {
             console.error('❌ [send-push-notification] Erro ao buscar moradores por apartamento:', residentError);
           } else if (residents && residents.length > 0) {
+            console.log(`📋 [send-push-notification] Moradores encontrados:`, residents.map((r: any) => ({
+              name: r.profiles?.full_name,
+              user_type: r.profiles?.user_type,
+              has_token: !!r.profiles?.push_token,
+              notification_enabled: r.profiles?.notification_enabled,
+              token_preview: r.profiles?.push_token ? r.profiles.push_token.substring(0, 20) + '...' : null
+            })));
+
             const apartmentTokens = residents
+              .filter((r: any) => r.profiles?.notification_enabled && r.profiles?.push_token)
               .map((r: any) => r.profiles?.push_token)
               .filter(Boolean);
 
             tokens = [...tokens, ...apartmentTokens];
-            console.log(`📱 [send-push-notification] Adicionados ${apartmentTokens.length} tokens de moradores do apartamento`);
+            console.log(`📱 [send-push-notification] Adicionados ${apartmentTokens.length} tokens válidos de moradores do apartamento`);
+            console.log(`📱 [send-push-notification] Tokens completos:`, apartmentTokens);
+          } else {
+            console.warn(`⚠️ [send-push-notification] Nenhum morador encontrado para apartmentIds:`, apartmentIds);
           }
         }
       }
@@ -242,13 +260,24 @@ serve(async (req) => {
 
         const result = await response.json();
 
+        console.log('📱 [send-push-notification] Resposta completa do Expo:', JSON.stringify(result, null, 2));
+
         if (result.data) {
-          result.data.forEach((item: any) => {
+          result.data.forEach((item: any, index: number) => {
+            console.log(`📱 [send-push-notification] Item ${index}:`, JSON.stringify(item, null, 2));
+            console.log(`📱 [send-push-notification] Token usado:`, batch[index]?.to);
+
             if (item.status === 'ok') {
               sentCount++;
+              console.log(`✅ [send-push-notification] Notificação ${index} enviada com sucesso`);
             } else {
               failedCount++;
-              errors.push(item);
+              errors.push({
+                ...item,
+                token: batch[index]?.to,
+                title: batch[index]?.title
+              });
+              console.error(`❌ [send-push-notification] Notificação ${index} falhou:`, item);
             }
           });
         }

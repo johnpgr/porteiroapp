@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Stack, usePathname } from 'expo-router';
+import { useAuth } from '~/hooks/useAuth';
+import notificationService from '~/services/notificationService';
 
 export default function MoradorLayout() {
   const pathname = usePathname();
   const previousPathRef = useRef<string | null>(null);
   const [shouldAnimate, setShouldAnimate] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (previousPathRef.current === pathname) {
@@ -14,6 +17,35 @@ export default function MoradorLayout() {
       previousPathRef.current = pathname;
     }
   }, [pathname]);
+
+  // 🔔 REGISTRAR PUSH TOKEN para notificações do morador
+  useEffect(() => {
+    const registerPushToken = async () => {
+      if (!user?.id) return;
+
+      try {
+        console.log('🔔 [MoradorLayout] Registrando push token para morador:', user.id);
+        const pushToken = await notificationService.registerForPushNotificationsAsync();
+
+        if (pushToken) {
+          const saved = await notificationService.savePushToken(user.id, pushToken);
+
+          if (saved) {
+            console.log('✅ [MoradorLayout] Push token registrado com sucesso');
+          } else {
+            console.warn('⚠️ [MoradorLayout] Falha ao salvar push token no banco');
+          }
+        } else {
+          console.warn('⚠️ [MoradorLayout] Push token não obtido (emulador ou permissão negada)');
+        }
+      } catch (pushError) {
+        console.error('❌ [MoradorLayout] Erro ao registrar push token:', pushError);
+        // Não bloquear o layout por erro de push token
+      }
+    };
+
+    registerPushToken();
+  }, [user?.id]);
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>

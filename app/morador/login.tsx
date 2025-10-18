@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
 import { useAuth } from '../../hooks/useAuth';
+import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 
 export default function MoradorLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -61,6 +62,12 @@ export default function MoradorLogin() {
       if (!result.success) {
         Alert.alert('Erro de Login', result.error || 'Erro desconhecido');
         return { success: false, error: result.error };
+      }
+
+      // Registrar push token imediatamente após login bem-sucedido
+      if (result.user?.id) {
+        console.log('🔔 [MoradorLogin] Registrando push token após login...');
+        await registerPushTokenAfterLogin(result.user.id, 'morador');
       }
 
       // O redirecionamento será feito automaticamente pelo useEffect

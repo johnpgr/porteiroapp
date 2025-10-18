@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Stack, usePathname, router } from 'expo-router';
+import { useAuth } from '~/hooks/useAuth';
+import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 
 export default function AdminLayout() {
   const pathname = usePathname();
   const shouldHideBottomNav = pathname === '/admin/login';
   const previousPathRef = useRef<string | null>(null);
   const [shouldAnimate, setShouldAnimate] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (previousPathRef.current === pathname) {
@@ -16,6 +19,24 @@ export default function AdminLayout() {
       previousPathRef.current = pathname;
     }
   }, [pathname]);
+
+  // 🔔 REGISTRAR PUSH TOKEN para notificações do admin
+  useEffect(() => {
+    const registerPushToken = async () => {
+      if (!user?.id) return;
+
+      try {
+        console.log('🔔 [AdminLayout] Registrando push token para admin:', user.id);
+        await registerPushTokenAfterLogin(user.id, 'admin');
+        console.log('✅ [AdminLayout] Push token registrado com sucesso');
+      } catch (pushError) {
+        console.error('❌ [AdminLayout] Erro ao registrar push token:', pushError);
+        // Não bloquear o layout por erro de push token
+      }
+    };
+
+    registerPushToken();
+  }, [user?.id]);
 
   return (
     <View style={styles.container}>
