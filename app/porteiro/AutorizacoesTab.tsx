@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollVi
 import { supabase } from '../../utils/supabase';
 import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import ApartmentSearchModal from './components/modals/ApartmentSearchModal';
 
 const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }) => {
   const [activities, setActivities] = useState([]);
@@ -1520,15 +1521,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
               🔍
             </Text>
           </TouchableOpacity>
-          {activeSection === 'preauthorized' && (
-            <TouchableOpacity
-              style={[styles.timeFilterButton, styles.apartmentSearchButton]}
-              onPress={() => setShowApartmentModal(true)}>
-              <Text style={[styles.timeFilterButtonText]}>
-                🏠
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Toggle para alternar entre seções */}
@@ -1755,154 +1747,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         </View>
       </Modal>
 
-      {/* Modal de Busca por Apartamento */}
-      <Modal
-        visible={showApartmentModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={closeApartmentModal}>
-        <View style={styles.apartmentModalOverlay}>
-          <View style={styles.apartmentModalContent}>
-            {/* Cabeçalho */}
-            <View style={styles.apartmentModalHeader}>
-              <Text style={styles.apartmentModalTitle}>🏠 Buscar por Apartamento</Text>
-              <TouchableOpacity onPress={closeApartmentModal}>
-                <Text style={styles.apartmentModalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Display do número */}
-            <View style={styles.apartmentNumberDisplay}>
-              <Text style={styles.apartmentNumberText}>
-                {apartmentNumber || 'Digite o número'}
-              </Text>
-            </View>
-
-            {/* Teclado Numérico */}
-            <View style={styles.numericKeypad}>
-              {[['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['⌫', '0', 'C']].map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.keypadRow}>
-                  {row.map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      style={[
-                        styles.keypadButton,
-                        (key === '⌫' || key === 'C') && styles.keypadButtonSpecial
-                      ]}
-                      onPress={() => {
-                        if (key === '⌫') handleBackspace();
-                        else if (key === 'C') handleClear();
-                        else handleNumberPress(key);
-                      }}>
-                      <Text style={[
-                        styles.keypadButtonText,
-                        (key === '⌫' || key === 'C') && styles.keypadButtonTextSpecial
-                      ]}>
-                        {key}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ))}
-            </View>
-
-            {/* Botão de Buscar */}
-            <TouchableOpacity
-              style={styles.apartmentSearchActionButton}
-              onPress={handleSearch}>
-              <Text style={styles.apartmentSearchActionButtonText}>
-                🔍 Buscar Visitantes
-              </Text>
-            </TouchableOpacity>
-
-            {/* Lista de Visitantes Encontrados */}
-            {apartmentVisitors.length > 0 && (
-              <ScrollView style={styles.apartmentVisitorsList}>
-                <Text style={styles.apartmentVisitorsTitle}>
-                  Visitantes Pré-autorizados ({apartmentVisitors.length})
-                </Text>
-                {apartmentVisitors.map((activity) => (
-                  <TouchableOpacity
-                    key={activity.id}
-                    style={styles.activityCard}
-                    onPress={() => toggleCardExpansion(activity.id)}>
-                    <View style={styles.activityHeader}>
-                      <Text style={styles.activityIcon}>{activity.icon}</Text>
-                      <View style={styles.activityInfo}>
-                        <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
-                        <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
-                      </View>
-                      <View style={styles.activityMeta}>
-                        <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status}</Text>
-                        <Text style={styles.activityTime}>{activity.time}</Text>
-                      </View>
-                    </View>
-                    {/* Detalhes expandidos */}
-                    {expandedCards.has(activity.id) && (
-                      <View style={styles.activityDetails}>
-                        {activity.details.map((detail, index) => (
-                          <Text key={index} style={styles.activityDetail}>{detail}</Text>
-                        ))}
-
-                        {/* Botão Ver Foto */}
-                        <TouchableOpacity
-                          style={styles.viewPhotoActionButton}
-                          onPress={() => {
-                            if (activity.photo_url) {
-                              closeApartmentModal();
-                              openImageModal(activity.photo_url);
-                            } else {
-                              Alert.alert('Sem Foto', 'Visitante está sem foto');
-                            }
-                          }}>
-                          <Text style={styles.viewPhotoActionButtonText}>
-                            📷 Ver Foto
-                          </Text>
-                        </TouchableOpacity>
-
-                        {/* Botões de ação */}
-                        {(() => {
-                          const canEnterDirectly = activity.status === 'Aprovado' ||
-                                                 activity.status === 'direto' ||
-                                                 activity.status === 'Liberado para Entrada Direta';
-
-                          if (canEnterDirectly) {
-                            return (
-                              <TouchableOpacity
-                                style={styles.checkInButton}
-                                onPress={() => {
-                                  closeApartmentModal();
-                                  handleCheckIn(activity.id);
-                                }}>
-                                <Text style={styles.checkInButtonText}>
-                                  ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          } else {
-                            return (
-                              <TouchableOpacity
-                                style={styles.notifyResidentButton}
-                                onPress={() => {
-                                  closeApartmentModal();
-                                  handleNotifyResident(activity.id);
-                                }}>
-                                <Text style={styles.notifyResidentButtonText}>
-                                  🔔 Avisar Morador
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          }
-                        })()}
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     </>
   );
 };

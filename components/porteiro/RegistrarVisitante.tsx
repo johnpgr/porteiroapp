@@ -19,9 +19,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
 import { notificationApi } from '../../services/notificationApi';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
 
 type FlowStep =
   | 'apartamento'
+  | 'preauthorized'
   | 'tipo'
   | 'empresa_prestador'
   | 'empresa_entrega'
@@ -146,6 +148,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cameraPermission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
+  const [isCheckingPreAuthorized, setIsCheckingPreAuthorized] = useState(false);
+  const [hasPreAuthorizedGuests, setHasPreAuthorizedGuests] = useState(false);
 
   // Função para solicitar permissão da câmera
   const requestCameraPermission = async () => {
@@ -218,6 +222,45 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     fetchAvailableApartments();
   }, [doormanBuildingId]);
 
+  // Função para verificar convidados pré-autorizados
+  const checkPreAuthorizedGuests = async (apartmentId: string) => {
+    if (!apartmentId || !doormanBuildingId) return;
+
+    try {
+      setIsCheckingPreAuthorized(true);
+      console.log('🔍 [RegistrarVisitante] Verificando convidados pré-autorizados para apartamento:', apartmentId);
+
+      const { data: visitors, error } = await supabase
+        .from('visitors')
+        .select('id')
+        .eq('apartment_id', apartmentId)
+        .in('status', ['pendente', 'aprovado'])
+        .limit(1);
+
+      if (error) {
+        console.error('❌ [RegistrarVisitante] Erro ao verificar convidados pré-autorizados:', error);
+        setCurrentStep('tipo'); // Continuar fluxo normal em caso de erro
+        return;
+      }
+
+      const hasGuests = visitors && visitors.length > 0;
+      setHasPreAuthorizedGuests(hasGuests);
+
+      if (hasGuests) {
+        console.log('✅ [RegistrarVisitante] Convidados pré-autorizados encontrados, exibindo step preauthorized');
+        setCurrentStep('preauthorized');
+      } else {
+        console.log('ℹ️ [RegistrarVisitante] Nenhum convidado pré-autorizado encontrado, seguindo fluxo normal');
+        setCurrentStep('tipo');
+      }
+    } catch (error) {
+      console.error('❌ [RegistrarVisitante] Erro inesperado ao verificar convidados:', error);
+      setCurrentStep('tipo'); // Continuar fluxo normal em caso de erro
+    } finally {
+      setIsCheckingPreAuthorized(false);
+    }
+  };
+
   const renderNumericKeypad = (
     value: string,
     setValue: (val: string) => void,
@@ -282,7 +325,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
 
   const renderApartamentoStep = () => {
-    const handleApartmentConfirm = () => {
+    const handleApartmentConfirm = async () => {
       if (!apartamento) {
         Alert.alert('Erro', 'Digite o número do apartamento.');
         return;
@@ -311,7 +354,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         id: foundApartment.id,
         number: foundApartment.number,
       });
-      setCurrentStep('tipo');
+      
+      // Verificar se existem convidados pré-autorizados para este apartamento
+      await checkPreAuthorizedGuests(foundApartment.id);
     };
 
     return (
@@ -1004,12 +1049,73 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     setPhotoUri(null);
     setPhotoUrl(null);
     setIsUploadingPhoto(false);
+    setIsCheckingPreAuthorized(false);
+    setHasPreAuthorizedGuests(false);
+  };
+
+  // Função para renderizar o step de convidados pré-autorizados
+  const renderPreAuthorizedStep = () => {
+    if (isCheckingPreAuthorized) {
+      return (
+        <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Verificando Convidados</Text>
+          <Text style={styles.stepSubtitle}>Aguarde enquanto verificamos se há convidados pré-autorizados...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Carregando...</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (!selectedApartment || !doormanBuildingId) {
+      return (
+        <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Erro</Text>
+          <Text style={styles.stepSubtitle}>Informações do apartamento não encontradas.</Text>
+          <TouchableOpacity 
+            style={styles.nextButton} 
+            onPress={() => setCurrentStep('tipo')}
+          >
+            <Text style={styles.nextButtonText}>Continuar</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Convidados Pré-autorizados</Text>
+        <Text style={styles.stepSubtitle}>
+          Apartamento {selectedApartment.number} - Selecione um convidado ou continue o registro normal
+        </Text>
+        
+        <PreAuthorizedGuestsList
+          apartmentId={selectedApartment.id}
+          buildingId={doormanBuildingId}
+          onGuestSelected={() => {
+            // Quando um convidado for selecionado (check-in ou notificação), fechar o modal
+            console.log('✅ [RegistrarVisitante] Convidado selecionado, fechando modal');
+            onClose();
+          }}
+        />
+
+        <TouchableOpacity 
+          style={[styles.nextButton, { marginTop: 20 }]} 
+          onPress={() => setCurrentStep('tipo')}
+        >
+          <Text style={styles.nextButtonText}>Registrar Novo Visitante</Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   const renderCurrentStep = () => {
     switch (currentStep) {
       case 'apartamento':
         return renderApartamentoStep();
+      case 'preauthorized':
+        return renderPreAuthorizedStep();
       case 'tipo':
         return renderTipoStep();
       case 'empresa_prestador':
