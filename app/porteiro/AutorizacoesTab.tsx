@@ -391,21 +391,23 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         return;
       }
 
-      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
-      if (visitorData.visit_type === 'pontual') {
-        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${visit.id}) para 'nao_permitido'`);
+      // Atualizar status do visitante baseado no tipo
+      if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
+        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${visit.id}) para 'expirado'`);
         
         const { error: updateError } = await supabase
           .from('visitors')
-          .update({ status: 'não autorizado' })
+          .update({ status: 'expirado' })
           .eq('id', visit.id);
 
         if (updateError) {
-          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          console.error('❌ Erro ao atualizar status do visitante:', updateError);
           // Não interromper o fluxo, apenas logar o erro
         } else {
-          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'nao_permitido'`);
+          console.log(`✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`);
         }
+      } else if (visitorData.visit_type === 'frequente') {
+        console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
         console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
       }
@@ -545,6 +547,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           .neq('status', 'rejected')
           .neq('status', 'nao_permitido')
           .neq('status', 'não autorizado')
+          .neq('status', 'expirado')
           .order('created_at', { ascending: false });
 
         // Aplicar filtro de tempo para visitas
@@ -664,7 +667,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       const visitActivities: ActivityEntry[] = (visitResult.data || []).map((visit: any) => {
         const isApproved = visit.status === 'aprovado';
         const isPending = visit.status === 'pendente';
-        const isExpired = visit.status === 'negado';
+        const isExpired = visit.status === 'expirado';
         const visitorName = visit.name || 'Visitante';
         const allowDirectAccess = visit.allow_direct_access === true;
 
@@ -988,21 +991,23 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         return;
       }
 
-      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
-      if (visitorData.visit_type === 'pontual') {
-        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+      // Atualizar status do visitante baseado no tipo
+      if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
+        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`);
         
         const { error: updateError } = await supabase
           .from('visitors')
-          .update({ status: 'nao_permitido' })
+          .update({ status: 'expirado' })
           .eq('id', activityId);
 
         if (updateError) {
-          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          console.error('❌ Erro ao atualizar status do visitante:', updateError);
           // Não interromper o fluxo, apenas logar o erro
         } else {
-          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'nao_permitido'`);
+          console.log(`✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`);
         }
+      } else if (visitorData.visit_type === 'frequente') {
+        console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
         console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
       }
@@ -1129,26 +1134,85 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         return;
       }
 
-      // Atualizar status do visitante para 'não autorizado' se for do tipo 'pontual'
-      if (visitorData.visit_type === 'pontual') {
-        console.log(`🔄 Atualizando status do visitante pontual ${visitorData.name} (ID: ${activityId}) para 'nao_permitido'`);
+      // Atualizar status do visitante baseado no tipo
+      if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
+        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`);
         
         const { error: updateError } = await supabase
           .from('visitors')
-          .update({ status: 'não autorizado' })
+          .update({ status: 'expirado' })
           .eq('id', activityId);
 
         if (updateError) {
-          console.error('❌ Erro ao atualizar status do visitante pontual:', updateError);
+          console.error('❌ Erro ao atualizar status do visitante:', updateError);
           // Não interromper o fluxo, apenas logar o erro
         } else {
-          console.log(`✅ Status do visitante pontual ${visitorData.name} atualizado para 'não autorizado'`);
+          console.log(`✅ Status do visitante ${visitorData.name} atualizado para 'expirado'`);
         }
+      } else if (visitorData.visit_type === 'frequente') {
+        console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
         console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
       }
 
-      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador será notificado.');
+      // Buscar dados do apartamento
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select('number')
+        .eq('id', visitorData.apartment_id)
+        .single();
+
+      if (apartmentError) {
+        console.error('❌ [handleCheckIn] Erro ao buscar dados do apartamento:', apartmentError);
+      }
+
+      // NOVA IMPLEMENTAÇÃO: Disparar notificação para o morador
+      try {
+        console.log('🔔 [handleCheckIn] Iniciando notificação para morador...');
+
+        // 1. Enviar via WhatsApp/SMS (método antigo)
+        const notificationResult = await notifyResidentOfVisitorArrival({
+          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          apartmentNumber: apartmentData?.number || 'N/A',
+          buildingId: buildingId,
+          visitorId: activityId,
+          purpose: visitorData.purpose || 'Visita',
+          photo_url: visitorData.photo_url,
+          entry_type: 'visitor'
+        });
+
+        if (notificationResult.success) {
+          console.log('✅ [handleCheckIn] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
+        } else {
+          console.warn('⚠️ [handleCheckIn] Falha ao enviar WhatsApp:', notificationResult.message);
+        }
+
+        // 2. Enviar Push Notification via Edge Function
+        try {
+          console.log('📱 [handleCheckIn] Enviando push notification para morador...');
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [visitorData.apartment_id],
+            visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+            apartmentNumber: apartmentData?.number || 'N/A',
+            purpose: visitorData.purpose || 'Visita',
+            photoUrl: visitorData.photo_url
+          });
+
+          if (pushResult.success) {
+            console.log('✅ [handleCheckIn] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+          } else {
+            console.warn('⚠️ [handleCheckIn] Falha ao enviar push:', pushResult.message);
+          }
+        } catch (pushError) {
+          console.error('❌ [handleCheckIn] Erro ao enviar push notification:', pushError);
+        }
+
+      } catch (notificationError) {
+        console.error('❌ [handleCheckIn] Erro ao enviar notificação:', notificationError);
+        // Não interromper o fluxo principal, apenas logar o erro
+      }
+
+      Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador foi notificado.');
       fetchActivities(); // Recarregar atividades
       fetchVisitorLogs(); // Recarregar logs
     } catch (error) {
@@ -1189,6 +1253,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         .neq('status', 'rejected')
         .neq('status', 'nao_permitido')
         .neq('status', 'não autorizado')
+        .neq('status', 'expirado')
         .order('created_at', { ascending: false });
 
       if (visitorsError) {

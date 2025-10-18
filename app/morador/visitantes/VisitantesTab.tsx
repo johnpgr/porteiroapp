@@ -231,6 +231,17 @@ export default function VisitantesTab() {
   // Estado para armazenar veículos
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   
+  // Estados para paginação e filtros
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('todos');
+  const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
+  const ITEMS_PER_PAGE = 10;
+  
+  // Estados para o modal de filtros
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('todos');
+  const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
+  
   // Função para alternar expansão do card
   const toggleCardExpansion = (visitorId: string) => {
     setExpandedCardId(expandedCardId === visitorId ? null : visitorId);
@@ -405,7 +416,7 @@ export default function VisitantesTab() {
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'aprovado',
+        status: visitor.status,
         visitor_type: visitor.visitor_type || 'comum',
         access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
@@ -443,6 +454,89 @@ export default function VisitantesTab() {
     fetchVisitors();
   }, [fetchVisitors]);
 
+  // Função para contar filtros ativos
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (statusFilter !== 'todos') count++;
+    if (typeFilter !== 'todos') count++;
+    return count;
+  };
+
+  // Função para aplicar filtros do modal
+  const applyFilters = () => {
+    setStatusFilter(tempStatusFilter);
+    setTypeFilter(tempTypeFilter);
+    setCurrentPage(1); // Reset pagination
+    setFilterModalVisible(false);
+  };
+
+  // Função para cancelar filtros do modal
+  const cancelFilters = () => {
+    setTempStatusFilter(statusFilter);
+    setTempTypeFilter(typeFilter);
+    setFilterModalVisible(false);
+  };
+
+  // Função para filtrar e paginar visitantes
+  const getFilteredAndPaginatedVisitors = () => {
+    let filteredVisitors = visitors;
+    let filteredVehicles = vehicles;
+
+    // Aplicar filtro de status
+    if (statusFilter !== 'todos') {
+      filteredVisitors = visitors.filter(visitor => {
+        // Normalizar status para comparação
+        const visitorStatus = visitor.status?.toLowerCase();
+        const filterStatus = statusFilter.toLowerCase();
+        
+        // Permitir apenas 'pendente' e 'expirado'
+        if (filterStatus === 'pendente') {
+          return visitorStatus === 'pendente';
+        } else if (filterStatus === 'expirado') {
+          return visitorStatus === 'expirado';
+        }
+        
+        return false;
+      });
+    } else {
+      // Quando 'todos', mostrar apenas visitantes com status 'pendente' ou 'expirado'
+      filteredVisitors = visitors.filter(visitor => {
+        const visitorStatus = visitor.status?.toLowerCase();
+        return visitorStatus === 'pendente' || visitorStatus === 'expirado';
+      });
+    }
+
+    // Aplicar filtro de tipo
+    let combinedItems: any[] = [];
+    
+    if (typeFilter === 'todos') {
+      // Mostrar visitantes e veículos
+      combinedItems = [
+        ...filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' })),
+        ...filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }))
+      ];
+    } else if (typeFilter === 'visitantes') {
+      // Mostrar apenas visitantes
+      combinedItems = filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' }));
+    } else if (typeFilter === 'veiculos') {
+      // Mostrar apenas veículos
+      combinedItems = filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }));
+    }
+
+    // Calcular paginação
+    const totalPages = Math.ceil(combinedItems.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const paginatedItems = combinedItems.slice(startIndex, endIndex);
+
+    return {
+      visitors: paginatedItems.filter(item => item.itemType === 'visitor'),
+      vehicles: paginatedItems.filter(item => item.itemType === 'vehicle'),
+      totalPages,
+      totalItems: combinedItems.length
+    };
+  };
+
   const formatDisplayDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -479,21 +573,9 @@ export default function VisitantesTab() {
   };
 
   const getStatusIcon = (visitor: Visitor) => {
-    // Visitantes com acesso direto são automaticamente aprovados
-    if (visitor.access_type === 'direto') {
-      return '✅';
-    }
-    
-    // Para visitantes com aprovação, verificar o status
     switch (visitor.status?.toLowerCase()) {
-      case 'approved':
-      case 'aprovado':
-        return '✅';
-      case 'rejected':
-      case 'negado':
-      case 'nao_permitido':
+      case 'expirado':
         return '❌';
-      case 'pending':
       case 'pendente':
       default:
         return '⏳';
@@ -501,21 +583,9 @@ export default function VisitantesTab() {
   };
 
   const getStatusText = (visitor: Visitor) => {
-    // Visitantes com acesso direto são automaticamente aprovados
-    if (visitor.access_type === 'direto') {
-      return 'Aprovado';
-    }
-    
-    // Para visitantes com aprovação, verificar o status
     switch (visitor.status?.toLowerCase()) {
-      case 'approved':
-      case 'aprovado':
-        return 'Aprovado';
-      case 'rejected':
-      case 'negado':
-      case 'nao_permitido':
-        return 'Desaprovado';
-      case 'pending':
+      case 'expirado':
+        return 'Expirado';
       case 'pendente':
       default:
         return 'Pendente';
@@ -985,7 +1055,7 @@ export default function VisitantesTab() {
       const tokenExpiresAt = getTokenExpirationDate();
 
       // Determinar status inicial baseado no tipo de acesso selecionado
-      const initialStatus = preRegistrationData.access_type === 'direto' ? 'aprovado' : 'pendente';
+      const initialStatus = 'pendente';
 
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
@@ -1162,29 +1232,19 @@ export default function VisitantesTab() {
     }
   };
 
-  // Função para verificar se o visitante está aprovado
+  // Função para verificar se o visitante está aprovado (não existe mais)
   const isVisitorApproved = (visitor: Visitor): boolean => {
-    // Visitantes com acesso direto são automaticamente aprovados
-    if (visitor.access_type === 'direto') {
-      return true;
-    }
-    // Para visitantes com aprovação, verificar o status
-    return visitor.status === 'aprovado' || visitor.status === 'approved';
+    return false; // Não existem mais visitantes aprovados
   };
 
-  // Função para verificar se o visitante está desaprovado
+  // Função para verificar se o visitante está desaprovado (agora é expirado)
   const isVisitorDisapproved = (visitor: Visitor): boolean => {
-    // Visitantes com acesso direto nunca são desaprovados
-    if (visitor.access_type === 'direto') {
-      return false;
-    }
-    // Para visitantes com aprovação, verificar o status
-    return visitor.status === 'nao_permitido' || visitor.status === 'rejected' || visitor.status === 'negado';
+    return visitor.status === 'expirado';
   };
 
-  // Função para verificar se o visitante tem status final (aprovado ou desaprovado)
+  // Função para verificar se o visitante tem status final (apenas expirado)
   const hasVisitorFinalStatus = (visitor: Visitor): boolean => {
-    return isVisitorApproved(visitor) || isVisitorDisapproved(visitor);
+    return visitor.status === 'expirado';
   };
 
   // Função para verificar se o visitante pode ser editado
@@ -1372,92 +1432,12 @@ export default function VisitantesTab() {
     );
   };
 
-  // Função para aprovar visitante
-  const handleApproveVisitor = async (visitor: Visitor) => {
-    if (hasVisitorFinalStatus(visitor)) {
-      Alert.alert(
-        'Ação não permitida',
-        'Este visitante já possui um status final (aprovado ou desaprovado) e não pode ser modificado.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('visitors')
-        .update({
-          status: 'aprovado',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', visitor.id);
-
-      if (error) {
-        console.error('Erro ao aprovar visitante:', error);
-        
-        // Tratamento específico para erros de coluna inexistente
-        if (error.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
-        } else if (error.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
-        } else {
-          Alert.alert('Erro', `Erro ao aprovar visitante: ${error.message}`);
-        }
-        return;
-      }
-
-      Alert.alert('Sucesso', 'Visitante aprovado com sucesso! O status foi bloqueado para evitar alterações futuras.');
-      fetchVisitors(); // Atualizar lista
-    } catch (error) {
-      console.error('Erro ao aprovar visitante:', error);
-      Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
-    }
-  };
-
-  // Função para desaprovar visitante
-  const handleDisapproveVisitor = async (visitor: Visitor) => {
-    if (isVisitorDisapproved(visitor)) {
-      Alert.alert(
-        'Ação não permitida',
-        'Este visitante já foi desaprovado.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('visitors')
-        .update({
-          status: 'nao_permitido',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', visitor.id);
-
-      if (error) {
-        console.error('Erro ao desaprovar visitante:', error);
-        
-        // Tratamento específico para erros de coluna inexistente
-        if (error.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
-        } else if (error.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
-        } else {
-          Alert.alert('Erro', `Erro ao desaprovar visitante: ${error.message}`);
-        }
-        return;
-      }
-
-      Alert.alert('Sucesso', 'Visitante desaprovado com sucesso!');
-      fetchVisitors(); // Atualizar lista
-    } catch (error) {
-      console.error('Erro ao desaprovar visitante:', error);
-      Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
-    }
-  };
+  // Funções de aprovação/desaprovação removidas - não são mais necessárias
+  // O sistema agora trabalha apenas com status 'pendente' e 'expirado'
 
   return (
-    <ScrollView style={styles.content}>
+    <>
+      <ScrollView style={styles.content}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
         <Text style={styles.sectionDescription}>
@@ -1498,6 +1478,24 @@ export default function VisitantesTab() {
           </View>
         </View>
 
+        {/* Botão de Filtros */}
+        <View style={styles.filtersContainer}>
+          <TouchableOpacity 
+            style={styles.filterModalButton}
+            onPress={() => {
+              setTempStatusFilter(statusFilter);
+              setTempTypeFilter(typeFilter);
+              setFilterModalVisible(true);
+            }}
+          >
+            <Ionicons name="filter" size={20} color="#4CAF50" />
+            <Text style={styles.filterModalButtonText}>
+              Filtros {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#666" />
+          </TouchableOpacity>
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
@@ -1521,8 +1519,8 @@ export default function VisitantesTab() {
           </View>
         ) : (
           <>
-            {/* Renderizar veículos */}
-            {vehicles.map((vehicle) => (
+            {/* Renderizar veículos filtrados */}
+            {getFilteredAndPaginatedVisitors().vehicles.map((vehicle) => (
               <View key={`vehicle-${vehicle.id}`} style={[styles.visitorCard, styles.vehicleCard]}>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardMainInfo}>
@@ -1559,11 +1557,12 @@ export default function VisitantesTab() {
               </View>
             ))}
             
-            {/* Renderizar visitantes */}
-            {visitors.map((visitor) => (
+            {/* Renderizar visitantes filtrados */}
+            {getFilteredAndPaginatedVisitors().visitors.map((visitor) => (
             <View key={visitor.id} style={[
               styles.visitorCard,
-              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved
+              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved,
+              visitor.status === 'expirado' && styles.visitorCardExpired
             ]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardMainInfo}>
@@ -1638,22 +1637,66 @@ export default function VisitantesTab() {
                   <TouchableOpacity
                     style={[
                       styles.actionButton, 
-                      styles.actionButtonDanger,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                      styles.actionButtonDanger
                     ]}
                     onPress={() => handleDeleteVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
                   >
                     <Text style={[
                       styles.actionButtonText, 
-                      styles.actionButtonTextDanger,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                      styles.actionButtonTextDanger
                     ]}>🗑️ Excluir</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
           ))}
+          
+          {/* Controles de paginação */}
+          {(() => {
+            const { totalPages } = getFilteredAndPaginatedVisitors();
+            if (totalPages > 1) {
+              return (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationButton,
+                      currentPage === 1 && styles.paginationButtonDisabled
+                    ]}
+                    onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <Text style={[
+                      styles.paginationButtonText,
+                      currentPage === 1 && styles.paginationButtonTextDisabled
+                    ]}>
+                      ← Anterior
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.paginationInfo}>
+                    Página {currentPage} de {totalPages}
+                  </Text>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationButton,
+                      currentPage === totalPages && styles.paginationButtonDisabled
+                    ]}
+                    onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <Text style={[
+                      styles.paginationButtonText,
+                      currentPage === totalPages && styles.paginationButtonTextDisabled
+                    ]}>
+                      Próxima →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }
+            return null;
+          })()}
           </>
         )}
       </View>
@@ -1694,7 +1737,23 @@ export default function VisitantesTab() {
                 <TextInput
                   style={styles.textInput}
                   value={preRegistrationData.phone}
-                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, phone: text }))}
+                  maxLength={15}
+                  onChangeText={(text) => {
+                    // Remove tudo que não é dígito
+                    const cleaned = text.replace(/\D/g, '');
+                    // Limita a 11 dígitos
+                    const limited = cleaned.slice(0, 11);
+                    // Aplica a formatação (XX) 9XXXX-XXXX
+                    let formatted = limited;
+                    if (limited.length > 6) {
+                      formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                    } else if (limited.length > 2) {
+                      formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                    } else if (limited.length > 0) {
+                      formatted = `(${limited}`;
+                    }
+                    setPreRegistrationData(prev => ({ ...prev, phone: formatted }));
+                  }}
                   placeholder="(XX) 9XXXX-XXXX"
                   placeholderTextColor="#999"
                   keyboardType="phone-pad"
@@ -1914,14 +1973,6 @@ export default function VisitantesTab() {
                 </>
               )}
 
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                  {preRegistrationData.visit_type === 'frequente' 
-                    ? '• Visitantes frequentes têm acesso liberado nos dias e horários definidos\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)\n• Acesso sempre requer aprovação do porteiro'
-                    : '• Visitantes pontuais têm acesso apenas na data específica\n• Status retorna a "não permitido" após a visita\n• O horário define o período em que podem entrar (ex: das 15h às 18h)\n• Acesso sempre requer aprovação do porteiro'
-                  }
-                </Text>
-              </View>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -2235,9 +2286,147 @@ export default function VisitantesTab() {
           </View>
         </SafeAreaView>
       </Modal>
+      </ScrollView>
 
+      {/* Modal de Filtros */}
+    <Modal
+      visible={filterModalVisible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={cancelFilters}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Filtros</Text>
+            <TouchableOpacity onPress={cancelFilters}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
 
-    </ScrollView>
+          <View style={styles.modalContent}>
+            {/* Filtros de Status */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Status</Text>
+              <View style={styles.filterOptionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'todos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('todos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'todos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'pendente' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('pendente')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'pendente' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Pendentes
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'expirado' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('expirado')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'expirado' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Expirados
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Filtros de Tipo */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Tipo</Text>
+              <View style={styles.filterOptionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'todos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('todos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'todos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('visitantes')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Visitantes
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('veiculos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Veículos
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity 
+              style={styles.modalCancelButton}
+              onPress={cancelFilters}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.modalApplyButton}
+              onPress={applyFilters}
+            >
+              <Text style={styles.modalApplyButtonText}>Aplicar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+       </View>
+     </Modal>
+    </>
   );
 }
 
@@ -2362,6 +2551,10 @@ const styles = StyleSheet.create({
   visitorCardApproved: {
     backgroundColor: '#f5f5f5',
     opacity: 0.7,
+  },
+  visitorCardExpired: {
+    backgroundColor: '#f5f5f5',
+    opacity: 0.5,
   },
   visitorName: {
     fontSize: 16,
@@ -2772,6 +2965,199 @@ const styles = StyleSheet.create({
   vehicleBadgeText: {
     color: '#1976d2',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  filtersContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  filtersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  filterButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#4CAF50',
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterSeparator: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#ddd',
+    marginHorizontal: 8,
+    alignSelf: 'center',
+  },
+  
+  // Estilos do botão de filtro modal
+  filterModalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    gap: 8,
+  },
+  filterModalButtonText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  
+  // Estilos do modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  filterOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  modalFilterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  modalFilterButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  modalFilterButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  modalFilterButtonTextActive: {
+    color: '#fff',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  modalApplyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+  },
+  modalApplyButtonText: {
+    fontSize: 16,
+    color: '#fff',
     fontWeight: '600',
   },
 
