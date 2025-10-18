@@ -1060,15 +1060,115 @@ export default function VisitantesTab() {
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
         .from('visitors')
-        .select('id, name, phone')
+        .select('id, name, phone, status')
         .eq('name', sanitizedName)
         .eq('phone', sanitizedPhone.replace(/\D/g, ''))
         .eq('apartment_id', currentApartmentId)
         .maybeSingle();
 
+      console.log('🔍 Verificando visitante existente:', { name: sanitizedName, phone: sanitizedPhone, existingVisitor });
+
       if (existingVisitor) {
-        Alert.alert('Aviso', 'Já existe um visitante cadastrado com este nome e telefone.');
-        return;
+        // Se o visitante existe e está expirado, permitir recadastração
+        if (existingVisitor.status?.toLowerCase() === 'expirado') {
+          console.log('♻️ Visitante expirado encontrado, permitindo recadastração:', existingVisitor.id);
+          
+          // Atualizar visitante expirado ao invés de criar novo
+          const updateData = {
+            status: initialStatus,
+            registration_token: registrationToken,
+            token_expires_at: tokenExpiresAt,
+            access_type: preRegistrationData.access_type || 'com_aprovacao',
+            visit_type: preRegistrationData.visit_type,
+            visit_start_time: preRegistrationData.visit_start_time || '00:00',
+            visit_end_time: preRegistrationData.visit_end_time || '23:59',
+            max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+            is_recurring: preRegistrationData.visit_type === 'frequente',
+            updated_at: new Date().toISOString()
+          };
+
+          // Adicionar campos específicos baseados no tipo de visita
+          if (preRegistrationData.visit_type === 'pontual') {
+            const [day, month, year] = preRegistrationData.visit_date.split('/');
+            updateData.visit_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          } else if (preRegistrationData.visit_type === 'frequente') {
+            updateData.allowed_days = preRegistrationData.allowed_days;
+          }
+
+          // Adicionar período de validade se fornecido
+          if (preRegistrationData.validity_start) {
+            const [day, month, year] = preRegistrationData.validity_start.split('/');
+            updateData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+
+          if (preRegistrationData.validity_end) {
+            const [day, month, year] = preRegistrationData.validity_end.split('/');
+            updateData.validity_end = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+
+          console.log('📝 Atualizando visitante expirado com dados:', updateData);
+
+          const { error: updateError } = await supabase
+            .from('visitors')
+            .update(updateData)
+            .eq('id', existingVisitor.id);
+
+          if (updateError) {
+            console.error('❌ Erro ao atualizar visitante expirado:', updateError);
+            Alert.alert('Erro', 'Erro ao recadastrar visitante. Tente novamente.');
+            return;
+          }
+
+          console.log('✅ Visitante expirado recadastrado com sucesso:', existingVisitor.id);
+
+          // Gerar senha temporária para o visitante recadastrado
+          const temporaryPassword = await generateTemporaryPasswordForVisitor(
+            sanitizedName,
+            sanitizedPhone,
+            existingVisitor.id
+          );
+
+          // Preparar dados do morador para WhatsApp
+          const residentData: ResidentData = {
+            name: user?.name || 'Morador',
+            apartment: 'Apartamento', // Pode ser melhorado buscando o número do apartamento
+            building: 'Edifício' // Pode ser melhorado buscando o nome do edifício
+          };
+
+          // Enviar mensagem via WhatsApp
+          const registrationLink = `https://porteiroapp.com/visitante/completar-cadastro?token=${registrationToken}`;
+          const whatsappMessage = generateWhatsAppMessage(
+            sanitizedName,
+            temporaryPassword,
+            registrationLink,
+            residentData
+          );
+
+          console.log('📱 Enviando WhatsApp para visitante recadastrado:', sanitizedPhone);
+          
+          try {
+            await sendWhatsAppMessage(sanitizedPhone, whatsappMessage);
+            console.log('✅ WhatsApp enviado com sucesso para visitante recadastrado');
+          } catch (whatsappError) {
+            console.error('❌ Erro ao enviar WhatsApp para visitante recadastrado:', whatsappError);
+            // Não interrompe o fluxo se o WhatsApp falhar
+          }
+
+          Alert.alert(
+            'Sucesso', 
+            'Visitante recadastrado com sucesso! Uma nova mensagem com instruções foi enviada via WhatsApp.',
+            [{ text: 'OK', onPress: () => {
+              setShowPreRegistrationModal(false);
+              fetchVisitors(); // Recarregar lista
+            }}]
+          );
+          return;
+        } else {
+          // Se o visitante existe e não está expirado, mostrar erro
+          console.log('⚠️ Visitante já existe com status:', existingVisitor.status);
+          Alert.alert('Aviso', 'Já existe um visitante cadastrado com este nome e telefone.');
+          return;
+        }
       }
 
       // Preparar dados de agendamento
@@ -1799,7 +1899,7 @@ export default function VisitantesTab() {
                     <Text style={[
                       styles.visitorTypeButtonText,
                       preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonTextActive
-                    ]}>Prestador de Serviço</Text>
+                    ]}>Serviço</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1992,7 +2092,7 @@ export default function VisitantesTab() {
                 disabled={isSubmittingPreRegistration}
               >
                 <Text style={styles.submitButtonText}>
-                  {isSubmittingPreRegistration ? 'Enviando...' : 'Enviar Link WhatsApp'}
+                  {isSubmittingPreRegistration ? 'Enviando...' : 'Cadastrar'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2649,13 +2749,21 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 0,
-    width: '100%',
-    height: '100%',
-    marginTop: 0,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '85%',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2686,12 +2794,11 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     paddingHorizontal: 20,
-    paddingTop: 15,
     flex: 1,
   },
   inputGroup: {
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
@@ -2717,6 +2824,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ddd',
+    textAlign: 'center',
     backgroundColor: '#f9f9f9',
     alignItems: 'center',
   },
@@ -2725,7 +2833,8 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
   },
   visitorTypeButtonText: {
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: 'center',
     fontWeight: '600',
     color: '#666',
   },
@@ -2750,6 +2859,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 20,
     paddingHorizontal: 20,
+    marginBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     gap: 12,
