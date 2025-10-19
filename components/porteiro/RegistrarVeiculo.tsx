@@ -118,6 +118,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: string }[]>([]);
   const [selectedApartment, setSelectedApartment] = useState<{id: string, number: string, floor: number | null} | null>(null);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Get doorman's building_id from their profile
   useEffect(() => {
@@ -350,7 +351,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   );
 
   const renderApartamentoStep = () => {
-    const handleApartmentConfirm = () => {
+    const handleApartmentConfirm = async () => {
       if (!apartamento) {
         Alert.alert('Erro', 'Digite o número do apartamento.');
         return;
@@ -371,6 +372,39 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
       if (!foundApartment.id) {
         Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+        return;
+      }
+
+      // Validar se há moradores cadastrados no apartamento
+      try {
+        console.log('🔍 [RegistrarVeiculo] Verificando moradores no apartamento:', foundApartment.id);
+        
+        const { data: residents, error: residentsError } = await supabase
+          .from('apartment_residents')
+          .select('profile_id')
+          .eq('apartment_id', foundApartment.id)
+          .limit(1);
+
+        if (residentsError) {
+          console.error('❌ [RegistrarVeiculo] Erro ao verificar moradores:', residentsError);
+          Alert.alert('Erro', 'Não foi possível verificar os moradores do apartamento. Tente novamente.');
+          return;
+        }
+
+        if (!residents || residents.length === 0) {
+          console.log('⚠️ [RegistrarVeiculo] Nenhum morador encontrado no apartamento:', apartamento);
+          Alert.alert(
+            'Apartamento sem Residentes',
+            `Não há residentes cadastrados no apartamento ${apartamento}. Não é possível registrar veículos para este apartamento.`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        console.log('✅ [RegistrarVeiculo] Moradores encontrados no apartamento:', residents.length);
+      } catch (error) {
+        console.error('❌ [RegistrarVeiculo] Erro na validação de moradores:', error);
+        Alert.alert('Erro', 'Erro ao validar apartamento. Tente novamente.');
         return;
       }
 
@@ -653,11 +687,20 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   );
 
   const handleConfirm = async () => {
+    // 🚫 PROTEÇÃO CRÍTICA: Prevenir múltiplas execuções
+    if (isSubmitting) {
+      console.log('⚠️ [RegistrarVeiculo] Tentativa de submissão duplicada bloqueada');
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
+
       // Validar se apartamento foi selecionado
       if (!selectedApartment || !selectedApartment.id) {
         console.error('❌ [RegistrarVeiculo] Apartamento não selecionado:', selectedApartment);
         Alert.alert('Erro', 'Por favor, selecione um apartamento antes de continuar');
+        setIsSubmitting(false);
         return;
       }
 
@@ -680,6 +723,19 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           `A placa ${placa} já está cadastrada no sistema. O cadastro não pode ser concluído.`,
           [{ text: 'OK' }]
         );
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Se chegou até aqui e há erro de duplicata no estado, também bloquear
+      if (duplicatePlateError) {
+        console.error('❌ [RegistrarVeiculo] Estado de duplicata ativo - bloqueando registro');
+        Alert.alert(
+          '❌ Placa Duplicada',
+          'Esta placa já está cadastrada no sistema. Não é possível prosseguir com o cadastro.',
+          [{ text: 'OK' }]
+        );
+        setIsSubmitting(false);
         return;
       }
       
@@ -718,6 +774,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         if (!selectedApartment || !selectedApartment.id) {
           console.error('❌ [RegistrarVeiculo] Erro: selectedApartment não está definido ou não tem ID');
           Alert.alert('Erro', 'Nenhum apartamento foi selecionado. Por favor, selecione um apartamento.');
+          setIsSubmitting(false);
           return;
         }
         
@@ -742,6 +799,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         if (vehicleError) {
           console.error('❌ [RegistrarVeiculo] Erro ao salvar veículo:', vehicleError);
           Alert.alert('Erro', 'Não foi possível salvar o veículo. Tente novamente.');
+          setIsSubmitting(false);
           return;
         }
         
@@ -757,6 +815,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       // Usar o apartamento selecionado diretamente
       if (!selectedApartment) {
         Alert.alert('Erro', 'Nenhum apartamento foi selecionado.');
+        setIsSubmitting(false);
         return;
       }
 
@@ -766,46 +825,10 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         number: selectedApartment.number
       };
 
-      // Criar ou buscar visitante
-      console.log('👤 [RegistrarVeiculo] Criando ou buscando visitante no banco...');
-      let visitorId;
-      const { data: existingVisitor } = await supabase
-        .from('visitors')
-        .select('id')
-        .eq('name', nomeConvidado)
-        .single();
-
-      if (existingVisitor) {
-        console.log('♻️ [RegistrarVeiculo] Visitante existente encontrado:', existingVisitor);
-        visitorId = existingVisitor.id;
-      } else {
-        console.log('➕ [RegistrarVeiculo] Criando novo visitante...');
-        const visitorInsertData = {
-          name: nomeConvidado,
-          apartment_id: selectedApartment.id,
-          access_type: 'com_aprovacao'
-        };
-        console.log('📝 [RegistrarVeiculo] Dados do visitante para inserção:', visitorInsertData);
-        
-        const { data: newVisitor, error: visitorError } = await supabase
-          .from('visitors')
-          .insert(visitorInsertData)
-          .select('id')
-          .single();
-
-        if (visitorError || !newVisitor) {
-          console.error('❌ [RegistrarVeiculo] Erro ao criar visitante:', visitorError);
-          Alert.alert('Erro', 'Não foi possível criar o visitante. Tente novamente.');
-          return;
-        }
-        console.log('✅ [RegistrarVeiculo] Visitante criado:', newVisitor);
-        visitorId = newVisitor.id;
-      }
-
-      // Salvar no visitor_logs com vehicle_info completo
+      // Salvar no visitor_logs com vehicle_info completo (sem criar visitante)
       console.log('📝 [RegistrarVeiculo] Registrando entrada no visitor_logs...');
       const logInsertData = {
-        visitor_id: visitorId,
+        visitor_id: null, // Não criar visitante, apenas registrar o log
         apartment_id: apartmentData.id,
         building_id: apartmentData.building_id,
         log_time: new Date().toISOString(),
@@ -813,7 +836,9 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         visit_session_id: generateUUID(),
         vehicle_info: vehicleData,
         notification_status: 'pending',
-        purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante'
+        purpose: hasOwner ? `Veículo vinculado ao apartamento ${vehicleInfo?.apartment_info?.number}` : 'Veículo de visitante',
+        guest_name: nomeConvidado, // Usar guest_name em vez de visitor_name
+        entry_type: 'vehicle' // Adicionar tipo de entrada para identificar como veículo
       };
       console.log('📋 [RegistrarVeiculo] Dados do log para inserção:', logInsertData);
       
@@ -826,6 +851,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       if (error) {
         console.error('❌ [RegistrarVeiculo] Erro ao salvar log de visitante:', error);
         Alert.alert('Erro', 'Não foi possível registrar o veículo. Tente novamente.');
+        setIsSubmitting(false);
         return;
       }
 
@@ -885,12 +911,17 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         // Não bloqueia o fluxo se a notificação push falhar
       }
 
-      // Enviar notificação via API (WhatsApp) após registro bem-sucedido
-      if (visitorLogData?.id) {
+      // 🚫 PROTEÇÃO CRÍTICA WHATSAPP: Verificar se notificação já foi enviada antes de enviar
+      console.log('📱 [RegistrarVeiculo] Verificando status da notificação antes de enviar WhatsApp...');
+      const currentNotificationStatus = logInsertData.notification_status;
+      console.log('📋 [RegistrarVeiculo] Status atual:', currentNotificationStatus);
+
+      // Enviar notificação via API (WhatsApp) APENAS se ainda não foi enviada
+      if (visitorLogData?.id && currentNotificationStatus !== 'sent') {
         try {
           console.log('📱 [RegistrarVeiculo] Enviando notificação WhatsApp...');
           console.log('🆔 [RegistrarVeiculo] Visitor log ID:', visitorLogData.id);
-          
+
           // Buscar dados do morador para notificação
           const { data: residentData, error: residentError } = await supabase
             .from('apartments')
@@ -913,10 +944,13 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             .single();
 
           if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+            // 🎯 ENVIAR APENAS PARA O PRIMEIRO PROPRIETÁRIO (evitar duplicatas)
             const resident = residentData.apartment_residents[0];
             const building = residentData.buildings;
-            
+
             if (resident.profiles.phone && building) {
+              console.log('📱 [RegistrarVeiculo] Enviando WhatsApp para:', resident.profiles.full_name);
+
               await notificationApi.sendVisitorAuthorization({
                 visitorName: nomeConvidado,
                 residentName: resident.profiles.full_name,
@@ -925,14 +959,16 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
                 building: building.name,
                 apartment: residentData.number
               });
-              
+
               console.log('✅ [RegistrarVeiculo] Mensagem de autorização WhatsApp enviada com sucesso');
-              
-              // Atualizar status da notificação
+
+              // Atualizar status da notificação IMEDIATAMENTE para evitar reenvios
               await supabase
                 .from('visitor_logs')
                 .update({ notification_status: 'sent' })
                 .eq('id', visitorLogData.id);
+
+              console.log('✅ [RegistrarVeiculo] Status atualizado para "sent" - notificação bloqueada para reenvios');
             } else {
               console.warn('⚠️ [RegistrarVeiculo] Dados insuficientes para enviar notificação via API');
             }
@@ -942,6 +978,8 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         } catch (notificationError) {
           console.error('❌ [RegistrarVeiculo] Erro no processo de notificação:', notificationError);
         }
+      } else if (currentNotificationStatus === 'sent') {
+        console.log('🚫 [RegistrarVeiculo] WhatsApp JÁ ENVIADO - bloqueando reenvio para evitar duplicatas');
       }
 
       console.log('🎉 [RegistrarVeiculo] Processo de registro concluído com sucesso!');
@@ -964,6 +1002,9 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       console.error('❌ [RegistrarVeiculo] Erro geral no handleConfirm:', error);
       console.error('📋 [RegistrarVeiculo] Stack trace:', error.stack);
       Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+      console.log('🔓 [RegistrarVeiculo] Submissão desbloqueada - isSubmitting = false');
     }
   };
 
@@ -1022,14 +1063,25 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.confirmFinalButton} 
+        <TouchableOpacity
+          style={[
+            styles.confirmFinalButton,
+            isSubmitting && styles.confirmFinalButtonDisabled
+          ]}
           onPress={() => {
             console.log('🔘 [RegistrarVeiculo] Botão Confirmar Registro foi pressionado!');
             handleConfirm();
           }}
+          disabled={isSubmitting}
         >
-          <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
+          {isSubmitting ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.confirmFinalButtonText}>Registrando...</Text>
+            </View>
+          ) : (
+            <Text style={styles.confirmFinalButtonText}>Confirmar Registro</Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -1361,6 +1413,10 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  confirmFinalButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.7,
   },
   confirmFinalButtonText: {
     color: '#fff',

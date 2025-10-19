@@ -7,6 +7,7 @@ import ApartmentSearchModal from './components/modals/ApartmentSearchModal';
 
 const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }) => {
   const [activities, setActivities] = useState([]);
+  const [preAuthorizedVisitors, setPreAuthorizedVisitors] = useState([]);
   const [visitorLogs, setVisitorLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedAuth, setSelectedAuth] = useState();
@@ -460,7 +461,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       }
 
       Alert.alert('Sucesso', 'Entrada registrada com sucesso! O morador foi notificado.');
-      fetchActivities(); // Recarregar atividades
+      fetchPreAuthorizedVisitors(); // Recarregar visitantes pré-autorizados
       fetchVisitorLogs(); // Recarregar logs
     } catch (error) {
       console.error('Erro ao registrar entrada:', error);
@@ -470,202 +471,82 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
   // Nota: Subscriptions em tempo real foram desabilitadas conforme instruções do projeto
 
-  // Função principal para buscar atividades otimizada
-  const fetchActivities = useCallback(async () => {
-    console.log('🔍 [fetchActivities] INICIANDO - user:', user, 'buildingId:', buildingId, 'filter:', filter);
+  // Função para buscar visitantes pré-autorizados (apenas da tabela visitors)
+  const fetchPreAuthorizedVisitors = useCallback(async () => {
+    console.log('🔍 [fetchPreAuthorizedVisitors] INICIANDO - buildingId:', buildingId, 'timeFilter:', timeFilter);
 
-    if (!user || !buildingId) {
-      console.log('⚠️ [fetchActivities] user ou buildingId ausente, abortando');
+    if (!buildingId) {
+      console.log('⚠️ [fetchPreAuthorizedVisitors] buildingId não fornecido, abortando');
       return;
     }
 
     try {
       setLoading(true);
-      const promises = [];
 
-      // Buscar entregas se necessário
-      if (filter === 'all' || filter === 'delivery') {
-        let deliveryQuery = supabase
-          .from('deliveries')
-          .select(`
-            *,
-            apartments!inner(number)
-          `)
-          .eq('building_id', buildingId)
-          .order('created_at', { ascending: false });
+      // Buscar apenas visitantes da tabela visitors (pré-autorizados pelos moradores)
+      let visitQuery = supabase
+        .from('visitors')
+        .select(`
+          *,
+          apartments!inner(number, building_id)
+        `)
+        .eq('apartments.building_id', buildingId)
+        .neq('status', 'rejected')
+        .neq('status', 'nao_permitido')
+        .neq('status', 'não autorizado')
+        .neq('status', 'expirado')
+        .order('created_at', { ascending: false });
 
-        // Aplicar filtro de tempo
-        if (timeFilter !== 'all') {
-          const now = new Date();
-          let startDate: Date;
-          let endDate: Date;
-          
-          switch (timeFilter) {
-            case 'today':
-              // Para hoje: apenas eventos do dia atual
-              startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-              break;
-            case 'week':
-              // Para semana: eventos da semana atual (domingo a sábado)
-              const weekStart = new Date(now);
-              weekStart.setDate(now.getDate() - now.getDay());
-              weekStart.setHours(0, 0, 0, 0);
-              startDate = weekStart;
-              endDate = new Date(weekStart);
-              endDate.setDate(weekStart.getDate() + 7);
-              break;
-            case 'month':
-              // Para mês: eventos do mês atual
-              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-              break;
-            default:
-              startDate = new Date(0);
-              endDate = new Date();
-          }
-
-          // Aplicar filtro de data rigoroso
-          deliveryQuery = deliveryQuery
-            .gte('created_at', startDate.toISOString())
-            .lt('created_at', endDate.toISOString());
-        }
-
-        promises.push(deliveryQuery);
-      } else {
-        promises.push(Promise.resolve({ data: [], error: null }));
-      }
-
-      // Buscar visitas se necessário
-      if (filter === 'all' || filter === 'visit') {
-        let visitQuery = supabase
-          .from('visitors')
-          .select(`
-            *,
-            apartments!inner(number, building_id)
-          `)
-          .eq('apartments.building_id', buildingId)
-          .neq('status', 'rejected')
-          .neq('status', 'nao_permitido')
-          .neq('status', 'não autorizado')
-          .neq('status', 'expirado')
-          .order('created_at', { ascending: false });
-
-        // Aplicar filtro de tempo para visitas
-        if (timeFilter !== 'all') {
-          const now = new Date();
-          let startDate: Date;
-          let endDate: Date;
-          
-          switch (timeFilter) {
-            case 'today':
-              // Para hoje: apenas visitas do dia atual
-              startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-              break;
-            case 'week':
-              // Para semana: visitas da semana atual (domingo a sábado)
-              const weekStart = new Date(now);
-              weekStart.setDate(now.getDate() - now.getDay());
-              weekStart.setHours(0, 0, 0, 0);
-              startDate = weekStart;
-              endDate = new Date(weekStart);
-              endDate.setDate(weekStart.getDate() + 7);
-              break;
-            case 'month':
-              // Para mês: visitas do mês atual
-              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-              endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-              break;
-            default:
-              startDate = new Date(0);
-              endDate = new Date();
-          }
-
-          const startDateStr = startDate.toISOString().split('T')[0];
-          const endDateStr = endDate.toISOString().split('T')[0];
-          const startDateTimeStr = startDate.toISOString();
-          const endDateTimeStr = endDate.toISOString();
-          
-          // Filtrar por visit_date (data agendada) ou created_at (data de criação) de forma rigorosa
-          visitQuery = visitQuery.or(
-            `visit_date.gte.${startDateStr},visit_date.lt.${endDateStr},created_at.gte.${startDateTimeStr},created_at.lt.${endDateTimeStr}`
-          );
-        }
-
-        promises.push(visitQuery);
-      } else {
-        promises.push(Promise.resolve({ data: [], error: null }));
-      }
-
-      const [deliveryResult, visitResult] = await Promise.all(promises);
-
-      console.log('✅ [fetchActivities] Queries executadas:');
-      console.log('  - Entregas:', deliveryResult.data?.length || 0, 'registros');
-      console.log('  - Visitas:', visitResult.data?.length || 0, 'registros');
-
-      if (deliveryResult.error) {
-        console.error('❌ [fetchActivities] Erro nas entregas:', deliveryResult.error);
-        throw deliveryResult.error;
-      }
-      if (visitResult.error) {
-        console.error('❌ [fetchActivities] Erro nas visitas:', visitResult.error);
-        throw visitResult.error;
-      }
-
-      // Buscar logs de entrega para obter destinos
-      const { data: deliveryLogs } = await supabase
-        .from('visitor_logs')
-        .select('delivery_id, delivery_destination, purpose')
-        .eq('entry_type', 'delivery')
-        .eq('building_id', buildingId)
-        .not('delivery_id', 'is', null);
-
-      // Processar entregas
-      const deliveryActivities: ActivityEntry[] = (deliveryResult.data || []).map((delivery: any) => {
-        const isDelivered = delivery.entregue === true;
-        const isPending = !delivery.entregue;
+      // Aplicar filtro de tempo para visitas
+      if (timeFilter !== 'all') {
+        const now = new Date();
+        let startDate: Date;
+        let endDate: Date;
         
-        // Buscar log de entrega correspondente para obter destino
-        const deliveryLog = deliveryLogs?.find(log => log.delivery_id === delivery.id);
-        const destino = deliveryLog?.delivery_destination || 'portaria';
-        const destinoIcon = destino === 'elevador' ? '🛗' : '🏢';
-        const destinoTexto = destino === 'elevador' ? 'Elevador' : 'Portaria';
+        switch (timeFilter) {
+          case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            break;
+          case 'week':
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            startDate = weekStart;
+            endDate = new Date(weekStart);
+            endDate.setDate(weekStart.getDate() + 7);
+            break;
+          case 'month':
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            break;
+          default:
+            startDate = new Date(0);
+            endDate = new Date();
+        }
 
-        return {
-          id: delivery.id,
-          type: 'delivery',
-          title: `📦 ${delivery.recipient_name || 'Destinatário não definido'}`,
-          subtitle: `Apto ${delivery.apartments?.number || 'N/A'} • ${delivery.sender_company || 'remetente não definido'}`,
-          status: isDelivered ? `Entregue - ${destinoTexto}` : 'Aguardando retirada',
-          time: formatDate(isDelivered && delivery.received_at ? delivery.received_at : delivery.created_at),
-          icon: isDelivered ? `✅ ${destinoIcon}` : '📦',
-          color: isDelivered ? '#4CAF50' : '#FF9800',
-          details: [
-            `Remetente: ${delivery.sender_company || 'remetente não definido'}`,
-            ...(delivery.description ? [`Descrição: ${delivery.description}`] : []),
-            `Recebido por: ${delivery.received_by ? 'Porteiro' : 'pendente'}`,
-            `Destino: ${destinoTexto} ${destinoIcon}`,
-            ...(delivery.tracking_code ? [`Código: ${delivery.tracking_code}`] : []),
-            ...(isDelivered && deliveryLog?.purpose ? [`Observações: ${deliveryLog.purpose}`] : []),
-          ],
-          actions: !isDelivered ? {
-            primary: {
-              label: 'Entregar',
-              action: () => entregarEncomenda(delivery),
-              color: '#4CAF50'
-            },
-            secondary: {
-              label: 'Remover',
-              action: () => removerEncomenda(delivery),
-              color: '#F44336'
-            }
-          } : undefined
-        };
-      });
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        const startDateTimeStr = startDate.toISOString();
+        const endDateTimeStr = endDate.toISOString();
+        
+        // Filtrar por visit_date (data agendada) ou created_at (data de criação)
+        visitQuery = visitQuery.or(
+          `visit_date.gte.${startDateStr},visit_date.lt.${endDateStr},created_at.gte.${startDateTimeStr},created_at.lt.${endDateTimeStr}`
+        );
+      }
 
-      // Processar visitas
-      const visitActivities: ActivityEntry[] = (visitResult.data || []).map((visit: any) => {
+      const { data: visitResult, error: visitError } = await visitQuery.limit(50);
+
+      if (visitError) {
+        console.error('❌ [fetchPreAuthorizedVisitors] Erro ao buscar visitors:', visitError);
+        return;
+      }
+
+      console.log(`✅ [fetchPreAuthorizedVisitors] Visitantes pré-autorizados encontrados: ${visitResult?.length || 0}`);
+
+      // Processar visitantes pré-autorizados
+      const visitActivities: ActivityEntry[] = (visitResult || []).map((visit: any) => {
         const isApproved = visit.status === 'aprovado';
         const isDireto = visit.access_type === 'direto';
         const isPending = visit.status === 'pendente';
@@ -684,20 +565,21 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           type: 'visit',
           title: `👤 ${visitorName}`,
           subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: (isApproved || isDireto) ? (allowDirectAccess ? 'direto' : 'Aprovado') : isPending ? 'Pendente' : 'Não Autorizado',
+          status: displayStatus,
           time: formatDate(visit.visit_date || visit.created_at),
-          icon: (isApproved || isDireto) ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
-          color: (isApproved || isDireto) ? '#4CAF50' : isPending ? '#FF9800' : '#F44336',
+          icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
+          color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
           photo_url: visit.photo_url,
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
             `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+            ...(allowDirectAccess ? ['🚀 Pode subir direto (não precisa avisar morador)'] : []),
             ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
             ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
           ],
-          actions: (isApproved || isDireto) ? {
+          actions: isApproved ? {
             primary: {
               label: 'Confirmar Entrada',
               action: () => confirmarChegada(visit),
@@ -707,29 +589,31 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         };
       });
 
-      // Combinar e ordenar todas as atividades por data
-      const allActivities = [...deliveryActivities, ...visitActivities].sort(
-        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
-      );
+      setPreAuthorizedVisitors(visitActivities);
+      console.log(`✅ [fetchPreAuthorizedVisitors] ${visitActivities.length} visitantes pré-autorizados processados`);
 
-      console.log('📊 [fetchActivities] Atividades processadas:');
-      console.log('  - Total de entregas processadas:', deliveryActivities.length);
-      console.log('  - Total de visitas processadas:', visitActivities.length);
-      console.log('  - Total combinado:', allActivities.length);
-
-      setActivities(allActivities);
     } catch (error) {
-      console.error('❌ [fetchActivities] ERRO:', error);
+      console.error('❌ [fetchPreAuthorizedVisitors] Erro:', error);
+      Alert.alert('Erro', 'Não foi possível carregar os visitantes pré-autorizados');
     } finally {
       setLoading(false);
-      console.log('🏁 [fetchActivities] FINALIZADO');
     }
-  }, [filter, timeFilter, user, buildingId]);
+  }, [buildingId, timeFilter]);
 
-  // Effect para carregar atividades
+  // Esta função não será mais usada - substituída por fetchPreAuthorizedVisitors
+  const fetchActivities = useCallback(async () => {
+    // Função removida - agora usamos fetchPreAuthorizedVisitors para pré-autorizados
+    // e fetchVisitorLogs para logs de visitantes
+    console.log('⚠️ [fetchActivities] Função descontinuada - use fetchPreAuthorizedVisitors ou fetchVisitorLogs');
+    return;
+  }, []);
+
+  // Effect para carregar visitantes pré-autorizados
   useEffect(() => {
-    fetchActivities();
-  }, [fetchActivities]);
+    if (buildingId) {
+      fetchPreAuthorizedVisitors();
+    }
+  }, [buildingId, timeFilter, fetchPreAuthorizedVisitors]);
 
   // Effect para carregar visitor_logs quando timeFilter mudar
   useEffect(() => {
@@ -739,21 +623,24 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     }
   }, [timeFilter, buildingId]);
 
-  // Effect para recarregar atividades quando houver mudanças nas notificações
+  // Effect para recarregar dados quando houver mudanças nas notificações
   useEffect(() => {
     console.log('🔄 [AutorizacoesTab] useEffect notificações mudaram - count:', notifications.length);
     
     if (notifications.length > 0) {
-      console.log('✅ [AutorizacoesTab] Recarregando atividades devido a novas notificações...');
-      // Recarregar atividades quando houver novas notificações
-      fetchActivities();
+      console.log('✅ [AutorizacoesTab] Recarregando dados devido a novas notificações...');
+      // Recarregar ambos os dados quando houver novas notificações
+      if (buildingId) {
+        fetchPreAuthorizedVisitors();
+        fetchVisitorLogs();
+      }
     }
-  }, [notifications.length, fetchActivities]);
+  }, [notifications.length, buildingId, fetchPreAuthorizedVisitors, fetchVisitorLogs]);
 
-  // Função para obter contagem de filtros
+  // Função para obter contagem de filtros (apenas para pré-autorizados)
   const getFilterCount = (filterType: 'all' | 'delivery' | 'visit') => {
-    if (filterType === 'all') return activities.length;
-    return activities.filter(activity => activity.type === filterType).length;
+    if (filterType === 'all') return preAuthorizedVisitors.length;
+    return preAuthorizedVisitors.filter(activity => activity.type === filterType).length;
   };
 
   // Função para alternar expansão de cards
@@ -869,7 +756,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para avisar morador
   const handleNotifyResident = async (activityId: string) => {
     try {
-      const activity = activities.find(a => a.id === activityId);
+      const activity = preAuthorizedVisitors.find(a => a.id === activityId);
       if (!activity) return;
 
       // Buscar dados do visitante para verificar o access_type e horários
@@ -877,11 +764,17 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         .from('visitors')
         .select('*, apartments(number)')
         .eq('id', activityId)
-        .single();
+        .maybeSingle();
 
       if (visitorError) {
         console.error('Erro ao buscar dados do visitante:', visitorError);
-        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        Alert.alert('Erro', 'Erro ao acessar dados do visitante');
+        return;
+      }
+
+      if (!visitorData) {
+        console.error('Visitante não encontrado com ID:', activityId);
+        Alert.alert('Erro', 'Visitante não encontrado no sistema');
         return;
       }
 
@@ -1038,7 +931,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         : 'Visitante autorizado e morador notificado!';
 
       Alert.alert('Sucesso', statusMessage);
-      fetchActivities(); // Recarregar atividades
+      fetchPreAuthorizedVisitors(); // Recarregar visitantes pré-autorizados
       fetchVisitorLogs(); // Recarregar logs
     } catch (error) {
       console.error('Erro ao notificar morador:', error);
@@ -1049,7 +942,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para check de entrada
   const handleCheckIn = async (activityId: string) => {
     try {
-      const activity = activities.find(a => a.id === activityId);
+      const activity = preAuthorizedVisitors.find(a => a.id === activityId);
       if (!activity) return;
 
       // Buscar dados completos do visitante
@@ -1355,8 +1248,8 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   console.log('🎨 [RENDER] activeSection:', activeSection);
   console.log('🎨 [RENDER] loading:', loading);
 
-  // Função para filtrar atividades (pré-autorizados) por nome
-  const filteredActivities = activities.filter(activity => {
+  // Função para filtrar visitantes pré-autorizados por nome
+  const filteredPreAuthorizedVisitors = preAuthorizedVisitors.filter(activity => {
     if (!searchQuery.trim()) return true;
 
     const searchLower = searchQuery.toLowerCase().trim();
@@ -1365,12 +1258,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     if (activity.type === 'visit') {
       const visitorName = activity.title.replace('👤 ', '').toLowerCase();
       return visitorName.includes(searchLower);
-    }
-
-    // Para entregas, busca no nome do destinatário
-    if (activity.type === 'delivery') {
-      const recipientName = activity.title.replace('📦 ', '').toLowerCase();
-      return recipientName.includes(searchLower);
     }
 
     return true;
@@ -1588,28 +1475,24 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             {/* Lista de Atividades */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando atividades...</Text>
+            <Text style={styles.loadingText}>Carregando visitantes pré-autorizados...</Text>
           </View>
-        ) : filteredActivities.length === 0 ? (
+        ) : filteredPreAuthorizedVisitors.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📋</Text>
+            <Text style={styles.emptyIcon}>👤</Text>
             <Text style={styles.emptyTitle}>
-              {searchQuery.trim() ? 'Nenhum resultado encontrado' : 'Nenhuma atividade encontrada'}
+              {searchQuery.trim() ? 'Nenhum resultado encontrado' : 'Nenhum visitante pré-autorizado'}
             </Text>
             <Text style={styles.emptySubtitle}>
               {searchQuery.trim()
-                ? `Não há visitantes ou entregas com o nome "${searchQuery}"`
-                : filter === 'all'
-                  ? 'Não há entregas ou visitas para exibir'
-                  : filter === 'delivery'
-                    ? 'Não há entregas para exibir'
-                    : 'Não há visitas para exibir'
+                ? `Não há visitantes pré-autorizados com o nome "${searchQuery}"`
+                : 'Não há visitantes pré-autorizados pelos moradores para exibir'
               }
             </Text>
           </View>
         ) : (
           
-          filteredActivities.map((activity) => (
+          filteredPreAuthorizedVisitors.map((activity) => (
             <TouchableOpacity
               key={activity.id}
               style={styles.activityCard}

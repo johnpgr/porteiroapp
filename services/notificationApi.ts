@@ -69,12 +69,15 @@ interface SendVisitorAuthorizationResponse {
 }
 
 class NotificationApiService {
+  // 🚫 PROTEÇÃO CRÍTICA: Map para rastrear envios em andamento
+  private pendingRequests = new Map<string, Promise<any>>();
+
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     try {
       console.log(`🚀 [NOTIFICATION_API] Iniciando requisição [${requestId}]:`, {
         endpoint,
@@ -245,40 +248,73 @@ class NotificationApiService {
   async sendVisitorAuthorization(
     data: SendVisitorAuthorizationRequest
   ): Promise<SendVisitorAuthorizationResponse> {
+    // 🚫 PROTEÇÃO CRÍTICA: Gerar chave única baseada nos dados
+    const requestKey = `auth_${data.residentPhone}_${data.visitorName}_${data.apartment}`;
+
+    // Verificar se já existe uma requisição em andamento com os mesmos dados
+    if (this.pendingRequests.has(requestKey)) {
+      console.log('🚫 [WHATSAPP_AUTH] Requisição DUPLICADA detectada e BLOQUEADA:', {
+        requestKey,
+        visitorName: data.visitorName,
+        residentPhone: data.residentPhone.substring(0, 4) + '****',
+        apartment: data.apartment
+      });
+
+      // Retornar a promessa já em andamento
+      return this.pendingRequests.get(requestKey)!;
+    }
+
     console.log('🔐 [WHATSAPP_AUTH] Enviando autorização de visitante:', {
+      requestKey,
       visitorName: data.visitorName,
       residentPhone: data.residentPhone ? `${data.residentPhone.substring(0, 4)}****` : 'N/A',
       building: data.building,
       apartment: data.apartment,
       timestamp: new Date().toISOString()
     });
-    
-    try {
-      const response = await this.makeRequest<SendVisitorAuthorizationResponse>(
-        '/send-visitor-authorization-whatsapp',
-        {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }
-      );
 
-      console.log('✅ [WHATSAPP_AUTH] Autorização de visitante enviada com sucesso:', {
-        response,
-        timestamp: new Date().toISOString()
-      });
-      return response;
-    } catch (error) {
-      console.error('❌ [WHATSAPP_AUTH] Falha ao enviar autorização de visitante:', {
-        data,
-        error: error instanceof Error ? error.message : error,
-        timestamp: new Date().toISOString()
-      });
-      throw new Error(
-        error instanceof Error 
-          ? error.message 
-          : 'Falha ao enviar autorização de visitante para o morador'
-      );
-    }
+    // Criar a promessa e armazená-la no Map
+    const requestPromise = (async () => {
+      try {
+        const response = await this.makeRequest<SendVisitorAuthorizationResponse>(
+          '/send-visitor-authorization-whatsapp',
+          {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }
+        );
+
+        console.log('✅ [WHATSAPP_AUTH] Autorização de visitante enviada com sucesso:', {
+          requestKey,
+          response,
+          timestamp: new Date().toISOString()
+        });
+
+        return response;
+      } catch (error) {
+        console.error('❌ [WHATSAPP_AUTH] Falha ao enviar autorização de visitante:', {
+          requestKey,
+          data,
+          error: error instanceof Error ? error.message : error,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(
+          error instanceof Error
+            ? error.message
+            : 'Falha ao enviar autorização de visitante para o morador'
+        );
+      } finally {
+        // Remover do Map após conclusão (sucesso ou erro)
+        this.pendingRequests.delete(requestKey);
+        console.log('🔓 [WHATSAPP_AUTH] Requisição finalizada e removida do cache:', requestKey);
+      }
+    })();
+
+    // Armazenar a promessa no Map
+    this.pendingRequests.set(requestKey, requestPromise);
+    console.log('🔒 [WHATSAPP_AUTH] Requisição adicionada ao cache:', requestKey);
+
+    return requestPromise;
   }
 
   async sendVisitorWaitingNotification(data: {
@@ -289,24 +325,71 @@ class NotificationApiService {
     apartment: string;
     visitor_log_id: string;
   }): Promise<{ success: boolean; message?: string; error?: string }> {
-    try {
-      const response = await this.makeRequest<{ success: boolean; message?: string; error?: string }>(
-        '/send-visitor-waiting-notification',
-        {
-          method: 'POST',
-          body: JSON.stringify(data),
-        }
-      );
+    // 🚫 PROTEÇÃO CRÍTICA: Gerar chave única baseada nos dados
+    const requestKey = `waiting_${data.resident_phone}_${data.visitor_name}_${data.visitor_log_id}`;
 
-      return response;
-    } catch (error) {
-      console.error('Erro ao enviar notificação de visitante aguardando:', error);
-      throw new Error(
-        error instanceof Error 
-          ? error.message 
-          : 'Falha ao enviar notificação WhatsApp para o morador'
-      );
+    // Verificar se já existe uma requisição em andamento com os mesmos dados
+    if (this.pendingRequests.has(requestKey)) {
+      console.log('🚫 [WHATSAPP_WAITING] Requisição DUPLICADA detectada e BLOQUEADA:', {
+        requestKey,
+        visitorName: data.visitor_name,
+        residentPhone: data.resident_phone.substring(0, 4) + '****',
+        visitorLogId: data.visitor_log_id
+      });
+
+      // Retornar a promessa já em andamento
+      return this.pendingRequests.get(requestKey)!;
     }
+
+    console.log('⏳ [WHATSAPP_WAITING] Enviando notificação de espera:', {
+      requestKey,
+      visitorName: data.visitor_name,
+      residentPhone: data.resident_phone.substring(0, 4) + '****',
+      visitorLogId: data.visitor_log_id,
+      timestamp: new Date().toISOString()
+    });
+
+    // Criar a promessa e armazená-la no Map
+    const requestPromise = (async () => {
+      try {
+        const response = await this.makeRequest<{ success: boolean; message?: string; error?: string }>(
+          '/send-visitor-waiting-notification',
+          {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }
+        );
+
+        console.log('✅ [WHATSAPP_WAITING] Notificação enviada com sucesso:', {
+          requestKey,
+          response,
+          timestamp: new Date().toISOString()
+        });
+
+        return response;
+      } catch (error) {
+        console.error('❌ [WHATSAPP_WAITING] Erro ao enviar notificação:', {
+          requestKey,
+          error: error instanceof Error ? error.message : error,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(
+          error instanceof Error
+            ? error.message
+            : 'Falha ao enviar notificação WhatsApp para o morador'
+        );
+      } finally {
+        // Remover do Map após conclusão (sucesso ou erro)
+        this.pendingRequests.delete(requestKey);
+        console.log('🔓 [WHATSAPP_WAITING] Requisição finalizada e removida do cache:', requestKey);
+      }
+    })();
+
+    // Armazenar a promessa no Map
+    this.pendingRequests.set(requestKey, requestPromise);
+    console.log('🔒 [WHATSAPP_WAITING] Requisição adicionada ao cache:', requestKey);
+
+    return requestPromise;
   }
 }
 
