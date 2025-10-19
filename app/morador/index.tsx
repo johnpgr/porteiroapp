@@ -325,8 +325,9 @@ export default function MoradorDashboard() {
       transparent
       animationType="fade"
       onRequestClose={() => setShowAvatarMenu(false)}>
-      <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowAvatarMenu(false)}>
-        <View style={styles.avatarMenu}>
+      <SafeAreaView style={styles.modalOverlay}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAvatarMenu(false)}>
+          <View style={styles.avatarMenu}>
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => {
@@ -348,8 +349,9 @@ export default function MoradorDashboard() {
             <Ionicons name="log-out" size={20} color="#f44336" />
             <Text style={[styles.menuText, { color: '#f44336' }]}>Logout</Text>
           </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </SafeAreaView>
     </Modal>
   );
 

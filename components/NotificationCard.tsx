@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
@@ -335,7 +335,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         animationType="slide"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <View style={styles.fullScreenModalOverlay}>
+        <SafeAreaView style={styles.fullScreenModalOverlay}>
           <View style={styles.fullScreenDetailsCard}>
             {/* Header Fixo */}
             <View style={styles.fullScreenHeader}>
@@ -557,7 +557,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
               )}
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Modal de rejeição */}
