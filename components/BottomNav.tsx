@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 
 interface BottomNavProps {
@@ -49,11 +48,9 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
       <TouchableOpacity
         style={[styles.navItem, currentTab === 'inicio' && styles.navItemActive]}
         onPress={() => navigateToTab('inicio')}>
-        <Ionicons
-          name={currentTab === 'inicio' ? 'home' : 'home-outline'}
-          size={24}
-          color={currentTab === 'inicio' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, currentTab === 'inicio' && styles.navIconActive]}>
+          🏠
+        </Text>
         <Text style={[styles.navLabel, currentTab === 'inicio' && styles.navLabelActive]}>
           Início
         </Text>
@@ -62,11 +59,9 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
       <TouchableOpacity
         style={[styles.navItem, currentTab === 'visitantes' && styles.navItemActive]}
         onPress={() => navigateToTab('visitantes')}>
-        <Ionicons
-          name={currentTab === 'visitantes' ? 'people' : 'people-outline'}
-          size={24}
-          color={currentTab === 'visitantes' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, currentTab === 'visitantes' && styles.navIconActive]}>
+          👥
+        </Text>
         <Text style={[styles.navLabel, currentTab === 'visitantes' && styles.navLabelActive]}>
           Visitantes
         </Text>
@@ -75,11 +70,9 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
       <TouchableOpacity
         style={[styles.navItem, currentTab === 'cadastro' && styles.navItemActive]}
         onPress={() => navigateToTab('cadastro')}>
-        <Ionicons
-          name={currentTab === 'cadastro' ? 'person-add' : 'person-add-outline'}
-          size={24}
-          color={currentTab === 'cadastro' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, currentTab === 'cadastro' && styles.navIconActive]}>
+          📝
+        </Text>
         <Text style={[styles.navLabel, currentTab === 'cadastro' && styles.navLabelActive]}>
           Cadastro
         </Text>
@@ -88,11 +81,9 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
       <TouchableOpacity
         style={[styles.navItem, currentTab === 'avisos' && styles.navItemActive]}
         onPress={() => navigateToTab('avisos')}>
-        <Ionicons
-          name={currentTab === 'avisos' ? 'notifications' : 'notifications-outline'}
-          size={24}
-          color={currentTab === 'avisos' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, currentTab === 'avisos' && styles.navIconActive]}>
+          🔔
+        </Text>
         <Text style={[styles.navLabel, currentTab === 'avisos' && styles.navLabelActive]}>
           Avisos
         </Text>
@@ -129,5 +120,12 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: '#4CAF50',
     fontWeight: 'bold',
+  },
+  navIcon: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  navIconActive: {
+    // Emojis não precisam de cor diferente quando ativos
   },
 });
