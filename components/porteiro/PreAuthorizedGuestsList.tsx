@@ -179,7 +179,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         const getStatusInfo = (status, accessType) => {
           if (status === 'aprovado' || accessType === 'direto') {
             return {
-              status: 'Liberado para Entrada Direta',
+              status: 'ENTRADA LIBERADA',
               color: '#4CAF50'
             };
           } else {
@@ -794,7 +794,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
                               style={styles.checkInButton}
                               onPress={() => handleCheckIn(activity.id)}>
                               <Text style={styles.checkInButtonText}>
-                                ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
+                                ✅ Confirmar Entrada
                               </Text>
                             </TouchableOpacity>
                           );

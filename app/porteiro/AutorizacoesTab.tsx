@@ -667,15 +667,16 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       // Processar visitas
       const visitActivities: ActivityEntry[] = (visitResult.data || []).map((visit: any) => {
         const isApproved = visit.status === 'aprovado';
+        const isDireto = visit.access_type === 'direto';
         const isPending = visit.status === 'pendente';
         const isExpired = visit.status === 'expirado';
         const visitorName = visit.name || 'Visitante';
-        const allowDirectAccess = visit.allow_direct_access === true;
+        const allowDirectAccess = isDireto;
 
         // Determinar o status exibido
-        let displayStatus = isApproved ? 'Aprovado' : isPending ? 'Aguardando aprovação' : 'Negado';
-        if (isApproved && allowDirectAccess) {
-          displayStatus = 'Liberação Direta';
+        let displayStatus = isApproved ? 'Aprovado' : isDireto ? 'Entrada Liberada' : isPending ? 'Aguardando aprovação' : 'Negado';
+        if ((isApproved || isDireto) && allowDirectAccess) {
+          displayStatus = 'Entrada Liberada';
         }
 
         return {
@@ -683,21 +684,20 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           type: 'visit',
           title: `👤 ${visitorName}`,
           subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: isApproved ? (allowDirectAccess ? 'Liberado para Entrada Direta' : 'Liberado para Entrada Direta') : isPending ? 'Pendente' : 'Não Autorizado',
+          status: (isApproved || isDireto) ? (allowDirectAccess ? 'direto' : 'Aprovado') : isPending ? 'Pendente' : 'Não Autorizado',
           time: formatDate(visit.visit_date || visit.created_at),
-          icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
-          color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
+          icon: (isApproved || isDireto) ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
+          color: (isApproved || isDireto) ? '#4CAF50' : isPending ? '#FF9800' : '#F44336',
           photo_url: visit.photo_url,
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
             `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-            ...(allowDirectAccess ? ['🚀 Pode subir direto (não precisa avisar morador)'] : []),
             ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
             ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
           ],
-          actions: isApproved ? {
+          actions: (isApproved || isDireto) ? {
             primary: {
               label: 'Confirmar Entrada',
               action: () => confirmarChegada(visit),
@@ -817,7 +817,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     switch (notificationStatus?.toLowerCase()) {
       case 'approved':
         return {
-          text: 'Liberado para entrada',
+          text: 'ENTRADA LIBERADA',
           color: '#4CAF50',
           icon: '✅'
         };
@@ -1281,7 +1281,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           type: 'visit',
           title: `👤 ${visitorName}`,
           subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: isApproved ? (allowDirectAccess ? 'Liberado para Entrada Direta' : 'Liberado para Entrada Direta') : isPending ? 'Pendente' : 'Não Autorizado',
+          status: isApproved ? (allowDirectAccess ? 'ENTRADA LIBERADA Direta' : 'ENTRADA LIBERADA Direta') : isPending ? 'Pendente' : 'Não Autorizado',
           time: formatDate(visit.visit_date || visit.created_at),
           icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
           color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
@@ -1462,15 +1462,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     );
   };
 
-  const getStatusTag = (autorizacao: any) => {
-    return (
-      <View
-        style={[styles.statusTag, { backgroundColor: autorizacao.statusColor }]}>
-        <Text style={styles.statusTagText}>{autorizacao.statusLabel}</Text>
-      </View>
-    );
-  };
-
   return (
     <>
       <ScrollView style={styles.tabContent}>
@@ -1630,7 +1621,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
                   <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
                 </View>
                 <View style={styles.activityMeta}>
-                  <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status}</Text>
+                  <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status === 'direto' ? 'ENTRADA LIBERADA' : activity.status}</Text>
                   <Text style={styles.activityTime}>{activity.time}</Text>
                 </View>
               </View>
@@ -1653,18 +1644,18 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
                   {/* Lógica condicional para botões de ação */}
                   {(() => {
                     // Função auxiliar para determinar se pode entrar diretamente
-                    const canEnterDirectly = activity.status === 'Aprovado' || 
-                                           activity.status === 'direto' || 
-                                           activity.status === 'Liberado para Entrada Direta';
+                    const canEnterDirectly = activity.status === 'direto' || activity.status === 'Entrada Liberada'
+                                           
                     
                     if (canEnterDirectly) {
                       // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
+                      const isDirectAccess = activity.status === 'direto' || activity.status === 'Entrada Liberada';
                       return (
                         <TouchableOpacity 
                           style={styles.checkInButton}
                           onPress={() => handleCheckIn(activity.id)}>
                           <Text style={styles.checkInButtonText}>
-                            ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
+                            ✅ Confirmar Entrada
                           </Text>
                         </TouchableOpacity>
                       );
@@ -1987,13 +1978,10 @@ const styles = StyleSheet.create({
     maxWidth: 100, // Adiciona largura máxima
   },
   activityStatus: {
-    fontSize: 10, // Aumentado levemente para melhor legibilidade
+    fontSize: 11,
     fontWeight: 'bold',
-    marginBottom: 3, // Reduzido de 4 para 3
+    textTransform: 'uppercase',
     textAlign: 'right',
-    flexWrap: 'wrap', // Permite quebra de texto
-    maxWidth: 100, // Reduzido de 120 para 100
-    lineHeight: 12, // Adiciona altura de linha compacta
   },
   activityTime: {
     fontSize: 10, // Reduzido de 11 para 10

@@ -243,13 +243,13 @@ export default function VisitantesTab() {
   
   // Estados para paginação e filtros
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
   const ITEMS_PER_PAGE = 10;
   
   // Estados para o modal de filtros
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('todos');
+  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
   const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
   
   // Estados para múltiplos visitantes
@@ -1139,42 +1139,59 @@ export default function VisitantesTab() {
 
           console.log('✅ Visitante expirado recadastrado com sucesso:', existingVisitor.id);
 
-          // Gerar senha temporária para o visitante recadastrado
-          const temporaryPassword = await generateTemporaryPasswordForVisitor(
-            sanitizedName,
-            sanitizedPhone,
-            existingVisitor.id
-          );
+          // Buscar dados do apartamento e prédio para o WhatsApp
+          const { data: apartmentDataRecadastro, error: apartmentErrorRecadastro } = await supabase
+            .from('apartments')
+            .select(`
+              number,
+              buildings!inner (
+                name
+              )
+            `)
+            .eq('id', currentApartmentId)
+            .single();
 
-          // Preparar dados do morador para WhatsApp
-          const residentData: ResidentData = {
-            name: user?.name || 'Morador',
-            apartment: 'Apartamento', // Pode ser melhorado buscando o número do apartamento
-            building: 'Edifício' // Pode ser melhorado buscando o nome do edifício
-          };
+          const buildingNameRecadastro = apartmentDataRecadastro?.buildings?.name || 'Edifício';
+          const apartmentNumberRecadastro = apartmentDataRecadastro?.number || 'Apartamento';
 
-          // Enviar mensagem via WhatsApp
-          const registrationLink = `https://porteiroapp.com/visitante/completar-cadastro?token=${registrationToken}`;
-          const whatsappMessage = generateWhatsAppMessage(
-            sanitizedName,
-            temporaryPassword,
-            registrationLink,
-            residentData
-          );
+          // Gerar link de completação do cadastro
+          const baseRegistrationUrlRecadastro = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+          const completionLinkRecadastro = `${baseRegistrationUrlRecadastro}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
-          console.log('📱 Enviando WhatsApp para visitante recadastrado:', sanitizedPhone);
-          
+          console.log('📱 [Recadastro] Enviando WhatsApp para visitante recadastrado:', sanitizedPhone);
+          let whatsappSentRecadastro = false;
+          let whatsappErrorRecadastro = '';
+
           try {
-            await sendWhatsAppMessage(sanitizedPhone, whatsappMessage);
-            console.log('✅ WhatsApp enviado com sucesso para visitante recadastrado');
+            const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
+
+            const whatsappResultRecadastro = await sendVisitorWhatsApp({
+              name: sanitizedName,
+              phone: sanitizedPhone.replace(/\D/g, ''),
+              building: buildingNameRecadastro,
+              apartment: apartmentNumberRecadastro,
+              url: completionLinkRecadastro
+            });
+
+            if (whatsappResultRecadastro.success) {
+              console.log('✅ [Recadastro] WhatsApp enviado com sucesso para visitante recadastrado');
+              whatsappSentRecadastro = true;
+            } else {
+              console.warn('⚠️ [Recadastro] Erro ao enviar WhatsApp:', whatsappResultRecadastro.error);
+              whatsappErrorRecadastro = whatsappResultRecadastro.error || 'Erro desconhecido';
+            }
           } catch (whatsappError) {
-            console.error('❌ Erro ao enviar WhatsApp para visitante recadastrado:', whatsappError);
-            // Não interrompe o fluxo se o WhatsApp falhar
+            console.error('❌ [Recadastro] Exceção ao enviar WhatsApp:', whatsappError);
+            whatsappErrorRecadastro = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
           }
 
+          const successMessageRecadastro = whatsappSentRecadastro
+            ? `Visitante recadastrado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
+            : `Visitante recadastrado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorRecadastro}\n\nOriente o visitante a entrar em contato.`;
+
           Alert.alert(
-            'Sucesso', 
-            'Visitante recadastrado com sucesso! Uma nova mensagem com instruções foi enviada via WhatsApp.',
+            'Sucesso',
+            successMessageRecadastro,
             [{ text: 'OK', onPress: () => {
               setShowPreRegistrationModal(false);
               fetchVisitors(); // Recarregar lista
@@ -1299,8 +1316,20 @@ export default function VisitantesTab() {
       const completionLink = `${baseRegistrationUrl}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
       // Enviar mensagem via WhatsApp usando o serviço correto
+      console.log('📱 [handlePreRegistration] Iniciando envio de WhatsApp para visitante individual...');
+      let whatsappSent = false;
+      let whatsappErrorMessage = '';
+
       try {
         const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
+
+        console.log('📱 [handlePreRegistration] Chamando sendVisitorWhatsApp com dados:', {
+          name: sanitizedName,
+          phone: sanitizedPhone.replace(/\D/g, ''),
+          building: buildingName,
+          apartment: apartmentNumber,
+          url: completionLink
+        });
 
         const whatsappResult = await sendVisitorWhatsApp({
           name: sanitizedName,
@@ -1311,24 +1340,30 @@ export default function VisitantesTab() {
         });
 
         if (whatsappResult.success) {
-          console.log('✅ Mensagem WhatsApp enviada com sucesso para visitante');
+          console.log('✅ [handlePreRegistration] Mensagem WhatsApp enviada com sucesso para visitante');
+          whatsappSent = true;
         } else {
-          console.warn('⚠️ Erro ao enviar WhatsApp:', whatsappResult.error);
+          console.warn('⚠️ [handlePreRegistration] Erro ao enviar WhatsApp:', whatsappResult.error);
+          whatsappErrorMessage = whatsappResult.error || 'Erro desconhecido';
         }
       } catch (whatsappError) {
-        console.warn('⚠️ Não foi possível enviar WhatsApp (serviço pode estar indisponível):', whatsappError);
-        // Não interrompe o fluxo se o WhatsApp falhar
+        console.error('❌ [handlePreRegistration] Exceção ao enviar WhatsApp:', whatsappError);
+        whatsappErrorMessage = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
       }
 
-      // Sucesso no pré-cadastro independente do WhatsApp
+      // Mensagem de sucesso com informação sobre WhatsApp
+      const successMessage = whatsappSent
+        ? `Pré-cadastro realizado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
+        : `Pré-cadastro realizado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorMessage}\n\nOriente o visitante a entrar em contato.`;
+
       Alert.alert(
         'Sucesso!',
-        `Pré-cadastro realizado com sucesso!\n\nO visitante receberá o link de completação via WhatsApp no número ${formatBrazilianPhone(sanitizedPhone)}.`,
+        successMessage,
         [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
-            setPreRegistrationData({ 
-              name: '', 
-              phone: '', 
+            setPreRegistrationData({
+              name: '',
+              phone: '',
               visit_type: 'pontual',
               access_type: 'com_aprovacao',
               visit_date: '',
