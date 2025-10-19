@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import AuthForm from '../../components/AuthForm';
 import { adminAuth } from '../../utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 
 export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,8 +25,7 @@ export default function AdminLogin() {
   }, []);
 
   useEffect(() => {
-    // Redireciona para index.tsx se o usuário já estiver logado
-    // O index.tsx irá redirecionar para a página correta com delay
+    // Redireciona diretamente para /admin se o usuário já estiver logado
     if (!authLoading && user?.user_type === 'admin') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -33,7 +33,7 @@ export default function AdminLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/');
+        router.replace('/admin');
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
@@ -74,6 +74,13 @@ export default function AdminLogin() {
 
       if (result.user && result.adminProfile) {
         console.log('✅ Login realizado com sucesso!');
+
+        // Registrar push token imediatamente após login bem-sucedido
+        if (result.user.id) {
+          console.log('🔔 [AdminLogin] Registrando push token após login...');
+          await registerPushTokenAfterLogin(result.user.id, 'admin');
+        }
+
         // O redirecionamento será feito automaticamente pelo useEffect
         // que já tem o delay de 1.5s para melhor experiência visual
         return { success: true };

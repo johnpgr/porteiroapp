@@ -11,7 +11,7 @@ import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
-// Removed old notification service - using Edge Functions for push notifications
+import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 
 export interface AuthUser {
   id: string;
@@ -55,9 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Função para logs apenas de erros críticos
   const logError = (message: string, error?: any) => {
-    if (__DEV__) {
-      console.error(`[AuthProvider] ${message}`, error || '');
-    }
+    console.error(`[AuthProvider] ${message}`, error || '');
   };
 
   // Função para verificar se a sessão é válida
@@ -258,13 +256,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Função melhorada para verificar sessão
   const checkSession = useCallback(async () => {
+    const timeout = setTimeout(() => {
+      console.error('[AuthProvider] ⚠️ checkSession timeout - forçando setLoading(false)');
+      setLoading(false);
+    }, 10000); // 10 segundos timeout
+
     try {
+      console.log('[AuthProvider] 🔍 Verificando sessão...');
+
       // Primeiro verifica se há uma sessão salva localmente
       const hasStoredToken = await TokenStorage.hasValidToken();
+      console.log('[AuthProvider] hasStoredToken:', hasStoredToken);
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
+      console.log('[AuthProvider] session existe:', !!session?.user);
 
       if (session?.user) {
         // Só salva o token se não há um token válido armazenado ou se é diferente
@@ -278,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         scheduleTokenRefresh();
         startHeartbeat();
       } else if (hasStoredToken) {
+        console.log('[AuthProvider] Tentando refresh da sessão...');
         // Tenta fazer refresh da sessão
         const refreshSuccess = await refreshSession();
 
@@ -294,9 +303,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await TokenStorage.clearAll();
         }
       }
+
+      console.log('[AuthProvider] ✅ checkSession concluído');
     } catch (error) {
       logError('Erro ao verificar sessão:', error);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, [SESSION_DURATION, refreshSession, scheduleTokenRefresh, startHeartbeat]);
@@ -545,7 +557,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleTokenRefresh();
       startHeartbeat();
 
-      // Push token registration now handled by Edge Functions
+      // Registra push token após login bem-sucedido
+      try {
+        const pushToken = await registerForPushNotificationsAsync();
+        if (pushToken && data.user) {
+          // Busca o profile_id do usuário
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .single();
+
+          if (profileData?.id) {
+            await savePushToken(profileData.id, pushToken);
+            console.log('✅ [useAuth] Push token registrado no login');
+          }
+        }
+      } catch (pushError) {
+        console.error('⚠️ [useAuth] Erro ao registrar push token:', pushError);
+        // Não bloqueia o login se falhar o registro do push token
+      }
 
       return { success: true };
     } catch (error) {

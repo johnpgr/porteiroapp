@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
 import { notificationApi } from '../services/notificationApi';
 import * as Notifications from 'expo-notifications';
+import { notifyPorteirosVisitorResponse } from '../services/pushNotificationService';
 
 interface PendingNotification {
   id: string;
@@ -182,26 +183,10 @@ export const usePendingNotifications = () => {
       const buildingName = building?.name || 'Edifício';
       const apartmentNumber = logData.apartments?.number || 'N/A';
 
-      // 1. Disparar Push Notification
-      try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '📢 Visitante na Portaria',
-            body: `${visitorName} está aguardando autorização para subir ao apartamento ${apartmentNumber}.`,
-            data: {
-              type: 'visitor_waiting',
-              visitor_log_id: newLog.id,
-              visitor_name: visitorName,
-              apartment: apartmentNumber,
-              building: buildingName
-            },
-          },
-          trigger: null, // Imediato
-        });
-
-      } catch (pushError) {
-        console.error('❌ Erro ao enviar push notification:', pushError);
-      }
+      // 1. Push Notification agora é enviada pela Edge Function no momento do registro
+      // Não precisamos mais disparar notificação local aqui para evitar duplicatas
+      console.log('ℹ️ [usePendingNotifications] Notificação push será enviada pela Edge Function durante o registro');
+      // A Edge Function send-push-notification já foi chamada em RegistrarVisitante/Encomenda/Veiculo
 
       // 2. Enviar WhatsApp se tiver telefone do morador
       if (residentPhone) {
@@ -296,79 +281,34 @@ export const usePendingNotifications = () => {
         .single();
 
       if (logError || !logData) {
-        console.error('Erro ao buscar dados da notificação:', logError);
-        return;
-      }
-
-      // Buscar porteiros do prédio
-      const { data: doorkeepers, error: doorkeepersError } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('building_id', buildingId)
-        .eq('user_type', 'porteiro');
-
-      if (doorkeepersError || !doorkeepers || doorkeepers.length === 0) {
-        console.warn('Nenhum porteiro encontrado para notificar:', doorkeepersError);
+        console.error('❌ [notifyDoorkeepers] Erro ao buscar dados da notificação:', logError);
         return;
       }
 
       // Preparar dados da mensagem
       const visitorName = logData.guest_name || logData.visitors?.name || 'Visitante';
       const apartmentNumber = logData.apartments?.number || 'N/A';
-      const buildingName = logData.apartments?.buildings?.name || 'Edifício';
-      const isDelivery = logData.entry_type === 'delivery';
-      
-      let title = '';
-      let body = '';
-      
-      if (response.action === 'approve') {
-        if (isDelivery && response.delivery_destination) {
-          const destinationText = {
-            'portaria': 'na portaria',
-            'elevador': 'no elevador',
-            'apartamento': 'no apartamento'
-          }[response.delivery_destination] || response.delivery_destination;
-          
-          title = '✅ Entrega Autorizada';
-          body = `Você ${apartmentNumber} autorizou deixar entrega de ${visitorName} ${destinationText}.`;
-        } else {
-          title = '✅ Visitante Autorizado';
-          body = `Você ${apartmentNumber} autorizou entrada de ${visitorName}.`;
-        }
+
+      console.log('📱 [notifyDoorkeepers] Enviando push notification para porteiros via Edge Function...');
+
+      // Enviar push notification via Edge Function
+      const pushResult = await notifyPorteirosVisitorResponse({
+        buildingId,
+        visitorName,
+        apartmentNumber,
+        status: response.action === 'approve' ? 'approved' : 'rejected',
+        deliveryDestination: response.delivery_destination,
+        reason: response.reason
+      });
+
+      if (pushResult.success) {
+        console.log('✅ [notifyDoorkeepers] Push notification enviada:', `${pushResult.sent} porteiro(s) notificado(s)`);
       } else {
-        const reasonText = response.reason ? ` Motivo: ${response.reason}` : '';
-        title = isDelivery ? '❌ Entrega Recusada' : '❌ Visitante Recusado';
-        body = `Morador do apt. ${apartmentNumber} recusou ${isDelivery ? 'entrega de' : 'entrada de'} ${visitorName}.${reasonText}`;
+        console.warn('⚠️ [notifyDoorkeepers] Falha ao enviar push:', pushResult.message);
       }
 
-      // Enviar notificação push para cada porteiro
-      for (const doorkeeper of doorkeepers) {
-        try {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title,
-              body,
-              data: {
-                type: 'resident_response',
-                visitor_log_id: notificationId,
-                response_action: response.action,
-                visitor_name: visitorName,
-                apartment: apartmentNumber,
-                building: buildingName,
-                delivery_destination: response.delivery_destination,
-                doorkeeper_id: doorkeeper.id
-              },
-            },
-            trigger: null, // Imediato
-          });
-          
-          console.log(`📱 Notificação enviada para porteiro ${doorkeeper.full_name || doorkeeper.id}`);
-        } catch (pushError) {
-          console.error(`❌ Erro ao enviar push para porteiro ${doorkeeper.id}:`, pushError);
-        }
-      }
     } catch (error) {
-      console.error('❌ Erro geral ao notificar porteiros:', error);
+      console.error('❌ [notifyDoorkeepers] Erro geral ao notificar porteiros:', error);
     }
   }, []);
 

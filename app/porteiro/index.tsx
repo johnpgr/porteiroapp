@@ -11,6 +11,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
@@ -25,6 +26,9 @@ import { useAuth } from '~/hooks/useAuth';
 import { useShiftControl } from '~/hooks/useShiftControl';
 import ActivityLogs from './logs';
 import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
+import notificationService from '~/services/notificationService';
+import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -704,6 +708,28 @@ export default function PorteiroDashboard() {
             shift_end: schedule.end,
             building_id: profile.building_id
           });
+
+          // 🔔 REGISTRAR PUSH TOKEN para notificações
+          try {
+            console.log('🔔 [PorteiroDashboard] Registrando push token para porteiro:', user.id);
+            const pushToken = await notificationService.registerForPushNotificationsAsync();
+
+            if (pushToken) {
+              const deviceType = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+              const saved = await notificationService.savePushToken(user.id, pushToken, deviceType);
+
+              if (saved) {
+                console.log('✅ [PorteiroDashboard] Push token registrado com sucesso');
+              } else {
+                console.warn('⚠️ [PorteiroDashboard] Falha ao salvar push token no banco');
+              }
+            } else {
+              console.warn('⚠️ [PorteiroDashboard] Push token não obtido (emulador ou permissão negada)');
+            }
+          } catch (pushError) {
+            console.error('❌ [PorteiroDashboard] Erro ao registrar push token:', pushError);
+            // Não bloquear o carregamento por erro de push token
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar dados do porteiro:', error);
@@ -1190,6 +1216,38 @@ export default function PorteiroDashboard() {
         });
       };
 
+      // Buscar o morador responsável pelo apartamento
+      // Primeiro tenta buscar o proprietário (is_owner = true)
+      let { data: apartmentResident, error: residentError } = await supabase
+        .from('apartment_residents')
+        .select('profile_id, profiles!inner(full_name)')
+        .eq('apartment_id', autorizacao.apartamento_id)
+        .eq('is_owner', true)
+        .maybeSingle();
+
+      // Se não encontrar proprietário, busca qualquer morador do apartamento
+      if (!apartmentResident || residentError) {
+        console.log('🔍 [confirmarChegada - index.tsx] Proprietário não encontrado, buscando qualquer morador do apartamento');
+        const result = await supabase
+          .from('apartment_residents')
+          .select('profile_id, profiles!inner(full_name)')
+          .eq('apartment_id', autorizacao.apartamento_id)
+          .limit(1)
+          .maybeSingle();
+
+        apartmentResident = result.data;
+        residentError = result.error;
+      }
+
+      let residentId = null;
+
+      if (apartmentResident && !residentError) {
+        residentId = apartmentResident.profile_id;
+        console.log(`✅ [confirmarChegada - index.tsx] Morador encontrado: ${apartmentResident.profiles.full_name} (ID: ${residentId})`);
+      } else {
+        console.error('❌ [confirmarChegada - index.tsx] Nenhum morador encontrado para apartment_id:', autorizacao.apartamento_id);
+      }
+
       // Registrar novo log de entrada (IN)
       const { error: logError } = await supabase
         .from('visitor_logs')
@@ -1201,7 +1259,7 @@ export default function PorteiroDashboard() {
           tipo_log: 'IN',
           visit_session_id: generateUUID(),
           purpose: `ACESSO PRÉ-AUTORIZADO - Visitante já aprovado pelo morador. Porteiro realizou verificação de entrada. Check-in por: ${porteiroData?.name || 'N/A'}. Tipo: ${visitorType}, Status: ${newStatus}`,
-          authorized_by: user.id, // ID do porteiro que está confirmando
+          resident_response_by: residentId, // ID do morador que pré-autorizou
           guest_name: autorizacao.nomeConvidado, // Nome do visitante para exibição
           entry_type: autorizacao.isEncomenda ? 'delivery' : 'visitor', // Tipo de entrada
           requires_notification: !autorizacao.jaAutorizado, // Se precisa notificar morador
@@ -1216,6 +1274,60 @@ export default function PorteiroDashboard() {
       if (logError) {
         Alert.alert('Erro', 'Não foi possível registrar o log de entrada.');
         return;
+      }
+
+      // Buscar dados do apartamento para notificação
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select('number')
+        .eq('id', autorizacao.apartamento_id)
+        .single();
+
+      if (apartmentError) {
+        console.error('❌ [confirmarChegada] Erro ao buscar dados do apartamento:', apartmentError);
+      }
+
+      // 1. Enviar notificação WhatsApp/SMS via Edge Function
+      try {
+        console.log('🔔 [confirmarChegada] Iniciando notificação para morador...');
+        const notificationResult = await notifyResidentOfVisitorArrival({
+          visitorName: autorizacao.nomeConvidado,
+          apartmentNumber: apartmentData?.number || 'N/A',
+          buildingId: profile.building_id,
+          visitorId: autorizacao.id,
+          purpose: autorizacao.purpose || 'Visita',
+          photo_url: autorizacao.photo_url,
+          entry_type: 'visitor'
+        });
+
+        if (notificationResult.success) {
+          console.log('✅ [confirmarChegada] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
+        } else {
+          console.warn('⚠️ [confirmarChegada] Falha ao enviar WhatsApp:', notificationResult.message);
+        }
+
+        // 2. Enviar Push Notification via Edge Function
+        try {
+          console.log('📱 [confirmarChegada] Enviando push notification para morador...');
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [autorizacao.apartamento_id],
+            visitorName: autorizacao.nomeConvidado,
+            apartmentNumber: apartmentData?.number || 'N/A',
+            purpose: autorizacao.purpose || 'Visita',
+            photoUrl: autorizacao.photo_url,
+          });
+
+          if (pushResult.success && pushResult.sent > 0) {
+            console.log('✅ [confirmarChegada] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+          } else {
+            console.warn('⚠️ [confirmarChegada] Falha ao enviar push:', pushResult.message);
+          }
+        } catch (pushError) {
+          console.error('❌ [confirmarChegada] Erro ao enviar push notification:', pushError);
+        }
+
+      } catch (notificationError) {
+        console.error('❌ [confirmarChegada] Erro ao enviar notificação:', notificationError);
       }
 
       // Mostrar modal de confirmação
@@ -1851,7 +1963,7 @@ export default function PorteiroDashboard() {
             countdown={countdown}
             supabase={supabase}
             user={user}
-            buildingIdRef={buildingIdRef}
+            buildingId={buildingIdRef.current}
             showConfirmationModal={showConfirmationModal}
           />
         );

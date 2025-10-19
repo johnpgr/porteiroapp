@@ -58,6 +58,7 @@ interface Vehicle {
   color?: string;
   type: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other';
   apartment_id: string;
+  ownership_type: 'visita' | 'proprietario';
   created_at: string;
 }
 
@@ -325,6 +326,7 @@ export default function CadastroTab() {
         .from('vehicles')
         .select('*')
         .eq('apartment_id', userResident.apartment_id)
+        .eq('ownership_type', 'proprietario')
         .order('created_at', { ascending: false });
 
       if (vehiclesError) {
@@ -380,7 +382,8 @@ export default function CadastroTab() {
           model: newVehicle.model.trim() || null,
           color: newVehicle.color.trim() || null,
           type: newVehicle.type,
-          apartment_id: userResident.apartment_id
+          apartment_id: userResident.apartment_id,
+          ownership_type: 'proprietario'
         })
         .select()
         .single();

@@ -91,6 +91,12 @@ export const formatBrazilianPhone = (phone: string): string => {
  * @returns {clean: string, international: string} - Números formatados
  */
 export const formatPhoneNumber = (phone: string): { clean: string; international: string } => {
+  // Validar se phone existe e não é undefined/null
+  if (!phone || typeof phone !== 'string') {
+    console.warn('formatPhoneNumber: Telefone inválido ou não fornecido:', phone);
+    return { clean: '', international: '55' };
+  }
+  
   const clean = phone.replace(/\D/g, '');
   const international = `55${clean}`;
   
@@ -113,12 +119,23 @@ export const generateRegistrationLink = (
   }
   
   // Fallback para compatibilidade com formato antigo
+  // Validar se phone existe antes de usar replace
+  if (!residentData.phone) {
+    console.warn('generateRegistrationLink: Telefone não fornecido, usando apenas dados básicos');
+    const params = new URLSearchParams({
+      nome: residentData.name || '',
+      apto: residentData.apartment || '',
+      predio: residentData.building || '',
+    });
+    return `${baseUrl}?${params.toString()}`;
+  }
+  
   const cleanPhone = residentData.phone.replace(/\D/g, '');
   const params = new URLSearchParams({
     telefone: cleanPhone,
-    nome: residentData.name,
-    apto: residentData.apartment,
-    predio: residentData.building,
+    nome: residentData.name || '',
+    apto: residentData.apartment || '',
+    predio: residentData.building || '',
   });
 
   return `${baseUrl}?${params.toString()}`;
@@ -169,6 +186,14 @@ export const sendWhatsAppMessage = async (
   });
 
   try {
+    // Validar dados obrigatórios
+    if (!residentData.name) {
+      return {
+        success: false,
+        error: 'Nome do morador é obrigatório',
+      };
+    }
+
     // Formata o número de telefone
     const phoneNumber = formatPhoneNumber(residentData.phone);
     console.log('📱 Número formatado:', {
@@ -176,6 +201,14 @@ export const sendWhatsAppMessage = async (
       clean: phoneNumber.clean,
       international: phoneNumber.international,
     });
+
+    // Verificar se o telefone foi formatado corretamente
+    if (!phoneNumber.clean) {
+      return {
+        success: false,
+        error: 'Número de telefone inválido ou não fornecido',
+      };
+    }
 
     // Gera email automaticamente se não fornecido
     const email = residentData.email || `${phoneNumber.clean}@temp.jamesconcierge.com`;

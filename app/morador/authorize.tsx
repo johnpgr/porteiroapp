@@ -132,17 +132,37 @@ export default function AuthorizeScreen() {
           created_by: user.id,
         });
 
-        // Enviar notificação push para o porteiro
+        // Enviar notificação push para o porteiro via Edge Function
         try {
-          await notifyPorteiroVisitorAuthorized({
-            visitorName: selectedVisitor.name,
-            apartmentNumber: selectedVisitor.apartment_number,
+          const { sendPushNotification } = await import('../../utils/pushNotifications');
+
+          const isApproved = actionType === 'approve';
+          const title = isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Rejeitado';
+          const message = isApproved
+            ? `${selectedVisitor.name} foi aprovado para o apartamento ${selectedVisitor.apartment_number}`
+            : `A entrada de ${selectedVisitor.name} foi rejeitada pelo apartamento ${selectedVisitor.apartment_number}`;
+
+          const result = await sendPushNotification({
+            title,
+            message,
+            type: 'visitor',
+            userType: 'porteiro',
             buildingId: apartmentData.building_id,
-            visitorId: selectedVisitor.id
+            data: {
+              type: isApproved ? 'visitor_approved' : 'visitor_rejected',
+              visitor_id: selectedVisitor.id,
+              visitor_name: selectedVisitor.name,
+              apartment_number: selectedVisitor.apartment_number,
+            },
           });
-          console.log('Notificação push enviada para o porteiro com sucesso');
+
+          if (result.success) {
+            console.log(`✅ Notificação push enviada para ${result.sent} porteiro(s)`);
+          } else {
+            console.warn('⚠️ Nenhuma notificação enviada:', result.error);
+          }
         } catch (pushError) {
-          console.error('Erro ao enviar notificação push para o porteiro:', pushError);
+          console.error('❌ Erro ao enviar notificação push para o porteiro:', pushError);
           // Não interrompe o fluxo principal se a notificação push falhar
         }
       }

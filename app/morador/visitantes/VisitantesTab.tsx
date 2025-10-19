@@ -124,35 +124,14 @@ const hashPassword = async (password: string): Promise<string> => {
   return hash;
 };
 
-// Função para armazenar senha temporária no banco de dados para visitantes
-const storeTemporaryPassword = async (visitorName: string, visitorPhone: string, plainPassword: string, hashedPassword: string, visitorId: string): Promise<void> => {
+// Função para gerar senha temporária (removida a funcionalidade de armazenamento)
+const generateTemporaryPasswordForVisitor = async (visitorName: string, visitorPhone: string, visitorId: string): Promise<string> => {
   try {
-    const insertData = {
-      visitor_name: visitorName,
-      visitor_phone: visitorPhone,
-      plain_password: plainPassword,
-      hashed_password: hashedPassword,
-      visitor_id: visitorId,
-      used: false,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
-    };
-
-    console.log('🔑 Armazenando senha temporária para visitante:', visitorName, visitorPhone);
-
-    const { error } = await supabase
-      .from('visitor_temporary_passwords')
-      .insert(insertData);
-    
-    if (error) {
-      console.error('Erro ao armazenar senha temporária:', error);
-      throw error;
-    }
-    
-    console.log('✅ Senha temporária armazenada com sucesso na tabela visitor_temporary_passwords');
+    const plainPassword = generateTemporaryPassword();
+    console.log('🔑 Senha temporária gerada para visitante:', visitorName, visitorPhone);
+    return plainPassword;
   } catch (error) {
-    console.error('❌ Erro ao armazenar senha temporária:', error);
+    console.error('❌ Erro ao gerar senha temporária:', error);
     throw error;
   }
 };
@@ -176,6 +155,18 @@ interface Visitor {
   visit_end_time?: string | null;
 }
 
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  brand?: string | null;
+  model?: string | null;
+  color?: string | null;
+  type?: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other' | null;
+  apartment_id: string;
+  ownership_type: 'visita' | 'proprietario';
+  created_at: string;
+}
+
 interface PreRegistrationData {
   name: string;
   phone: string;
@@ -188,6 +179,12 @@ interface PreRegistrationData {
   max_simultaneous_visits?: number;
   validity_start?: string;
   validity_end?: string;
+}
+
+// Interface para múltiplos visitantes
+interface MultipleVisitor {
+  name: string;
+  phone: string;
 }
 
 export default function VisitantesTab() {
@@ -220,6 +217,10 @@ export default function VisitantesTab() {
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
   const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
   
+  // Rate limiting para múltiplos visitantes
+  const [lastSubmissionTime, setLastSubmissionTime] = useState<number>(0);
+  const RATE_LIMIT_MS = 30000; // 30 segundos entre submissões múltiplas
+  
   // Estados para modal de edição
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
@@ -236,6 +237,28 @@ export default function VisitantesTab() {
   
   // Estado para controlar expansão dos cards
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  
+  // Estado para armazenar veículos
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  
+  // Estados para paginação e filtros
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
+  const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
+  const ITEMS_PER_PAGE = 10;
+  
+  // Estados para o modal de filtros
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
+  const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
+  
+  // Estados para múltiplos visitantes
+  const [registrationMode, setRegistrationMode] = useState<'individual' | 'multiple'>('individual');
+  const [multipleVisitors, setMultipleVisitors] = useState<MultipleVisitor[]>([
+    { name: '', phone: '' }
+  ]);
+  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
   
   // Função para alternar expansão do card
   const toggleCardExpansion = (visitorId: string) => {
@@ -377,14 +400,41 @@ export default function VisitantesTab() {
       console.log('✅ Visitantes encontrados para o apartamento:', visitorsData?.length || 0);
       console.log('📊 Dados dos visitantes:', visitorsData);
 
-      // Mapear os dados
+      // Buscar veículos filtrados por apartment_id e ownership_type = 'visita'
+      console.log('🚗 Buscando veículos de visitantes do apartamento...');
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select(`
+          id,
+          license_plate,
+          brand,
+          model,
+          color,
+          type,
+          apartment_id,
+          ownership_type,
+          created_at
+        `)
+        .eq('apartment_id', currentApartmentId)
+        .eq('ownership_type', 'visita')
+        .order('created_at', { ascending: false });
+
+      if (vehiclesError) {
+        console.error('❌ Erro ao buscar veículos:', vehiclesError);
+        // Não interrompe o fluxo se houver erro nos veículos, apenas loga
+      } else {
+        console.log('✅ Veículos encontrados para o apartamento:', vehiclesData?.length || 0);
+        console.log('📊 Dados dos veículos:', vehiclesData);
+      }
+
+      // Mapear os dados dos visitantes
       const mappedVisitors: Visitor[] = (visitorsData || []).map(visitor => ({
         id: visitor.id,
         name: visitor.name || 'Nome não informado',
         document: visitor.document,
         phone: visitor.phone,
         photo_url: visitor.photo_url,
-        status: visitor.status || 'aprovado',
+        status: visitor.status,
         visitor_type: visitor.visitor_type || 'comum',
         access_type: visitor.access_type || 'com_aprovacao',
         created_at: visitor.created_at,
@@ -395,7 +445,21 @@ export default function VisitantesTab() {
         visit_end_time: visitor.visit_end_time
       }));
 
+      // Mapear os dados dos veículos
+      const mappedVehicles: Vehicle[] = (vehiclesData || []).map(vehicle => ({
+        id: vehicle.id,
+        license_plate: vehicle.license_plate,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        color: vehicle.color,
+        type: vehicle.type,
+        apartment_id: vehicle.apartment_id,
+        ownership_type: vehicle.ownership_type || 'proprietario',
+        created_at: vehicle.created_at
+      }));
+
       setVisitors(mappedVisitors);
+      setVehicles(mappedVehicles);
     } catch (error) {
       console.error('❌ Erro geral ao buscar visitantes:', error);
       setError('Erro ao carregar visitantes');
@@ -407,6 +471,89 @@ export default function VisitantesTab() {
   useEffect(() => {
     fetchVisitors();
   }, [fetchVisitors]);
+
+  // Função para contar filtros ativos
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (statusFilter !== 'todos') count++;
+    if (typeFilter !== 'todos') count++;
+    return count;
+  };
+
+  // Função para aplicar filtros do modal
+  const applyFilters = () => {
+    setStatusFilter(tempStatusFilter);
+    setTypeFilter(tempTypeFilter);
+    setCurrentPage(1); // Reset pagination
+    setFilterModalVisible(false);
+  };
+
+  // Função para cancelar filtros do modal
+  const cancelFilters = () => {
+    setTempStatusFilter(statusFilter);
+    setTempTypeFilter(typeFilter);
+    setFilterModalVisible(false);
+  };
+
+  // Função para filtrar e paginar visitantes
+  const getFilteredAndPaginatedVisitors = () => {
+    let filteredVisitors = visitors;
+    let filteredVehicles = vehicles;
+
+    // Aplicar filtro de status
+    if (statusFilter !== 'todos') {
+      filteredVisitors = visitors.filter(visitor => {
+        // Normalizar status para comparação
+        const visitorStatus = visitor.status?.toLowerCase();
+        const filterStatus = statusFilter.toLowerCase();
+        
+        // Permitir apenas 'pendente' e 'expirado'
+        if (filterStatus === 'pendente') {
+          return visitorStatus === 'pendente';
+        } else if (filterStatus === 'expirado') {
+          return visitorStatus === 'expirado';
+        }
+        
+        return false;
+      });
+    } else {
+      // Quando 'todos', mostrar apenas visitantes com status 'pendente' ou 'expirado'
+      filteredVisitors = visitors.filter(visitor => {
+        const visitorStatus = visitor.status?.toLowerCase();
+        return visitorStatus === 'pendente' || visitorStatus === 'expirado';
+      });
+    }
+
+    // Aplicar filtro de tipo
+    let combinedItems: any[] = [];
+    
+    if (typeFilter === 'todos') {
+      // Mostrar visitantes e veículos
+      combinedItems = [
+        ...filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' })),
+        ...filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }))
+      ];
+    } else if (typeFilter === 'visitantes') {
+      // Mostrar apenas visitantes
+      combinedItems = filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' }));
+    } else if (typeFilter === 'veiculos') {
+      // Mostrar apenas veículos
+      combinedItems = filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }));
+    }
+
+    // Calcular paginação
+    const totalPages = Math.ceil(combinedItems.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const paginatedItems = combinedItems.slice(startIndex, endIndex);
+
+    return {
+      visitors: paginatedItems.filter(item => item.itemType === 'visitor'),
+      vehicles: paginatedItems.filter(item => item.itemType === 'vehicle'),
+      totalPages,
+      totalItems: combinedItems.length
+    };
+  };
 
   const formatDisplayDate = (dateString: string) => {
     try {
@@ -443,32 +590,20 @@ export default function VisitantesTab() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'approved':
-      case 'aprovado':
-        return '✅';
-      case 'rejected':
-      case 'negado':
-      case 'nao_permitido':
+  const getStatusIcon = (visitor: Visitor) => {
+    switch (visitor.status?.toLowerCase()) {
+      case 'expirado':
         return '❌';
-      case 'pending':
       case 'pendente':
       default:
         return '⏳';
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'approved':
-      case 'aprovado':
-        return 'Aprovado';
-      case 'rejected':
-      case 'negado':
-      case 'nao_permitido':
-        return 'Desaprovado';
-      case 'pending':
+  const getStatusText = (visitor: Visitor) => {
+    switch (visitor.status?.toLowerCase()) {
+      case 'expirado':
+        return 'Expirado';
       case 'pendente':
       default:
         return 'Pendente';
@@ -641,6 +776,42 @@ export default function VisitantesTab() {
     } catch (error) {
       console.error('Erro ao verificar conflitos:', error);
       return { hasConflict: false }; // Em caso de erro, permitir o cadastro
+    }
+  };
+
+  // Função para obter ícone do tipo de veículo
+  const getVehicleTypeIcon = (type: string | null | undefined) => {
+    switch (type) {
+      case 'car':
+        return '🚗';
+      case 'motorcycle':
+        return '🏍️';
+      case 'truck':
+        return '🚛';
+      case 'van':
+        return '🚐';
+      case 'bus':
+        return '🚌';
+      default:
+        return '🚗';
+    }
+  };
+
+  // Função para obter texto do tipo de veículo
+  const getVehicleTypeText = (type: string | null | undefined) => {
+    switch (type) {
+      case 'car':
+        return 'Carro';
+      case 'motorcycle':
+        return 'Moto';
+      case 'truck':
+        return 'Caminhão';
+      case 'van':
+        return 'Van';
+      case 'bus':
+        return 'Ônibus';
+      default:
+        return 'Veículo';
     }
   };
 
@@ -902,20 +1073,137 @@ export default function VisitantesTab() {
       const tokenExpiresAt = getTokenExpirationDate();
 
       // Determinar status inicial baseado no tipo de acesso selecionado
-      const initialStatus = preRegistrationData.access_type === 'direto' ? 'aprovado' : 'pendente';
+      const initialStatus = 'pendente';
 
       // Verificar se já existe visitante com mesmo nome e telefone
       const { data: existingVisitor } = await supabase
         .from('visitors')
-        .select('id, name, phone')
+        .select('id, name, phone, status')
         .eq('name', sanitizedName)
         .eq('phone', sanitizedPhone.replace(/\D/g, ''))
         .eq('apartment_id', currentApartmentId)
         .maybeSingle();
 
+      console.log('🔍 Verificando visitante existente:', { name: sanitizedName, phone: sanitizedPhone, existingVisitor });
+
       if (existingVisitor) {
-        Alert.alert('Aviso', 'Já existe um visitante cadastrado com este nome e telefone.');
-        return;
+        // Se o visitante existe e está expirado, permitir recadastração
+        if (existingVisitor.status?.toLowerCase() === 'expirado') {
+          console.log('♻️ Visitante expirado encontrado, permitindo recadastração:', existingVisitor.id);
+          
+          // Atualizar visitante expirado ao invés de criar novo
+          const updateData = {
+            status: initialStatus,
+            registration_token: registrationToken,
+            token_expires_at: tokenExpiresAt,
+            access_type: preRegistrationData.access_type || 'com_aprovacao',
+            visit_type: preRegistrationData.visit_type,
+            visit_start_time: preRegistrationData.visit_start_time || '00:00',
+            visit_end_time: preRegistrationData.visit_end_time || '23:59',
+            max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+            is_recurring: preRegistrationData.visit_type === 'frequente',
+            updated_at: new Date().toISOString()
+          };
+
+          // Adicionar campos específicos baseados no tipo de visita
+          if (preRegistrationData.visit_type === 'pontual') {
+            const [day, month, year] = preRegistrationData.visit_date.split('/');
+            updateData.visit_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          } else if (preRegistrationData.visit_type === 'frequente') {
+            updateData.allowed_days = preRegistrationData.allowed_days;
+          }
+
+          // Adicionar período de validade se fornecido
+          if (preRegistrationData.validity_start) {
+            const [day, month, year] = preRegistrationData.validity_start.split('/');
+            updateData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+
+          if (preRegistrationData.validity_end) {
+            const [day, month, year] = preRegistrationData.validity_end.split('/');
+            updateData.validity_end = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+
+          console.log('📝 Atualizando visitante expirado com dados:', updateData);
+
+          const { error: updateError } = await supabase
+            .from('visitors')
+            .update(updateData)
+            .eq('id', existingVisitor.id);
+
+          if (updateError) {
+            console.error('❌ Erro ao atualizar visitante expirado:', updateError);
+            Alert.alert('Erro', 'Erro ao recadastrar visitante. Tente novamente.');
+            return;
+          }
+
+          console.log('✅ Visitante expirado recadastrado com sucesso:', existingVisitor.id);
+
+          // Buscar dados do apartamento e prédio para o WhatsApp
+          const { data: apartmentDataRecadastro, error: apartmentErrorRecadastro } = await supabase
+            .from('apartments')
+            .select(`
+              number,
+              buildings!inner (
+                name
+              )
+            `)
+            .eq('id', currentApartmentId)
+            .single();
+
+          const buildingNameRecadastro = apartmentDataRecadastro?.buildings?.name || 'Edifício';
+          const apartmentNumberRecadastro = apartmentDataRecadastro?.number || 'Apartamento';
+
+          // Gerar link de completação do cadastro
+          const baseRegistrationUrlRecadastro = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+          const completionLinkRecadastro = `${baseRegistrationUrlRecadastro}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
+
+          console.log('📱 [Recadastro] Enviando WhatsApp para visitante recadastrado:', sanitizedPhone);
+          let whatsappSentRecadastro = false;
+          let whatsappErrorRecadastro = '';
+
+          try {
+            const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
+
+            const whatsappResultRecadastro = await sendVisitorWhatsApp({
+              name: sanitizedName,
+              phone: sanitizedPhone.replace(/\D/g, ''),
+              building: buildingNameRecadastro,
+              apartment: apartmentNumberRecadastro,
+              url: completionLinkRecadastro
+            });
+
+            if (whatsappResultRecadastro.success) {
+              console.log('✅ [Recadastro] WhatsApp enviado com sucesso para visitante recadastrado');
+              whatsappSentRecadastro = true;
+            } else {
+              console.warn('⚠️ [Recadastro] Erro ao enviar WhatsApp:', whatsappResultRecadastro.error);
+              whatsappErrorRecadastro = whatsappResultRecadastro.error || 'Erro desconhecido';
+            }
+          } catch (whatsappError) {
+            console.error('❌ [Recadastro] Exceção ao enviar WhatsApp:', whatsappError);
+            whatsappErrorRecadastro = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
+          }
+
+          const successMessageRecadastro = whatsappSentRecadastro
+            ? `Visitante recadastrado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
+            : `Visitante recadastrado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorRecadastro}\n\nOriente o visitante a entrar em contato.`;
+
+          Alert.alert(
+            'Sucesso',
+            successMessageRecadastro,
+            [{ text: 'OK', onPress: () => {
+              setShowPreRegistrationModal(false);
+              fetchVisitors(); // Recarregar lista
+            }}]
+          );
+          return;
+        } else {
+          // Se o visitante existe e não está expirado, mostrar erro
+          console.log('⚠️ Visitante já existe com status:', existingVisitor.status);
+          Alert.alert('Aviso', 'Já existe um visitante cadastrado com este nome e telefone.');
+          return;
+        }
       }
 
       // Preparar dados de agendamento
@@ -997,66 +1285,85 @@ export default function VisitantesTab() {
       const hashedPassword = await hashPassword(temporaryPassword);
       console.log('Senha temporária gerada para visitante:', sanitizedPhone.replace(/\D/g, ''));
 
-      // Armazenar senha temporária usando a função auxiliar
-      await storeTemporaryPassword(
+      // Gerar senha temporária (removida funcionalidade de armazenamento)
+      const temporaryPasswordGenerated = await generateTemporaryPasswordForVisitor(
         sanitizedName, // nome do visitante
         sanitizedPhone.replace(/\D/g, ''), // telefone do visitante
-        temporaryPassword,
-        hashedPassword,
         insertedVisitor.id // visitor_id do visitante inserido
       );
+
+      // Buscar dados do apartamento e prédio para o WhatsApp
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select(`
+          number,
+          buildings!inner (
+            name
+          )
+        `)
+        .eq('id', currentApartmentId)
+        .single();
+
+      if (apartmentError || !apartmentData) {
+        console.warn('⚠️ Não foi possível buscar dados do apartamento:', apartmentError);
+      }
+
+      const buildingName = apartmentData?.buildings?.name || 'Edifício';
+      const apartmentNumber = apartmentData?.number || 'Apartamento';
 
       // Gerar link de completação do cadastro para visitantes
       const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
       const completionLink = `${baseRegistrationUrl}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
-      // Preparar dados para WhatsApp seguindo o mesmo formato dos moradores
-      const visitorData: ResidentData = {
-        name: sanitizedName,
-        phone: sanitizedPhone,
-        building: 'Edifício', // Pode ser obtido dos dados do apartamento se necessário
-        apartment: 'Visitante' // Identificar como visitante
-      };
+      // Enviar mensagem via WhatsApp usando o serviço correto
+      console.log('📱 [handlePreRegistration] Iniciando envio de WhatsApp para visitante individual...');
+      let whatsappSent = false;
+      let whatsappErrorMessage = '';
 
-      // Gerar mensagem personalizada para visitante
-      const whatsappData = generateWhatsAppMessage(visitorData, completionLink);
-      
-      // Personalizar mensagem para visitante
-      const visitorMessage = whatsappData.message.replace(
-        'Olá! Você foi cadastrado como morador',
-        `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante`
-      ).replace(
-        'complete seu cadastro de morador',
-        'complete seu cadastro de visitante'
-      ).replace(
-        'Sua senha temporária é:',
-        `Sua senha temporária para acesso é: ${temporaryPassword}\n\nEsta senha expira em 7 dias.\n\nSua senha temporária é:`
-      );
-
-      // Enviar mensagem via WhatsApp (serviço temporariamente desabilitado)
-      // TODO: Reativar quando API do WhatsApp estiver disponível
       try {
-        // Tentar enviar WhatsApp usando a função disponível
-        await sendWhatsAppMessage({
-          phone: sanitizedPhone,
-          message: `Olá ${sanitizedName}! Você foi pré-cadastrado como visitante.\n\nComplete seu cadastro através do link:\n${completionLink}\n\nSenha temporária: ${temporaryPassword}\n\nEsta senha expira em 7 dias.`
+        const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
+
+        console.log('📱 [handlePreRegistration] Chamando sendVisitorWhatsApp com dados:', {
+          name: sanitizedName,
+          phone: sanitizedPhone.replace(/\D/g, ''),
+          building: buildingName,
+          apartment: apartmentNumber,
+          url: completionLink
         });
 
-        console.log('✅ Mensagem WhatsApp enviada com sucesso');
+        const whatsappResult = await sendVisitorWhatsApp({
+          name: sanitizedName,
+          phone: sanitizedPhone.replace(/\D/g, ''),
+          building: buildingName,
+          apartment: apartmentNumber,
+          url: completionLink
+        });
+
+        if (whatsappResult.success) {
+          console.log('✅ [handlePreRegistration] Mensagem WhatsApp enviada com sucesso para visitante');
+          whatsappSent = true;
+        } else {
+          console.warn('⚠️ [handlePreRegistration] Erro ao enviar WhatsApp:', whatsappResult.error);
+          whatsappErrorMessage = whatsappResult.error || 'Erro desconhecido';
+        }
       } catch (whatsappError) {
-        console.warn('⚠️ Não foi possível enviar WhatsApp (serviço pode estar indisponível):', whatsappError);
-        // Não interrompe o fluxo se o WhatsApp falhar
+        console.error('❌ [handlePreRegistration] Exceção ao enviar WhatsApp:', whatsappError);
+        whatsappErrorMessage = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
       }
 
-      // Sucesso no pré-cadastro independente do WhatsApp
+      // Mensagem de sucesso com informação sobre WhatsApp
+      const successMessage = whatsappSent
+        ? `Pré-cadastro realizado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
+        : `Pré-cadastro realizado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorMessage}\n\nOriente o visitante a entrar em contato.`;
+
       Alert.alert(
         'Sucesso!',
-        `Pré-cadastro realizado com sucesso!\n\nO visitante receberá o link de completação via WhatsApp no número ${formatBrazilianPhone(sanitizedPhone)}.\n\nLink: ${completionLink}\nSenha: ${temporaryPassword}`,
+        successMessage,
         [{ text: 'OK', onPress: () => {
             setShowPreRegistrationModal(false);
-            setPreRegistrationData({ 
-              name: '', 
-              phone: '', 
+            setPreRegistrationData({
+              name: '',
+              phone: '',
               visit_type: 'pontual',
               access_type: 'com_aprovacao',
               visit_date: '',
@@ -1078,19 +1385,19 @@ export default function VisitantesTab() {
     }
   };
 
-  // Função para verificar se o visitante está aprovado
+  // Função para verificar se o visitante está aprovado (não existe mais)
   const isVisitorApproved = (visitor: Visitor): boolean => {
-    return visitor.status === 'aprovado' || visitor.status === 'approved';
+    return false; // Não existem mais visitantes aprovados
   };
 
-  // Função para verificar se o visitante está desaprovado
+  // Função para verificar se o visitante está desaprovado (agora é expirado)
   const isVisitorDisapproved = (visitor: Visitor): boolean => {
-    return visitor.status === 'nao_permitido' || visitor.status === 'rejected' || visitor.status === 'negado';
+    return visitor.status === 'expirado';
   };
 
-  // Função para verificar se o visitante tem status final (aprovado ou desaprovado)
+  // Função para verificar se o visitante tem status final (apenas expirado)
   const hasVisitorFinalStatus = (visitor: Visitor): boolean => {
-    return isVisitorApproved(visitor) || isVisitorDisapproved(visitor);
+    return visitor.status === 'expirado';
   };
 
   // Função para verificar se o visitante pode ser editado
@@ -1239,16 +1546,7 @@ export default function VisitantesTab() {
                 // Continuar mesmo se não houver logs para excluir
               }
 
-              // 2. Excluir senhas temporárias relacionadas
-              const { error: passwordError } = await supabase
-                .from('visitor_temporary_passwords')
-                .delete()
-                .eq('visitor_id', visitor.id);
-
-              if (passwordError) {
-                console.error('Erro ao excluir senhas temporárias:', passwordError);
-                // Continuar mesmo se não houver senhas para excluir
-              }
+              // 2. Senhas temporárias removidas (não mais necessárias)
 
               // 3. Por último, excluir o visitante
               const { error } = await supabase
@@ -1287,92 +1585,274 @@ export default function VisitantesTab() {
     );
   };
 
-  // Função para aprovar visitante
-  const handleApproveVisitor = async (visitor: Visitor) => {
-    if (hasVisitorFinalStatus(visitor)) {
-      Alert.alert(
-        'Ação não permitida',
-        'Este visitante já possui um status final (aprovado ou desaprovado) e não pode ser modificado.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+  // Funções de aprovação/desaprovação removidas - não são mais necessárias
+  // O sistema agora trabalha apenas com status 'pendente' e 'expirado'
 
-    try {
-      const { error } = await supabase
-        .from('visitors')
-        .update({
-          status: 'aprovado',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', visitor.id);
+  // ========== FUNÇÕES PARA MÚLTIPLOS VISITANTES ==========
 
-      if (error) {
-        console.error('Erro ao aprovar visitante:', error);
-        
-        // Tratamento específico para erros de coluna inexistente
-        if (error.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
-        } else if (error.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
-        } else {
-          Alert.alert('Erro', `Erro ao aprovar visitante: ${error.message}`);
-        }
-        return;
-      }
-
-      Alert.alert('Sucesso', 'Visitante aprovado com sucesso! O status foi bloqueado para evitar alterações futuras.');
-      fetchVisitors(); // Atualizar lista
-    } catch (error) {
-      console.error('Erro ao aprovar visitante:', error);
-      Alert.alert('Erro', 'Erro ao aprovar visitante. Tente novamente.');
-    }
+  // Função para adicionar um novo visitante à lista múltipla
+  const addMultipleVisitor = () => {
+    setMultipleVisitors([...multipleVisitors, { name: '', phone: '' }]);
   };
 
-  // Função para desaprovar visitante
-  const handleDisapproveVisitor = async (visitor: Visitor) => {
-    if (isVisitorDisapproved(visitor)) {
-      Alert.alert(
-        'Ação não permitida',
-        'Este visitante já foi desaprovado.',
-        [{ text: 'OK' }]
-      );
+  // Função para remover um visitante da lista múltipla
+  const removeMultipleVisitor = (index: number) => {
+    const newVisitors = multipleVisitors.filter((_, i) => i !== index);
+    setMultipleVisitors(newVisitors);
+  };
+
+  // Função para atualizar dados de um visitante específico na lista múltipla
+  const updateMultipleVisitor = (index: number, field: keyof MultipleVisitor, value: string) => {
+    const newVisitors = [...multipleVisitors];
+    newVisitors[index] = { ...newVisitors[index], [field]: value };
+    setMultipleVisitors(newVisitors);
+  };
+
+  // Função para validar múltiplos visitantes
+  const validateMultipleVisitors = (): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const phoneNumbers = new Set<string>();
+
+    // Validar campos obrigatórios do formulário principal
+    if (preRegistrationData.visit_type === 'pontual') {
+      if (!preRegistrationData.visit_date) {
+        errors.push('Data da visita é obrigatória para visitas pontuais');
+      }
+      if (!preRegistrationData.visit_start_time) {
+        errors.push('Horário de início é obrigatório para visitas pontuais');
+      }
+      if (!preRegistrationData.visit_end_time) {
+        errors.push('Horário de fim é obrigatório para visitas pontuais');
+      }
+    }
+
+    // Validar cada visitante
+    multipleVisitors.forEach((visitor, index) => {
+      const sanitizedName = sanitizeInput(visitor.name);
+      const sanitizedPhone = sanitizeInput(visitor.phone);
+
+      // Validar nome
+      if (!sanitizedName) {
+        errors.push(`Visitante ${index + 1}: Nome é obrigatório`);
+      } else if (!validateName(sanitizedName)) {
+        errors.push(`Visitante ${index + 1}: Nome deve conter apenas letras e espaços (2-50 caracteres)`);
+      }
+
+      // Validar telefone
+      if (!sanitizedPhone) {
+        errors.push(`Visitante ${index + 1}: Telefone é obrigatório`);
+      } else if (!validatePhoneNumber(sanitizedPhone)) {
+        errors.push(`Visitante ${index + 1}: Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX`);
+      } else {
+        const cleanPhone = sanitizedPhone.replace(/\D/g, '');
+        if (phoneNumbers.has(cleanPhone)) {
+          errors.push(`Visitante ${index + 1}: Telefone duplicado na lista`);
+        } else {
+          phoneNumbers.add(cleanPhone);
+        }
+      }
+    });
+
+    // Verificar se há pelo menos um visitante
+    if (multipleVisitors.length === 0) {
+      errors.push('Adicione pelo menos um visitante');
+    }
+
+    return { isValid: errors.length === 0, errors };
+  };
+
+  // Função para processar múltiplos visitantes
+  const handleMultiplePreRegistration = async () => {
+    if (isProcessingMultiple) return;
+
+    // Validar dados
+    const validation = validateMultipleVisitors();
+    if (!validation.isValid) {
+      Alert.alert('Erro de Validação', validation.errors.join('\n'));
       return;
     }
 
-    try {
-      const { error } = await supabase
-        .from('visitors')
-        .update({
-          status: 'nao_permitido',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', visitor.id);
+    setIsProcessingMultiple(true);
+    setProcessingStatus('Iniciando processamento...');
 
-      if (error) {
-        console.error('Erro ao desaprovar visitante:', error);
-        
-        // Tratamento específico para erros de coluna inexistente
-        if (error.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
-        } else if (error.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
-        } else {
-          Alert.alert('Erro', `Erro ao desaprovar visitante: ${error.message}`);
-        }
+    const results = {
+      success: 0,
+      errors: [] as string[]
+    };
+
+    try {
+      // Verificar rate limiting
+      const now = Date.now();
+      if (now - lastSubmissionTime < RATE_LIMIT_MS) {
+        const remainingTime = Math.ceil((RATE_LIMIT_MS - (now - lastSubmissionTime)) / 1000);
+        Alert.alert('Aguarde', `Aguarde ${remainingTime} segundos antes de fazer outro cadastro.`);
         return;
       }
 
-      Alert.alert('Sucesso', 'Visitante desaprovado com sucesso!');
-      fetchVisitors(); // Atualizar lista
+      // Obter apartment ID
+      const currentApartmentId = await loadApartmentId();
+      if (!currentApartmentId) {
+        Alert.alert('Erro', 'Não foi possível identificar seu apartamento. Tente novamente.');
+        return;
+      }
+
+      // Processar cada visitante
+      for (let i = 0; i < multipleVisitors.length; i++) {
+        const visitor = multipleVisitors[i];
+        setProcessingStatus(`Processando visitante ${i + 1} de ${multipleVisitors.length}...`);
+
+        try {
+          const sanitizedName = sanitizeInput(visitor.name);
+          const sanitizedPhone = sanitizeInput(visitor.phone);
+          const cleanPhone = sanitizedPhone.replace(/\D/g, '');
+
+          // Verificar se visitante já existe
+          const { data: existingVisitor } = await supabase
+            .from('visitors')
+            .select('id, status, created_at')
+            .eq('phone', cleanPhone)
+            .eq('apartment_id', currentApartmentId)
+            .single();
+
+          let visitorData;
+
+          if (existingVisitor) {
+            // Visitante existe - verificar se pode ser re-registrado
+            const createdAt = new Date(existingVisitor.created_at);
+            const now = new Date();
+            const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+
+            if (existingVisitor.status === 'pendente' && hoursDiff < 24) {
+              results.errors.push(`${sanitizedName}: Visitante já possui cadastro ativo`);
+              continue;
+            }
+
+            // Atualizar visitante existente
+            const registrationToken = generateRegistrationToken();
+
+            visitorData = {
+              name: sanitizedName,
+              phone: cleanPhone,
+              visitor_type: preRegistrationData.visitor_type || 'comum',
+              visit_type: preRegistrationData.visit_type,
+              access_type: preRegistrationData.access_type,
+              visit_date: preRegistrationData.visit_date || null,
+              visit_start_time: preRegistrationData.visit_start_time || null,
+              visit_end_time: preRegistrationData.visit_end_time || null,
+              allowed_days: preRegistrationData.allowed_days || [],
+              max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+              validity_start: preRegistrationData.validity_start || null,
+              validity_end: preRegistrationData.validity_end || null,
+              registration_token: registrationToken,
+              status: 'pendente',
+              updated_at: new Date().toISOString()
+            };
+
+            const { error: updateError } = await supabase
+              .from('visitors')
+              .update(visitorData)
+              .eq('id', existingVisitor.id);
+
+            if (updateError) throw updateError;
+          } else {
+            // Criar novo visitante
+            const registrationToken = generateRegistrationToken();
+
+            visitorData = {
+              name: sanitizedName,
+              phone: cleanPhone.replace(/\D/g, ''),
+              status: 'pendente',
+              access_type: preRegistrationData.access_type || 'com_aprovacao',
+              apartment_id: currentApartmentId,
+              registration_token: registrationToken,
+              token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              visit_type: preRegistrationData.visit_type,
+              visit_start_time: preRegistrationData.visit_start_time || '00:00',
+              visit_end_time: preRegistrationData.visit_end_time || '23:59',
+              max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+              is_recurring: preRegistrationData.visit_type === 'frequente'
+            };
+
+            // Adicionar período de validade se fornecido
+            if (preRegistrationData.validity_start) {
+              const [day, month, year] = preRegistrationData.validity_start.split('/');
+              visitorData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+
+            // Adicionar campos específicos baseados no tipo de visita
+            if (preRegistrationData.visit_type === 'pontual') {
+              // Converter data DD/MM/AAAA para formato ISO (AAAA-MM-DD)
+              if (preRegistrationData.visit_date) {
+                const [day, month, year] = preRegistrationData.visit_date.split('/');
+                visitorData.visit_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+              }
+            } else if (preRegistrationData.visit_type === 'frequente') {
+              visitorData.allowed_days = preRegistrationData.allowed_days;
+            }
+
+            const { error: insertError } = await supabase
+              .from('visitors')
+              .insert([visitorData]);
+
+            if (insertError) throw insertError;
+          }
+
+          results.success++;
+        } catch (error) {
+          console.error(`Erro ao processar visitante ${visitor.name}:`, error);
+          results.errors.push(`${visitor.name}: ${error.message || 'Erro desconhecido'}`);
+        }
+      }
+
+      // Atualizar rate limiting
+      setLastSubmissionTime(now);
+
+      // Mostrar resultado
+      let message = `✅ ${results.success} visitante(s) cadastrado(s) com sucesso!`;
+      
+      if (results.errors.length > 0) {
+        message += `\n\n❌ Erros encontrados:\n${results.errors.join('\n')}`;
+      }
+
+      Alert.alert(
+        results.errors.length === 0 ? 'Sucesso!' : 'Processamento Concluído',
+        message,
+        [{
+          text: 'OK',
+          onPress: () => {
+            setShowPreRegistrationModal(false);
+            setRegistrationMode('individual');
+            setMultipleVisitors([{ name: '', phone: '' }]);
+            setPreRegistrationData({
+              name: '',
+              phone: '',
+              visit_type: 'pontual',
+              access_type: 'com_aprovacao',
+              visit_date: '',
+              visit_start_time: '',
+              visit_end_time: '',
+              allowed_days: [],
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
+            });
+            fetchVisitors();
+          }
+        }]
+      );
+
     } catch (error) {
-      console.error('Erro ao desaprovar visitante:', error);
-      Alert.alert('Erro', 'Erro ao desaprovar visitante. Tente novamente.');
+      console.error('Erro no processamento múltiplo:', error);
+      Alert.alert('Erro', 'Erro durante o processamento. Tente novamente.');
+    } finally {
+      setIsProcessingMultiple(false);
+      setProcessingStatus('');
     }
   };
 
   return (
-    <ScrollView style={styles.content}>
+    <>
+      <ScrollView style={styles.content}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
         <Text style={styles.sectionDescription}>
@@ -1413,6 +1893,24 @@ export default function VisitantesTab() {
           </View>
         </View>
 
+        {/* Botão de Filtros */}
+        <View style={styles.filtersContainer}>
+          <TouchableOpacity 
+            style={styles.filterModalButton}
+            onPress={() => {
+              setTempStatusFilter(statusFilter);
+              setTempTypeFilter(typeFilter);
+              setFilterModalVisible(true);
+            }}
+          >
+            <Ionicons name="filter" size={20} color="#4CAF50" />
+            <Text style={styles.filterModalButtonText}>
+              Filtros {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#666" />
+          </TouchableOpacity>
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
@@ -1426,19 +1924,60 @@ export default function VisitantesTab() {
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
-        ) : visitors.length === 0 ? (
+        ) : visitors.length === 0 && vehicles.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="people-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>Nenhum visitante pré-cadastrado</Text>
+            <Text style={styles.emptyText}>Nenhum visitante ou veículo cadastrado</Text>
             <Text style={styles.emptySubtext}>
-              Cadastre visitantes esperados para facilitar a entrada
+              Cadastre visitantes e veículos para facilitar a entrada
             </Text>
           </View>
         ) : (
-          visitors.map((visitor) => (
+          <>
+            {/* Renderizar veículos filtrados */}
+            {getFilteredAndPaginatedVisitors().vehicles.map((vehicle) => (
+              <View key={`vehicle-${vehicle.id}`} style={[styles.visitorCard, styles.vehicleCard]}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardMainInfo}>
+                    <Text style={styles.visitorName}>{vehicle.license_plate}</Text>
+                    <View style={styles.visitorTypeContainer}>
+                      <Text style={styles.visitorTypeIcon}>{getVehicleTypeIcon(vehicle.type)}</Text>
+                      <Text style={styles.visitorTypeText}>{getVehicleTypeText(vehicle.type)}</Text>
+                    </View>
+                    {vehicle.brand && (
+                      <Text style={styles.visitorDocument}>🏷️ {vehicle.brand} {vehicle.model || ''}</Text>
+                    )}
+                    {vehicle.color && (
+                      <Text style={styles.visitorPhone}>🎨 {vehicle.color}</Text>
+                    )}
+                    <Text style={styles.visitorDate}>
+                      Cadastrado: {formatDisplayDate(vehicle.created_at)}
+                    </Text>
+                    <View style={styles.visitorTypeContainer}>
+                      <Text style={styles.visitorTypeIcon}>
+                        {vehicle.ownership_type === 'visita' ? '👥' : '🏠'}
+                      </Text>
+                      <Text style={styles.visitorTypeText}>
+                        {vehicle.ownership_type === 'visita' ? 'Veículo de Visita' : 'Veículo do Proprietário'}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.cardHeaderActions}>
+                    <View style={styles.vehicleBadge}>
+                      <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ))}
+            
+            {/* Renderizar visitantes filtrados */}
+            {getFilteredAndPaginatedVisitors().visitors.map((visitor) => (
             <View key={visitor.id} style={[
               styles.visitorCard,
-              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved
+              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved,
+              visitor.status === 'expirado' && styles.visitorCardExpired
             ]}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardMainInfo}>
@@ -1474,18 +2013,14 @@ export default function VisitantesTab() {
                     styles.statusBadge,
                     isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved
                   ]}>
-                    <Text style={styles.statusIcon}>{getStatusIcon(visitor.status)}</Text>
+                    <Text style={styles.statusIcon}>{getStatusIcon(visitor)}</Text>
                     <Text style={[
                       styles.statusText,
                       isVisitorDisapproved(visitor) && styles.statusTextDisapproved
-                    ]}>{getStatusText(visitor.status)}</Text>
+                    ]}>{getStatusText(visitor)}</Text>
                   </View>
                   
-                  {hasVisitorFinalStatus(visitor) && (
-                    <View style={styles.approvedIndicator}>
-                      <Text style={styles.approvedIndicatorText}>🔒 Bloqueado</Text>
-                    </View>
-                  )}
+                  {/* Removido indicador "Expirado" incorreto - visitantes aprovados não devem mostrar como expirados */}
                   
                   <TouchableOpacity 
                     style={styles.menuButton}
@@ -1498,13 +2033,11 @@ export default function VisitantesTab() {
               
               {expandedCardId === visitor.id && (
                 <View style={styles.expandedActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.actionButton,
                       hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
                     ]}
-                  <TouchableOpacity
-                    style={styles.actionButton}
                     onPress={() => handleEditVisitor(visitor)}
                     disabled={hasVisitorFinalStatus(visitor)}
                   >
@@ -1514,56 +2047,72 @@ export default function VisitantesTab() {
                     ]}>✏️ Editar</Text>
                   </TouchableOpacity>
                   
-                  <TouchableOpacity 
-                    style={[
-                      styles.actionButton,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
-                    ]}
-                    onPress={() => handleApproveVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
-                    ]}>✅ Aprovar</Text>
-                  </TouchableOpacity>
+
                   
-                  <TouchableOpacity 
-                    style={[
-                      styles.actionButton,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
-                    ]}
-                    onPress={() => handleDisapproveVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
-                    ]}>❌ Desaprovar</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[
                       styles.actionButton, 
-                      styles.actionButtonDanger,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
+                      styles.actionButtonDanger
                     ]}
-
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.actionButtonDanger]}
                     onPress={() => handleDeleteVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
                   >
                     <Text style={[
                       styles.actionButtonText, 
-                      styles.actionButtonTextDanger,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
+                      styles.actionButtonTextDanger
                     ]}>🗑️ Excluir</Text>
                   </TouchableOpacity>
                 </View>
               )}
             </View>
-          ))
+          ))}
+          
+          {/* Controles de paginação */}
+          {(() => {
+            const { totalPages } = getFilteredAndPaginatedVisitors();
+            if (totalPages > 1) {
+              return (
+                <View style={styles.paginationContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationButton,
+                      currentPage === 1 && styles.paginationButtonDisabled
+                    ]}
+                    onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <Text style={[
+                      styles.paginationButtonText,
+                      currentPage === 1 && styles.paginationButtonTextDisabled
+                    ]}>
+                      ← Anterior
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.paginationInfo}>
+                    Página {currentPage} de {totalPages}
+                  </Text>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationButton,
+                      currentPage === totalPages && styles.paginationButtonDisabled
+                    ]}
+                    onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <Text style={[
+                      styles.paginationButtonText,
+                      currentPage === totalPages && styles.paginationButtonTextDisabled
+                    ]}>
+                      Próxima →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }
+            return null;
+          })()}
+          </>
         )}
       </View>
 
@@ -1571,7 +2120,7 @@ export default function VisitantesTab() {
       <Modal
         visible={showPreRegistrationModal}
         animationType="slide"
-        transparent={true}
+        transparent={false}
         onRequestClose={() => setShowPreRegistrationModal(false)}
       >
         <SafeAreaView style={styles.modalOverlay}>
@@ -1587,28 +2136,180 @@ export default function VisitantesTab() {
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {/* Toggle para modo de cadastro */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nome Completo *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={preRegistrationData.name}
-                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, name: text }))}
-                  placeholder="Digite o nome completo do visitante"
-                  placeholderTextColor="#999"
-                />
+                <Text style={styles.inputLabel}>Modo de Cadastro</Text>
+                <View style={styles.registrationModeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.registrationModeButton,
+                      registrationMode === 'individual' && styles.registrationModeButtonActive
+                    ]}
+                    onPress={() => {
+                      setRegistrationMode('individual');
+                      setMultipleVisitors([{ name: '', phone: '' }]);
+                    }}
+                  >
+                    <Ionicons 
+                      name="person" 
+                      size={20} 
+                      color={registrationMode === 'individual' ? '#fff' : '#4CAF50'} 
+                    />
+                    <Text style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'individual' && styles.registrationModeButtonTextActive
+                    ]}>Individual</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.registrationModeButton,
+                      registrationMode === 'multiple' && styles.registrationModeButtonActive
+                    ]}
+                    onPress={() => {
+                      setRegistrationMode('multiple');
+                      if (multipleVisitors.length === 0) {
+                        setMultipleVisitors([{ name: '', phone: '' }]);
+                      }
+                    }}
+                  >
+                    <Ionicons 
+                      name="people" 
+                      size={20} 
+                      color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'} 
+                    />
+                    <Text style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'multiple' && styles.registrationModeButtonTextActive
+                    ]}>Múltiplos</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Telefone *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={preRegistrationData.phone}
-                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, phone: text }))}
-                  placeholder="(XX) 9XXXX-XXXX"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
-              </View>
+              {/* Campos para cadastro individual */}
+              {registrationMode === 'individual' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Nome Completo *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.name}
+                      onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, name: text }))}
+                      placeholder="Digite o nome completo do visitante"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Telefone *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.phone}
+                      maxLength={15}
+                      onChangeText={(text) => {
+                        // Remove tudo que não é dígito
+                        const cleaned = text.replace(/\D/g, '');
+                        // Limita a 11 dígitos
+                        const limited = cleaned.slice(0, 11);
+                        // Aplica a formatação (XX) 9XXXX-XXXX
+                        let formatted = limited;
+                        if (limited.length > 6) {
+                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                        } else if (limited.length > 2) {
+                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                        } else if (limited.length > 0) {
+                          formatted = `(${limited}`;
+                        }
+                        setPreRegistrationData(prev => ({ ...prev, phone: formatted }));
+                      }}
+                      placeholder="(XX) 9XXXX-XXXX"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </>
+              )}
+
+              {/* Campos para cadastro múltiplo */}
+              {registrationMode === 'multiple' && (
+                <View style={styles.inputGroup}>
+                  <View style={styles.multipleVisitorsHeader}>
+                    <Text style={styles.inputLabel}>Visitantes *</Text>
+                    <TouchableOpacity
+                      style={styles.addVisitorButton}
+                      onPress={addMultipleVisitor}
+                    >
+                      <Ionicons name="add-circle" size={24} color="#4CAF50" />
+                      <Text style={styles.addVisitorButtonText}>Adicionar</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {multipleVisitors.map((visitor, index) => (
+                    <View key={index} style={styles.multipleVisitorItem}>
+                      <View style={styles.multipleVisitorHeader}>
+                        <Text style={styles.multipleVisitorTitle}>Visitante {index + 1}</Text>
+                        {multipleVisitors.length > 1 && (
+                          <TouchableOpacity
+                            style={styles.removeVisitorButton}
+                            onPress={() => removeMultipleVisitor(index)}
+                          >
+                            <Ionicons name="trash" size={20} color="#f44336" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      <View style={styles.multipleVisitorFields}>
+                        <View style={styles.multipleVisitorField}>
+                          <Text style={styles.multipleVisitorFieldLabel}>Nome *</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={visitor.name}
+                            onChangeText={(text) => updateMultipleVisitor(index, 'name', text)}
+                            placeholder="Nome completo"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
+
+                        <View style={styles.multipleVisitorField}>
+                          <Text style={styles.multipleVisitorFieldLabel}>Telefone *</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={visitor.phone}
+                            maxLength={15}
+                            onChangeText={(text) => {
+                              // Remove tudo que não é dígito
+                              const cleaned = text.replace(/\D/g, '');
+                              // Limita a 11 dígitos
+                              const limited = cleaned.slice(0, 11);
+                              // Aplica a formatação (XX) 9XXXX-XXXX
+                              let formatted = limited;
+                              if (limited.length > 6) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                              } else if (limited.length > 2) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                              } else if (limited.length > 0) {
+                                formatted = `(${limited}`;
+                              }
+                              updateMultipleVisitor(index, 'phone', formatted);
+                            }}
+                            placeholder="(XX) 9XXXX-XXXX"
+                            placeholderTextColor="#999"
+                            keyboardType="phone-pad"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Indicador de processamento para múltiplos visitantes */}
+                  {isProcessingMultiple && (
+                    <View style={styles.processingIndicator}>
+                      <ActivityIndicator size="small" color="#4CAF50" />
+                      <Text style={styles.processingText}>{processingStatus}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tipo de Visita *</Text>
@@ -1649,7 +2350,7 @@ export default function VisitantesTab() {
                     <Text style={[
                       styles.visitorTypeButtonText,
                       preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonTextActive
-                    ]}>Prestador de Serviço</Text>
+                    ]}>Serviço</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1823,14 +2524,67 @@ export default function VisitantesTab() {
                 </>
               )}
 
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                  {preRegistrationData.visit_type === 'frequente' 
-                    ? '• Visitantes frequentes têm acesso liberado nos dias e horários definidos\n• Ideal para prestadores de serviço regulares\n• O horário define o período em que podem entrar (ex: das 08h às 18h)\n• Acesso sempre requer aprovação do porteiro'
-                    : '• Visitantes pontuais têm acesso apenas na data específica\n• Status retorna a "não permitido" após a visita\n• O horário define o período em que podem entrar (ex: das 15h às 18h)\n• Acesso sempre requer aprovação do porteiro'
-                  }
-                </Text>
-              </View>
+              {/* Campos condicionais para prestador de serviço */}
+              {preRegistrationData.visit_type === 'prestador_servico' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Data da Visita *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.visit_date}
+                      onChangeText={(text) => {
+                        const formattedDate = formatDate(text);
+                        setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
+                      }}
+                      placeholder="DD/MM/AAAA"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+
+                  <View style={styles.timeInputRow}>
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_start_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setPreRegistrationData(prev => ({ ...prev, visit_start_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 08:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputGroup}>
+                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_end_time}
+                        onChangeText={(text) => {
+                          const formattedTime = formatTime(text);
+                          setPreRegistrationData(prev => ({ ...prev, visit_end_time: formattedTime }));
+                        }}
+                        placeholder="HH:MM (ex: 18:00)"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={5}
+                      />
+                    </View>
+                  </View>
+                  
+                  <View style={styles.infoBox}>
+                    <Text style={styles.infoText}>
+                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
+                    </Text>
+                  </View>
+                </>
+              )}
+
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -1844,13 +2598,15 @@ export default function VisitantesTab() {
               <TouchableOpacity
                 style={[
                   styles.submitButton,
-                  isSubmittingPreRegistration && styles.submitButtonDisabled
+                  (isSubmittingPreRegistration || isProcessingMultiple) && styles.submitButtonDisabled
                 ]}
-                onPress={handlePreRegistration}
-                disabled={isSubmittingPreRegistration}
+                onPress={registrationMode === 'individual' ? handlePreRegistration : handleMultiplePreRegistration}
+                disabled={isSubmittingPreRegistration || isProcessingMultiple}
               >
                 <Text style={styles.submitButtonText}>
-                  {isSubmittingPreRegistration ? 'Enviando...' : 'Enviar Link WhatsApp'}
+                  {isSubmittingPreRegistration || isProcessingMultiple 
+                    ? (registrationMode === 'multiple' ? 'Processando...' : 'Enviando...') 
+                    : 'Cadastrar'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2144,9 +2900,147 @@ export default function VisitantesTab() {
           </View>
         </SafeAreaView>
       </Modal>
+      </ScrollView>
 
+      {/* Modal de Filtros */}
+    <Modal
+      visible={filterModalVisible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={cancelFilters}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Filtros</Text>
+            <TouchableOpacity onPress={cancelFilters}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
 
-    </ScrollView>
+          <View style={styles.modalContent}>
+            {/* Filtros de Status */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Status</Text>
+              <View style={styles.filterOptionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'todos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('todos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'todos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'pendente' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('pendente')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'pendente' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Pendentes
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempStatusFilter === 'expirado' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempStatusFilter('expirado')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempStatusFilter === 'expirado' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Expirados
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Filtros de Tipo */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Tipo</Text>
+              <View style={styles.filterOptionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'todos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('todos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'todos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('visitantes')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Visitantes
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.modalFilterButton,
+                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonActive
+                  ]}
+                  onPress={() => setTempTypeFilter('veiculos')}
+                >
+                  <Text style={[
+                    styles.modalFilterButtonText,
+                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonTextActive
+                  ]}>
+                    Veículos
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity 
+              style={styles.modalCancelButton}
+              onPress={cancelFilters}
+            >
+              <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.modalApplyButton}
+              onPress={applyFilters}
+            >
+              <Text style={styles.modalApplyButtonText}>Aplicar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+       </View>
+     </Modal>
+    </>
   );
 }
 
@@ -2272,6 +3166,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     opacity: 0.7,
   },
+  visitorCardExpired: {
+    backgroundColor: '#f5f5f5',
+    opacity: 0.5,
+  },
   visitorName: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -2363,15 +3261,17 @@ const styles = StyleSheet.create({
   },
   // Estilos do Modal
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: '#fff',
+    justifyContent: 'flex-start',
   },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 0,
-    width: '100%',
-    height: '100%',
-    marginTop: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2402,12 +3302,11 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     paddingHorizontal: 20,
-    paddingTop: 15,
     flex: 1,
   },
   inputGroup: {
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
@@ -2433,6 +3332,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ddd',
+    textAlign: 'center',
     backgroundColor: '#f9f9f9',
     alignItems: 'center',
   },
@@ -2441,7 +3341,8 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
   },
   visitorTypeButtonText: {
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: 'center',
     fontWeight: '600',
     color: '#666',
   },
@@ -2466,6 +3367,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 20,
     paddingHorizontal: 20,
+    marginBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#eee',
     gap: 12,
@@ -2664,6 +3566,327 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  vehicleCard: {
+    backgroundColor: '#f0f8ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
+  },
+  vehicleBadge: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  vehicleBadgeText: {
+    color: '#1976d2',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  filtersContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  filtersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  filterButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  paginationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#4CAF50',
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  paginationButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  paginationButtonTextDisabled: {
+    color: '#999',
+  },
+  paginationInfo: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterSeparator: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#ddd',
+    marginHorizontal: 8,
+    alignSelf: 'center',
+  },
+  
+  // Estilos do botão de filtro modal
+  filterModalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    gap: 8,
+  },
+  filterModalButtonText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+  
+  // Estilos do modal
+  modalOverlay: {
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    width: '90%',
+    maxWidth: 400,
+    height: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  filterOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  modalFilterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  modalFilterButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  modalFilterButtonText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  modalFilterButtonTextActive: {
+    color: '#fff',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  modalApplyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+  },
+  modalApplyButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+  },
+
+  // ========== ESTILOS PARA MÚLTIPLOS VISITANTES ==========
+  
+  // Seletor de modo de cadastro
+  registrationModeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 4,
+    gap: 4,
+  },
+  registrationModeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+    gap: 8,
+  },
+  registrationModeButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  registrationModeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#4CAF50',
+  },
+  registrationModeButtonTextActive: {
+    color: '#fff',
+  },
+
+  // Header dos múltiplos visitantes
+  multipleVisitorsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addVisitorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0f8f0',
+    gap: 6,
+  },
+  addVisitorButtonText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+
+  // Item de visitante múltiplo
+  multipleVisitorItem: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  multipleVisitorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  multipleVisitorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  removeVisitorButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#ffebee',
+  },
+
+  // Campos do visitante múltiplo
+  multipleVisitorFields: {
+    gap: 12,
+  },
+  multipleVisitorField: {
+    gap: 6,
+  },
+  multipleVisitorFieldLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+
+  // Indicador de processamento
+  processingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#f0f8f0',
+    borderRadius: 8,
+    marginTop: 16,
+    gap: 12,
+  },
+  processingText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
   },
 
 });

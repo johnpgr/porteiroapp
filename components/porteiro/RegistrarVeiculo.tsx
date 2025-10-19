@@ -13,6 +13,7 @@ import {
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {
@@ -829,6 +830,60 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       }
 
       console.log('✅ [RegistrarVeiculo] Log registrado com sucesso');
+
+      // Enviar notificação push para os moradores via Edge Function
+      try {
+        console.log('📱 [RegistrarVeiculo] ==================== INICIO PUSH NOTIFICATION ====================');
+        console.log('📱 [RegistrarVeiculo] Apartamento ID:', apartmentData.id);
+        console.log('📱 [RegistrarVeiculo] Apartamento Number:', apartmentData.number);
+        console.log('📱 [RegistrarVeiculo] Convidado:', nomeConvidado);
+        console.log('📱 [RegistrarVeiculo] Placa:', placa);
+
+        // Verificar se há moradores com push_token neste apartamento
+        const { data: residentsCheck, error: checkError } = await supabase
+          .from('apartment_residents')
+          .select('profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)')
+          .eq('apartment_id', apartmentData.id);
+
+        console.log('🔍 [RegistrarVeiculo] Verificação de moradores:', {
+          apartmentId: apartmentData.id,
+          residentsCount: residentsCheck?.length,
+          error: checkError,
+          residents: residentsCheck?.map((r: any) => ({
+            name: r.profiles?.full_name,
+            user_type: r.profiles?.user_type,
+            has_token: !!r.profiles?.push_token,
+            notification_enabled: r.profiles?.notification_enabled,
+            token_preview: r.profiles?.push_token ? r.profiles.push_token.substring(0, 20) + '...' : null
+          }))
+        });
+
+        console.log('📱 [RegistrarVeiculo] Chamando notifyResidentsVisitorArrival...');
+
+        const pushResult = await notifyResidentsVisitorArrival({
+          apartmentIds: [apartmentData.id],
+          visitorName: nomeConvidado,
+          apartmentNumber: apartmentData.number,
+          purpose: `Veículo: ${placa}${modelo ? ' - ' + modelo : ''}`,
+          photoUrl: undefined,
+        });
+
+        console.log('📱 [RegistrarVeiculo] Resultado completo do push:', JSON.stringify(pushResult, null, 2));
+
+        if (pushResult.success && pushResult.sent > 0) {
+          console.log(`✅ [RegistrarVeiculo] Push notification enviada para ${pushResult.sent} morador(es)`);
+        } else {
+          console.warn('⚠️ [RegistrarVeiculo] Push notification não enviada:', pushResult.message);
+          console.warn('⚠️ [RegistrarVeiculo] Total tokens encontrados:', pushResult.total);
+          console.warn('⚠️ [RegistrarVeiculo] Enviados:', pushResult.sent);
+          console.warn('⚠️ [RegistrarVeiculo] Falhas:', pushResult.failed);
+        }
+        console.log('📱 [RegistrarVeiculo] ==================== FIM PUSH NOTIFICATION ====================');
+      } catch (pushError) {
+        console.error('❌ [RegistrarVeiculo] Erro ao enviar push notification:', pushError);
+        console.error('❌ [RegistrarVeiculo] Stack:', pushError instanceof Error ? pushError.stack : 'N/A');
+        // Não bloqueia o fluxo se a notificação push falhar
+      }
 
       // Enviar notificação via API (WhatsApp) após registro bem-sucedido
       if (visitorLogData?.id) {

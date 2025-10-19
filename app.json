@@ -17,7 +17,8 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#2196F3",
-          "mode": "production"
+          "mode": "production",
+          "sounds": ["./assets/audio/doorbell-push.mp3"]
         }
       ]
     ],
@@ -58,7 +59,7 @@
       ],
       "useNextNotificationsApi": true,
       "googleServicesFile": "./google-services.json",
-      "package": "com.fi123.porteiroapp"
+      "package": "com.porteiroapp.notifications"
     },
     "notification": {
       "icon": "./assets/notification-icon.png",

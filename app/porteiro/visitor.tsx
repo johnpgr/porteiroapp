@@ -201,11 +201,11 @@ export default function VisitorManagement() {
 
         // Gerar visit_session_id único para agrupar entrada/saída
         const visitSessionId = Crypto.randomUUID();
-        
+
         // Determinar o tipo de log baseado na ação
         let tipoLog: 'IN' | 'OUT' | null = null;
         let logStatus = 'authorized';
-        
+
         if (action === 'aprovado' || action === 'entrada') {
           tipoLog = 'IN';
           // Para visitantes frequentes, usar status 'permanent'
@@ -214,6 +214,38 @@ export default function VisitorManagement() {
           }
         } else if (action === 'saida') {
           tipoLog = 'OUT';
+        }
+
+        // Buscar o morador responsável pelo apartamento
+        // Primeiro tenta buscar o proprietário (is_owner = true)
+        let { data: apartmentResident, error: residentError } = await supabase
+          .from('apartment_residents')
+          .select('profile_id')
+          .eq('apartment_id', visitor.apartment_id)
+          .eq('is_owner', true)
+          .maybeSingle();
+
+        // Se não encontrar proprietário, busca qualquer morador do apartamento
+        if (!apartmentResident || residentError) {
+          console.log('🔍 [handleVisitorAction - visitor.tsx] Proprietário não encontrado, buscando qualquer morador do apartamento');
+          const result = await supabase
+            .from('apartment_residents')
+            .select('profile_id')
+            .eq('apartment_id', visitor.apartment_id)
+            .limit(1)
+            .maybeSingle();
+
+          apartmentResident = result.data;
+          residentError = result.error;
+        }
+
+        let residentId = null;
+
+        if (apartmentResident && !residentError) {
+          residentId = apartmentResident.profile_id;
+          console.log(`✅ [handleVisitorAction - visitor.tsx] Morador encontrado (ID: ${residentId})`);
+        } else {
+          console.error('❌ [handleVisitorAction - visitor.tsx] Nenhum morador encontrado para apartment_id:', visitor.apartment_id);
         }
 
         // Só criar log se for entrada ou saída
@@ -226,7 +258,7 @@ export default function VisitorManagement() {
             tipo_log: tipoLog,
             visit_session_id: visitSessionId,
             purpose: notes || 'Visita registrada pelo porteiro',
-            authorized_by: 'Porteiro', // TODO: pegar ID do usuário logado
+            resident_response_by: residentId, // ID do morador responsável
             notification_status: logStatus
           });
 

@@ -16,12 +16,14 @@ import * as Crypto from 'expo-crypto';
 import { flattenStyles } from '../../utils/styles';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { notifyNewVisitor } from '../../utils/pushNotifications';
 import { uploadVisitorPhoto } from '../../services/photoUploadService';
+import { notificationApi } from '../../services/notificationApi';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
 
 type FlowStep =
-  | 'predio'
   | 'apartamento'
+  | 'preauthorized'
   | 'tipo'
   | 'empresa_prestador'
   | 'empresa_entrega'
@@ -125,15 +127,13 @@ const isValidCPF = (cpf: string) => {
 
 export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisitanteProps) {
   const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<FlowStep>('predio');
-  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
-  const [availableBuildings, setAvailableBuildings] = useState<Building[]>([]);
-  const [isLoadingBuildings, setIsLoadingBuildings] = useState(false);
+  const [currentStep, setCurrentStep] = useState<FlowStep>('apartamento');
   const [apartamento, setApartamento] = useState('');
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(null);
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>([]);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
+  const [doormanBuildingName, setDoormanBuildingName] = useState<string>('');
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
   const [empresaPrestador, setEmpresaPrestador] = useState<EmpresaPrestador | null>(null);
@@ -148,6 +148,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cameraPermission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
+  const [isCheckingPreAuthorized, setIsCheckingPreAuthorized] = useState(false);
+  const [hasPreAuthorizedGuests, setHasPreAuthorizedGuests] = useState(false);
 
   // Função para solicitar permissão da câmera
   const requestCameraPermission = async () => {
@@ -166,13 +168,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     }
   };
 
-  // Obter building_id do porteiro
+  // Obter building_id e nome do prédio do porteiro
   useEffect(() => {
-    const getDoormanBuildingId = async () => {
+    const getDoormanBuildingInfo = async () => {
       if (user?.id) {
         const { data: profile, error } = await (supabase as any)
           .from('profiles')
-          .select('building_id')
+          .select('building_id, buildings(name)')
           .eq('id', user.id)
           .single();
 
@@ -181,44 +183,18 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
         } else {
           setDoormanBuildingId(profile.building_id);
+          setDoormanBuildingName(profile.buildings?.name || 'Prédio não identificado');
         }
       }
     };
 
-    getDoormanBuildingId();
+    getDoormanBuildingInfo();
   }, [user]);
-
-  // Carregar prédios disponíveis
-  useEffect(() => {
-    const fetchAvailableBuildings = async () => {
-      setIsLoadingBuildings(true);
-      try {
-        const { data: buildings, error } = await (supabase as any)
-          .from('buildings')
-          .select('id, name, address')
-          .order('name');
-
-        if (error) {
-          console.error('Erro ao buscar prédios:', error);
-          Alert.alert('Erro', 'Não foi possível carregar os prédios.');
-        } else {
-          setAvailableBuildings(buildings || []);
-        }
-      } catch (error) {
-        console.error('Erro ao buscar prédios:', error);
-        Alert.alert('Erro', 'Não foi possível carregar os prédios.');
-      } finally {
-        setIsLoadingBuildings(false);
-      }
-    };
-
-    fetchAvailableBuildings();
-  }, []);
 
   // Carregar apartamentos disponíveis
   useEffect(() => {
     const fetchAvailableApartments = async () => {
-      const buildingId = selectedBuilding?.id || doormanBuildingId;
+      const buildingId = doormanBuildingId;
       if (buildingId) {
         setIsLoadingApartments(true);
         try {
@@ -244,7 +220,46 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     };
 
     fetchAvailableApartments();
-  }, [selectedBuilding, doormanBuildingId]);
+  }, [doormanBuildingId]);
+
+  // Função para verificar convidados pré-autorizados
+  const checkPreAuthorizedGuests = async (apartmentId: string) => {
+    if (!apartmentId || !doormanBuildingId) return;
+
+    try {
+      setIsCheckingPreAuthorized(true);
+      console.log('🔍 [RegistrarVisitante] Verificando convidados pré-autorizados para apartamento:', apartmentId);
+
+      const { data: visitors, error } = await supabase
+        .from('visitors')
+        .select('id')
+        .eq('apartment_id', apartmentId)
+        .in('status', ['pendente', 'aprovado'])
+        .limit(1);
+
+      if (error) {
+        console.error('❌ [RegistrarVisitante] Erro ao verificar convidados pré-autorizados:', error);
+        setCurrentStep('tipo'); // Continuar fluxo normal em caso de erro
+        return;
+      }
+
+      const hasGuests = visitors && visitors.length > 0;
+      setHasPreAuthorizedGuests(hasGuests);
+
+      if (hasGuests) {
+        console.log('✅ [RegistrarVisitante] Convidados pré-autorizados encontrados, exibindo step preauthorized');
+        setCurrentStep('preauthorized');
+      } else {
+        console.log('ℹ️ [RegistrarVisitante] Nenhum convidado pré-autorizado encontrado, seguindo fluxo normal');
+        setCurrentStep('tipo');
+      }
+    } catch (error) {
+      console.error('❌ [RegistrarVisitante] Erro inesperado ao verificar convidados:', error);
+      setCurrentStep('tipo'); // Continuar fluxo normal em caso de erro
+    } finally {
+      setIsCheckingPreAuthorized(false);
+    }
+  };
 
   const renderNumericKeypad = (
     value: string,
@@ -307,55 +322,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       .map(floor => ({ floor, apartments: grouped[floor] }));
   };
 
-  const renderPredioStep = () => {
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🏢 Prédio</Text>
-        <Text style={styles.stepSubtitle}>Selecione o prédio de destino</Text>
 
-        {isLoadingBuildings ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2196F3" />
-            <Text style={styles.loadingText}>Carregando prédios...</Text>
-          </View>
-        ) : availableBuildings.length === 0 ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorTitle}>⚠️ Nenhum Prédio</Text>
-            <Text style={styles.errorText}>Não há prédios cadastrados no sistema.</Text>
-          </View>
-        ) : (
-          <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
-            <View style={styles.optionsContainer}>
-              {availableBuildings.map((building) => (
-                <TouchableOpacity
-                  key={building.id}
-                  style={[
-                    styles.optionButton,
-                    { borderLeftColor: '#2196F3' },
-                    selectedBuilding?.id === building.id && styles.apartmentButtonSelected,
-                  ]}
-                  onPress={() => {
-                    setSelectedBuilding(building);
-                    // Reset apartment selection when building changes
-                    setSelectedApartment(null);
-                    setApartamento('');
-                    setSelectedFloor(null);
-                    setCurrentStep('apartamento');
-                  }}>
-                  <Text style={styles.optionIcon}>🏢</Text>
-                  <Text style={styles.optionTitle}>{building.name}</Text>
-                  <Text style={styles.optionDescription}>{building.address}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        )}
-      </View>
-    );
-  };
 
   const renderApartamentoStep = () => {
-    const handleApartmentConfirm = () => {
+    const handleApartmentConfirm = async () => {
       if (!apartamento) {
         Alert.alert('Erro', 'Digite o número do apartamento.');
         return;
@@ -384,7 +354,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         id: foundApartment.id,
         number: foundApartment.number,
       });
-      setCurrentStep('tipo');
+      
+      // Verificar se existem convidados pré-autorizados para este apartamento
+      await checkPreAuthorizedGuests(foundApartment.id);
     };
 
     return (
@@ -871,14 +843,58 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return;
         }
 
-        // Enviar notificação push para os moradores do apartamento (não bloqueia o fluxo)
-        notifyNewVisitor({
-          visitorName: nomeVisitante,
-          visitorDocument: cpfVisitante,
-          apartmentIds: [selectedApartment.id],
-          apartmentNumber: apartamento,
-          visitorId: visitorId,
-        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
+        // Enviar notificação push para os moradores do apartamento via Edge Function
+        try {
+          console.log('📱 [RegistrarVisitante] ==================== INICIO PUSH NOTIFICATION ====================');
+          console.log('📱 [RegistrarVisitante] Apartamento ID:', selectedApartment.id);
+          console.log('📱 [RegistrarVisitante] Apartamento Number:', apartamento);
+          console.log('📱 [RegistrarVisitante] Visitor Name:', nomeVisitante);
+
+          // Verificar se há moradores com push_token neste apartamento
+          const { data: residentsCheck, error: checkError } = await (supabase as any)
+            .from('apartment_residents')
+            .select('profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)')
+            .eq('apartment_id', selectedApartment.id);
+
+          console.log('🔍 [RegistrarVisitante] Verificação de moradores:', {
+            apartmentId: selectedApartment.id,
+            residentsCount: residentsCheck?.length,
+            error: checkError,
+            residents: residentsCheck?.map((r: any) => ({
+              name: r.profiles?.full_name,
+              user_type: r.profiles?.user_type,
+              has_token: !!r.profiles?.push_token,
+              notification_enabled: r.profiles?.notification_enabled,
+              token_preview: r.profiles?.push_token ? r.profiles.push_token.substring(0, 20) + '...' : null
+            }))
+          });
+
+          console.log('📱 [RegistrarVisitante] Chamando notifyResidentsVisitorArrival...');
+
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [selectedApartment.id],
+            visitorName: nomeVisitante,
+            apartmentNumber: apartamento,
+            purpose: observacoes || purpose,
+            photoUrl: photoUrl || undefined,
+          });
+
+          console.log('📱 [RegistrarVisitante] Resultado completo do push:', JSON.stringify(pushResult, null, 2));
+
+          if (pushResult.success && pushResult.sent > 0) {
+            console.log(`✅ [RegistrarVisitante] Push notification enviada para ${pushResult.sent} morador(es)`);
+          } else {
+            console.warn('⚠️ [RegistrarVisitante] Push notification não enviada:', pushResult.message);
+            console.warn('⚠️ [RegistrarVisitante] Total tokens encontrados:', pushResult.total);
+            console.warn('⚠️ [RegistrarVisitante] Enviados:', pushResult.sent);
+            console.warn('⚠️ [RegistrarVisitante] Falhas:', pushResult.failed);
+          }
+          console.log('📱 [RegistrarVisitante] ==================== FIM PUSH NOTIFICATION ====================');
+        } catch (pushError) {
+          console.error('❌ [RegistrarVisitante] Erro ao enviar push notification:', pushError);
+          console.error('❌ [RegistrarVisitante] Stack:', pushError instanceof Error ? pushError.stack : 'N/A');
+          // Não bloqueia o fluxo se a notificação push falhar
+        }
 
         // Enviar notificação via API (WhatsApp)
         try {
@@ -953,7 +969,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <View style={styles.summaryContainer}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Prédio:</Text>
-            <Text style={styles.summaryValue}>{selectedBuilding?.name || 'Não selecionado'}</Text>
+            <Text style={styles.summaryValue}>{doormanBuildingName}</Text>
           </View>
 
           <View style={styles.summaryItem}>
@@ -1033,14 +1049,73 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     setPhotoUri(null);
     setPhotoUrl(null);
     setIsUploadingPhoto(false);
+    setIsCheckingPreAuthorized(false);
+    setHasPreAuthorizedGuests(false);
+  };
+
+  // Função para renderizar o step de convidados pré-autorizados
+  const renderPreAuthorizedStep = () => {
+    if (isCheckingPreAuthorized) {
+      return (
+        <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Verificando Convidados</Text>
+          <Text style={styles.stepSubtitle}>Aguarde enquanto verificamos se há convidados pré-autorizados...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            <Text style={styles.loadingText}>Carregando...</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (!selectedApartment || !doormanBuildingId) {
+      return (
+        <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Erro</Text>
+          <Text style={styles.stepSubtitle}>Informações do apartamento não encontradas.</Text>
+          <TouchableOpacity 
+            style={styles.nextButton} 
+            onPress={() => setCurrentStep('tipo')}
+          >
+            <Text style={styles.nextButtonText}>Continuar</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Convidados Pré-autorizados</Text>
+        <Text style={styles.stepSubtitle}>
+          Apartamento {selectedApartment.number} - Selecione um convidado ou continue o registro normal
+        </Text>
+        
+        <PreAuthorizedGuestsList
+          apartmentId={selectedApartment.id}
+          buildingId={doormanBuildingId}
+          onGuestSelected={() => {
+            // Quando um convidado for selecionado (check-in ou notificação), fechar o modal
+            console.log('✅ [RegistrarVisitante] Convidado selecionado, fechando modal');
+            onClose();
+          }}
+        />
+
+        <TouchableOpacity 
+          style={[styles.nextButton, { marginTop: 20 }]} 
+          onPress={() => setCurrentStep('tipo')}
+        >
+          <Text style={styles.nextButtonText}>Registrar Novo Visitante</Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 'predio':
-        return renderPredioStep();
       case 'apartamento':
         return renderApartamentoStep();
+      case 'preauthorized':
+        return renderPreAuthorizedStep();
       case 'tipo':
         return renderTipoStep();
       case 'empresa_prestador':
@@ -1058,7 +1133,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       case 'confirmacao':
         return renderConfirmacaoStep();
       default:
-        return renderPredioStep();
+        return renderApartamentoStep();
     }
   };
 
@@ -1077,7 +1152,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ predio: selectedBuilding, apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 8) * 100}%`,
+                width: `${(Object.keys({ apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
               },
             ]}
           />
