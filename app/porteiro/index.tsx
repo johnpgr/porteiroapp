@@ -27,6 +27,8 @@ import { useShiftControl } from '~/hooks/useShiftControl';
 import ActivityLogs from './logs';
 import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
 import notificationService from '~/services/notificationService';
+import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
+import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -1272,6 +1274,60 @@ export default function PorteiroDashboard() {
       if (logError) {
         Alert.alert('Erro', 'Não foi possível registrar o log de entrada.');
         return;
+      }
+
+      // Buscar dados do apartamento para notificação
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartments')
+        .select('number')
+        .eq('id', autorizacao.apartamento_id)
+        .single();
+
+      if (apartmentError) {
+        console.error('❌ [confirmarChegada] Erro ao buscar dados do apartamento:', apartmentError);
+      }
+
+      // 1. Enviar notificação WhatsApp/SMS via Edge Function
+      try {
+        console.log('🔔 [confirmarChegada] Iniciando notificação para morador...');
+        const notificationResult = await notifyResidentOfVisitorArrival({
+          visitorName: autorizacao.nomeConvidado,
+          apartmentNumber: apartmentData?.number || 'N/A',
+          buildingId: profile.building_id,
+          visitorId: autorizacao.id,
+          purpose: autorizacao.purpose || 'Visita',
+          photo_url: autorizacao.photo_url,
+          entry_type: 'visitor'
+        });
+
+        if (notificationResult.success) {
+          console.log('✅ [confirmarChegada] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
+        } else {
+          console.warn('⚠️ [confirmarChegada] Falha ao enviar WhatsApp:', notificationResult.message);
+        }
+
+        // 2. Enviar Push Notification via Edge Function
+        try {
+          console.log('📱 [confirmarChegada] Enviando push notification para morador...');
+          const pushResult = await notifyResidentsVisitorArrival({
+            apartmentIds: [autorizacao.apartamento_id],
+            visitorName: autorizacao.nomeConvidado,
+            apartmentNumber: apartmentData?.number || 'N/A',
+            purpose: autorizacao.purpose || 'Visita',
+            photoUrl: autorizacao.photo_url,
+          });
+
+          if (pushResult.success && pushResult.sent > 0) {
+            console.log('✅ [confirmarChegada] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+          } else {
+            console.warn('⚠️ [confirmarChegada] Falha ao enviar push:', pushResult.message);
+          }
+        } catch (pushError) {
+          console.error('❌ [confirmarChegada] Erro ao enviar push notification:', pushError);
+        }
+
+      } catch (notificationError) {
+        console.error('❌ [confirmarChegada] Erro ao enviar notificação:', notificationError);
       }
 
       // Mostrar modal de confirmação
