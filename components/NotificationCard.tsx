@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
@@ -136,7 +136,10 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showDeliveryCodeModal, setShowDeliveryCodeModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [pendingDeliveryDestination, setPendingDeliveryDestination] = useState<'portaria' | 'elevador' | null>(null);
 
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
@@ -207,17 +210,26 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   };
 
   const handleDeliveryPortaria = () => {
-    onRespond(notification.id, { 
-      action: 'approve', 
-      delivery_destination: 'portaria' 
-    });
+    setPendingDeliveryDestination('portaria');
+    setShowDeliveryCodeModal(true);
   };
 
   const handleDeliveryElevador = () => {
-    onRespond(notification.id, { 
-      action: 'approve', 
-      delivery_destination: 'elevador' 
-    });
+    setPendingDeliveryDestination('elevador');
+    setShowDeliveryCodeModal(true);
+  };
+
+  const confirmDeliveryWithCode = () => {
+    if (pendingDeliveryDestination) {
+      onRespond(notification.id, { 
+        action: 'approve', 
+        delivery_destination: pendingDeliveryDestination,
+        delivery_code: deliveryCode.trim() || undefined
+      });
+      setShowDeliveryCodeModal(false);
+      setDeliveryCode('');
+      setPendingDeliveryDestination(null);
+    }
   };
 
   const confirmReject = () => {
@@ -323,7 +335,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         animationType="slide"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <View style={styles.fullScreenModalOverlay}>
+        <SafeAreaView style={styles.fullScreenModalOverlay}>
           <View style={styles.fullScreenDetailsCard}>
             {/* Header Fixo */}
             <View style={styles.fullScreenHeader}>
@@ -545,7 +557,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
               )}
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Modal de rejeição */}
@@ -578,6 +590,56 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 disabled={responding}
               >
                 <Text style={styles.confirmButtonText}>Recusar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de código de entrega */}
+      <Modal
+        visible={showDeliveryCodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeliveryCodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="cube-outline" size={24} color="#FF9800" />
+                <Text style={styles.modalTitle}>Código da Encomenda</Text>
+              </View>
+            </View>
+            <Text style={[styles.notificationDetails, { marginBottom: 16 }]}>
+              Digite o código ou palavra-chave da encomenda (se houver) para facilitar a localização pelo porteiro:
+            </Text>
+            <TextInput
+              style={[styles.textInput, { minHeight: 50 }]}
+              placeholder="Ex: ABC123, Código de retirada, etc. (opcional)"
+              value={deliveryCode}
+              onChangeText={setDeliveryCode}
+              autoCapitalize="characters"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowDeliveryCodeModal(false);
+                  setDeliveryCode('');
+                  setPendingDeliveryDestination(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: '#4CAF50' }]}
+                onPress={confirmDeliveryWithCode}
+                disabled={responding}
+              >
+                <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
+                  {responding ? 'Processando...' : 'Confirmar'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

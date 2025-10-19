@@ -47,6 +47,7 @@ interface NotificationResponse {
   action: 'approve' | 'reject';
   reason?: string;
   delivery_destination?: 'portaria' | 'elevador' | 'apartamento';
+  delivery_code?: string;
 }
 
 export const usePendingNotifications = () => {
@@ -119,7 +120,7 @@ export const usePendingNotifications = () => {
         `)
         .eq('apartment_id', apartmentId)
         .eq('notification_status', 'pending')
-        .eq('requires_resident_approval', true)
+        .or('requires_resident_approval.eq.true,entry_type.eq.delivery,entry_type.eq.vehicle')
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('notification_sent_at', { ascending: false });
       

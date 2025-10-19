@@ -48,8 +48,8 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
   const selectAllGuests = () => {
     const eligibleGuests = filteredActivities.filter(activity => {
       const canEnterDirectly = activity.status === 'Aprovado' || 
-                             activity.status === 'direto' || 
-                             activity.status === 'Liberado para Entrada Direta';
+                             activity.status === 'ENTRADA LIBERADA' || 
+                             activity.access_type === 'direto';
       return canEnterDirectly;
     });
     
@@ -728,8 +728,8 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
           ) : (
             filteredActivities.map((activity) => {
               const canEnterDirectly = activity.status === 'Aprovado' || 
-                                     activity.status === 'direto' || 
-                                     activity.status === 'Liberado para Entrada Direta';
+                                     activity.status === 'ENTRADA LIBERADA' || 
+                                     activity.access_type === 'direto';
               const isSelected = selectedGuests.has(activity.id);
               
               return (
@@ -769,13 +769,9 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
                     </View>
                   </View>
                   
-                  {/* Detalhes expandidos */}
-                  {expandedCards.has(activity.id) && !multiSelectMode && (
-                    <View style={styles.activityDetails}>
-                      {activity.details.map((detail, index) => (
-                        <Text key={index} style={styles.activityDetail}>{detail}</Text>
-                      ))}
-                      
+                  {/* Botões de ação - sempre visíveis quando não está em modo de seleção múltipla */}
+                  {!multiSelectMode && (
+                    <View style={styles.actionButtonsContainer}>
                       {/* Botão Ver Foto */}
                       <TouchableOpacity 
                         style={styles.viewPhotoActionButton}
@@ -811,6 +807,15 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
                           );
                         }
                       })()}
+                    </View>
+                  )}
+                  
+                  {/* Detalhes expandidos - agora apenas para informações extras */}
+                  {expandedCards.has(activity.id) && !multiSelectMode && (
+                    <View style={styles.activityDetails}>
+                      {activity.details.map((detail, index) => (
+                        <Text key={index} style={styles.activityDetail}>{detail}</Text>
+                      ))}
                     </View>
                   )}
                 </TouchableOpacity>
@@ -1181,6 +1186,13 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  actionButtonsContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
 });
 

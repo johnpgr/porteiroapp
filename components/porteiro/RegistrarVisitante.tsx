@@ -730,31 +730,41 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
-      if (isSubmitting) return; // Evitar múltiplos cliques
-      
+      // 🚫 PROTEÇÃO CRÍTICA: Prevenir múltiplas execuções simultâneas
+      if (isSubmitting) {
+        console.log('⚠️ [RegistrarVisitante] Tentativa de submissão duplicada BLOQUEADA');
+        return;
+      }
+
       setIsSubmitting(true);
+      console.log('🔒 [RegistrarVisitante] Submissão bloqueada - isSubmitting = true');
+
       try {
         // Verificar se o porteiro está logado e tem building_id
         if (!user || !user.building_id) {
           Alert.alert('Erro', 'Porteiro não identificado. Faça login novamente.');
+          setIsSubmitting(false);
           return;
         }
 
         // Verificar se um apartamento foi selecionado
         if (!selectedApartment) {
           Alert.alert('Erro', 'Nenhum apartamento selecionado.');
+          setIsSubmitting(false);
           return;
         }
 
         // Validar campos obrigatórios
         if (!nomeVisitante) {
           Alert.alert('Erro', 'Nome é obrigatório.');
+          setIsSubmitting(false);
           return;
         }
-        
+
         // Validar CPF se fornecido
         if (cpfVisitante && !isValidCPF(cpfVisitante)) {
           Alert.alert('Erro', 'CPF fornecido é inválido. Deixe em branco ou corrija.');
+          setIsSubmitting(false);
           return;
         }
 
@@ -790,6 +800,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           if (visitorError || !newVisitor) {
             console.error('Erro ao inserir visitante:', visitorError);
             Alert.alert('Erro', 'Falha ao registrar visitante.');
+            setIsSubmitting(false);
             return;
           }
           visitorId = newVisitor.id;
@@ -840,6 +851,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         if (logError || !logData) {
           console.error('Erro ao inserir log de entrada:', logError);
           Alert.alert('Erro', 'Falha ao registrar entrada do visitante.');
+          setIsSubmitting(false);
           return;
         }
 
@@ -896,50 +908,80 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           // Não bloqueia o fluxo se a notificação push falhar
         }
 
-        // Enviar notificação via API (WhatsApp)
-        try {
-          // Buscar dados do morador proprietário
-          const { data: residentData, error: residentError } = await (supabase as any)
-            .from('apartments')
-            .select(`
-              apartment_residents!inner(
-                profiles!inner(
-                  full_name,
-                  phone,
-                  email
-                ),
-                is_owner
-              ),
-              buildings!inner(
-                name
-              )
-            `)
-            .eq('id', selectedApartment.id)
-            .eq('apartment_residents.is_owner', true)
-            .single();
+        // 🚫 PROTEÇÃO CRÍTICA WHATSAPP: Verificar se notificação já foi enviada
+        console.log('📱 [RegistrarVisitante] Verificando status antes de enviar WhatsApp...');
 
-          if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
-            const resident = residentData.apartment_residents[0];
-            const building = residentData.buildings;
-            
-            if (resident.profiles.phone && building) {
-              await notificationApi.sendVisitorAuthorization({
-                visitorName: nomeVisitante,
-                residentName: resident.profiles.full_name,
-                residentPhone: resident.profiles.phone,
-                residentEmail: resident.profiles.email || '',
-                building: building.name,
-                apartment: selectedApartment.number
-              });
-              
-              console.log('Mensagem de autorização WhatsApp enviada com sucesso');
-            } else {
-              console.warn('Dados insuficientes para enviar notificação via API');
+        // Buscar status atual do visitor_log recém-criado
+        const { data: currentLog } = await (supabase as any)
+          .from('visitor_logs')
+          .select('notification_status')
+          .eq('id', logData.id)
+          .single();
+
+        const currentStatus = currentLog?.notification_status;
+        console.log('📋 [RegistrarVisitante] Status atual da notificação:', currentStatus);
+
+        // Enviar notificação via API (WhatsApp) APENAS se ainda não foi enviada
+        if (currentStatus !== 'sent') {
+          try {
+            console.log('📱 [RegistrarVisitante] Enviando notificação WhatsApp...');
+
+            // Buscar dados do morador proprietário
+            const { data: residentData, error: residentError } = await (supabase as any)
+              .from('apartments')
+              .select(`
+                apartment_residents!inner(
+                  profiles!inner(
+                    full_name,
+                    phone,
+                    email
+                  ),
+                  is_owner
+                ),
+                buildings!inner(
+                  name
+                )
+              `)
+              .eq('id', selectedApartment.id)
+              .eq('apartment_residents.is_owner', true)
+              .single();
+
+            if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+              // 🎯 ENVIAR APENAS PARA O PRIMEIRO PROPRIETÁRIO (evitar duplicatas)
+              const resident = residentData.apartment_residents[0];
+              const building = residentData.buildings;
+
+              if (resident.profiles.phone && building) {
+                console.log('📱 [RegistrarVisitante] Enviando WhatsApp para:', resident.profiles.full_name);
+
+                await notificationApi.sendVisitorAuthorization({
+                  visitorName: nomeVisitante,
+                  residentName: resident.profiles.full_name,
+                  residentPhone: resident.profiles.phone,
+                  residentEmail: resident.profiles.email || '',
+                  building: building.name,
+                  apartment: selectedApartment.number
+                });
+
+                console.log('✅ [RegistrarVisitante] Mensagem de autorização WhatsApp enviada com sucesso');
+
+                // Atualizar status IMEDIATAMENTE para evitar reenvios
+                await (supabase as any)
+                  .from('visitor_logs')
+                  .update({ notification_status: 'sent' })
+                  .eq('id', logData.id);
+
+                console.log('✅ [RegistrarVisitante] Status atualizado para "sent" - bloqueio ativado');
+              } else {
+                console.warn('⚠️ [RegistrarVisitante] Dados insuficientes para enviar notificação via API');
+              }
             }
+          } catch (apiError) {
+            console.error('❌ [RegistrarVisitante] Erro ao enviar notificação via API:', apiError);
+            // Não bloquear o fluxo se a notificação via API falhar
           }
-        } catch (apiError) {
-          console.error('Erro ao enviar notificação via API:', apiError);
-          // Não bloquear o fluxo se a notificação via API falhar
+        } else {
+          console.log('🚫 [RegistrarVisitante] WhatsApp JÁ ENVIADO - bloqueando reenvio');
         }
 
         const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
@@ -958,6 +1000,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         Alert.alert('Erro', 'Falha inesperada ao registrar visitante. Verifique sua conexão e tente novamente.');
       } finally {
         setIsSubmitting(false);
+        console.log('🔓 [RegistrarVisitante] Submissão desbloqueada - isSubmitting = false');
       }
     };
 
