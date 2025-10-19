@@ -36,6 +36,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   
   const ITEMS_PER_PAGE = 20;
 
+  // REMOVIDO: Funções para gerenciar decisões notificadas
+  // Estas funções foram removidas pois a funcionalidade de notificação já está implementada no _layout.tsx
+
   // Função auxiliar para formatar data
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -654,87 +657,8 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     }
   }, [notifications.length, buildingId, fetchPreAuthorizedVisitors, fetchVisitorLogs]);
 
-  // Polling para verificar decisões dos moradores sobre visitantes
-  useEffect(() => {
-    if (!buildingId || !user?.id) return;
-
-    let lastCheckedIds = new Set<string>();
-
-    const checkVisitorDecisions = async () => {
-      try {
-        // Buscar visitantes com decisões recentes (aprovados ou rejeitados nos últimos 5 minutos)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-
-        const { data: recentDecisions, error } = await supabase
-          .from('visitor_logs')
-          .select(`
-            id,
-            notification_status,
-            visitor_id,
-            apartment_id,
-            visitors!inner(name),
-            apartments!inner(number),
-            resident_response_at,
-            authorized_by,
-            profiles!visitor_logs_authorized_by_fkey(full_name)
-          `)
-          .eq('apartments.building_id', buildingId)
-          .in('notification_status', ['approved', 'rejected'])
-          .gte('resident_response_at', fiveMinutesAgo)
-          .order('resident_response_at', { ascending: false });
-
-        if (error) {
-          console.error('❌ [checkVisitorDecisions] Erro ao verificar decisões:', error);
-          return;
-        }
-
-        if (recentDecisions && recentDecisions.length > 0) {
-          // Filtrar apenas decisões novas que ainda não foram notificadas
-          const newDecisions = recentDecisions.filter(
-            (decision) => !lastCheckedIds.has(decision.id)
-          );
-
-          if (newDecisions.length > 0) {
-            console.log(`🔔 [checkVisitorDecisions] ${newDecisions.length} novas decisões encontradas`);
-
-            // Exibir alert para cada nova decisão
-            newDecisions.forEach((decision) => {
-              const visitorName = decision.visitors?.name || 'Visitante';
-              const apartmentNumber = decision.apartments?.number || 'N/A';
-              const moradorName = decision.profiles?.full_name || 'Morador';
-              const isApproved = decision.notification_status === 'approved';
-
-              Alert.alert(
-                isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Recusado',
-                `O morador ${moradorName} do apartamento ${apartmentNumber} ${isApproved ? 'ACEITOU' : 'RECUSOU'} o visitante ${visitorName}.`,
-                [{ text: 'OK' }]
-              );
-
-              // Adicionar à lista de IDs já notificados
-              lastCheckedIds.add(decision.id);
-            });
-
-            // Recarregar dados
-            fetchPreAuthorizedVisitors();
-            fetchVisitorLogs();
-          }
-        }
-      } catch (error) {
-        console.error('❌ [checkVisitorDecisions] Exceção:', error);
-      }
-    };
-
-    // Verificar imediatamente
-    checkVisitorDecisions();
-
-    // Configurar polling a cada 10 segundos
-    const intervalId = setInterval(checkVisitorDecisions, 10000);
-
-    // Cleanup
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [buildingId, user?.id, fetchPreAuthorizedVisitors, fetchVisitorLogs]);
+  // REMOVIDO: Polling para verificar decisões dos moradores sobre visitantes
+  // Esta funcionalidade já está implementada no _layout.tsx para evitar alertas duplicados
 
   // Função para obter contagem de filtros (apenas para pré-autorizados)
   const getFilterCount = (filterType: 'all' | 'delivery' | 'visit') => {

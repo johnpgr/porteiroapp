@@ -840,7 +840,7 @@ export default function CadastroTab() {
                   setShowModal(true);
                 }}>
                 <Text style={styles.buttonEmoji}>👤</Text>
-                <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
+                <Text style={styles.primaryButtonText}>Nova Pessoa</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -850,7 +850,7 @@ export default function CadastroTab() {
                   setShowVehicleForm(true);
                 }}>
                 <Text style={styles.buttonEmoji}>🚗</Text>
-                <Text style={styles.primaryButtonText}>Cadastrar Novo Veículo</Text>
+                <Text style={styles.primaryButtonText}>Novo Veículo</Text>
               </TouchableOpacity>
             </View>
           </View>
