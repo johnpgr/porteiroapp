@@ -201,6 +201,17 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const isDelivery = notification.purpose?.toLowerCase().includes('entrega') || 
                    notification.entry_type === 'delivery';
 
+  // Debug logs para identificar problemas com detecção de entregas
+  console.log('🔍 [NotificationCard] Debug da notificação:', {
+    id: notification.id,
+    entry_type: notification.entry_type,
+    purpose: notification.purpose,
+    isDelivery: isDelivery,
+    guest_name: notification.guest_name,
+    delivery_sender: notification.delivery_sender,
+    delivery_description: notification.delivery_description
+  });
+
   const handleApprove = () => {
     onRespond(notification.id, { action: 'approve' });
   };

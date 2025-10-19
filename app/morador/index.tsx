@@ -481,12 +481,6 @@ export default function MoradorDashboard() {
     </ScrollView>
   );
 
-
-
-
-
-
-
   const renderBottomNavigation = () => (
     <View style={styles.bottomNav}>
       <TouchableOpacity

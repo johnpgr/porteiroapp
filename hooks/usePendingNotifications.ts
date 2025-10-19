@@ -89,6 +89,8 @@ export const usePendingNotifications = () => {
       setLoading(true);
       setError(null);
       
+      console.log('🔍 [usePendingNotifications] Buscando notificações para apartmentId:', apartmentId);
+      
       const { data, error } = await supabase
         .from('visitor_logs')
         .select(`
@@ -126,10 +128,34 @@ export const usePendingNotifications = () => {
       
       if (error) throw error;
       
+      console.log('🔍 [usePendingNotifications] Dados brutos do Supabase:', {
+        count: data?.length || 0,
+        data: data?.map(item => ({
+          id: item.id,
+          entry_type: item.entry_type,
+          notification_status: item.notification_status,
+          guest_name: item.guest_name,
+          delivery_sender: item.delivery_sender,
+          delivery_description: item.delivery_description,
+          purpose: item.purpose
+        }))
+      });
+      
       const mappedNotifications = data.map(item => ({
         ...item,
         guest_name: item.guest_name || item.visitors?.name || 'Visitante não identificado'
       }));
+      
+      console.log('🔍 [usePendingNotifications] Notificações mapeadas:', {
+        count: mappedNotifications.length,
+        notifications: mappedNotifications.map(n => ({
+          id: n.id,
+          entry_type: n.entry_type,
+          guest_name: n.guest_name,
+          delivery_sender: n.delivery_sender,
+          purpose: n.purpose
+        }))
+      });
       
       setNotifications(mappedNotifications);
     } catch (err) {
@@ -184,12 +210,8 @@ export const usePendingNotifications = () => {
       const buildingName = building?.name || 'Edifício';
       const apartmentNumber = logData.apartments?.number || 'N/A';
 
-      // 1. Push Notification agora é enviada pela Edge Function no momento do registro
-      // Não precisamos mais disparar notificação local aqui para evitar duplicatas
       console.log('ℹ️ [usePendingNotifications] Notificação push será enviada pela Edge Function durante o registro');
-      // A Edge Function send-push-notification já foi chamada em RegistrarVisitante/Encomenda/Veiculo
 
-      // 2. Enviar WhatsApp se tiver telefone do morador
       if (residentPhone) {
         try {
           await notificationApi.sendVisitorWaitingNotification({
@@ -234,15 +256,12 @@ export const usePendingNotifications = () => {
             const newLog = payload.new as any;
             if (newLog.notification_status === 'pending' && 
                 newLog.requires_resident_approval) {
-              // Disparar notificações automáticas
               triggerAutomaticNotifications(newLog);
-              // Adicionar nova notificação à lista
               fetchPendingNotifications();
             }
           } else if (payload.eventType === 'UPDATE') {
             const updatedLog = payload.new as any;
             if (updatedLog.notification_status !== 'pending') {
-              // Remover notificação respondida
               setNotifications(prev => 
                 prev.filter(n => n.id !== updatedLog.id)
               );
@@ -257,14 +276,12 @@ export const usePendingNotifications = () => {
     };
   }, [apartmentId, fetchPendingNotifications, triggerAutomaticNotifications]);
 
-  // Função para notificar porteiros sobre resposta do morador
   const notifyDoorkeepers = useCallback(async (
     notificationId: string,
     response: NotificationResponse,
     buildingId: string
   ) => {
     try {
-      // Buscar dados da notificação para criar mensagem personalizada
       const { data: logData, error: logError } = await supabase
         .from('visitor_logs')
         .select(`
@@ -286,13 +303,11 @@ export const usePendingNotifications = () => {
         return;
       }
 
-      // Preparar dados da mensagem
       const visitorName = logData.guest_name || logData.visitors?.name || 'Visitante';
       const apartmentNumber = logData.apartments?.number || 'N/A';
 
       console.log('📱 [notifyDoorkeepers] Enviando push notification para porteiros via Edge Function...');
 
-      // Enviar push notification via Edge Function
       const pushResult = await notifyPorteirosVisitorResponse({
         buildingId,
         visitorName,
