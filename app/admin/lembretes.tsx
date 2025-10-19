@@ -464,6 +464,7 @@ export default function LembretesAdmin() {
       </View>
 
       <View style={styles.content}>
+        {/* Stats Container */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{lembretes.length}</Text>
@@ -483,6 +484,48 @@ export default function LembretesAdmin() {
           </View>
         </View>
 
+        {/* Building Filter */}
+        <View style={styles.buildingFilterContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.buildingFilterScroll}
+          >
+            <TouchableOpacity
+              style={[
+                styles.buildingFilterButton,
+                !filters.predio && styles.buildingFilterButtonActive
+              ]}
+              onPress={() => setFilters(prev => ({ ...prev, predio: '' }))}
+            >
+              <Text style={[
+                styles.buildingFilterButtonText,
+                !filters.predio && styles.buildingFilterButtonTextActive
+              ]}>
+                Todos os prédios
+              </Text>
+            </TouchableOpacity>
+            {buildings.map((building) => (
+              <TouchableOpacity
+                key={building.id}
+                style={[
+                  styles.buildingFilterButton,
+                  filters.predio === building.id && styles.buildingFilterButtonActive
+                ]}
+                onPress={() => setFilters(prev => ({ ...prev, predio: building.id }))}
+              >
+                <Text style={[
+                  styles.buildingFilterButtonText,
+                  filters.predio === building.id && styles.buildingFilterButtonTextActive
+                ]}>
+                  {building.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Lista de Lembretes */}
         <FlatList
           data={filteredLembretes}
           renderItem={renderLembreteItem}
@@ -1045,5 +1088,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ffffff',
     fontWeight: '600',
+  },
+  buildingFilterContainer: {
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  buildingFilterScroll: {
+    flexGrow: 0,
+  },
+  buildingFilterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fa',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  buildingFilterButtonActive: {
+    backgroundColor: '#FF9800',
+    borderColor: '#FF9800',
+  },
+  buildingFilterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  buildingFilterButtonTextActive: {
+    color: '#fff',
   },
 });
