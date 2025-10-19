@@ -599,6 +599,7 @@ export default function ActivityLogs() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>📋 Histórico de Atividades</Text>
+           <Text style={styles.subtitle}>Buscar moradores e veículos cadastrados</Text>
         </View>
 
         <View style={styles.filters}>
@@ -608,7 +609,6 @@ export default function ActivityLogs() {
                 { key: 'all', label: 'Todas', icon: '📋' },
                 { key: 'visitor', label: 'Visitantes', icon: '👥' },
                 { key: 'delivery', label: 'Encomendas', icon: '📦' },
-                { key: 'historico', label: 'Histórico', icon: '📊' },
               ].map((filterOption) => (
                 <TouchableOpacity
                   key={filterOption.key}
@@ -740,14 +740,22 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 10,
+    paddingBottom: 5,
     backgroundColor: '#2196F3',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
+    marginBottom: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    marginVertical: 5,
     color: '#fff',
     textAlign: 'center',
   },

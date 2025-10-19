@@ -839,7 +839,7 @@ export default function CadastroTab() {
                   resetForm();
                   setShowModal(true);
                 }}>
-                <Ionicons name="person-add" size={18} color="#fff" />
+                <Text style={styles.buttonEmoji}>👤</Text>
                 <Text style={styles.primaryButtonText}>Cadastrar Nova Pessoa</Text>
               </TouchableOpacity>
 
@@ -849,7 +849,7 @@ export default function CadastroTab() {
                   resetVehicleForm();
                   setShowVehicleForm(true);
                 }}>
-                <Ionicons name="car" size={18} color="#fff" />
+                <Text style={styles.buttonEmoji}>🚗</Text>
                 <Text style={styles.primaryButtonText}>Cadastrar Novo Veículo</Text>
               </TouchableOpacity>
             </View>
@@ -1762,5 +1762,10 @@ const styles = StyleSheet.create({
   },
   halfButton: {
     flex: 1,
+  },
+  buttonEmoji: {
+    fontSize: 18,
+    color: '#fff',
+    marginRight: 8,
   },
 });

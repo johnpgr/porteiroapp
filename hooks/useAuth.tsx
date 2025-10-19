@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { User } from '@supabase/supabase-js';
 import { router } from 'expo-router';
+import { Alert } from 'react-native';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
@@ -56,6 +57,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para logs apenas de erros críticos
   const logError = (message: string, error?: any) => {
     console.error(`[AuthProvider] ${message}`, error || '');
+  };
+
+  // Função para verificar e tratar erro JWT expired
+  const handleJWTExpiredError = (error: any, signOutCallback: () => Promise<void>) => {
+    if (error && (error.code === 'PGRST303' || error.message?.includes('JWT expired'))) {
+      Alert.alert(
+        'Sessão Expirada',
+        'Sua sessão expirou. Faça login novamente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              signOutCallback();
+            }
+          }
+        ]
+      );
+      return true; // Indica que o erro foi tratado
+    }
+    return false; // Indica que não é um erro JWT expired
   };
 
   // Função para verificar se a sessão é válida
@@ -306,6 +327,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log('[AuthProvider] ✅ checkSession concluído');
     } catch (error) {
+      // Verifica se é erro JWT expired e trata adequadamente
+      if (handleJWTExpiredError(error, signOut)) {
+        return;
+      }
       logError('Erro ao verificar sessão:', error);
     } finally {
       clearTimeout(timeout);
@@ -511,6 +536,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return prevUser;
       });
     } catch (error) {
+      // Verifica se é erro JWT expired e trata adequadamente
+      if (handleJWTExpiredError(error, signOut)) {
+        return;
+      }
       logError('Erro ao carregar perfil do usuário:', error);
     } finally {
       // Atualiza flags de controle mesmo em caso de erro

@@ -25,6 +25,17 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   const [apartmentNumber, setApartmentNumber] = useState('');
   const [apartmentVisitors, setApartmentVisitors] = useState([]);
 
+  // Estados para paginação e filtros
+  const [visitorLogsPage, setVisitorLogsPage] = useState(0);
+  const [preAuthorizedPage, setPreAuthorizedPage] = useState(0);
+  const [hasMoreVisitorLogs, setHasMoreVisitorLogs] = useState(true);
+  const [hasMorePreAuthorized, setHasMorePreAuthorized] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all'); // pending, approved, all
+  const [typeFilter, setTypeFilter] = useState('all'); // direto, com_aprovacao, all
+  
+  const ITEMS_PER_PAGE = 20;
+
   // Função auxiliar para formatar data
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -96,8 +107,8 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   };
 
   // Função para buscar logs de visitantes
-  const fetchVisitorLogs = useCallback(async () => {
-    console.log('🔍 [fetchVisitorLogs] INICIANDO - buildingId:', buildingId, 'timeFilter:', timeFilter);
+  const fetchVisitorLogs = useCallback(async (page = 0, loadMore = false) => {
+    console.log('🔍 [fetchVisitorLogs] INICIANDO - buildingId:', buildingId, 'statusFilter:', statusFilter, 'page:', page);
 
     if (!buildingId) {
       console.log('⚠️ [fetchVisitorLogs] buildingId não fornecido, abortando');
@@ -105,7 +116,16 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     }
 
     try {
-      setLoading(true);
+      if (!loadMore) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      // Criar filtros de data para o dia atual
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
       // Buscar logs de visitantes com informações completas
       let query = supabase
@@ -135,37 +155,23 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           )
         `)
         .eq('building_id', buildingId)
+        .gte('log_time', startOfToday.toISOString())
+        .lt('log_time', startOfTomorrow.toISOString())
         .order('log_time', { ascending: false });
 
-      // Aplicar filtro de data apenas se não for 'all'
-      if (timeFilter !== 'all') {
-        const now = new Date();
-        let dateFilter = '';
-
-        switch (timeFilter) {
-          case 'today':
-            dateFilter = now.toISOString().split('T')[0];
-            query = query.gte('log_time', `${dateFilter}T00:00:00.000Z`);
-            console.log('📅 [fetchVisitorLogs] Filtro HOJE aplicado:', `${dateFilter}T00:00:00.000Z`);
-            break;
-          case 'week':
-            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            dateFilter = weekAgo.toISOString().split('T')[0];
-            query = query.gte('log_time', `${dateFilter}T00:00:00.000Z`);
-            console.log('📅 [fetchVisitorLogs] Filtro SEMANA aplicado:', `${dateFilter}T00:00:00.000Z`);
-            break;
-          case 'month':
-            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            dateFilter = monthAgo.toISOString().split('T')[0];
-            query = query.gte('log_time', `${dateFilter}T00:00:00.000Z`);
-            console.log('📅 [fetchVisitorLogs] Filtro MÊS aplicado:', `${dateFilter}T00:00:00.000Z`);
-            break;
-        }
-      } else {
-        console.log('📅 [fetchVisitorLogs] Sem filtro de data (TUDO)');
+      // Aplicar filtro de status
+      if (statusFilter === 'pending') {
+        query = query.eq('notification_status', 'pending');
+      } else if (statusFilter === 'approved') {
+        query = query.eq('notification_status', 'approved');
       }
 
-      const { data: logsData, error } = await query.limit(50);
+      // Aplicar paginação
+      const startIndex = page * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE - 1;
+      query = query.range(startIndex, endIndex);
+
+      const { data: logsData, error } = await query;
 
       if (error) {
         console.error('❌ [fetchVisitorLogs] Erro ao buscar visitor_logs:', error);
@@ -239,23 +245,34 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         });
       });
 
-      setVisitorLogs(mappedLogs);
+      // Atualizar estado com paginação
+      if (loadMore) {
+        setVisitorLogs(prev => [...prev, ...mappedLogs]);
+      } else {
+        setVisitorLogs(mappedLogs);
+        setVisitorLogsPage(0);
+      }
+
+      // Verificar se há mais dados
+      setHasMoreVisitorLogs(mappedLogs.length === ITEMS_PER_PAGE);
+      
       console.log(`✅ [fetchVisitorLogs] Estado visitorLogs atualizado com ${mappedLogs.length} itens`);
     } catch (error) {
       console.error('❌ [fetchVisitorLogs] EXCEÇÃO:', error);
       console.error('❌ [fetchVisitorLogs] Stack trace:', error.stack);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       console.log('🏁 [fetchVisitorLogs] FINALIZADO');
     }
-  }, [buildingId, timeFilter]);
+  }, [buildingId, statusFilter]);
 
-  // useEffect para buscar dados quando buildingId ou timeFilter mudarem
+  // useEffect para buscar dados quando buildingId ou statusFilter mudarem
   useEffect(() => {
     if (buildingId) {
       fetchVisitorLogs();
     }
-  }, [buildingId, timeFilter, fetchVisitorLogs]);
+  }, [buildingId, statusFilter, fetchVisitorLogs]);
 
   const confirmarChegada = async (visit) => {
     try {
@@ -472,8 +489,8 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Nota: Subscriptions em tempo real foram desabilitadas conforme instruções do projeto
 
   // Função para buscar visitantes pré-autorizados (apenas da tabela visitors)
-  const fetchPreAuthorizedVisitors = useCallback(async () => {
-    console.log('🔍 [fetchPreAuthorizedVisitors] INICIANDO - buildingId:', buildingId, 'timeFilter:', timeFilter);
+  const fetchPreAuthorizedVisitors = useCallback(async (page = 0, loadMore = false) => {
+    console.log('🔍 [fetchPreAuthorizedVisitors] INICIANDO - buildingId:', buildingId, 'typeFilter:', typeFilter, 'page:', page);
 
     if (!buildingId) {
       console.log('⚠️ [fetchPreAuthorizedVisitors] buildingId não fornecido, abortando');
@@ -481,7 +498,17 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     }
 
     try {
-      setLoading(true);
+      if (!loadMore) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      // Criar filtros de data para o dia atual
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const todayString = startOfToday.toISOString().split('T')[0]; // YYYY-MM-DD format
 
       // Buscar apenas visitantes da tabela visitors (pré-autorizados pelos moradores)
       let visitQuery = supabase
@@ -497,46 +524,25 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         .neq('status', 'expirado')
         .order('created_at', { ascending: false });
 
-      // Aplicar filtro de tempo para visitas
-      if (timeFilter !== 'all') {
-        const now = new Date();
-        let startDate: Date;
-        let endDate: Date;
-        
-        switch (timeFilter) {
-          case 'today':
-            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-            break;
-          case 'week':
-            const weekStart = new Date(now);
-            weekStart.setDate(now.getDate() - now.getDay());
-            weekStart.setHours(0, 0, 0, 0);
-            startDate = weekStart;
-            endDate = new Date(weekStart);
-            endDate.setDate(weekStart.getDate() + 7);
-            break;
-          case 'month':
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            break;
-          default:
-            startDate = new Date(0);
-            endDate = new Date();
-        }
+      // Aplicar filtro do dia atual
+      // Para visitantes pontuais: filtrar por visit_date = data atual
+      // Para visitantes frequentes: verificar se o dia atual está nos allowed_days
+      // Para visitantes sem data específica: filtrar por created_at >= início do dia atual
+      visitQuery = visitQuery.or(`visit_date.eq.${todayString},and(visit_date.is.null,created_at.gte.${startOfToday.toISOString()})`);
 
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
-        const startDateTimeStr = startDate.toISOString();
-        const endDateTimeStr = endDate.toISOString();
-        
-        // Filtrar por visit_date (data agendada) ou created_at (data de criação)
-        visitQuery = visitQuery.or(
-          `visit_date.gte.${startDateStr},visit_date.lt.${endDateStr},created_at.gte.${startDateTimeStr},created_at.lt.${endDateTimeStr}`
-        );
+      // Aplicar filtro de tipo
+      if (typeFilter === 'direto') {
+        visitQuery = visitQuery.eq('access_type', 'direto');
+      } else if (typeFilter === 'com_aprovacao') {
+        visitQuery = visitQuery.eq('access_type', 'com_aprovacao');
       }
 
-      const { data: visitResult, error: visitError } = await visitQuery.limit(50);
+      // Aplicar paginação
+      const startIndex = page * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE - 1;
+      visitQuery = visitQuery.range(startIndex, endIndex);
+
+      const { data: visitResult, error: visitError } = await visitQuery;
 
       if (visitError) {
         console.error('❌ [fetchPreAuthorizedVisitors] Erro ao buscar visitors:', visitError);
@@ -545,51 +551,61 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       console.log(`✅ [fetchPreAuthorizedVisitors] Visitantes pré-autorizados encontrados: ${visitResult?.length || 0}`);
 
-      // Processar visitantes pré-autorizados
-      const visitActivities: ActivityEntry[] = (visitResult || []).map((visit: any) => {
-        const isApproved = visit.status === 'aprovado';
-        const isDireto = visit.access_type === 'direto';
-        const isPending = visit.status === 'pendente';
-        const isExpired = visit.status === 'expirado';
-        const visitorName = visit.name || 'Visitante';
-        const allowDirectAccess = isDireto;
+      // Processar visitantes pré-autorizados (filtrar expirados)
+      const visitActivities: ActivityEntry[] = (visitResult || [])
+        .filter((visit: any) => visit.status !== 'expirado') // Filtrar visitantes expirados
+        .map((visit: any) => {
+          const isApproved = visit.status === 'aprovado';
+          const isDireto = visit.access_type === 'direto';
+          const isPending = visit.status === 'pendente';
+          const visitorName = visit.name || 'Visitante';
+          const allowDirectAccess = isDireto;
 
-        // Determinar o status exibido
-        let displayStatus = isApproved ? 'Aprovado' : isDireto ? 'Entrada Liberada' : isPending ? 'Aguardando aprovação' : 'Negado';
-        if ((isApproved || isDireto) && allowDirectAccess) {
-          displayStatus = 'Entrada Liberada';
-        }
+          // Determinar o status exibido
+          let displayStatus = isApproved ? 'Aprovado' : isDireto ? 'Entrada Liberada' : isPending ? 'Aguardando resposta' : 'Negado';
+          if ((isApproved || isDireto) && allowDirectAccess) {
+            displayStatus = 'Entrada Liberada';
+          }
 
-        return {
-          id: visit.id,
-          type: 'visit',
-          title: `👤 ${visitorName}`,
-          subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: displayStatus,
-          time: formatDate(visit.visit_date || visit.created_at),
-          icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
-          color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
-          photo_url: visit.photo_url,
-          details: [
-            `Documento: ${visit.document || 'N/A'}`,
-            `Telefone: ${visit.phone || 'N/A'}`,
-            `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-            ...(allowDirectAccess ? ['🚀 Pode subir direto (não precisa avisar morador)'] : []),
-            ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
-            ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
-            ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
-          ],
-          actions: isApproved ? {
-            primary: {
-              label: 'Confirmar Entrada',
-              action: () => confirmarChegada(visit),
-              color: allowDirectAccess ? '#2196F3' : '#4CAF50'
-            }
-          } : undefined
-        };
-      });
+          return {
+            id: visit.id,
+            type: 'visit',
+            title: `👤 ${visitorName}`,
+            subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+            status: displayStatus,
+            time: formatDate(visit.visit_date || visit.created_at),
+            icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
+            color: allowDirectAccess ? '#4CAF50' : '#FF9800',
+            photo_url: visit.photo_url,
+            details: [
+              `Documento: ${visit.document || 'N/A'}`,
+              `Telefone: ${visit.phone || 'N/A'}`,
+              `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+              ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
+              ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
+              ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
+            ],
+            actions: isApproved ? {
+              primary: {
+                label: 'Confirmar Entrada',
+                action: () => confirmarChegada(visit),
+                color: allowDirectAccess ? '#2196F3' : '#4CAF50'
+              }
+            } : undefined
+          };
+        });
 
-      setPreAuthorizedVisitors(visitActivities);
+      // Atualizar estado com paginação
+      if (loadMore) {
+        setPreAuthorizedVisitors(prev => [...prev, ...visitActivities]);
+      } else {
+        setPreAuthorizedVisitors(visitActivities);
+        setPreAuthorizedPage(0);
+      }
+
+      // Verificar se há mais dados
+      setHasMorePreAuthorized(visitActivities.length === ITEMS_PER_PAGE);
+      
       console.log(`✅ [fetchPreAuthorizedVisitors] ${visitActivities.length} visitantes pré-autorizados processados`);
 
     } catch (error) {
@@ -597,8 +613,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       Alert.alert('Erro', 'Não foi possível carregar os visitantes pré-autorizados');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [buildingId, timeFilter]);
+  }, [buildingId, typeFilter]);
 
   // Esta função não será mais usada - substituída por fetchPreAuthorizedVisitors
   const fetchActivities = useCallback(async () => {
@@ -613,7 +630,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     if (buildingId) {
       fetchPreAuthorizedVisitors();
     }
-  }, [buildingId, timeFilter, fetchPreAuthorizedVisitors]);
+  }, [buildingId, typeFilter, fetchPreAuthorizedVisitors]);
 
   // Effect para carregar visitor_logs quando timeFilter mudar
   useEffect(() => {
@@ -764,23 +781,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'autorizado':
-      case 'approved':
-        return '#4CAF50';
-      case 'negado':
-      case 'denied':
-      case 'rejected':
-        return '#f44336';
-      case 'pendente':
-      case 'pending':
-        return '#FF9800';
-      default:
-        return '#2196F3';
-    }
-  };
-
   // Função para obter status baseado no notification_status
   const getVisitorLogStatus = (notificationStatus: string, tipoLog: string) => {
     switch (notificationStatus?.toLowerCase()) {
@@ -798,7 +798,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         };
       case 'pending':
         return {
-          text: 'Pendente',
+          text: 'Aguardando resposta',
           color: '#FF9800', 
           icon: '⏳'
         };
@@ -1439,36 +1439,59 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           <Text style={styles.headerSubtitle}>Status de entregas e visitas em tempo real</Text>
         </View>
 
-        {/* Filtros de Tempo */}
+        {/* Filtros dinâmicos baseados na seção ativa */}
         <View style={styles.timeFilterContainer}>
-          <TouchableOpacity
-            style={[styles.timeFilterButton, timeFilter === 'today' && styles.timeFilterButtonActive]}
-            onPress={() => setTimeFilter('today')}>
-            <Text style={[styles.timeFilterButtonText, timeFilter === 'today' && styles.timeFilterButtonTextActive]}>
-              Hoje
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.timeFilterButton, timeFilter === 'week' && styles.timeFilterButtonActive]}
-            onPress={() => setTimeFilter('week')}>
-            <Text style={[styles.timeFilterButtonText, timeFilter === 'week' && styles.timeFilterButtonTextActive]}>
-              Semana
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.timeFilterButton, timeFilter === 'month' && styles.timeFilterButtonActive]}
-            onPress={() => setTimeFilter('month')}>
-            <Text style={[styles.timeFilterButtonText, timeFilter === 'month' && styles.timeFilterButtonTextActive]}>
-              Mês
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.timeFilterButton, timeFilter === 'all' && styles.timeFilterButtonActive]}
-            onPress={() => setTimeFilter('all')}>
-            <Text style={[styles.timeFilterButtonText, timeFilter === 'all' && styles.timeFilterButtonTextActive]}>
-              Tudo
-            </Text>
-          </TouchableOpacity>
+          {activeSection === 'visitors' ? (
+            // Filtros de status para visitantes
+            <>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, statusFilter === 'all' && styles.timeFilterButtonActive]}
+                onPress={() => setStatusFilter('all')}>
+                <Text style={[styles.timeFilterButtonText, statusFilter === 'all' && styles.timeFilterButtonTextActive]}>
+                  Todos
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, statusFilter === 'pending' && styles.timeFilterButtonActive]}
+                onPress={() => setStatusFilter('pending')}>
+                <Text style={[styles.timeFilterButtonText, statusFilter === 'pending' && styles.timeFilterButtonTextActive]}>
+                  Pendente
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, statusFilter === 'approved' && styles.timeFilterButtonActive]}
+                onPress={() => setStatusFilter('approved')}>
+                <Text style={[styles.timeFilterButtonText, statusFilter === 'approved' && styles.timeFilterButtonTextActive]}>
+                  Aprovado
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Filtros de tipo para pré-autorizados
+            <>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, typeFilter === 'all' && styles.timeFilterButtonActive]}
+                onPress={() => setTypeFilter('all')}>
+                <Text style={[styles.timeFilterButtonText, typeFilter === 'all' && styles.timeFilterButtonTextActive]}>
+                  Todos
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, typeFilter === 'direto' && styles.timeFilterButtonActive]}
+                onPress={() => setTypeFilter('direto')}>
+                <Text style={[styles.timeFilterButtonText, typeFilter === 'direto' && styles.timeFilterButtonTextActive]}>
+                  Direto
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeFilterButton, typeFilter === 'com_aprovacao' && styles.timeFilterButtonActive]}
+                onPress={() => setTypeFilter('com_aprovacao')}>
+                <Text style={[styles.timeFilterButtonText, typeFilter === 'com_aprovacao' && styles.timeFilterButtonTextActive]}>
+                  Com Aprovação
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
           <TouchableOpacity
             style={[styles.timeFilterButton, showSearch && styles.timeFilterButtonActive]}
             onPress={() => {
@@ -1542,9 +1565,26 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
               </Text>
             </View>
           ) : (
-            filteredVisitorLogs.map((log) => (
-              <LogCard key={log.id} log={log} />
-            ))
+            <>
+              {filteredVisitorLogs.map((log) => (
+                <LogCard key={log.id} log={log} />
+              ))}
+              {/* Botão Carregar Mais para Visitantes */}
+              {hasMoreVisitorLogs && (
+                <TouchableOpacity
+                  style={styles.loadMoreButton}
+                  onPress={() => {
+                    const nextPage = visitorLogsPage + 1;
+                    setVisitorLogsPage(nextPage);
+                    fetchVisitorLogs(nextPage, true);
+                  }}
+                  disabled={loadingMore}>
+                  <Text style={styles.loadMoreButtonText}>
+                    {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
           </>
@@ -1573,76 +1613,92 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             </Text>
           </View>
         ) : (
-          
-          filteredPreAuthorizedVisitors.map((activity) => (
-            <TouchableOpacity
-              key={activity.id}
-              style={styles.activityCard}
-              onPress={() => toggleCardExpansion(activity.id)}>
-              <View style={styles.activityHeader}>
-                <Text style={styles.activityIcon}>{activity.icon}</Text>
-                <View style={styles.activityInfo}>
-                  <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
-                  <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
+          <>
+            {filteredPreAuthorizedVisitors.map((activity) => (
+              <TouchableOpacity
+                key={activity.id}
+                style={styles.activityCard}
+                onPress={() => toggleCardExpansion(activity.id)}>
+                <View style={styles.activityHeader}>
+                  <Text style={styles.activityIcon}>{activity.icon}</Text>
+                  <View style={styles.activityInfo}>
+                    <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
+                    <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
+                  </View>
+                  <View style={styles.activityMeta}>
+                    <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status === 'direto' ? 'ENTRADA LIBERADA' : activity.status}</Text>
+                    <Text style={styles.activityTime}>{activity.time}</Text>
+                  </View>
                 </View>
-                <View style={styles.activityMeta}>
-                  <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status === 'direto' ? 'ENTRADA LIBERADA' : activity.status}</Text>
-                  <Text style={styles.activityTime}>{activity.time}</Text>
-                </View>
-              </View>
-              {/* Detalhes expandidos */}
-              {expandedCards.has(activity.id) && (
-                <View style={styles.activityDetails}>
-                  {activity.details.map((detail, index) => (
-                    <Text key={index} style={styles.activityDetail}>{detail}</Text>
-                  ))}
-                  
-                  {/* Botão Ver Foto */}
-                  <TouchableOpacity 
-                    style={styles.viewPhotoActionButton}
-                    onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
-                    <Text style={styles.viewPhotoActionButtonText}>
-                      📷 Ver Foto
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Lógica condicional para botões de ação */}
-                  {(() => {
-                    // Função auxiliar para determinar se pode entrar diretamente
-                    const canEnterDirectly = activity.status === 'direto' || activity.status === 'Entrada Liberada'
-                                           
+                {/* Detalhes expandidos */}
+                {expandedCards.has(activity.id) && (
+                  <View style={styles.activityDetails}>
+                    {activity.details.map((detail, index) => (
+                      <Text key={index} style={styles.activityDetail}>{detail}</Text>
+                    ))}
                     
-                    if (canEnterDirectly) {
-                      // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
-                      const isDirectAccess = activity.status === 'direto' || activity.status === 'Entrada Liberada';
-                      return (
-                        <TouchableOpacity 
-                          style={styles.checkInButton}
-                          onPress={() => handleCheckIn(activity.id)}>
-                          <Text style={styles.checkInButtonText}>
-                            ✅ Confirmar Entrada
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    } else {
-                      // Para visitantes pendentes ou não autorizados: botão Avisar Morador
-                      return (
-                        <TouchableOpacity 
-                          style={styles.notifyResidentButton}
-                          onPress={() => handleNotifyResident(activity.id)}>
-                          <Text style={styles.notifyResidentButtonText}>
-                            🔔 Avisar Morador
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    }
-                  })()}
-                  
-                </View>
-              )}
-            </TouchableOpacity>
-          ))
-          
+                    {/* Botão Ver Foto */}
+                    <TouchableOpacity 
+                      style={styles.viewPhotoActionButton}
+                      onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
+                      <Text style={styles.viewPhotoActionButtonText}>
+                        📷 Ver Foto
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Lógica condicional para botões de ação */}
+                    {(() => {
+                      // Função auxiliar para determinar se pode entrar diretamente
+                      const canEnterDirectly = activity.status === 'direto' || activity.status === 'Entrada Liberada'
+                                             
+                      
+                      if (canEnterDirectly) {
+                        // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
+                        const isDirectAccess = activity.status === 'direto' || activity.status === 'Entrada Liberada';
+                        return (
+                          <TouchableOpacity 
+                            style={styles.checkInButton}
+                            onPress={() => handleCheckIn(activity.id)}>
+                            <Text style={styles.checkInButtonText}>
+                              ✅ Confirmar Entrada
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      } else {
+                        // Para visitantes pendentes ou não autorizados: botão Avisar Morador
+                        return (
+                          <TouchableOpacity 
+                            style={styles.notifyResidentButton}
+                            onPress={() => handleNotifyResident(activity.id)}>
+                            <Text style={styles.notifyResidentButtonText}>
+                              🔔 Avisar Morador
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      }
+                    })()}
+                    
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            
+            {/* Botão Carregar Mais para Pré-autorizados */}
+            {hasMorePreAuthorized && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={() => {
+                  const nextPage = preAuthorizedPage + 1;
+                  setPreAuthorizedPage(nextPage);
+                  fetchPreAuthorizedVisitors(nextPage, true);
+                }}
+                disabled={loadingMore}>
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
           </>
           
@@ -2382,6 +2438,28 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 12,
     textAlign: 'center',
+  },
+  loadMoreButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadMoreButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
