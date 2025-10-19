@@ -22,6 +22,126 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
   const [selectedImage, setSelectedImage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Estados para seleção múltipla
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedGuests, setSelectedGuests] = useState(new Set());
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
+
+  // Função para alternar seleção múltipla
+  const toggleMultiSelectMode = () => {
+    setMultiSelectMode(!multiSelectMode);
+    setSelectedGuests(new Set());
+  };
+
+  // Função para selecionar/deselecionar convidado
+  const toggleGuestSelection = (guestId: string) => {
+    const newSelected = new Set(selectedGuests);
+    if (newSelected.has(guestId)) {
+      newSelected.delete(guestId);
+    } else {
+      newSelected.add(guestId);
+    }
+    setSelectedGuests(newSelected);
+  };
+
+  // Função para selecionar todos os convidados
+  const selectAllGuests = () => {
+    const eligibleGuests = filteredActivities.filter(activity => {
+      const canEnterDirectly = activity.status === 'Aprovado' || 
+                             activity.status === 'direto' || 
+                             activity.status === 'Liberado para Entrada Direta';
+      return canEnterDirectly;
+    });
+    
+    if (selectedGuests.size === eligibleGuests.length) {
+      // Se todos estão selecionados, desselecionar todos
+      setSelectedGuests(new Set());
+    } else {
+      // Selecionar todos os elegíveis
+      setSelectedGuests(new Set(eligibleGuests.map(guest => guest.id)));
+    }
+  };
+
+  // Função para confirmar entrada em lote
+  const handleBatchCheckIn = async () => {
+    if (selectedGuests.size === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos um convidado para confirmar a entrada.');
+      return;
+    }
+
+    Alert.alert(
+      'Confirmar Entradas',
+      `Deseja confirmar a entrada de ${selectedGuests.size} convidado(s) selecionado(s)?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setBatchActionLoading(true);
+            try {
+              const selectedGuestIds = Array.from(selectedGuests);
+              
+              // Processar cada convidado selecionado
+              for (const guestId of selectedGuestIds) {
+                await handleCheckIn(guestId, false); // false para não mostrar alert individual
+              }
+              
+              Alert.alert('Sucesso', `Entrada confirmada para ${selectedGuests.size} convidado(s)!`);
+              setSelectedGuests(new Set());
+              setMultiSelectMode(false);
+              
+            } catch (error) {
+              console.error('❌ Erro no check-in em lote:', error);
+              Alert.alert('Erro', 'Ocorreu um erro ao confirmar as entradas. Tente novamente.');
+            } finally {
+              setBatchActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Função para avisar moradores em lote
+  const handleBatchNotifyResident = async () => {
+    if (selectedGuests.size === 0) {
+      Alert.alert('Atenção', 'Selecione pelo menos um convidado para avisar os moradores.');
+      return;
+    }
+
+    Alert.alert(
+      'Avisar Moradores',
+      `Deseja avisar os moradores sobre ${selectedGuests.size} convidado(s) selecionado(s)?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Avisar',
+          onPress: async () => {
+            setBatchActionLoading(true);
+            try {
+              const selectedGuestIds = Array.from(selectedGuests);
+              
+              // Processar cada convidado selecionado
+              for (const guestId of selectedGuestIds) {
+                await handleNotifyResident(guestId, false); // false para não mostrar alert individual
+              }
+              
+              Alert.alert('Sucesso', `Moradores avisados sobre ${selectedGuests.size} convidado(s)!`);
+              setSelectedGuests(new Set());
+              setMultiSelectMode(false);
+              
+            } catch (error) {
+              console.error('❌ Erro ao avisar moradores em lote:', error);
+              Alert.alert('Erro', 'Ocorreu um erro ao avisar os moradores. Tente novamente.');
+            } finally {
+              setBatchActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Função para buscar convidados pré-autorizados para o apartamento específico
   const fetchPreAuthorizedGuests = useCallback(async () => {
     if (!apartmentId || !buildingId) return;
@@ -159,7 +279,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
   });
 
   // Função para avisar morador
-  const handleNotifyResident = async (activityId: string) => {
+  const handleNotifyResident = async (activityId: string, showAlert: boolean = true) => {
     try {
       const activity = activities.find(a => a.id === activityId);
       if (!activity) return;
@@ -173,7 +293,9 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
 
       if (visitorError) {
         console.error('Erro ao buscar dados do visitante:', visitorError);
-        Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        if (showAlert) {
+          Alert.alert('Erro', 'Não foi possível encontrar os dados do visitante');
+        }
         return;
       }
 
@@ -329,16 +451,20 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         ? 'Morador notificado! Aguardando aprovação.'
         : 'Visitante autorizado e morador notificado!';
 
-      Alert.alert('Sucesso', statusMessage);
-      onGuestSelected(); // Fechar modal e recarregar dados
+      if (showAlert) {
+        Alert.alert('Sucesso', statusMessage);
+        onGuestSelected(); // Fechar modal e recarregar dados
+      }
     } catch (error) {
       console.error('Erro ao notificar morador:', error);
-      Alert.alert('Erro', 'Não foi possível notificar o morador');
+      if (showAlert) {
+        Alert.alert('Erro', 'Não foi possível notificar o morador');
+      }
     }
   };
 
   // Função para check de entrada
-  const handleCheckIn = async (activityId: string) => {
+  const handleCheckIn = async (activityId: string, showAlert: boolean = true) => {
     try {
       const activity = activities.find(a => a.id === activityId);
       if (!activity) return;
@@ -422,7 +548,9 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
 
       if (error) {
         console.error('Erro ao registrar entrada:', error);
-        Alert.alert('Erro', 'Não foi possível registrar a entrada');
+        if (showAlert) {
+          Alert.alert('Erro', 'Não foi possível registrar a entrada');
+        }
         return;
       }
 
@@ -502,8 +630,10 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         console.error('❌ [handleCheckIn] Erro ao enviar notificações:', notificationError);
       }
 
-      Alert.alert('Sucesso', 'Entrada registrada com sucesso! Morador foi notificado.');
-      onGuestSelected(); // Fechar modal e recarregar dados
+      if (showAlert) {
+        Alert.alert('Sucesso', 'Entrada registrada com sucesso! Morador foi notificado.');
+        onGuestSelected(); // Fechar modal e recarregar dados
+      }
     } catch (error) {
       console.error('Erro ao registrar entrada:', error);
       Alert.alert('Erro', 'Não foi possível registrar a entrada');
@@ -514,23 +644,74 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Convidados Pré-autorizados</Text>
       
-      {/* Campo de busca */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por nome, apartamento ou propósito..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor="#999"
-        />
+      {/* Controles de seleção múltipla */}
+      <View style={styles.multiSelectControls}>
+        <TouchableOpacity 
+          style={[styles.multiSelectButton, multiSelectMode && styles.multiSelectButtonActive]}
+          onPress={toggleMultiSelectMode}
+        >
+          <Text style={[styles.multiSelectButtonText, multiSelectMode && styles.multiSelectButtonTextActive]}>
+            {multiSelectMode ? '✓ Seleção Múltipla' : '☐ Seleção Múltipla'}
+          </Text>
+        </TouchableOpacity>
+
+        {multiSelectMode && (
+          <View style={styles.multiSelectActions}>
+            <TouchableOpacity 
+              style={styles.selectAllButton}
+              onPress={selectAllGuests}
+            >
+              <Text style={styles.selectAllButtonText}>
+                {selectedGuests.size === filteredActivities.filter(a => 
+                  a.status === 'Aprovado' || a.status === 'direto' || a.status === 'Liberado para Entrada Direta'
+                ).length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+              </Text>
+            </TouchableOpacity>
+            
+            {selectedGuests.size > 0 && (
+              <Text style={styles.selectedCounter}>
+                {selectedGuests.size} selecionado(s)
+              </Text>
+            )}
+          </View>
+        )}
       </View>
+
+      {/* Botões de ação em lote */}
+      {multiSelectMode && selectedGuests.size > 0 && (
+        <View style={styles.batchActionsContainer}>
+          <TouchableOpacity 
+            style={[styles.batchActionButton, styles.batchCheckInButton]}
+            onPress={handleBatchCheckIn}
+            disabled={batchActionLoading}
+          >
+            <Text style={styles.batchActionButtonText}>
+              ✅ Confirmar Entradas ({selectedGuests.size})
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.batchActionButton, styles.batchNotifyButton]}
+            onPress={handleBatchNotifyResident}
+            disabled={batchActionLoading}
+          >
+            <Text style={styles.batchActionButtonText}>
+              🔔 Avisar Moradores ({selectedGuests.size})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       {loading ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Carregando convidados...</Text>
         </View>
       ) : (
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          style={[styles.scrollContainer, multiSelectMode && styles.scrollContainerExpanded]} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContentContainer}
+        >
           {filteredActivities.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>📋</Text>
@@ -545,74 +726,96 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
               </Text>
             </View>
           ) : (
-            filteredActivities.map((activity) => (
-          <TouchableOpacity
-            key={activity.id}
-            style={styles.activityCard}
-            onPress={() => toggleCardExpansion(activity.id)}>
-            <View style={styles.activityHeader}>
-              <Text style={styles.activityIcon}>{activity.icon}</Text>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
-                <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
-              </View>
-              <View style={styles.activityMeta}>
-                <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status}</Text>
-                <Text style={styles.activityTime}>{activity.time}</Text>
-              </View>
-            </View>
-            
-            {/* Detalhes expandidos */}
-            {expandedCards.has(activity.id) && (
-              <View style={styles.activityDetails}>
-                {activity.details.map((detail, index) => (
-                  <Text key={index} style={styles.activityDetail}>{detail}</Text>
-                ))}
-                
-                {/* Botão Ver Foto */}
-                <TouchableOpacity 
-                  style={styles.viewPhotoActionButton}
-                  onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
-                  <Text style={styles.viewPhotoActionButtonText}>
-                    📷 Ver Foto
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Lógica condicional para botões de ação */}
-                {(() => {
-                  // Função auxiliar para determinar se pode entrar diretamente
-                  const canEnterDirectly = activity.status === 'Aprovado' || 
-                                         activity.status === 'direto' || 
-                                         activity.status === 'Liberado para Entrada Direta';
+            filteredActivities.map((activity) => {
+              const canEnterDirectly = activity.status === 'Aprovado' || 
+                                     activity.status === 'direto' || 
+                                     activity.status === 'Liberado para Entrada Direta';
+              const isSelected = selectedGuests.has(activity.id);
+              
+              return (
+                <TouchableOpacity
+                  key={activity.id}
+                  style={[
+                    styles.activityCard,
+                    multiSelectMode && canEnterDirectly && styles.activityCardSelectable,
+                    isSelected && styles.activityCardSelected
+                  ]}
+                  onPress={() => {
+                    if (multiSelectMode && canEnterDirectly) {
+                      toggleGuestSelection(activity.id);
+                    } else {
+                      toggleCardExpansion(activity.id);
+                    }
+                  }}
+                >
+                  <View style={styles.activityHeader}>
+                    {/* Checkbox para seleção múltipla */}
+                    {multiSelectMode && canEnterDirectly && (
+                      <View style={styles.checkboxContainer}>
+                        <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                          {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                        </View>
+                      </View>
+                    )}
+                    
+                    <Text style={styles.activityIcon}>{activity.icon}</Text>
+                    <View style={styles.activityInfo}>
+                      <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
+                      <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
+                    </View>
+                    <View style={styles.activityMeta}>
+                      <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status}</Text>
+                      <Text style={styles.activityTime}>{activity.time}</Text>
+                    </View>
+                  </View>
                   
-                  if (canEnterDirectly) {
-                    // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
-                    return (
+                  {/* Detalhes expandidos */}
+                  {expandedCards.has(activity.id) && !multiSelectMode && (
+                    <View style={styles.activityDetails}>
+                      {activity.details.map((detail, index) => (
+                        <Text key={index} style={styles.activityDetail}>{detail}</Text>
+                      ))}
+                      
+                      {/* Botão Ver Foto */}
                       <TouchableOpacity 
-                        style={styles.checkInButton}
-                        onPress={() => handleCheckIn(activity.id)}>
-                        <Text style={styles.checkInButtonText}>
-                          ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
+                        style={styles.viewPhotoActionButton}
+                        onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
+                        <Text style={styles.viewPhotoActionButtonText}>
+                          📷 Ver Foto
                         </Text>
                       </TouchableOpacity>
-                    );
-                  } else {
-                    // Para visitantes pendentes ou não autorizados: botão Avisar Morador
-                    return (
-                      <TouchableOpacity 
-                        style={styles.notifyResidentButton}
-                        onPress={() => handleNotifyResident(activity.id)}>
-                        <Text style={styles.notifyResidentButtonText}>
-                          🔔 Avisar Morador
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  }
-                })()}
-              </View>
-            )}
-          </TouchableOpacity>
-        ))
+
+                      {/* Lógica condicional para botões de ação */}
+                      {(() => {
+                        if (canEnterDirectly) {
+                          // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
+                          return (
+                            <TouchableOpacity 
+                              style={styles.checkInButton}
+                              onPress={() => handleCheckIn(activity.id)}>
+                              <Text style={styles.checkInButtonText}>
+                                ✅ {activity.status === 'direto' ? 'Check de Entrada' : 'Confirmar Entrada'}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        } else {
+                          // Para visitantes pendentes ou não autorizados: botão Avisar Morador
+                          return (
+                            <TouchableOpacity 
+                              style={styles.notifyResidentButton}
+                              onPress={() => handleNotifyResident(activity.id)}>
+                              <Text style={styles.notifyResidentButtonText}>
+                                🔔 Avisar Morador
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        }
+                      })()}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -838,7 +1041,122 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   scrollContainer: {
+    maxHeight: 500,
     flex: 1,
+  },
+  scrollContainerExpanded: {
+    maxHeight: '70%',
+  },
+  scrollContentContainer: {
+    paddingBottom: 20,
+  },
+  multiSelectControls: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  multiSelectButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    alignSelf: 'flex-start',
+  },
+  multiSelectButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  multiSelectButtonText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  multiSelectButtonTextActive: {
+    color: '#fff',
+  },
+  multiSelectActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    justifyContent: 'space-between',
+  },
+  selectAllButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    backgroundColor: '#f0f0f0',
+  },
+  selectAllButtonText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  selectedCounter: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  batchActionsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    gap: 8,
+  },
+  batchActionButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  batchCheckInButton: {
+    backgroundColor: '#4CAF50',
+  },
+  batchNotifyButton: {
+    backgroundColor: '#FF9800',
+  },
+  batchActionButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  activityCardSelectable: {
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  activityCardSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#f0f8ff',
+  },
+  checkboxContainer: {
+    marginRight: 8,
+    justifyContent: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  checkboxCheck: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   emptyContainer: {
     flex: 1,

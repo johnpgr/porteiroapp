@@ -181,6 +181,12 @@ interface PreRegistrationData {
   validity_end?: string;
 }
 
+// Interface para múltiplos visitantes
+interface MultipleVisitor {
+  name: string;
+  phone: string;
+}
+
 export default function VisitantesTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -210,6 +216,10 @@ export default function VisitantesTab() {
   const [lastRegistrationTime, setLastRegistrationTime] = useState<number>(0);
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
   const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
+  
+  // Rate limiting para múltiplos visitantes
+  const [lastSubmissionTime, setLastSubmissionTime] = useState<number>(0);
+  const RATE_LIMIT_MS = 30000; // 30 segundos entre submissões múltiplas
   
   // Estados para modal de edição
   const [showEditModal, setShowEditModal] = useState(false);
@@ -241,6 +251,14 @@ export default function VisitantesTab() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('todos');
   const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
+  
+  // Estados para múltiplos visitantes
+  const [registrationMode, setRegistrationMode] = useState<'individual' | 'multiple'>('individual');
+  const [multipleVisitors, setMultipleVisitors] = useState<MultipleVisitor[]>([
+    { name: '', phone: '' }
+  ]);
+  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
   
   // Função para alternar expansão do card
   const toggleCardExpansion = (visitorId: string) => {
@@ -1535,6 +1553,268 @@ export default function VisitantesTab() {
   // Funções de aprovação/desaprovação removidas - não são mais necessárias
   // O sistema agora trabalha apenas com status 'pendente' e 'expirado'
 
+  // ========== FUNÇÕES PARA MÚLTIPLOS VISITANTES ==========
+
+  // Função para adicionar um novo visitante à lista múltipla
+  const addMultipleVisitor = () => {
+    setMultipleVisitors([...multipleVisitors, { name: '', phone: '' }]);
+  };
+
+  // Função para remover um visitante da lista múltipla
+  const removeMultipleVisitor = (index: number) => {
+    const newVisitors = multipleVisitors.filter((_, i) => i !== index);
+    setMultipleVisitors(newVisitors);
+  };
+
+  // Função para atualizar dados de um visitante específico na lista múltipla
+  const updateMultipleVisitor = (index: number, field: keyof MultipleVisitor, value: string) => {
+    const newVisitors = [...multipleVisitors];
+    newVisitors[index] = { ...newVisitors[index], [field]: value };
+    setMultipleVisitors(newVisitors);
+  };
+
+  // Função para validar múltiplos visitantes
+  const validateMultipleVisitors = (): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const phoneNumbers = new Set<string>();
+
+    // Validar campos obrigatórios do formulário principal
+    if (preRegistrationData.visit_type === 'pontual') {
+      if (!preRegistrationData.visit_date) {
+        errors.push('Data da visita é obrigatória para visitas pontuais');
+      }
+      if (!preRegistrationData.visit_start_time) {
+        errors.push('Horário de início é obrigatório para visitas pontuais');
+      }
+      if (!preRegistrationData.visit_end_time) {
+        errors.push('Horário de fim é obrigatório para visitas pontuais');
+      }
+    }
+
+    // Validar cada visitante
+    multipleVisitors.forEach((visitor, index) => {
+      const sanitizedName = sanitizeInput(visitor.name);
+      const sanitizedPhone = sanitizeInput(visitor.phone);
+
+      // Validar nome
+      if (!sanitizedName) {
+        errors.push(`Visitante ${index + 1}: Nome é obrigatório`);
+      } else if (!validateName(sanitizedName)) {
+        errors.push(`Visitante ${index + 1}: Nome deve conter apenas letras e espaços (2-50 caracteres)`);
+      }
+
+      // Validar telefone
+      if (!sanitizedPhone) {
+        errors.push(`Visitante ${index + 1}: Telefone é obrigatório`);
+      } else if (!validatePhoneNumber(sanitizedPhone)) {
+        errors.push(`Visitante ${index + 1}: Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX`);
+      } else {
+        const cleanPhone = sanitizedPhone.replace(/\D/g, '');
+        if (phoneNumbers.has(cleanPhone)) {
+          errors.push(`Visitante ${index + 1}: Telefone duplicado na lista`);
+        } else {
+          phoneNumbers.add(cleanPhone);
+        }
+      }
+    });
+
+    // Verificar se há pelo menos um visitante
+    if (multipleVisitors.length === 0) {
+      errors.push('Adicione pelo menos um visitante');
+    }
+
+    return { isValid: errors.length === 0, errors };
+  };
+
+  // Função para processar múltiplos visitantes
+  const handleMultiplePreRegistration = async () => {
+    if (isProcessingMultiple) return;
+
+    // Validar dados
+    const validation = validateMultipleVisitors();
+    if (!validation.isValid) {
+      Alert.alert('Erro de Validação', validation.errors.join('\n'));
+      return;
+    }
+
+    setIsProcessingMultiple(true);
+    setProcessingStatus('Iniciando processamento...');
+
+    const results = {
+      success: 0,
+      errors: [] as string[]
+    };
+
+    try {
+      // Verificar rate limiting
+      const now = Date.now();
+      if (now - lastSubmissionTime < RATE_LIMIT_MS) {
+        const remainingTime = Math.ceil((RATE_LIMIT_MS - (now - lastSubmissionTime)) / 1000);
+        Alert.alert('Aguarde', `Aguarde ${remainingTime} segundos antes de fazer outro cadastro.`);
+        return;
+      }
+
+      // Obter apartment ID
+      const currentApartmentId = await loadApartmentId();
+      if (!currentApartmentId) {
+        Alert.alert('Erro', 'Não foi possível identificar seu apartamento. Tente novamente.');
+        return;
+      }
+
+      // Processar cada visitante
+      for (let i = 0; i < multipleVisitors.length; i++) {
+        const visitor = multipleVisitors[i];
+        setProcessingStatus(`Processando visitante ${i + 1} de ${multipleVisitors.length}...`);
+
+        try {
+          const sanitizedName = sanitizeInput(visitor.name);
+          const sanitizedPhone = sanitizeInput(visitor.phone);
+          const cleanPhone = sanitizedPhone.replace(/\D/g, '');
+
+          // Verificar se visitante já existe
+          const { data: existingVisitor } = await supabase
+            .from('visitors')
+            .select('id, status, created_at')
+            .eq('phone', cleanPhone)
+            .eq('apartment_id', currentApartmentId)
+            .single();
+
+          let visitorData;
+
+          if (existingVisitor) {
+            // Visitante existe - verificar se pode ser re-registrado
+            const createdAt = new Date(existingVisitor.created_at);
+            const now = new Date();
+            const hoursDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+
+            if (existingVisitor.status === 'pendente' && hoursDiff < 24) {
+              results.errors.push(`${sanitizedName}: Visitante já possui cadastro ativo`);
+              continue;
+            }
+
+            // Atualizar visitante existente
+            const registrationToken = generateRegistrationToken();
+
+            visitorData = {
+              name: sanitizedName,
+              phone: cleanPhone,
+              visitor_type: preRegistrationData.visitor_type || 'comum',
+              visit_type: preRegistrationData.visit_type,
+              access_type: preRegistrationData.access_type,
+              visit_date: preRegistrationData.visit_date || null,
+              visit_start_time: preRegistrationData.visit_start_time || null,
+              visit_end_time: preRegistrationData.visit_end_time || null,
+              allowed_days: preRegistrationData.allowed_days || [],
+              max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+              validity_start: preRegistrationData.validity_start || null,
+              validity_end: preRegistrationData.validity_end || null,
+              registration_token: registrationToken,
+              status: 'pendente',
+              updated_at: new Date().toISOString()
+            };
+
+            const { error: updateError } = await supabase
+              .from('visitors')
+              .update(visitorData)
+              .eq('id', existingVisitor.id);
+
+            if (updateError) throw updateError;
+          } else {
+            // Criar novo visitante
+            const registrationToken = generateRegistrationToken();
+
+            visitorData = {
+              name: sanitizedName,
+              phone: cleanPhone.replace(/\D/g, ''),
+              status: 'pendente',
+              access_type: preRegistrationData.access_type || 'com_aprovacao',
+              apartment_id: currentApartmentId,
+              registration_token: registrationToken,
+              token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              visit_type: preRegistrationData.visit_type,
+              visit_start_time: preRegistrationData.visit_start_time || '00:00',
+              visit_end_time: preRegistrationData.visit_end_time || '23:59',
+              max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
+              is_recurring: preRegistrationData.visit_type === 'frequente'
+            };
+
+            // Adicionar período de validade se fornecido
+            if (preRegistrationData.validity_start) {
+              const [day, month, year] = preRegistrationData.validity_start.split('/');
+              visitorData.validity_start = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+
+            // Adicionar campos específicos baseados no tipo de visita
+            if (preRegistrationData.visit_type === 'pontual') {
+              // Converter data DD/MM/AAAA para formato ISO (AAAA-MM-DD)
+              if (preRegistrationData.visit_date) {
+                const [day, month, year] = preRegistrationData.visit_date.split('/');
+                visitorData.visit_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+              }
+            } else if (preRegistrationData.visit_type === 'frequente') {
+              visitorData.allowed_days = preRegistrationData.allowed_days;
+            }
+
+            const { error: insertError } = await supabase
+              .from('visitors')
+              .insert([visitorData]);
+
+            if (insertError) throw insertError;
+          }
+
+          results.success++;
+        } catch (error) {
+          console.error(`Erro ao processar visitante ${visitor.name}:`, error);
+          results.errors.push(`${visitor.name}: ${error.message || 'Erro desconhecido'}`);
+        }
+      }
+
+      // Atualizar rate limiting
+      setLastSubmissionTime(now);
+
+      // Mostrar resultado
+      let message = `✅ ${results.success} visitante(s) cadastrado(s) com sucesso!`;
+      
+      if (results.errors.length > 0) {
+        message += `\n\n❌ Erros encontrados:\n${results.errors.join('\n')}`;
+      }
+
+      Alert.alert(
+        results.errors.length === 0 ? 'Sucesso!' : 'Processamento Concluído',
+        message,
+        [{
+          text: 'OK',
+          onPress: () => {
+            setShowPreRegistrationModal(false);
+            setRegistrationMode('individual');
+            setMultipleVisitors([{ name: '', phone: '' }]);
+            setPreRegistrationData({
+              name: '',
+              phone: '',
+              visit_type: 'pontual',
+              access_type: 'com_aprovacao',
+              visit_date: '',
+              visit_start_time: '',
+              visit_end_time: '',
+              allowed_days: [],
+              max_simultaneous_visits: 1,
+              validity_start: '',
+              validity_end: ''
+            });
+            fetchVisitors();
+          }
+        }]
+      );
+
+    } catch (error) {
+      console.error('Erro no processamento múltiplo:', error);
+      Alert.alert('Erro', 'Erro durante o processamento. Tente novamente.');
+    } finally {
+      setIsProcessingMultiple(false);
+      setProcessingStatus('');
+    }
+  };
+
   return (
     <>
       <ScrollView style={styles.content}>
@@ -1821,44 +2101,180 @@ export default function VisitantesTab() {
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {/* Toggle para modo de cadastro */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nome Completo *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={preRegistrationData.name}
-                  onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, name: text }))}
-                  placeholder="Digite o nome completo do visitante"
-                  placeholderTextColor="#999"
-                />
+                <Text style={styles.inputLabel}>Modo de Cadastro</Text>
+                <View style={styles.registrationModeSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.registrationModeButton,
+                      registrationMode === 'individual' && styles.registrationModeButtonActive
+                    ]}
+                    onPress={() => {
+                      setRegistrationMode('individual');
+                      setMultipleVisitors([{ name: '', phone: '' }]);
+                    }}
+                  >
+                    <Ionicons 
+                      name="person" 
+                      size={20} 
+                      color={registrationMode === 'individual' ? '#fff' : '#4CAF50'} 
+                    />
+                    <Text style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'individual' && styles.registrationModeButtonTextActive
+                    ]}>Individual</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.registrationModeButton,
+                      registrationMode === 'multiple' && styles.registrationModeButtonActive
+                    ]}
+                    onPress={() => {
+                      setRegistrationMode('multiple');
+                      if (multipleVisitors.length === 0) {
+                        setMultipleVisitors([{ name: '', phone: '' }]);
+                      }
+                    }}
+                  >
+                    <Ionicons 
+                      name="people" 
+                      size={20} 
+                      color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'} 
+                    />
+                    <Text style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'multiple' && styles.registrationModeButtonTextActive
+                    ]}>Múltiplos</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Telefone *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={preRegistrationData.phone}
-                  maxLength={15}
-                  onChangeText={(text) => {
-                    // Remove tudo que não é dígito
-                    const cleaned = text.replace(/\D/g, '');
-                    // Limita a 11 dígitos
-                    const limited = cleaned.slice(0, 11);
-                    // Aplica a formatação (XX) 9XXXX-XXXX
-                    let formatted = limited;
-                    if (limited.length > 6) {
-                      formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
-                    } else if (limited.length > 2) {
-                      formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-                    } else if (limited.length > 0) {
-                      formatted = `(${limited}`;
-                    }
-                    setPreRegistrationData(prev => ({ ...prev, phone: formatted }));
-                  }}
-                  placeholder="(XX) 9XXXX-XXXX"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
-              </View>
+              {/* Campos para cadastro individual */}
+              {registrationMode === 'individual' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Nome Completo *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.name}
+                      onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, name: text }))}
+                      placeholder="Digite o nome completo do visitante"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Telefone *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={preRegistrationData.phone}
+                      maxLength={15}
+                      onChangeText={(text) => {
+                        // Remove tudo que não é dígito
+                        const cleaned = text.replace(/\D/g, '');
+                        // Limita a 11 dígitos
+                        const limited = cleaned.slice(0, 11);
+                        // Aplica a formatação (XX) 9XXXX-XXXX
+                        let formatted = limited;
+                        if (limited.length > 6) {
+                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                        } else if (limited.length > 2) {
+                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                        } else if (limited.length > 0) {
+                          formatted = `(${limited}`;
+                        }
+                        setPreRegistrationData(prev => ({ ...prev, phone: formatted }));
+                      }}
+                      placeholder="(XX) 9XXXX-XXXX"
+                      placeholderTextColor="#999"
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </>
+              )}
+
+              {/* Campos para cadastro múltiplo */}
+              {registrationMode === 'multiple' && (
+                <View style={styles.inputGroup}>
+                  <View style={styles.multipleVisitorsHeader}>
+                    <Text style={styles.inputLabel}>Visitantes *</Text>
+                    <TouchableOpacity
+                      style={styles.addVisitorButton}
+                      onPress={addMultipleVisitor}
+                    >
+                      <Ionicons name="add-circle" size={24} color="#4CAF50" />
+                      <Text style={styles.addVisitorButtonText}>Adicionar</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {multipleVisitors.map((visitor, index) => (
+                    <View key={index} style={styles.multipleVisitorItem}>
+                      <View style={styles.multipleVisitorHeader}>
+                        <Text style={styles.multipleVisitorTitle}>Visitante {index + 1}</Text>
+                        {multipleVisitors.length > 1 && (
+                          <TouchableOpacity
+                            style={styles.removeVisitorButton}
+                            onPress={() => removeMultipleVisitor(index)}
+                          >
+                            <Ionicons name="trash" size={20} color="#f44336" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      <View style={styles.multipleVisitorFields}>
+                        <View style={styles.multipleVisitorField}>
+                          <Text style={styles.multipleVisitorFieldLabel}>Nome *</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={visitor.name}
+                            onChangeText={(text) => updateMultipleVisitor(index, 'name', text)}
+                            placeholder="Nome completo"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
+
+                        <View style={styles.multipleVisitorField}>
+                          <Text style={styles.multipleVisitorFieldLabel}>Telefone *</Text>
+                          <TextInput
+                            style={styles.textInput}
+                            value={visitor.phone}
+                            maxLength={15}
+                            onChangeText={(text) => {
+                              // Remove tudo que não é dígito
+                              const cleaned = text.replace(/\D/g, '');
+                              // Limita a 11 dígitos
+                              const limited = cleaned.slice(0, 11);
+                              // Aplica a formatação (XX) 9XXXX-XXXX
+                              let formatted = limited;
+                              if (limited.length > 6) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                              } else if (limited.length > 2) {
+                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                              } else if (limited.length > 0) {
+                                formatted = `(${limited}`;
+                              }
+                              updateMultipleVisitor(index, 'phone', formatted);
+                            }}
+                            placeholder="(XX) 9XXXX-XXXX"
+                            placeholderTextColor="#999"
+                            keyboardType="phone-pad"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Indicador de processamento para múltiplos visitantes */}
+                  {isProcessingMultiple && (
+                    <View style={styles.processingIndicator}>
+                      <ActivityIndicator size="small" color="#4CAF50" />
+                      <Text style={styles.processingText}>{processingStatus}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Tipo de Visita *</Text>
@@ -2147,13 +2563,15 @@ export default function VisitantesTab() {
               <TouchableOpacity
                 style={[
                   styles.submitButton,
-                  isSubmittingPreRegistration && styles.submitButtonDisabled
+                  (isSubmittingPreRegistration || isProcessingMultiple) && styles.submitButtonDisabled
                 ]}
-                onPress={handlePreRegistration}
-                disabled={isSubmittingPreRegistration}
+                onPress={registrationMode === 'individual' ? handlePreRegistration : handleMultiplePreRegistration}
+                disabled={isSubmittingPreRegistration || isProcessingMultiple}
               >
                 <Text style={styles.submitButtonText}>
-                  {isSubmittingPreRegistration ? 'Enviando...' : 'Cadastrar'}
+                  {isSubmittingPreRegistration || isProcessingMultiple 
+                    ? (registrationMode === 'multiple' ? 'Processando...' : 'Enviando...') 
+                    : 'Cadastrar'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3322,6 +3740,118 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '600',
+  },
+
+  // ========== ESTILOS PARA MÚLTIPLOS VISITANTES ==========
+  
+  // Seletor de modo de cadastro
+  registrationModeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 4,
+    gap: 4,
+  },
+  registrationModeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+    gap: 8,
+  },
+  registrationModeButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  registrationModeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#4CAF50',
+  },
+  registrationModeButtonTextActive: {
+    color: '#fff',
+  },
+
+  // Header dos múltiplos visitantes
+  multipleVisitorsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addVisitorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0f8f0',
+    gap: 6,
+  },
+  addVisitorButtonText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+
+  // Item de visitante múltiplo
+  multipleVisitorItem: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  multipleVisitorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  multipleVisitorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  removeVisitorButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#ffebee',
+  },
+
+  // Campos do visitante múltiplo
+  multipleVisitorFields: {
+    gap: 12,
+  },
+  multipleVisitorField: {
+    gap: 6,
+  },
+  multipleVisitorFieldLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+
+  // Indicador de processamento
+  processingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#f0f8f0',
+    borderRadius: 8,
+    marginTop: 16,
+    gap: 12,
+  },
+  processingText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
   },
 
 });

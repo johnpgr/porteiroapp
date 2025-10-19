@@ -23,8 +23,7 @@ export default function MoradorLogin() {
   }, []);
 
   useEffect(() => {
-    // Redireciona para index.tsx se o usuário já estiver logado
-    // O index.tsx irá redirecionar para a página correta com delay
+    // Redireciona diretamente para /morador se o usuário já estiver logado
     if (!authLoading && user?.user_type === 'morador') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -32,7 +31,7 @@ export default function MoradorLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/');
+        router.replace('/morador');
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;

@@ -23,8 +23,7 @@ export default function PorteiroLogin() {
   }, []);
 
   useEffect(() => {
-    // Redireciona para index.tsx se o usuário já estiver logado
-    // O index.tsx irá redirecionar para a página correta com delay
+    // Redireciona diretamente para /porteiro se o usuário já estiver logado
     if (!authLoading && user?.user_type === 'porteiro') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -32,7 +31,7 @@ export default function PorteiroLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/');
+        router.replace('/porteiro');
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
