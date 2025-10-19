@@ -122,7 +122,7 @@ export const usePendingNotifications = () => {
         `)
         .eq('apartment_id', apartmentId)
         .eq('notification_status', 'pending')
-        .or('requires_resident_approval.eq.true,entry_type.eq.delivery,entry_type.eq.vehicle')
+        .in('entry_type', ['visitor', 'delivery', 'vehicle'])
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('notification_sent_at', { ascending: false });
       

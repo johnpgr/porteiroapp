@@ -182,7 +182,6 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         const deliveryDetails = [];
         if (notification.delivery_description) deliveryDetails.push(`📦 ${notification.delivery_description}`);
         if (notification.delivery_sender) deliveryDetails.push(`🚚 Remetente: ${notification.delivery_sender}`);
-        if (notification.delivery_company) deliveryDetails.push(`🏢 Empresa: ${notification.delivery_company}`);
         return deliveryDetails.length > 0 ? deliveryDetails.join('\n') : 'Informações da encomenda não disponíveis';
       
       case 'vehicle':
@@ -451,23 +450,11 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 {notification.delivery_sender && (
                   <View style={styles.infoItem}>
                     <View style={styles.infoIcon}>
-                      <Ionicons name="mail-outline" size={18} color="#4CAF50" />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>Remetente</Text>
-                      <Text style={styles.infoValue}>{notification.delivery_sender}</Text>
-                    </View>
-                  </View>
-                )}
-
-                {notification.delivery_company && (
-                  <View style={styles.infoItem}>
-                    <View style={styles.infoIcon}>
                       <Ionicons name="business-outline" size={18} color="#4CAF50" />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Empresa</Text>
-                      <Text style={styles.infoValue}>{notification.delivery_company}</Text>
+                      <Text style={styles.infoValue}>{notification.delivery_sender}</Text>
                     </View>
                   </View>
                 )}

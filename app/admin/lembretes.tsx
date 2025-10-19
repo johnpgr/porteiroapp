@@ -500,13 +500,13 @@ export default function LembretesAdmin() {
             <TouchableOpacity
               style={[
                 styles.buildingFilterButton,
-                !filters.predio && styles.buildingFilterButtonActive
+                filters.predio === 'all' && styles.buildingFilterButtonActive
               ]}
-              onPress={() => setFilters(prev => ({ ...prev, predio: '' }))}
+              onPress={() => setFilters(prev => ({ ...prev, predio: 'all' }))}
             >
               <Text style={[
                 styles.buildingFilterButtonText,
-                !filters.predio && styles.buildingFilterButtonTextActive
+                filters.predio === 'all' && styles.buildingFilterButtonTextActive
               ]}>
                 Todos os prédios
               </Text>
