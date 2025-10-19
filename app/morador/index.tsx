@@ -597,7 +597,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 16,
   },
   subtitle: {
     fontSize: 14,
@@ -615,7 +615,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   sectionHeader: {
     flexDirection: 'row',

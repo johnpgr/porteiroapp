@@ -1269,7 +1269,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -1320,7 +1320,7 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 16,
     textAlign: 'center',
   },
   input: {
@@ -1361,7 +1361,7 @@ const styles = StyleSheet.create({
   optionsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 12,
     marginTop: 5,
   },
   optionContainer: {
@@ -1532,7 +1532,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   communicationMeta: {
     flexDirection: 'row',
@@ -1595,6 +1595,7 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginRight: 10,
+    marginBottom: 16,
   },
   pollStatus: {
     fontSize: 14,
@@ -1613,10 +1614,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pollOptionsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   pollOption: {
     fontSize: 14,

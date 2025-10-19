@@ -78,37 +78,43 @@ export default function LembretesAdmin() {
         return;
       }
       
-      // Load building_admins for the admin
-      const { data: buildingAdminsData, error } = await (supabase as any)
-        .from('building_admins')
-        .select(`
-          id,
-          building_id,
-          admin_profile_id,
-          buildings (
-            name,
-            address
-          )
-        `)
-        .eq('admin_profile_id', currentAdmin.id);
-
-      if (error) {
-        console.error('Erro ao buscar building_admins:', error);
-        return;
-      }
-
-      const buildingAdminsFormatted = buildingAdminsData?.map((item: any) => ({
-        id: item.id,
-        building_id: item.building_id,
-        admin_profile_id: item.admin_profile_id,
-        building: item.buildings
-      })) || [];
-
-      setBuildingAdmins(buildingAdminsFormatted);
+      // Usar adminAuth.getAdminBuildings() como nas outras páginas
+      const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
       
-      // Armazenar IDs dos building_admins para filtrar lembretes
-      const buildingAdminIds = buildingAdminsFormatted.map(ba => ba.id);
-      setAdminBuildings(buildingAdminIds);
+      if (adminBuildings && adminBuildings.length > 0) {
+        // Buscar os building_admins correspondentes para obter os IDs corretos
+        const { data: buildingAdminsData, error } = await supabase
+          .from('building_admins')
+          .select('id, building_id, admin_profile_id')
+          .eq('admin_profile_id', currentAdmin.id);
+
+        if (error) {
+          console.error('Erro ao buscar building_admins:', error);
+          return;
+        }
+
+        // Formatar os dados para compatibilidade com o filtro horizontal
+        const buildingAdminsFormatted = adminBuildings.map((building: any) => {
+          // Encontrar o building_admin correspondente
+          const buildingAdmin = buildingAdminsData?.find(ba => ba.building_id === building.id);
+          
+          return {
+            id: buildingAdmin?.id || building.id, // ID do building_admin para filtrar lembretes
+            building_id: building.id,
+            admin_profile_id: currentAdmin.id,
+            building: {
+              name: building.name || 'Prédio sem nome',
+              address: building.address || ''
+            }
+          };
+        });
+
+        setBuildingAdmins(buildingAdminsFormatted);
+        
+        // Armazenar IDs dos building_admins para filtrar lembretes
+        const buildingAdminIds = buildingAdminsFormatted.map(ba => ba.id);
+        setAdminBuildings(buildingAdminIds);
+      }
     } catch (error) {
       console.error('Erro ao carregar prédios:', error);
     }
@@ -505,20 +511,20 @@ export default function LembretesAdmin() {
                 Todos os prédios
               </Text>
             </TouchableOpacity>
-            {buildings.map((building) => (
+            {buildingAdmins.map((buildingAdmin) => (
               <TouchableOpacity
-                key={building.id}
+                key={buildingAdmin.id}
                 style={[
                   styles.buildingFilterButton,
-                  filters.predio === building.id && styles.buildingFilterButtonActive
+                  filters.predio === buildingAdmin.id && styles.buildingFilterButtonActive
                 ]}
-                onPress={() => setFilters(prev => ({ ...prev, predio: building.id }))}
+                onPress={() => setFilters(prev => ({ ...prev, predio: buildingAdmin.id }))}
               >
                 <Text style={[
                   styles.buildingFilterButtonText,
-                  filters.predio === building.id && styles.buildingFilterButtonTextActive
+                  filters.predio === buildingAdmin.id && styles.buildingFilterButtonTextActive
                 ]}>
-                  {building.name}
+                  {buildingAdmin.building.name}
                 </Text>
               </TouchableOpacity>
             ))}
