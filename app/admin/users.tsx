@@ -2770,7 +2770,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 20,
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingBottom: 20,
+    paddingTop: 20,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -2784,7 +2785,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

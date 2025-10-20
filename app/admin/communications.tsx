@@ -1330,8 +1330,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1351,7 +1351,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',

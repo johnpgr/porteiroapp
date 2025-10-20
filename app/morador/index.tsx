@@ -558,7 +558,9 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 20,
+    paddingBottom: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -592,9 +594,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  section: {
-    padding: 20,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -605,6 +604,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     marginBottom: 15,
   },
   refreshButton: {
