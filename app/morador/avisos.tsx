@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
-import BottomNav from '~/components/BottomNav';
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
 // import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
 
@@ -648,7 +647,6 @@ const AvisosTab = () => {
           )}
         </View>
       </ScrollView>
-      <BottomNav activeTab="avisos" />
     </SafeAreaView>
   );
 };
@@ -661,6 +659,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  section: {
+    marginBottom: 10,
   },
   errorContainer: {
     backgroundColor: '#ffebee',
@@ -719,14 +720,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  section: {
-    padding: 20,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 10,
   },
   noticeCard: {
     backgroundColor: '#fff',
@@ -903,24 +902,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#065F46',
     marginLeft: 6,
-  },
-  errorText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#EF4444',
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 16,
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
 

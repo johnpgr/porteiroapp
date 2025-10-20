@@ -942,24 +942,29 @@ export default function CadastroTab() {
                 ) : (
                   vehicles.map((vehicle) => (
                     <View key={vehicle.id} style={styles.vehicleCard}>
+                      <View>
                       <Text style={styles.vehiclePlate}>{formatLicensePlate(vehicle.license_plate || '')}</Text>
                       <Text style={styles.vehicleInfo}>
-                        {vehicle.type === 'car' ? '🚗' : vehicle.type === 'motorcycle' ? '🏍️' : '🚚'} 
-                        {vehicle.type === 'car' ? 'Carro' : 
-                         vehicle.type === 'motorcycle' ? 'Moto' : 
-                         vehicle.type === 'truck' ? 'Caminhão' : 
-                         vehicle.type === 'van' ? 'Van' : 
-                         vehicle.type === 'bus' ? 'Ônibus' : 'Outro'}
+                        Tipo: {vehicle.type === 'car' ? 'Carro' : 'Moto'}
                       </Text>
                       {(vehicle.brand || vehicle.model) && (
-                        <Text style={styles.vehicleDetails}>
-                          {vehicle.brand} {vehicle.model}
-                        </Text>
+                        <View style={styles.vehicleDetailsRow}>
+                          {vehicle.brand && (
+                            <Text style={styles.vehicleDetails}>
+                              Marca: {vehicle.brand}
+                            </Text>
+                          )}
+                          {vehicle.model && (
+                            <Text style={styles.vehicleDetails}>
+                              Modelo: {vehicle.model}
+                            </Text>
+                          )}
+                        </View>
                       )}
                       {vehicle.color && (
-                        <Text style={styles.vehicleColor}>🎨 {vehicle.color}</Text>
+                        <Text style={styles.vehicleColor}>🎨Cor: {vehicle.color}</Text>
                       )}
-                      
+                      </View>
                       <View style={styles.actionButtons}>
                         <TouchableOpacity 
                           style={styles.deleteButton}
@@ -1375,11 +1380,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 1,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-  },
   placeholder: {
     width: 40,
   },
@@ -1436,12 +1436,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingVertical: 24,
   },
   section: {
     backgroundColor: '#fff',
     padding: 20,
-    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1696,6 +1694,9 @@ const styles = StyleSheet.create({
   },
   // Estilos para veículos
   vehicleCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -1717,10 +1718,14 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 4,
   },
+  vehicleDetailsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 4,
+  },
   vehicleDetails: {
     fontSize: 14,
     color: '#4CAF50',
-    marginBottom: 4,
     fontWeight: '500',
   },
   vehicleColor: {
