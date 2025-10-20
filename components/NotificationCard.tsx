@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 
@@ -136,7 +136,10 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showDeliveryCodeModal, setShowDeliveryCodeModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [pendingDeliveryDestination, setPendingDeliveryDestination] = useState<'portaria' | 'elevador' | null>(null);
 
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
@@ -179,7 +182,6 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         const deliveryDetails = [];
         if (notification.delivery_description) deliveryDetails.push(`📦 ${notification.delivery_description}`);
         if (notification.delivery_sender) deliveryDetails.push(`🚚 Remetente: ${notification.delivery_sender}`);
-        if (notification.delivery_company) deliveryDetails.push(`🏢 Empresa: ${notification.delivery_company}`);
         return deliveryDetails.length > 0 ? deliveryDetails.join('\n') : 'Informações da encomenda não disponíveis';
       
       case 'vehicle':
@@ -198,6 +200,17 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   const isDelivery = notification.purpose?.toLowerCase().includes('entrega') || 
                    notification.entry_type === 'delivery';
 
+  // Debug logs para identificar problemas com detecção de entregas
+  console.log('🔍 [NotificationCard] Debug da notificação:', {
+    id: notification.id,
+    entry_type: notification.entry_type,
+    purpose: notification.purpose,
+    isDelivery: isDelivery,
+    guest_name: notification.guest_name,
+    delivery_sender: notification.delivery_sender,
+    delivery_description: notification.delivery_description
+  });
+
   const handleApprove = () => {
     onRespond(notification.id, { action: 'approve' });
   };
@@ -207,17 +220,26 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
   };
 
   const handleDeliveryPortaria = () => {
-    onRespond(notification.id, { 
-      action: 'approve', 
-      delivery_destination: 'portaria' 
-    });
+    setPendingDeliveryDestination('portaria');
+    setShowDeliveryCodeModal(true);
   };
 
   const handleDeliveryElevador = () => {
-    onRespond(notification.id, { 
-      action: 'approve', 
-      delivery_destination: 'elevador' 
-    });
+    setPendingDeliveryDestination('elevador');
+    setShowDeliveryCodeModal(true);
+  };
+
+  const confirmDeliveryWithCode = () => {
+    if (pendingDeliveryDestination) {
+      onRespond(notification.id, { 
+        action: 'approve', 
+        delivery_destination: pendingDeliveryDestination,
+        delivery_code: deliveryCode.trim() || undefined
+      });
+      setShowDeliveryCodeModal(false);
+      setDeliveryCode('');
+      setPendingDeliveryDestination(null);
+    }
   };
 
   const confirmReject = () => {
@@ -323,7 +345,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         animationType="slide"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <View style={styles.fullScreenModalOverlay}>
+        <SafeAreaView style={styles.fullScreenModalOverlay}>
           <View style={styles.fullScreenDetailsCard}>
             {/* Header Fixo */}
             <View style={styles.fullScreenHeader}>
@@ -428,23 +450,11 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 {notification.delivery_sender && (
                   <View style={styles.infoItem}>
                     <View style={styles.infoIcon}>
-                      <Ionicons name="mail-outline" size={18} color="#4CAF50" />
-                    </View>
-                    <View style={styles.infoContent}>
-                      <Text style={styles.infoLabel}>Remetente</Text>
-                      <Text style={styles.infoValue}>{notification.delivery_sender}</Text>
-                    </View>
-                  </View>
-                )}
-
-                {notification.delivery_company && (
-                  <View style={styles.infoItem}>
-                    <View style={styles.infoIcon}>
                       <Ionicons name="business-outline" size={18} color="#4CAF50" />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Empresa</Text>
-                      <Text style={styles.infoValue}>{notification.delivery_company}</Text>
+                      <Text style={styles.infoValue}>{notification.delivery_sender}</Text>
                     </View>
                   </View>
                 )}
@@ -545,7 +555,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
               )}
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Modal de rejeição */}
@@ -578,6 +588,56 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                 disabled={responding}
               >
                 <Text style={styles.confirmButtonText}>Recusar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de código de entrega */}
+      <Modal
+        visible={showDeliveryCodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeliveryCodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="cube-outline" size={24} color="#FF9800" />
+                <Text style={styles.modalTitle}>Código da Encomenda</Text>
+              </View>
+            </View>
+            <Text style={[styles.notificationDetails, { marginBottom: 16 }]}>
+              Digite o código ou palavra-chave da encomenda (se houver) para facilitar a localização pelo porteiro:
+            </Text>
+            <TextInput
+              style={[styles.textInput, { minHeight: 50 }]}
+              placeholder="Ex: ABC123, Código de retirada, etc. (opcional)"
+              value={deliveryCode}
+              onChangeText={setDeliveryCode}
+              autoCapitalize="characters"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowDeliveryCodeModal(false);
+                  setDeliveryCode('');
+                  setPendingDeliveryDestination(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: '#4CAF50' }]}
+                onPress={confirmDeliveryWithCode}
+                disabled={responding}
+              >
+                <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
+                  {responding ? 'Processando...' : 'Confirmar'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

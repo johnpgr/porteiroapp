@@ -261,6 +261,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 16,
   },
   placeholder: {
     width: 40,
@@ -333,10 +334,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 16,
     textAlign: 'center',
   },
   sectionDescription: {

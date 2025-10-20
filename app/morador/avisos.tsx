@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import BottomNav from '~/components/BottomNav';
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
 // import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
 
@@ -647,6 +648,7 @@ const AvisosTab = () => {
           )}
         </View>
       </ScrollView>
+      <BottomNav activeTab="avisos" />
     </SafeAreaView>
   );
 };

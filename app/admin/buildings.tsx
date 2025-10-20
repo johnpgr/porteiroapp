@@ -308,6 +308,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 16,
   },
   addButton: {
     backgroundColor: '#4CAF50',
@@ -337,7 +338,7 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 16,
     textAlign: 'center',
     color: '#333',
   },
@@ -377,9 +378,9 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 12,
     color: '#333',
   },
   emptyState: {
@@ -394,7 +395,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   emptyStateTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
@@ -425,7 +426,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   buildingAddress: {
     fontSize: 14,

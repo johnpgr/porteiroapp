@@ -180,7 +180,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   const renderApartamentoStep = () => {
-    const handleApartmentConfirm = () => {
+    const handleApartmentConfirm = async () => {
       if (!apartamento) {
         Alert.alert('Erro', 'Digite o número do apartamento.');
         return;
@@ -201,6 +201,39 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
       if (!foundApartment.id) {
         Alert.alert('Erro', 'Apartamento inválido. Tente novamente.');
+        return;
+      }
+
+      // Validar se há moradores cadastrados no apartamento
+      try {
+        console.log('🔍 [RegistrarEncomenda] Verificando moradores no apartamento:', foundApartment.id);
+        
+        const { data: residents, error: residentsError } = await supabase
+          .from('apartment_residents')
+          .select('profile_id')
+          .eq('apartment_id', foundApartment.id)
+          .limit(1);
+
+        if (residentsError) {
+          console.error('❌ [RegistrarEncomenda] Erro ao verificar moradores:', residentsError);
+          Alert.alert('Erro', 'Não foi possível verificar os moradores do apartamento. Tente novamente.');
+          return;
+        }
+
+        if (!residents || residents.length === 0) {
+          console.log('⚠️ [RegistrarEncomenda] Nenhum morador encontrado no apartamento:', apartamento);
+          Alert.alert(
+            'Apartamento sem Residentes',
+            `Não há residentes cadastrados no apartamento ${apartamento}. Não é possível registrar encomendas para este apartamento.`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
+        console.log('✅ [RegistrarEncomenda] Moradores encontrados no apartamento:', residents.length);
+      } catch (error) {
+        console.error('❌ [RegistrarEncomenda] Erro na validação de moradores:', error);
+        Alert.alert('Erro', 'Erro ao validar apartamento. Tente novamente.');
         return;
       }
 
@@ -518,25 +551,35 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
+      // 🚫 PROTEÇÃO CRÍTICA: Prevenir múltiplas execuções simultâneas
+      if (isLoading) {
+        console.log('⚠️ [RegistrarEncomenda] Tentativa de submissão duplicada BLOQUEADA');
+        return;
+      }
+
       try {
+        setIsLoading(true);
+        console.log('🔒 [RegistrarEncomenda] Submissão bloqueada - isLoading = true');
+
         // Validar se apartamento foi selecionado
         if (!selectedApartment || !selectedApartment.id) {
           Alert.alert('Erro', 'Selecione um apartamento válido.');
+          setIsLoading(false);
           return;
         }
 
         // Verificar se o porteiro está logado e tem building_id
         if (!user || !doormanBuildingId) {
           Alert.alert('Erro', 'Porteiro não identificado. Faça login novamente.');
+          setIsLoading(false);
           return;
         }
 
         if (!empresaSelecionada || !nomeDestinatario || !descricaoEncomenda) {
           Alert.alert('Erro', 'Todos os campos obrigatórios devem ser preenchidos');
+          setIsLoading(false);
           return;
         }
-
-        setIsLoading(true);
 
         const currentTime = new Date().toISOString();
 
@@ -680,43 +723,78 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           // Não bloqueia o fluxo se a notificação push falhar
         }
 
-        // Enviar notificação WhatsApp para o morador sobre entrega aguardando
-        try {
-          // Buscar dados do morador proprietário
-          const { data: residentData, error: residentError } = await supabase
-            .from('apartment_residents')
-            .select('profiles!inner(full_name, phone)')
-            .eq('apartment_id', selectedApartment.id)
-            .eq('is_owner', true)
+        // 🚫 PROTEÇÃO CRÍTICA WHATSAPP: Verificar se notificação já foi enviada
+        console.log('📱 [RegistrarEncomenda] Verificando status antes de enviar WhatsApp...');
+
+        if (!visitorLogData?.id) {
+          console.warn('⚠️ [RegistrarEncomenda] Visitor log ID não encontrado - pulando notificação');
+        } else {
+          // Buscar status atual do visitor_log recém-criado
+          const { data: currentLog } = await supabase
+            .from('visitor_logs')
+            .select('notification_status')
+            .eq('id', visitorLogData.id)
             .single();
 
-          if (residentError) {
-            console.error('Erro ao buscar dados do morador:', residentError);
-          } else if (residentData && residentData.profiles.phone) {
-            // Buscar dados do prédio
-            const { data: buildingData, error: buildingError } = await supabase
-              .from('buildings')
-              .select('name')
-              .eq('id', doormanBuildingId)
-              .single();
+          const currentStatus = currentLog?.notification_status;
+          console.log('📋 [RegistrarEncomenda] Status atual da notificação:', currentStatus);
 
-            if (buildingError) {
-              console.error('Erro ao buscar dados do prédio:', buildingError);
-            } else {
-              // Enviar notificação de entrega aguardando aprovação
-              await notificationApi.sendVisitorWaitingNotification({
-                visitor_name: `Entrega de ${empresaSelecionada.nome}`,
-                resident_phone: residentData.profiles.phone,
-                resident_name: residentData.profiles.full_name,
-                building: buildingData?.name || 'Seu prédio',
-                apartment: selectedApartment.number,
-                visitor_log_id: visitorLogData?.id || ''
-              });
+          // Enviar notificação WhatsApp APENAS se ainda não foi enviada
+          if (currentStatus !== 'sent') {
+            try {
+              console.log('📱 [RegistrarEncomenda] Enviando notificação WhatsApp...');
+
+              // Buscar dados do morador proprietário
+              const { data: residentData, error: residentError } = await supabase
+                .from('apartment_residents')
+                .select('profiles!inner(full_name, phone)')
+                .eq('apartment_id', selectedApartment.id)
+                .eq('is_owner', true)
+                .single();
+
+              if (residentError) {
+                console.error('❌ [RegistrarEncomenda] Erro ao buscar dados do morador:', residentError);
+              } else if (residentData && residentData.profiles.phone) {
+                // Buscar dados do prédio
+                const { data: buildingData, error: buildingError } = await supabase
+                  .from('buildings')
+                  .select('name')
+                  .eq('id', doormanBuildingId)
+                  .single();
+
+                if (buildingError) {
+                  console.error('❌ [RegistrarEncomenda] Erro ao buscar dados do prédio:', buildingError);
+                } else {
+                  console.log('📱 [RegistrarEncomenda] Enviando WhatsApp para:', residentData.profiles.full_name);
+
+                  // Enviar notificação de entrega aguardando aprovação
+                  await notificationApi.sendVisitorWaitingNotification({
+                    visitor_name: `Entrega de ${empresaSelecionada.nome}`,
+                    resident_phone: residentData.profiles.phone,
+                    resident_name: residentData.profiles.full_name,
+                    building: buildingData?.name || 'Seu prédio',
+                    apartment: selectedApartment.number,
+                    visitor_log_id: visitorLogData.id
+                  });
+
+                  console.log('✅ [RegistrarEncomenda] Mensagem WhatsApp enviada com sucesso');
+
+                  // Atualizar status IMEDIATAMENTE para evitar reenvios
+                  await supabase
+                    .from('visitor_logs')
+                    .update({ notification_status: 'sent' })
+                    .eq('id', visitorLogData.id);
+
+                  console.log('✅ [RegistrarEncomenda] Status atualizado para "sent" - bloqueio ativado');
+                }
+              }
+            } catch (notificationError) {
+              console.error('❌ [RegistrarEncomenda] Erro ao enviar notificação WhatsApp:', notificationError);
+              // Não bloquear o fluxo principal se a notificação falhar
             }
+          } else {
+            console.log('🚫 [RegistrarEncomenda] WhatsApp JÁ ENVIADO - bloqueando reenvio');
           }
-        } catch (notificationError) {
-          console.error('Erro ao enviar notificação WhatsApp:', notificationError);
-          // Não bloquear o fluxo principal se a notificação falhar
         }
 
         const message = `Encomenda registrada com sucesso para o apartamento ${selectedApartment.number}. O morador foi notificado e deve escolher o destino da entrega.`;

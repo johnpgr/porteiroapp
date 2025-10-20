@@ -18,7 +18,7 @@
           "icon": "./assets/notification-icon.png",
           "color": "#2196F3",
           "mode": "production",
-          "sounds": ["./assets/audio/doorbell-push.mp3"]
+          "sounds": ["./assets/audio/doorbell_push.mp3"]
         }
       ]
     ],

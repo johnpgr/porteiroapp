@@ -1862,14 +1862,14 @@ export default function VisitantesTab() {
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => setShowPreRegistrationModal(true)}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
+          <Text style={styles.buttonEmoji}>👤</Text>
           <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.vehicleButton}
           onPress={() => router.push('/morador/veiculo')}>
-          <Ionicons name="car" size={24} color="#fff" />
+          <Text style={styles.buttonEmoji}>🚗</Text>
           <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
         </TouchableOpacity>
       </View>
@@ -3887,6 +3887,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4CAF50',
     fontWeight: '500',
+  },
+  buttonEmoji: {
+    fontSize: 24,
+    color: '#fff',
+    marginRight: 8,
   },
 
 });

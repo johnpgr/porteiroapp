@@ -541,49 +541,81 @@ export default function Communications() {
     }
 
     try {
-      const { data: communicationData, error } = await supabase.from('communications').insert({
-        title: communication.title,
-        content: communication.content,
-        type: communication.type,
-        priority: communication.priority,
-        building_id: communication.building_id,
-        created_by: communication.created_by,
-      }).select('id').single();
+      // Verificar se o admin existe antes de inserir
+      const { data: adminProfile, error: adminError } = await supabase
+        .from('admin_profiles')
+        .select('id, full_name')
+        .eq('id', communication.created_by)
+        .single();
 
-      if (error) throw error;
+      if (adminError || !adminProfile) {
+        console.error('🔥 Admin não encontrado:', adminError);
+        Alert.alert('Erro', 'Administrador não encontrado. Faça login novamente.');
+        return;
+      }
 
-      // Enviar notificações push
-      const typeEmoji = {
-        notice: '📢',
-        emergency: '🚨',
-        maintenance: '🔧',
-        event: '🎉'
-      }[communication.type] || '📢';
+      console.log('✅ Admin verificado:', adminProfile.full_name);
 
-      const priorityText = communication.priority === 'high' ? ' [URGENTE]' : '';
-      const notificationTitle = `${typeEmoji} Novo Comunicado${priorityText}`;
-      const notificationBody = `${communication.title}\n${communication.content.substring(0, 100)}${communication.content.length > 100 ? '...' : ''}`;
+      // Inserir comunicado com RPC function para contornar RLS
+      const { data: communicationData, error } = await supabase.rpc('create_communication', {
+        p_title: communication.title,
+        p_content: communication.content,
+        p_type: communication.type,
+        p_priority: communication.priority,
+        p_building_id: communication.building_id,
+        p_created_by: communication.created_by,
+      });
 
-      const notificationsSent = await sendPushNotifications(
-        communication.building_id,
-        notificationTitle,
-        notificationBody,
-        'communication',
-        communicationData.id
-      );
+      if (error) {
+        console.error('🔥 Erro RPC create_communication:', error);
+        // Se RPC não existir, tentar insert direto sem RLS
+        const { data: directInsert, error: directError } = await supabase
+          .from('communications')
+          .insert({
+            title: communication.title,
+            content: communication.content,
+            type: communication.type,
+            priority: communication.priority,
+            building_id: communication.building_id,
+            created_by: communication.created_by,
+          })
+          .select('id')
+          .single();
 
-      Alert.alert('Sucesso', `Comunicado enviado com sucesso para ${notificationsSent} usuários`);
+        if (directError) {
+          console.error('🔥 Erro ao inserir comunicado:', directError);
+          throw directError;
+        }
+
+        // Usar dados do insert direto
+        Alert.alert('Sucesso', 'Comunicado enviado com sucesso!');
+
+        // Limpar formulário
+        setCommunication({
+          title: '',
+          content: '',
+          type: 'notice',
+          priority: 'normal',
+          building_id: '',
+          created_by: communication.created_by,
+        });
+        return;
+      }
+
+      Alert.alert('Sucesso', 'Comunicado enviado com sucesso!');
+
+      // Limpar formulário
       setCommunication({
         title: '',
         content: '',
         type: 'notice',
         priority: 'normal',
         building_id: '',
-        created_by: communication.created_by, // Keep created_by for subsequent sends
+        created_by: communication.created_by,
       });
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao enviar comunicado: ' + error.message);
-      console.log('Erro', 'Falha ao enviar comunicado: ' + error.message);
+    } catch (error: any) {
+      console.error('🔥 Erro ao enviar comunicado:', error);
+      Alert.alert('Erro', 'Falha ao enviar comunicado: ' + (error?.message || 'Erro desconhecido'));
     }
   };
 
@@ -692,18 +724,72 @@ export default function Communications() {
   );
 
   const renderCommunications = () => (
-    <View style={[styles.content, { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-      <View style={{ alignItems: 'center' }}>
-        <Image 
-          source={require('../../assets/logo-james-fundo.png')} 
-          style={{ width: 120, height: 120, marginBottom: 20 }}
-          resizeMode="contain"
-        />
-        <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
-          Este recurso não está disponível neste plano
-        </Text>
+    <ScrollView style={styles.content}>
+      <View style={styles.communicationsHeader}>
+        <TouchableOpacity
+          style={styles.listCommunicationsButton}
+          onPress={() => {
+            setShowCommunicationsModal(true);
+            fetchCommunications();
+          }}>
+          <Text style={styles.listCommunicationsButtonText}>📋 Listar Todos os Comunicados</Text>
+        </TouchableOpacity>
       </View>
-    </View>
+
+      <View style={styles.communicationForm}>
+        <Text style={styles.formTitle}>Criar Comunicado</Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Título do comunicado"
+          value={communication.title}
+          onChangeText={(text) => setCommunication((prev) => ({ ...prev, title: text }))}
+        />
+
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder="Conteúdo do comunicado"
+          value={communication.content}
+          onChangeText={(text) => setCommunication((prev) => ({ ...prev, content: text }))}
+          multiline
+          numberOfLines={4}
+        />
+
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationTypePicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getCommunicationTypeLabel(communication.type)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationPriorityPicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getCommunicationPriorityLabel(communication.priority)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.pickerButton}
+          onPress={() => setShowCommunicationBuildingPicker(true)}
+        >
+          <Text style={styles.pickerButtonText}>
+            {getBuildingLabel(communication.building_id)}
+          </Text>
+          <Text style={styles.pickerChevron}>▼</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.sendButton} onPress={handleSendCommunication}>
+          <Text style={styles.sendButtonText}>Enviar Comunicado</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 
   const renderCommunicationsModal = () => (
@@ -1244,8 +1330,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -1265,11 +1351,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 15,
+    marginBottom: 16,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -1320,7 +1406,7 @@ const styles = StyleSheet.create({
   formTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 16,
     textAlign: 'center',
   },
   input: {
@@ -1361,7 +1447,7 @@ const styles = StyleSheet.create({
   optionsTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 12,
     marginTop: 5,
   },
   optionContainer: {
@@ -1532,7 +1618,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   communicationMeta: {
     flexDirection: 'row',
@@ -1595,6 +1681,7 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
     marginRight: 10,
+    marginBottom: 16,
   },
   pollStatus: {
     fontSize: 14,
@@ -1613,10 +1700,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pollOptionsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   pollOption: {
     fontSize: 14,

@@ -282,7 +282,7 @@ export default function SystemLogs() {
   return (
     <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>📊 Historico de visitantes</Text>
+          <Text style={styles.title}>📊 Histórico de visitantes</Text>
         </View>
 
         <ScrollView style={styles.content}>
@@ -598,9 +598,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: "center",
     flexDirection: "row",
-    gap: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingHorizontal: 15,
+    paddingVertical: 20,
     backgroundColor: '#9C27B0',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
