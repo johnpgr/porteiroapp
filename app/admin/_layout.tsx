@@ -81,7 +81,7 @@ export default function AdminLayout() {
   );
 }
 
-const BOTTOM_NAV_HEIGHT = 64;
+const BOTTOM_NAV_HEIGHT = 80;
 
 const styles = StyleSheet.create({
   container: {
@@ -98,11 +98,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 10,
     paddingHorizontal: 5,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     zIndex: 100,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
