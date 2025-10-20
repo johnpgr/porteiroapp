@@ -481,22 +481,14 @@ export default function MoradorDashboard() {
     </ScrollView>
   );
 
-
-
-
-
-
-
   const renderBottomNavigation = () => (
     <View style={styles.bottomNav}>
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'inicio' && styles.navItemActive]}
         onPress={() => setActiveTab('inicio')}>
-        <Ionicons
-          name={activeTab === 'inicio' ? 'home' : 'home-outline'}
-          size={24}
-          color={activeTab === 'inicio' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, activeTab === 'inicio' && styles.navIconActive]}>
+          🏠
+        </Text>
         <Text style={[styles.navLabel, activeTab === 'inicio' && styles.navLabelActive]}>
           Início
         </Text>
@@ -505,26 +497,20 @@ export default function MoradorDashboard() {
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'visitantes' && styles.navItemActive]}
         onPress={() => setActiveTab('visitantes')}>
-        <Ionicons
-          name={activeTab === 'visitantes' ? 'people' : 'people-outline'}
-          size={24}
-          color={activeTab === 'visitantes' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, activeTab === 'visitantes' && styles.navIconActive]}>
+          👥
+        </Text>
         <Text style={[styles.navLabel, activeTab === 'visitantes' && styles.navLabelActive]}>
           Visitantes
         </Text>
       </TouchableOpacity>
 
-
-
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'cadastro' && styles.navItemActive]}
         onPress={() => setActiveTab('cadastro')}>
-        <Ionicons
-          name={activeTab === 'cadastro' ? 'person-add' : 'person-add-outline'}
-          size={24}
-          color={activeTab === 'cadastro' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, activeTab === 'cadastro' && styles.navIconActive]}>
+          📝
+        </Text>
         <Text style={[styles.navLabel, activeTab === 'cadastro' && styles.navLabelActive]}>
           Cadastro
         </Text>
@@ -533,17 +519,13 @@ export default function MoradorDashboard() {
       <TouchableOpacity
         style={[styles.navItem, activeTab === 'avisos' && styles.navItemActive]}
         onPress={() => setActiveTab('avisos')}>
-        <Ionicons
-          name={activeTab === 'avisos' ? 'notifications' : 'notifications-outline'}
-          size={24}
-          color={activeTab === 'avisos' ? '#4CAF50' : '#666'}
-        />
+        <Text style={[styles.navIcon, activeTab === 'avisos' && styles.navIconActive]}>
+          🔔
+        </Text>
         <Text style={[styles.navLabel, activeTab === 'avisos' && styles.navLabelActive]}>
           Avisos
         </Text>
       </TouchableOpacity>
-
-
     </View>
   );
 
@@ -576,7 +558,9 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 20,
+    paddingBottom: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -599,7 +583,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 16,
+    marginBottom: 3,
   },
   subtitle: {
     fontSize: 14,
@@ -609,9 +593,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  section: {
-    padding: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -623,6 +604,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     marginBottom: 15,
   },
   refreshButton: {
@@ -849,6 +832,13 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: '#4CAF50',
     fontWeight: 'bold',
+  },
+  navIcon: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  navIconActive: {
+    // Emojis não precisam de cor diferente quando ativos
   },
   modalOverlay: {
     flex: 1,

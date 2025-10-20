@@ -2394,7 +2394,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 5,
     backgroundColor: '#2196F3',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
@@ -2408,8 +2409,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    marginTop: 5,
-    marginBottom: 10,
+    marginVertical: 5,
     color: '#fff',
     textAlign: 'center',
   },

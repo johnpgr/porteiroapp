@@ -33,7 +33,6 @@ interface FormData {
   tipo: 'manutencao' | 'reuniao' | 'pagamento' | 'assembleia' | 'outros';
   prioridade: 'baixa' | 'media' | 'alta';
   data_vencimento: Date;
-  notificar_antes: number;
   building_admin_id: string;
 }
 
@@ -43,7 +42,6 @@ const initialFormData: FormData = {
   tipo: 'outros',
   prioridade: 'media',
   data_vencimento: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
-  notificar_antes: 60, // 1 hour
   building_admin_id: '',
 };
 
@@ -54,7 +52,7 @@ export default function NovoLembrete() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showTipoPicker, setShowTipoPicker] = useState(false);
   const [showPrioridadePicker, setShowPrioridadePicker] = useState(false);
-  const [showNotificacaoPicker, setShowNotificacaoPicker] = useState(false);
+
   const [showBuildingPicker, setShowBuildingPicker] = useState(false);
   const [buildingAdmins, setBuildingAdmins] = useState<BuildingAdmin[]>([]);
   const [errors, setErrors] = useState<Partial<FormData>>({});
@@ -125,9 +123,7 @@ export default function NovoLembrete() {
       newErrors.data_vencimento = new Date('Data deve ser futura');
     }
 
-    if (formData.notificar_antes < 0) {
-      newErrors.notificar_antes = 0;
-    }
+
 
     if (!formData.building_admin_id) {
       newErrors.building_admin_id = 'Prédio é obrigatório';
@@ -150,7 +146,6 @@ export default function NovoLembrete() {
         categoria: formData.tipo,
         prioridade: formData.prioridade,
         data_vencimento: formData.data_vencimento.toISOString(),
-        antecedencia_alerta: formData.notificar_antes,
         building_admin_id: formData.building_admin_id,
       };
 
@@ -221,17 +216,7 @@ export default function NovoLembrete() {
     setShowTimePicker(false);
   };
 
-  const getNotificationText = (minutes: number) => {
-    if (minutes < 60) {
-      return `${minutes} minutos antes`;
-    } else if (minutes < 1440) {
-      const hours = Math.floor(minutes / 60);
-      return `${hours} hora${hours > 1 ? 's' : ''} antes`;
-    } else {
-      const days = Math.floor(minutes / 1440);
-      return `${days} dia${days > 1 ? 's' : ''} antes`;
-    }
-  };
+
 
   const getTipoLabel = (tipo: string) => {
     const tipos: {[key: string]: string} = {
@@ -370,18 +355,7 @@ export default function NovoLembrete() {
             )}
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Notificar Antes</Text>
-            <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() => setShowNotificacaoPicker(true)}
-            >
-              <Text style={styles.pickerButtonText}>
-                {getNotificationText(formData.notificar_antes)}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
+
         </View>
       </ScrollView>
 
@@ -584,57 +558,7 @@ export default function NovoLembrete() {
         </View>
       </Modal>
 
-      {/* Modal para Notificação */}
-      <Modal
-        visible={showNotificacaoPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowNotificacaoPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notificar Antes</Text>
-              <TouchableOpacity onPress={() => setShowNotificacaoPicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {[
-                { label: '15 minutos antes', value: 15 },
-                { label: '30 minutos antes', value: 30 },
-                { label: '1 hora antes', value: 60 },
-                { label: '2 horas antes', value: 120 },
-                { label: '1 dia antes', value: 1440 },
-                { label: '2 dias antes', value: 2880 },
-                { label: '1 semana antes', value: 10080 }
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.modalOption,
-                    formData.notificar_antes === item.value && styles.modalOptionSelected
-                  ]}
-                  onPress={() => {
-                    setFormData(prev => ({ ...prev, notificar_antes: item.value }));
-                    setShowNotificacaoPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    formData.notificar_antes === item.value && styles.modalOptionTextSelected
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {formData.notificar_antes === item.value && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Modal para Prédio */}
       <Modal
