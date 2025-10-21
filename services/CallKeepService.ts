@@ -6,17 +6,17 @@ export interface CallKeepOptions {
     appName: string;
     imageName?: string;
     supportsVideo?: boolean;
-    maximumCallGroups?: number;
-    maximumCallsPerCallGroup?: number;
-    includeInRecents?: boolean;
+    maximumCallGroups?: string;
+    maximumCallsPerCallGroup?: string;
+    includesCallsInRecents?: boolean;
   };
   android: {
     alertTitle: string;
     alertDescription: string;
-    cancelTitle: string;
-    okTitle: string;
+    cancelButton: string;
+    okButton: string;
     imageName?: string;
-    additionalPermissions?: string[];
+    additionalPermissions: string[];
     selfManaged?: boolean;
   };
 }
@@ -25,6 +25,7 @@ class CallKeepService {
   private isInitialized = false;
   private currentCallUUID: string | null = null;
   private isNativeEnvironment = Platform.OS === 'ios' || Platform.OS === 'android';
+  private lastOptions: CallKeepOptions | null = null;
 
   /**
    * Inicializa o CallKeep com as configurações necessárias
@@ -48,27 +49,29 @@ class CallKeepService {
           appName: 'Porteiro App',
           imageName: 'logo',
           supportsVideo: false,
-          maximumCallGroups: 1,
-          maximumCallsPerCallGroup: 1,
-          includeInRecents: true,
+          maximumCallGroups: '1',
+          maximumCallsPerCallGroup: '1',
+          includesCallsInRecents: true,
         },
         android: {
           alertTitle: 'Permissões de Chamada',
           alertDescription: 'Este aplicativo precisa acessar suas chamadas para funcionar como interfone.',
-          cancelTitle: 'Cancelar',
-          okTitle: 'OK',
+          cancelButton: 'Cancelar',
+          okButton: 'OK',
           imageName: 'logo',
           additionalPermissions: [],
           selfManaged: false,
         },
       };
 
+      this.lastOptions = options;
+
       // Configurar eventos do CallKeep
       this.setupEventListeners();
 
       // Inicializar CallKeep
-      await RNCallKeep.setup(options);
-      
+      await RNCallKeep.setup(options as CallKeepOptions);
+
       // Verificar permissões
       const hasPermissions = await this.checkPermissions();
       if (!hasPermissions) {
@@ -90,16 +93,16 @@ class CallKeepService {
   private setupEventListeners(): void {
     // Quando o usuário atende a chamada
     RNCallKeep.addEventListener('answerCall', this.onAnswerCall);
-    
+
     // Quando o usuário encerra a chamada
     RNCallKeep.addEventListener('endCall', this.onEndCall);
-    
+
     // Quando a chamada é colocada em hold
     RNCallKeep.addEventListener('didPerformSetMutedCallAction', this.onToggleMute);
-    
+
     // Quando o usuário ativa/desativa o hold
     RNCallKeep.addEventListener('didToggleHoldCallAction', this.onToggleHold);
-    
+
     // Quando o DTMF é pressionado
     RNCallKeep.addEventListener('didPerformDTMFAction', this.onDTMF);
 
@@ -117,7 +120,7 @@ class CallKeepService {
   private async checkPermissions(): Promise<boolean> {
     try {
       if (Platform.OS === 'android') {
-        return await RNCallKeep.checkPhoneAccountPermission();
+        return await RNCallKeep.checkPhoneAccountEnabled();
       }
       return true; // iOS não precisa de verificação adicional
     } catch (error) {
@@ -132,7 +135,9 @@ class CallKeepService {
   async requestPermissions(): Promise<boolean> {
     try {
       if (Platform.OS === 'android') {
-        await RNCallKeep.requestPhoneAccountPermission();
+        if (this.lastOptions) {
+          RNCallKeep.registerPhoneAccount(this.lastOptions as CallKeepOptions);
+        }
         return await this.checkPermissions();
       }
       return true;
@@ -242,7 +247,7 @@ class CallKeepService {
       }
 
       await RNCallKeep.endCall(uuid);
-      
+
       if (uuid === this.currentCallUUID) {
         this.currentCallUUID = null;
       }
@@ -289,7 +294,7 @@ class CallKeepService {
       }
 
       await RNCallKeep.reportEndCallWithUUID(uuid, reason);
-      
+
       if (uuid === this.currentCallUUID) {
         this.currentCallUUID = null;
       }
@@ -368,14 +373,14 @@ class CallKeepService {
     RNCallKeep.removeEventListener('didPerformSetMutedCallAction');
     RNCallKeep.removeEventListener('didToggleHoldCallAction');
     RNCallKeep.removeEventListener('didPerformDTMFAction');
-    
+
     if (Platform.OS === 'android') {
       RNCallKeep.removeEventListener('showIncomingCallUi');
     }
 
     this.currentCallUUID = null;
     this.isInitialized = false;
-    
+
     console.log('🧹 CallKeep cleanup realizado');
   }
 }

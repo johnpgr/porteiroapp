@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -6,184 +6,197 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Animated,
-  Vibration,
-  Platform,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { IncomingCallData } from '../services/CallKeepService';
+import { Phone, PhoneOff } from 'lucide-react-native';
+import AgoraCallComponent from './AgoraCallComponent';
 
 interface IntercomCallModalProps {
   visible: boolean;
-  callData: IncomingCallData | null;
-  onAnswer: () => void;
-  onReject: () => void;
+  onClose: () => void;
+  doormanId?: string;
+  buildingId?: string;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export const IntercomCallModal: React.FC<IntercomCallModalProps> = ({
   visible,
-  callData,
-  onAnswer,
-  onReject,
+  onClose,
+  doormanId,
+  buildingId,
 }) => {
-  console.log('🔧 [DEBUG] IntercomCallModal renderizado - visible:', visible, 'callData:', callData);
-  
-  const [pulseAnim] = useState(new Animated.Value(1));
-  const [slideAnim] = useState(new Animated.Value(height));
+  const [apartmentNumber, setApartmentNumber] = useState('');
+  const [callState, setCallState] = useState<'idle' | 'calling' | 'connected'>('idle');
+  const [callData, setCallData] = useState<{
+    callId: string;
+    channelName: string;
+    uid: number;
+  } | null>(null);
 
+  // Reset state when modal closes
   useEffect(() => {
-    if (visible) {
-      // Vibrar quando a chamada chegar
-      if (Platform.OS === 'android') {
-        Vibration.vibrate([0, 500, 200, 500], true);
-      } else {
-        Vibration.vibrate([500, 200, 500, 200], true);
-      }
-
-      // Animação de entrada
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 8,
-      }).start();
-
-      // Animação de pulso para o botão de aceitar
-      const pulseAnimation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseAnimation.start();
-
-      return () => {
-        pulseAnimation.stop();
-        Vibration.cancel();
-      };
-    } else {
-      // Animação de saída
-      Animated.timing(slideAnim, {
-        toValue: height,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-      
-      Vibration.cancel();
+    if (!visible) {
+      setCallState('idle');
+      setCallData(null);
+      setApartmentNumber('');
     }
   }, [visible]);
 
-  const handleAnswer = () => {
-    Vibration.cancel();
-    onAnswer();
+  // Iniciar chamada para apartamento
+  const handleStartCall = async () => {
+    if (!apartmentNumber.trim()) {
+      Alert.alert('Erro', 'Digite o número do apartamento');
+      return;
+    }
+
+    if (!doormanId || !buildingId) {
+      Alert.alert('Erro', 'Dados do porteiro não encontrados');
+      return;
+    }
+
+    try {
+      setCallState('calling');
+      
+      console.log('🚀 Iniciando chamada para apartamento:', apartmentNumber);
+      
+      // Chamar API para iniciar chamada
+      const response = await fetch('http://localhost:3001/api/calls/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apartmentNumber: apartmentNumber.trim(),
+          doormanId,
+          buildingId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erro HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      console.log('✅ Chamada iniciada:', data);
+      
+      // Configurar dados da chamada para o componente Agora
+      setCallData({
+        callId: data.callId,
+        channelName: data.channelName || data.callId,
+        uid: parseInt(doormanId) || Math.floor(Math.random() * 10000),
+      });
+      
+    } catch (error) {
+      console.error('❌ Erro ao iniciar chamada:', error);
+      Alert.alert(
+        'Erro na Chamada',
+        error instanceof Error ? error.message : 'Erro desconhecido',
+        [{ text: 'OK', onPress: () => setCallState('idle') }]
+      );
+      setCallState('idle');
+    }
   };
 
-  const handleReject = () => {
-    Vibration.cancel();
-    onReject();
+  // Encerrar chamada
+  const handleEndCall = () => {
+    console.log('📞 Encerrando chamada...');
+    setCallState('idle');
+    setCallData(null);
+    onClose();
   };
 
-  if (!visible || !callData) {
-    console.log('🔧 [DEBUG] Modal não será exibido - visible:', visible, 'callData:', callData);
-    return null;
+  // Callback quando chamada conecta
+  const handleCallConnected = () => {
+    console.log('✅ Chamada conectada');
+    setCallState('connected');
+  };
+
+  // Callback quando chamada falha
+  const handleCallFailed = (error: string) => {
+    console.error('❌ Chamada falhou:', error);
+    Alert.alert('Erro na Chamada', error, [
+      { text: 'OK', onPress: () => setCallState('idle') }
+    ]);
+    setCallState('idle');
+  };
+
+  // Renderizar componente de chamada se estiver chamando ou conectado
+  if (callState !== 'idle' && callData) {
+    return (
+      <Modal
+        visible={visible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={handleEndCall}
+      >
+        <AgoraCallComponent
+          channelName={callData.channelName}
+          uid={callData.uid}
+          callerName={`Apartamento ${apartmentNumber}`}
+          onEndCall={handleEndCall}
+          onCallConnected={handleCallConnected}
+          onCallFailed={handleCallFailed}
+          isVisible={true}
+        />
+      </Modal>
+    );
   }
-  
-  console.log('🔧 [DEBUG] Modal será exibido!');
 
+  // Tela inicial para digitar número do apartamento
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="none"
-      statusBarTranslucent
+      animationType="slide"
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <Animated.View
-          style={[
-            styles.container,
-            {
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          {/* Header */}
+        <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.headerText}>Chamada do Interfone</Text>
-            <View style={styles.statusIndicator}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Recebendo...</Text>
-            </View>
+            <Text style={styles.headerText}>Interfone</Text>
+            <Text style={styles.statusText}>Ligar para Apartamento</Text>
           </View>
 
-          {/* Caller Info */}
-          <View style={styles.callerInfo}>
-            <View style={styles.avatarContainer}>
-              <Ionicons name="home" size={60} color="#fff" />
-            </View>
-            <Text style={styles.callerName}>{callData.callerName}</Text>
-            <Text style={styles.callerHandle}>{callData.handle}</Text>
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Número do Apartamento</Text>
+            <TextInput
+              style={styles.input}
+              value={apartmentNumber}
+              onChangeText={setApartmentNumber}
+              placeholder="Ex: 101, 205, 1504..."
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+              maxLength={10}
+              autoFocus
+            />
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.actionsContainer}>
-            {/* Reject Button */}
             <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
-              onPress={handleReject}
-              activeOpacity={0.8}
+              style={[styles.actionButton, styles.closeButton]}
+              onPress={onClose}
             >
-              <Ionicons name="call" size={32} color="#fff" style={styles.rejectIcon} />
-            </TouchableOpacity>
-
-            {/* Answer Button */}
-            <Animated.View
-              style={[
-                styles.answerButtonContainer,
-                {
-                  transform: [{ scale: pulseAnim }],
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={[styles.actionButton, styles.answerButton]}
-                onPress={handleAnswer}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="call" size={32} color="#fff" />
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-
-          {/* Additional Actions */}
-          <View style={styles.additionalActions}>
-            <TouchableOpacity style={styles.additionalButton}>
-              <Ionicons name="chatbubble" size={20} color="#666" />
-              <Text style={styles.additionalButtonText}>Mensagem</Text>
+              <PhoneOff size={30} color="#fff" />
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.additionalButton}>
-              <Ionicons name="person-add" size={20} color="#666" />
-              <Text style={styles.additionalButtonText}>Contato</Text>
+            <TouchableOpacity
+              style={[
+                styles.actionButton, 
+                styles.callButton,
+                !apartmentNumber.trim() && styles.disabledButton
+              ]}
+              onPress={handleStartCall}
+              disabled={!apartmentNumber.trim()}
+            >
+              <Phone size={30} color="#fff" />
             </TouchableOpacity>
           </View>
-
-          {/* Call UUID (for debugging) */}
-          {__DEV__ && (
-            <Text style={styles.debugText}>
-              UUID: {callData.callUUID.substring(0, 8)}...
-            </Text>
-          )}
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );
@@ -222,62 +235,38 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 8,
   },
-  statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-    marginRight: 6,
-  },
   statusText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#999',
     fontWeight: '500',
   },
-  callerInfo: {
-    alignItems: 'center',
-    marginBottom: 48,
+  inputContainer: {
+    width: '100%',
+    marginBottom: 32,
   },
-  avatarContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#388E3C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#388E3C',
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  callerName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  callerHandle: {
+  inputLabel: {
     fontSize: 16,
-    color: '#999',
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
     textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    color: '#fff',
+    textAlign: 'center',
+    borderWidth: 2,
+    borderColor: '#555',
   },
   actionsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
     paddingHorizontal: 20,
-    marginBottom: 32,
   },
   actionButton: {
     width: 70,
@@ -294,47 +283,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  rejectButton: {
-    backgroundColor: '#f44336',
+  closeButton: {
+    backgroundColor: '#666',
   },
-  rejectIcon: {
-    transform: [{ rotate: '135deg' }],
+  callButton: {
+    backgroundColor: '#22c55e',
   },
-  answerButtonContainer: {
-    shadowColor: '#4CAF50',
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.6,
-    shadowRadius: 15,
-    elevation: 15,
-  },
-  answerButton: {
-    backgroundColor: '#4CAF50',
-  },
-  additionalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  additionalButton: {
-    alignItems: 'center',
-    padding: 12,
-  },
-  additionalButtonText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  debugText: {
-    fontSize: 10,
-    color: '#666',
-    marginTop: 16,
-    fontFamily: 'monospace',
+  disabledButton: {
+    backgroundColor: '#555',
+    opacity: 0.5,
   },
 });
 
