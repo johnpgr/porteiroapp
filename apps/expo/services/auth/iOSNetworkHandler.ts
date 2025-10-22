@@ -24,7 +24,7 @@ export class iOSNetworkHandler {
   private isOnline: boolean = true;
 
   constructor() {
-    this.logger = new AuthLogger('error');
+    this.logger = AuthLogger.getInstance();
     
     // Configurações específicas para iOS com timeouts mais longos
     this.config = {

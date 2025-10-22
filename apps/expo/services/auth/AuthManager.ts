@@ -8,6 +8,7 @@ import { AdminAuthStrategy } from './strategies/AdminAuthStrategy';
 import { PorteiroAuthStrategy } from './strategies/PorteiroAuthStrategy';
 import { MoradorAuthStrategy } from './strategies/MoradorAuthStrategy';
 import { TokenStorage, StoredUserData } from '../TokenStorage';
+import { IAuthStrategy } from './strategies/AuthStrategy';
 
 export interface AuthUser {
   id: string;
@@ -30,35 +31,28 @@ export interface AuthResult {
   };
 }
 
-export interface AuthStrategy {
-  signIn(email: string, password: string): Promise<AuthResult>;
-  signOut(): Promise<void>;
-  getCurrentUser(): Promise<AuthUser | null>;
-  refreshSession(): Promise<AuthResult>;
-}
-
 export class AuthManager {
   private static instance: AuthManager;
   private logger: AuthLogger;
   private metrics: AuthMetrics;
   private stateManager: AuthStateManager;
   private iOSHandler: iOSNetworkHandler;
-  private strategies: Map<string, AuthStrategy>;
+  private strategies: Map<string, IAuthStrategy>;
   private currentPlatform: string;
   private isInitialized: boolean = false;
 
   private constructor() {
-    this.logger = new AuthLogger('error');
+    this.logger = AuthLogger.getInstance();
     this.metrics = new AuthMetrics();
-    this.stateManager = new AuthStateManager();
+    this.stateManager = AuthStateManager.getInstance();
     this.iOSHandler = new iOSNetworkHandler();
     this.currentPlatform = Platform.OS;
     
     // Inicializar estratégias de autenticação
     this.strategies = new Map();
-    this.strategies.set('admin', new AdminAuthStrategy(this.logger, this.metrics));
-    this.strategies.set('porteiro', new PorteiroAuthStrategy(this.logger, this.metrics));
-    this.strategies.set('morador', new MoradorAuthStrategy(this.logger, this.metrics));
+    this.strategies.set('admin', new AdminAuthStrategy());
+    this.strategies.set('porteiro', new PorteiroAuthStrategy());
+    this.strategies.set('morador', new MoradorAuthStrategy());
 
     this.logger.info('AuthManager initialized', { platform: this.currentPlatform });
     

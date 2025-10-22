@@ -1,15 +1,15 @@
 import { supabase } from '../../../utils/supabase';
-import { AuthStrategy, AuthCredentials, AuthResult, AuthContext } from './AuthStrategy';
+import { AuthStrategy, AuthCredentials, AuthResult, AuthContext, IAuthStrategy } from './AuthStrategy';
 import { AuthUser } from '../AuthManager';
 import { AuthLogger } from '../AuthLogger';
 import { router } from 'expo-router';
 
-export class AdminAuthStrategy extends AuthStrategy {
+export class AdminAuthStrategy extends AuthStrategy implements IAuthStrategy {
   private logger: AuthLogger;
 
   constructor() {
     super('admin');
-    this.logger = new AuthLogger('error');
+    this.logger = AuthLogger.getInstance();
   }
 
   /**
@@ -327,5 +327,80 @@ export class AdminAuthStrategy extends AuthStrategy {
     }
 
     return false;
+  }
+
+  /**
+   * Implementação do IAuthStrategy: signIn
+   */
+  async signIn(email: string, password: string): Promise<AuthResult> {
+    const context: AuthContext = {
+      platform: 'mobile',
+      retryCount: 0,
+      sessionId: `admin-${Date.now()}`
+    };
+    
+    return this.authenticate({ email, password }, context);
+  }
+
+  /**
+   * Implementação do IAuthStrategy: signOut
+   */
+  async signOut(): Promise<void> {
+    await supabase.auth.signOut();
+  }
+
+  /**
+   * Implementação do IAuthStrategy: getCurrentUser
+   */
+  async getCurrentUser(): Promise<AuthUser | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        return null;
+      }
+
+      const context: AuthContext = {
+        platform: 'mobile',
+        retryCount: 0,
+        sessionId: `admin-${Date.now()}`
+      };
+
+      const result = await this.loadUserProfile(user.id, context);
+      return result.success ? result.user || null : null;
+    } catch (error) {
+      this.logger.error('Failed to get current user', { error });
+      return null;
+    }
+  }
+
+  /**
+   * Implementação do IAuthStrategy: refreshSession
+   */
+  async refreshSession(): Promise<AuthResult> {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      
+      if (error || !data.user) {
+        return {
+          success: false,
+          error: 'Falha ao renovar sessão'
+        };
+      }
+
+      const context: AuthContext = {
+        platform: 'mobile',
+        retryCount: 0,
+        sessionId: `admin-${Date.now()}`
+      };
+
+      return this.loadUserProfile(data.user.id, context);
+    } catch (error) {
+      this.logger.error('Failed to refresh session', { error });
+      return {
+        success: false,
+        error: this.formatError(error)
+      };
+    }
   }
 }

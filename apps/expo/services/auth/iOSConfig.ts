@@ -90,7 +90,7 @@ export class iOSConfigManager {
   private platform: string;
 
   private constructor() {
-    this.logger = new AuthLogger('error');
+    this.logger = AuthLogger.getInstance();
     this.platform = this.detectPlatform();
     this.config = this.platform === 'ios' ? DEFAULT_IOS_CONFIG : DEFAULT_OTHER_CONFIG;
 

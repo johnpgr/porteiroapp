@@ -20,8 +20,15 @@ export interface AuthContext {
   sessionId: string;
 }
 
+export interface IAuthStrategy {
+  signIn(email: string, password: string): Promise<AuthResult>;
+  signOut(): Promise<void>;
+  getCurrentUser(): Promise<AuthUser | null>;
+  refreshSession(): Promise<AuthResult>;
+}
+
 /**
- * Interface base para estratégias de autenticação
+ * Base class para estratégias de autenticação
  */
 export abstract class AuthStrategy {
   protected userType: 'admin' | 'porteiro' | 'morador';

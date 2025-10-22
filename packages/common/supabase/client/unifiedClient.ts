@@ -6,6 +6,7 @@ import { AuthLogger } from '../utils/logger';
 export interface UnifiedSupabaseClientOptions {
   url: string;
   anonKey: string;
+  serviceKey?: string;
   platformDetector: PlatformDetector;
   storage?: any;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -34,6 +35,7 @@ export class UnifiedSupabaseClient {
     this.client = createSupabaseClient({
       url: options.url,
       anonKey: options.anonKey,
+      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
       options: supabaseOptions,
     });
 

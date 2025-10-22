@@ -14,10 +14,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { createClient } from '@supabase/supabase-js';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
-import { PhotoUpload } from '~/components/PhotoUpload';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import BottomNav from '~/components/BottomNav';
@@ -72,8 +70,8 @@ export default function MoradorProfile() {
   // Função para upload robusto de foto usando FileSystem
   const uploadPhotoToStorage = async (photoUri: string): Promise<string | null> => {
     const maxRetries = 3;
-    const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {

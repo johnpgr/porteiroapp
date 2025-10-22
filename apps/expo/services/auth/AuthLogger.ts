@@ -12,12 +12,13 @@ export interface LogEntry {
 }
 
 export class AuthLogger {
+  private static instance: AuthLogger;
   private sessionId: string;
   private logLevel: LogLevel;
   private logs: LogEntry[] = [];
   private maxLogs: number = 1000;
 
-  constructor(logLevel: LogLevel = 'info') {
+  private constructor(logLevel: LogLevel = 'info') {
     this.sessionId = this.generateSessionId();
     this.logLevel = logLevel;
     
@@ -26,6 +27,13 @@ export class AuthLogger {
       platform: Platform.OS,
       logLevel 
     });
+  }
+
+  static getInstance(): AuthLogger {
+    if (!AuthLogger.instance) {
+      AuthLogger.instance = new AuthLogger();
+    }
+    return AuthLogger.instance;
   }
 
   /**

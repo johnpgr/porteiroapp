@@ -1,10 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../utils/supabase';
-import { supabaseServiceKey } from '../utils/supabase-admin';
 
-// Create a separate client with service role for storage uploads
-// WARNING: Service role should never be used on client apps. Replace with a secure backend/signed URLs in production.
-const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
 
 export interface PhotoUploadResult {
   success: boolean;
@@ -107,6 +103,9 @@ const uploadWithRetry = async (
   photoUri: string,
   options: Required<PhotoUploadOptions>,
 ): Promise<PhotoUploadResult> => {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+
   let lastError = ''
 
   for (let attempt = 1; attempt <= options.maxRetries; attempt++) {
@@ -117,6 +116,8 @@ const uploadWithRetry = async (
       // Method 1: Try direct upload using FileSystem.uploadAsync
       console.log('🔄 Trying direct upload with FileSystem.uploadAsync...')
 
+      // Create a separate client with service role for storage uploads
+      // WARNING: Service role should never be used on client apps. Replace with a secure backend/signed URLs in production.
       const uploadUrl = `${supabaseUrl}/storage/v1/object/delivery-visitor-photos/${filePath}`
       console.log('🔄 Upload URL:', uploadUrl)
 
@@ -325,6 +326,9 @@ const uploadResidentWithRetry = async (
   photoUri: string,
   options: Required<PhotoUploadOptions>,
 ): Promise<PhotoUploadResult> => {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+
   let lastError = ''
 
   for (let attempt = 1; attempt <= options.maxRetries; attempt++) {

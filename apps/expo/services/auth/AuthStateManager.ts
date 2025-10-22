@@ -30,6 +30,7 @@ export interface AuthStateUpdate {
 }
 
 export class AuthStateManager {
+  private static instance: AuthStateManager;
   private state: AuthState;
   private listeners: Set<AuthStateListener> = new Set();
   private logger: AuthLogger;
@@ -38,8 +39,8 @@ export class AuthStateManager {
   private updateQueue: AuthStateUpdate[] = [];
   private isProcessingQueue = false;
 
-  constructor() {
-    this.logger = new AuthLogger('error');
+  private constructor() {
+    this.logger = AuthLogger.getInstance();
     
     // Estado inicial
     this.state = {
@@ -56,6 +57,16 @@ export class AuthStateManager {
     };
 
     this.logger.info('AuthStateManager initialized', { initialState: this.state });
+  }
+
+  /**
+   * Obter instância única do AuthStateManager
+   */
+  public static getInstance(): AuthStateManager {
+    if (!AuthStateManager.instance) {
+      AuthStateManager.instance = new AuthStateManager();
+    }
+    return AuthStateManager.instance;
   }
 
   /**
@@ -184,8 +195,8 @@ export class AuthStateManager {
       userType: state.userType,
       retryCount: state.retryCount,
       networkStatus: state.networkStatus,
-      // Não incluir dados do usuário ou sessionId
-      user: state.user ? { id: state.user.id, email: '***' } : null
+      // Não incluir dados completos do usuário ou sessionId
+      user: state.user ? { ...state.user, email: '***' } as AuthUser : null
     };
   }
 
@@ -328,6 +339,43 @@ export class AuthStateManager {
       error: null,
       retryCount: 0
     });
+  }
+
+  /**
+   * Definir usuário atual (método simplificado)
+   */
+  public setCurrentUser(user: AuthUser): void {
+    this.updateState({
+      user,
+      userType: user.role,
+      isAuthenticated: true,
+      isLoading: false,
+      isInitializing: false,
+      error: null,
+      lastLoginTime: new Date().toISOString(),
+      retryCount: 0
+    });
+  }
+
+  /**
+   * Obter usuário atual
+   */
+  public getCurrentUser(): AuthUser | null {
+    return this.state.user;
+  }
+
+  /**
+   * Limpar usuário atual (alias para clearUser)
+   */
+  public clearCurrentUser(): void {
+    this.clearUser();
+  }
+
+  /**
+   * Verificar se está autenticado
+   */
+  public isAuthenticated(): boolean {
+    return this.state.isAuthenticated;
   }
 
   /**

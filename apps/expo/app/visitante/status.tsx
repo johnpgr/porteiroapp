@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '~/utils/supabase';
 
 interface Visitor {
   id: string;

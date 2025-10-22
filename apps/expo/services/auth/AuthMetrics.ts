@@ -58,7 +58,7 @@ export class AuthMetrics {
   };
 
   constructor() {
-    this.logger = new AuthLogger('error');
+    this.logger = AuthLogger.getInstance();
     this.logger.info('AuthMetrics initialized', { 
       maxMetrics: this.maxMetrics,
       thresholds: this.performanceThresholds 

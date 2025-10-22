@@ -1,8 +1,8 @@
-import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import { supabase } from '../../../utils/supabaseUnified';
-import { AuthLogger } from '../../../services/auth/AuthLogger';
-import { AuthStateManager } from '../../../services/auth/AuthStateManager';
-import { AuthUser } from '../../../services/auth/AuthManager';
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@porteiroapp/common/supabase';
+import { supabase } from '~/utils/supabase';
+import { AuthLogger } from '~/services/auth/AuthLogger';
+import { AuthStateManager } from '~/services/auth/AuthStateManager';
+import { AuthUser } from '~/services/auth/AuthManager';
 
 interface RealtimeConfig {
   enabled: boolean;
@@ -34,7 +34,7 @@ export class SupabaseRealtimeManager {
       enabled: true,
       channels: ['admins', 'porteiros', 'moradores'],
       reconnectInterval: 5000,
-      maxReconnectAttempts: 5
+      maxReconnectAttempts: 5,
     };
     this.logger = AuthLogger.getInstance();
     this.stateManager = AuthStateManager.getInstance();
@@ -62,16 +62,16 @@ export class SupabaseRealtimeManager {
       await this.setupGeneralChannels();
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      
+
       this.logger.info('Realtime inicializado com sucesso', {
         userId: user.id,
         userType: user.type,
-        channels: Array.from(this.channels.keys())
+        channels: Array.from(this.channels.keys()),
       });
     } catch (error) {
       this.logger.error('Erro ao inicializar Realtime', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
-        userId: user.id
+        userId: user.id,
       });
       throw error;
     }
@@ -92,7 +92,7 @@ export class SupabaseRealtimeManager {
           event: 'UPDATE',
           schema: 'public',
           table: tableName,
-          filter: `id=eq.${user.id}`
+          filter: `id=eq.${user.id}`,
         },
         (payload) => this.handleUserUpdate(payload, user)
       )
@@ -103,7 +103,7 @@ export class SupabaseRealtimeManager {
         this.logger.info('Status do canal do usuário', {
           channelName,
           status,
-          userId: user.id
+          userId: user.id,
         });
       });
 
@@ -122,7 +122,7 @@ export class SupabaseRealtimeManager {
         {
           event: '*',
           schema: 'public',
-          table: 'system_notifications'
+          table: 'system_notifications',
         },
         (payload) => this.handleSystemNotification(payload)
       )
@@ -154,18 +154,18 @@ export class SupabaseRealtimeManager {
   ): Promise<void> {
     try {
       const { new: newData, old: oldData } = payload;
-      
+
       this.logger.info('Atualização do usuário recebida', {
         userId: currentUser.id,
-        changes: this.getChangedFields(oldData, newData)
+        changes: this.getChangedFields(oldData, newData),
       });
 
       // Verifica se o usuário foi desativado
       if (newData && !newData.active && oldData?.active) {
         this.logger.warn('Usuário desativado remotamente', {
-          userId: currentUser.id
+          userId: currentUser.id,
         });
-        
+
         await this.handleUserDeactivation();
         return;
       }
@@ -175,9 +175,9 @@ export class SupabaseRealtimeManager {
         this.logger.info('Permissões do usuário alteradas', {
           userId: currentUser.id,
           oldPermissions: oldData?.permissions,
-          newPermissions: newData.permissions
+          newPermissions: newData.permissions,
         });
-        
+
         await this.handlePermissionUpdate(newData);
       }
 
@@ -185,11 +185,10 @@ export class SupabaseRealtimeManager {
       if (newData && newData.profile_data) {
         await this.handleProfileUpdate(newData);
       }
-
     } catch (error) {
       this.logger.error('Erro ao processar atualização do usuário', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
-        userId: currentUser.id
+        userId: currentUser.id,
       });
     }
   }
@@ -201,15 +200,14 @@ export class SupabaseRealtimeManager {
     try {
       this.logger.info('Notificação do sistema recebida', {
         event: payload.eventType,
-        table: payload.table
+        table: payload.table,
       });
 
       // Aqui você pode implementar lógica específica para diferentes tipos de notificações
       // Por exemplo: manutenção programada, atualizações de sistema, etc.
-      
     } catch (error) {
       this.logger.error('Erro ao processar notificação do sistema', {
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       });
     }
   }
@@ -220,21 +218,20 @@ export class SupabaseRealtimeManager {
   private handleSessionBroadcast(payload: any): void {
     try {
       const { event, userId, action } = payload.payload;
-      
+
       this.logger.info('Broadcast de sessão recebido', {
         event,
         userId,
-        action
+        action,
       });
 
       // Se for uma ação de logout forçado para o usuário atual
       if (action === 'force_logout' && userId === this.currentUserId) {
         this.handleForceLogout();
       }
-      
     } catch (error) {
       this.logger.error('Erro ao processar broadcast de sessão', {
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       });
     }
   }
@@ -244,14 +241,16 @@ export class SupabaseRealtimeManager {
    */
   private async handleUserDeactivation(): Promise<void> {
     this.stateManager.setError('Sua conta foi desativada. Entre em contato com o administrador.');
-    
+
     // Força logout após um breve delay para mostrar a mensagem
     setTimeout(async () => {
       await this.disconnect();
       // Aqui você pode disparar um evento para forçar o logout
-      window.dispatchEvent(new CustomEvent('auth:force-logout', {
-        detail: { reason: 'account_deactivated' }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('auth:force-logout', {
+          detail: { reason: 'account_deactivated' },
+        })
+      );
     }, 3000);
   }
 
@@ -264,15 +263,17 @@ export class SupabaseRealtimeManager {
     if (currentState.user) {
       const updatedUser = {
         ...currentState.user,
-        permissions: userData.permissions || []
+        permissions: userData.permissions || [],
       };
-      
+
       this.stateManager.setUser(updatedUser);
-      
+
       // Dispara evento para componentes reagirem às mudanças de permissão
-      window.dispatchEvent(new CustomEvent('auth:permissions-updated', {
-        detail: { permissions: userData.permissions }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('auth:permissions-updated', {
+          detail: { permissions: userData.permissions },
+        })
+      );
     }
   }
 
@@ -284,15 +285,17 @@ export class SupabaseRealtimeManager {
     if (currentState.user && userData.profile_data) {
       const updatedUser = {
         ...currentState.user,
-        ...userData.profile_data
+        ...userData.profile_data,
       };
-      
+
       this.stateManager.setUser(updatedUser);
-      
+
       // Dispara evento para componentes reagirem às mudanças de perfil
-      window.dispatchEvent(new CustomEvent('auth:profile-updated', {
-        detail: { profileData: userData.profile_data }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('auth:profile-updated', {
+          detail: { profileData: userData.profile_data },
+        })
+      );
     }
   }
 
@@ -301,11 +304,13 @@ export class SupabaseRealtimeManager {
    */
   private handleForceLogout(): void {
     this.logger.warn('Logout forçado recebido via broadcast');
-    
+
     // Dispara evento para forçar o logout
-    window.dispatchEvent(new CustomEvent('auth:force-logout', {
-      detail: { reason: 'remote_logout' }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('auth:force-logout', {
+        detail: { reason: 'remote_logout' },
+      })
+    );
   }
 
   /**
@@ -327,19 +332,19 @@ export class SupabaseRealtimeManager {
             event,
             userId: this.currentUserId,
             data,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         });
-        
+
         this.logger.info('Broadcast enviado', {
           event,
-          userId: this.currentUserId
+          userId: this.currentUserId,
         });
       }
     } catch (error) {
       this.logger.error('Erro ao enviar broadcast', {
         error: error instanceof Error ? error.message : 'Erro desconhecido',
-        event
+        event,
       });
     }
   }
@@ -353,15 +358,15 @@ export class SupabaseRealtimeManager {
         await supabase.removeChannel(channel);
         this.logger.debug('Canal desconectado', { channelName: name });
       }
-      
+
       this.channels.clear();
       this.isConnected = false;
       this.currentUserId = null;
-      
+
       this.logger.info('Realtime desconectado com sucesso');
     } catch (error) {
       this.logger.error('Erro ao desconectar Realtime', {
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       });
     }
   }
@@ -376,10 +381,10 @@ export class SupabaseRealtimeManager {
     }
 
     this.reconnectAttempts++;
-    
+
     this.logger.info('Tentando reconectar Realtime', {
       attempt: this.reconnectAttempts,
-      maxAttempts: this.config.maxReconnectAttempts
+      maxAttempts: this.config.maxReconnectAttempts,
     });
 
     setTimeout(async () => {
@@ -391,9 +396,9 @@ export class SupabaseRealtimeManager {
       } catch (error) {
         this.logger.error('Falha na reconexão', {
           error: error instanceof Error ? error.message : 'Erro desconhecido',
-          attempt: this.reconnectAttempts
+          attempt: this.reconnectAttempts,
         });
-        
+
         if (this.reconnectAttempts < this.config.maxReconnectAttempts) {
           await this.attemptReconnect();
         }
@@ -404,16 +409,20 @@ export class SupabaseRealtimeManager {
   // Métodos utilitários
   private getTableNameByUserType(userType: string): string {
     switch (userType) {
-      case 'admin': return 'admins';
-      case 'porteiro': return 'porteiros';
-      case 'morador': return 'moradores';
-      default: return 'users';
+      case 'admin':
+        return 'admins';
+      case 'porteiro':
+        return 'porteiros';
+      case 'morador':
+        return 'moradores';
+      default:
+        return 'users';
     }
   }
 
   private getChangedFields(oldData: any, newData: any): string[] {
     if (!oldData || !newData) return [];
-    
+
     const changes: string[] = [];
     for (const key in newData) {
       if (oldData[key] !== newData[key]) {
@@ -426,9 +435,10 @@ export class SupabaseRealtimeManager {
   private hasPermissionChanges(oldData: any, newData: any): boolean {
     if (!oldData?.permissions && !newData?.permissions) return false;
     if (!oldData?.permissions || !newData?.permissions) return true;
-    
-    return JSON.stringify(oldData.permissions.sort()) !== 
-           JSON.stringify(newData.permissions.sort());
+
+    return (
+      JSON.stringify(oldData.permissions.sort()) !== JSON.stringify(newData.permissions.sort())
+    );
   }
 
   // Getters
@@ -452,3 +462,4 @@ export class SupabaseRealtimeManager {
 }
 
 export default SupabaseRealtimeManager;
+

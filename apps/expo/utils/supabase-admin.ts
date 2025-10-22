@@ -23,8 +23,9 @@ if (Platform.OS !== 'web') {
  */
 export const { client: supabaseAdmin, unified: unifiedAdmin } =
   SupabaseClientFactory.createReactNativeClient(Platform.OS, {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL!,
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!, // Note: In production, use backend API for admin operations
+    url: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    serviceKey: process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY,
     storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     logLevel: __DEV__ ? 'info' : 'error',
   });

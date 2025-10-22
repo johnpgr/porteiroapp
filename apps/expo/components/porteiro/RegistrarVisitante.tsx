@@ -13,12 +13,12 @@ import {
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
-import { flattenStyles } from '../../utils/styles';
-import { supabase } from '../../utils/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import { uploadVisitorPhoto } from '../../services/photoUploadService';
-import { notificationApi } from '../../services/notificationApi';
-import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import { flattenStyles } from '~/utils/styles';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
+import { uploadVisitorPhoto } from '~/services/photoUploadService';
+import { notificationApi } from '~/services/notificationApi';
+import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
 import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
 
 type FlowStep =
