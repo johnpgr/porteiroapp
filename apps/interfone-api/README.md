@@ -59,12 +59,6 @@ pnpm start
 ```
 Uses Node 22's native TypeScript support - no build step required!
 
-### Build (opcional)
-```bash
-pnpm build
-```
-Compiles TypeScript to JavaScript if needed for deployment.
-
 ## 📁 Estrutura
 
 ```
@@ -214,17 +208,3 @@ node --watch src/server.ts
 ### ⚠️ Notas Importantes
 
 1. **Requer Node.js 22+**: Esta configuração só funciona com Node 22 ou superior
-2. **IDE Warnings**: Você pode ver avisos sobre `@types` faltando - isso é normal, o código roda perfeitamente
-3. **Build Opcional**: O comando `build` ainda existe para casos onde você precisa de `.js` compilado (ex: Docker, CI/CD)
-
-## 🗑️ Limpeza
-
-Os arquivos JavaScript antigos ainda existem no diretório. Você pode removê-los manualmente:
-
-```bash
-# Remove old JS files
-rm server.js
-rm -rf src/**/*.js
-```
-
-Ou mantê-los como backup até confirmar que tudo funciona corretamente.
