@@ -1,0 +1,84 @@
+{
+  "expo": {
+    "name": "James Avisa",
+    "slug": "porteiro-app",
+    "version": "2.0.3",
+    "scheme": "porteiro-app",
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-web-browser",
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2196F3",
+          "mode": "production",
+          "sounds": ["./assets/audio/doorbell_push.mp3"]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#ffffff",
+    "backgroundColor": "#F9FAFB",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification", "remote-notification"],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "This app needs access to camera for video calls",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for voice calls"
+      },
+      "bundleIdentifier": "com.porteiroapp.notifications"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "com.google.android.c2dm.permission.RECEIVE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.INTERNET"
+      ],
+      "useNextNotificationsApi": true,
+      "googleServicesFile": "./google-services.json",
+      "package": "com.porteiroapp.notifications"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#2196F3",
+      "androidMode": "default",
+      "androidCollapsedTitle": "{{unread_count}} novas notificações"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "74e123bc-f565-44ba-92f0-86fc00cbe0b1"
+      }
+    }
+  }
+}

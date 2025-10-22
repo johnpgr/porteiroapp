@@ -1,21 +1,37 @@
 {
-  "name": "porteiroapp-tests",
+  "name": "@porteiroapp/tests",
   "version": "1.0.0",
-  "description": "Testes automatizados para a API do PorteiroApp",
-  "main": "register-resident.test.js",
+  "private": true,
+  "type": "module",
+  "description": "Testes automatizados para a API do PorteiroApp usando Node.js native test runner",
+  "main": "src/register-resident.test.ts",
   "scripts": {
-    "test": "node register-resident.test.js",
-    "test:advanced": "node register-resident-advanced.test.js",
-    "test:persistence": "node database-persistence.test.js",
-    "test:all": "node register-resident.test.js && node register-resident-advanced.test.js && node database-persistence.test.js",
-    "install-deps": "npm install axios @supabase/supabase-js"
+    "test": "node --test src/register-resident.test.ts",
+    "test:advanced": "node --test src/register-resident-advanced.test.ts",
+    "test:persistence": "node --test src/database-persistence.test.ts",
+    "test:auth": "node --test src/auth-persistence.test.ts",
+    "test:auth:simple": "node --test src/auth-persistence-simple.test.ts",
+    "test:popup": "node --test src/test-popup.test.ts",
+    "test:modal": "node --test src/test-modal-force.test.ts",
+    "test:all": "node --test src/**/*.test.ts",
+    "test:watch": "node --test --watch src/**/*.test.ts"
   },
   "dependencies": {
     "axios": "^1.6.0",
-    "@supabase/supabase-js": "^2.38.0"
+    "@porteiroapp/common": "workspace:*"
   },
-  "devDependencies": {},
-  "keywords": ["test", "api", "automation", "porteiroapp"],
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "catalog:"
+  },
+  "keywords": [
+    "test",
+    "api",
+    "automation",
+    "porteiroapp",
+    "node-test",
+    "typescript"
+  ],
   "author": "PorteiroApp Team",
   "license": "MIT"
 }
