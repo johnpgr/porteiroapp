@@ -1,11 +1,11 @@
-import type { TypedSupabaseClient } from '../core/client';
-import { UnifiedSupabaseClient } from '../client/unifiedClient';
+import type { TypedSupabaseClient } from '../core/client.ts';
+import { UnifiedSupabaseClient } from '../client/unifiedClient.ts';
 import { 
   BrowserPlatformDetector, 
   ReactNativePlatformDetector, 
   ServerPlatformDetector,
   type PlatformDetector 
-} from '../utils/platform';
+} from '../utils/platform.ts';
 
 export interface ClientFactoryOptions {
   url: string;

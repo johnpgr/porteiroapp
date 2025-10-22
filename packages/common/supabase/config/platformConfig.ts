@@ -1,6 +1,6 @@
-import type { SupabaseConfig } from '../core/client';
-import type { PlatformDetector } from '../utils/platform';
-import { AuthLogger } from '../utils/logger';
+import type { SupabaseConfig } from '../core/client.ts';
+import type { PlatformDetector } from '../utils/platform.ts';
+import { AuthLogger } from '../utils/logger.ts';
 
 /**
  * Configurações específicas por plataforma

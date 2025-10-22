@@ -1,7 +1,8 @@
-const express = require('express');
-const TokenController = require('../controllers/token.controller');
+import type { Request, Response, Router } from 'express';
+import express from 'express';
+import TokenController from '../controllers/token.controller.ts';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 /**
  * Rotas para gerenciamento de tokens RTC da Agora
@@ -33,9 +34,7 @@ router.post('/validate', TokenController.validateToken);
  * GET /api/tokens/test
  * Endpoint de teste para verificar se a API de tokens está funcionando
  */
-// Environment variables accessed via process.env
-
-router.get('/test', (req, res) => {
+router.get('/test', (req: Request, res: Response) => {
   const agoraConfigured = !!(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE);
   
   res.json({
@@ -59,7 +58,7 @@ router.get('/test', (req, res) => {
  * GET /api/tokens/config
  * Retorna informações de configuração da Agora (sem expor credenciais)
  */
-router.get('/config', (req, res) => {
+router.get('/config', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
@@ -70,4 +69,4 @@ router.get('/config', (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

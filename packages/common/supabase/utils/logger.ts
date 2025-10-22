@@ -213,8 +213,8 @@ export class AuthLogger {
     total: number;
     byLevel: Record<LogLevel, number>;
     sessionId: string;
-    oldestLog?: string;
-    newestLog?: string;
+    oldestLog: string | undefined;
+    newestLog: string | undefined;
   } {
     const stats = {
       total: this.logs.length,

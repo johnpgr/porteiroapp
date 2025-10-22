@@ -1,7 +1,8 @@
-const express = require('express');
-const CallController = require('../controllers/call.controller');
+import type { Request, Response, Router } from 'express';
+import express from 'express';
+import CallController from '../controllers/call.controller.ts';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 /**
  * Rotas para gerenciamento de chamadas de interfone
@@ -60,7 +61,7 @@ router.get('/active', CallController.getActiveCalls);
  * GET /api/calls/test
  * Endpoint de teste para verificar se a API está funcionando
  */
-router.get('/test', (req, res) => {
+router.get('/test', (req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'API de chamadas funcionando',
@@ -77,4 +78,4 @@ router.get('/test', (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

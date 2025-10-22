@@ -1,5 +1,6 @@
-const { v4: uuidv4 } = require('uuid');
-const DatabaseService = require('../services/db.service');
+import type { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
+import DatabaseService from '../services/db.service.ts';
 
 /**
  * Controlador para gerenciar chamadas de interfone
@@ -11,16 +12,17 @@ class CallController {
    * Inicia uma nova chamada de interfone
    * POST /api/calls/start
    */
-  static async startCall(req, res) {
+  static async startCall(req: Request, res: Response): Promise<void> {
     try {
       const { apartmentNumber, doormanId, buildingId } = req.body;
 
       // Validação dos parâmetros obrigatórios
       if (!apartmentNumber || !doormanId || !buildingId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'apartmentNumber, doormanId e buildingId são obrigatórios'
         });
+        return;
       }
 
       console.log(`🔔 Iniciando chamada para apartamento ${apartmentNumber} no prédio ${buildingId}`);
@@ -28,23 +30,25 @@ class CallController {
       // Buscar dados do apartamento e moradores
       const apartment = await DatabaseService.getApartmentByNumber(apartmentNumber, buildingId);
       if (!apartment) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Apartamento não encontrado'
         });
+        return;
       }
 
       // Buscar dados do porteiro
       const doorman = await DatabaseService.getDoormanProfile(doormanId);
       if (!doorman) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Porteiro não encontrado'
         });
+        return;
       }
 
-  // Gerar canal único no Agora para a chamada
-  const channelName = `intercom_${uuidv4()}`;
+      // Gerar canal único no Agora para a chamada
+      const channelName = `intercom_${randomUUID()}`;
 
       // Criar chamada no banco de dados primeiro
       const call = await DatabaseService.createIntercomCall(apartment.id, doormanId);
@@ -52,10 +56,11 @@ class CallController {
       // Verificar se a chamada foi criada com sucesso
       if (!call || !call.id) {
         console.error('🔥 Erro: Chamada não foi criada corretamente');
-        return res.status(500).json({
+        res.status(500).json({
           success: false,
           error: 'Erro ao criar chamada no banco de dados'
         });
+        return;
       }
 
       console.log('✅ Chamada criada com sucesso:', call);
@@ -64,14 +69,15 @@ class CallController {
       const residents = await DatabaseService.getResidentsByApartment(apartment.id);
       
       if (!residents || residents.length === 0) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Nenhum morador encontrado para este apartamento'
         });
+        return;
       }
 
-  // Salvar o ID da chamada antes de qualquer operação
-  const callId = call.id;
+      // Salvar o ID da chamada antes de qualquer operação
+      const callId = call.id;
 
       // Criar participantes da chamada (porteiro + moradores)
       const participants = [];
@@ -148,16 +154,17 @@ class CallController {
    * Atende uma chamada
    * POST /api/calls/:callId/answer
    */
-  static async answerCall(req, res) {
+  static async answerCall(req: Request, res: Response): Promise<void> {
     try {
       const { callId } = req.params;
       const { userId, userType } = req.body;
 
       if (!userId || !userType) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'userId e userType são obrigatórios'
         });
+        return;
       }
 
       console.log(`📞 Usuário ${userId} (${userType}) atendendo chamada ${callId}`);
@@ -165,17 +172,19 @@ class CallController {
       // Verificar se a chamada existe e está ativa
       const call = await DatabaseService.getCallById(callId);
       if (!call) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Chamada não encontrada'
         });
+        return;
       }
 
       if (call.status !== 'ringing') {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Chamada não está disponível para atendimento'
         });
+        return;
       }
 
       // Atualizar status da chamada para 'active'
@@ -193,8 +202,8 @@ class CallController {
       }
 
       // Buscar dados atualizados da chamada
-  const updatedCall = await DatabaseService.getCallById(callId);
-  const participants = await DatabaseService.getCallParticipants(callId);
+      const updatedCall = await DatabaseService.getCallById(callId);
+      const participants = await DatabaseService.getCallParticipants(callId);
 
       console.log(`✅ Chamada ${callId} atendida por ${userId}`);
 
@@ -225,16 +234,17 @@ class CallController {
    * Recusa uma chamada
    * POST /api/calls/:callId/decline
    */
-  static async declineCall(req, res) {
+  static async declineCall(req: Request, res: Response): Promise<void> {
     try {
       const { callId } = req.params;
       const { userId, userType } = req.body;
 
       if (!userId || !userType) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'userId e userType são obrigatórios'
         });
+        return;
       }
 
       console.log(`❌ Usuário ${userId} (${userType}) recusando chamada ${callId}`);
@@ -242,10 +252,11 @@ class CallController {
       // Verificar se a chamada existe
       const call = await DatabaseService.getCallById(callId);
       if (!call) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Chamada não encontrada'
         });
+        return;
       }
 
       // Atualizar participante que recusou
@@ -256,8 +267,8 @@ class CallController {
 
       // Verificar se todos os moradores recusaram
       const participants = await DatabaseService.getCallParticipants(callId);
-      const residents = participants.filter(p => p.user_type === 'resident');
-      const allDeclined = residents.every(r => r.status === 'declined');
+      const residents = participants.filter((p: any) => p.user_type === 'resident');
+      const allDeclined = residents.every((r: any) => r.status === 'declined');
 
       if (allDeclined) {
         // Se todos recusaram, encerrar a chamada
@@ -290,7 +301,7 @@ class CallController {
    * Encerra uma chamada
    * POST /api/calls/:callId/end
    */
-  static async endCall(req, res) {
+  static async endCall(req: Request, res: Response): Promise<void> {
     try {
       const { callId } = req.params;
       const { userId, userType } = req.body;
@@ -300,16 +311,17 @@ class CallController {
       // Verificar se a chamada existe
       const call = await DatabaseService.getCallById(callId);
       if (!call) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Chamada não encontrada'
         });
+        return;
       }
 
       const endTime = new Date();
 
       // Calcular duração da chamada
-      const duration = Math.floor((endTime - new Date(call.started_at)) / 1000);
+      const duration = Math.floor((endTime.getTime() - new Date(call.started_at).getTime()) / 1000);
 
       // Atualizar chamada como encerrada
       await DatabaseService.updateCall(callId, {
@@ -355,16 +367,17 @@ class CallController {
    * Busca o status atual de uma chamada
    * GET /api/calls/:callId/status
    */
-  static async getCallStatus(req, res) {
+  static async getCallStatus(req: Request, res: Response): Promise<void> {
     try {
       const { callId } = req.params;
 
       const call = await DatabaseService.getCallById(callId);
       if (!call) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: 'Chamada não encontrada'
         });
+        return;
       }
 
       const participants = await DatabaseService.getCallParticipants(callId);
@@ -403,23 +416,24 @@ class CallController {
    * Lista o histórico de chamadas
    * GET /api/calls/history
    */
-  static async getCallHistory(req, res) {
+  static async getCallHistory(req: Request, res: Response): Promise<void> {
     try {
-      const { buildingId, userId, userType, limit = 50, offset = 0 } = req.query;
+      const { buildingId, userId, userType, limit = '50', offset = '0' } = req.query;
 
-      if (!buildingId) {
-        return res.status(400).json({
+      if (!buildingId || typeof buildingId !== 'string') {
+        res.status(400).json({
           success: false,
           error: 'buildingId é obrigatório'
         });
+        return;
       }
 
       const calls = await DatabaseService.getCallHistory({
-        buildingId,
-        userId,
-        userType,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        buildingId: buildingId as string,
+        userId: userId ? (userId as string) : undefined,
+        userType: userType ? (userType as string) : undefined,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
       });
 
       res.json({
@@ -427,8 +441,8 @@ class CallController {
         data: {
           calls,
           pagination: {
-            limit: parseInt(limit),
-            offset: parseInt(offset),
+            limit: parseInt(limit as string),
+            offset: parseInt(offset as string),
             total: calls.length
           }
         }
@@ -447,18 +461,19 @@ class CallController {
    * Busca chamadas ativas no prédio
    * GET /api/calls/active
    */
-  static async getActiveCalls(req, res) {
+  static async getActiveCalls(req: Request, res: Response): Promise<void> {
     try {
       const { buildingId } = req.query;
 
       if (!buildingId) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'buildingId é obrigatório'
         });
+        return;
       }
 
-      const activeCalls = await DatabaseService.getActiveCalls(buildingId);
+      const activeCalls = await DatabaseService.getActiveCalls(buildingId as string);
 
       res.json({
         success: true,
@@ -478,4 +493,4 @@ class CallController {
   }
 }
 
-module.exports = CallController;
+export default CallController;

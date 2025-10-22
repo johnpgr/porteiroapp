@@ -68,10 +68,12 @@ export class BrowserPlatformDetector implements PlatformDetector {
   }
 
   private detectPlatform(): PlatformType {
+    //@ts-ignore
     if (typeof window === 'undefined') {
       return 'server';
     }
 
+    //@ts-ignore
     const userAgent = window.navigator.userAgent;
 
     if (/iPad|iPhone|iPod/.test(userAgent)) {

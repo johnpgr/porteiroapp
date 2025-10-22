@@ -1,5 +1,5 @@
-const { RtcTokenBuilder, RtcRole } = require('agora-token');
-// Environment variables accessed via process.env
+import type { Request, Response } from 'express';
+import * as agora from 'agora-token';
 
 /**
  * Controlador para geração de tokens RTC da Agora
@@ -8,26 +8,28 @@ const { RtcTokenBuilder, RtcRole } = require('agora-token');
 class TokenController {
   /**
    * Gera um token RTC para um usuário específico
-   * @param {Object} req - Request object
-   * @param {Object} res - Response object
+   * @param req - Request object
+   * @param res - Response object
    */
-  static async generateToken(req, res) {
+  static async generateToken(req: Request, res: Response): Promise<void> {
     try {
       const { channelName, uid, role = 'publisher' } = req.body;
 
       // Validação dos parâmetros obrigatórios
       if (!channelName) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'channelName é obrigatório'
         });
+        return;
       }
 
       if (!uid) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'uid é obrigatório'
         });
+        return;
       }
 
       // Configurações da Agora
@@ -36,14 +38,15 @@ class TokenController {
 
       if (!appId || !appCertificate) {
         console.error('🔥 Credenciais da Agora não configuradas');
-        return res.status(500).json({
+        res.status(500).json({
           success: false,
           error: 'Configuração do servidor incompleta'
         });
+        return;
       }
 
       // Definir o papel do usuário (publisher ou subscriber)
-      const userRole = role === 'subscriber' ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER;
+      const userRole = role === 'subscriber' ? agora.RtcRole.SUBSCRIBER : agora.RtcRole.PUBLISHER;
 
       // Token expira em 24 horas (86400 segundos)
       const expirationTimeInSeconds = 86400;
@@ -51,12 +54,13 @@ class TokenController {
       const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
       // Gerar o token RTC
-      const token = RtcTokenBuilder.buildTokenWithUid(
+      const token = agora.RtcTokenBuilder.buildTokenWithUid(
         appId,
         appCertificate,
         channelName,
         parseInt(uid),
         userRole,
+        expirationTimeInSeconds,
         privilegeExpiredTs
       );
 
@@ -85,26 +89,28 @@ class TokenController {
 
   /**
    * Gera tokens para múltiplos usuários (útil para chamadas em grupo)
-   * @param {Object} req - Request object
-   * @param {Object} res - Response object
+   * @param req - Request object
+   * @param res - Response object
    */
-  static async generateMultipleTokens(req, res) {
+  static async generateMultipleTokens(req: Request, res: Response): Promise<void> {
     try {
       const { channelName, users } = req.body;
 
       // Validação dos parâmetros
       if (!channelName) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'channelName é obrigatório'
         });
+        return;
       }
 
       if (!users || !Array.isArray(users) || users.length === 0) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'users deve ser um array não vazio'
         });
+        return;
       }
 
       // Configurações da Agora
@@ -113,10 +119,11 @@ class TokenController {
 
       if (!appId || !appCertificate) {
         console.error('🔥 Credenciais da Agora não configuradas');
-        return res.status(500).json({
+        res.status(500).json({
           success: false,
           error: 'Configuração do servidor incompleta'
         });
+        return;
       }
 
       // Token expira em 24 horas
@@ -134,14 +141,15 @@ class TokenController {
           continue; // Pular usuários sem uid
         }
 
-        const userRole = role === 'subscriber' ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER;
+        const userRole = role === 'subscriber' ? agora.RtcRole.SUBSCRIBER : agora.RtcRole.PUBLISHER;
 
-        const token = RtcTokenBuilder.buildTokenWithUid(
+        const token = agora.RtcTokenBuilder.buildTokenWithUid(
           appId,
           appCertificate,
           channelName,
           parseInt(uid),
           userRole,
+          expirationTimeInSeconds,
           privilegeExpiredTs
         );
 
@@ -176,18 +184,19 @@ class TokenController {
 
   /**
    * Valida se um token ainda é válido
-   * @param {Object} req - Request object
-   * @param {Object} res - Response object
+   * @param req - Request object
+   * @param res - Response object
    */
-  static async validateToken(req, res) {
+  static async validateToken(req: Request, res: Response): Promise<void> {
     try {
       const { token, channelName, uid } = req.body;
 
       if (!token || !channelName || !uid) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'token, channelName e uid são obrigatórios'
         });
+        return;
       }
 
       // Nota: A validação completa do token requer decodificação
@@ -217,4 +226,4 @@ class TokenController {
   }
 }
 
-module.exports = TokenController;
+export default TokenController;

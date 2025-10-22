@@ -1,4 +1,4 @@
-import type { TypedSupabaseClient } from '../supabase/core/client';
+import type { TypedSupabaseClient } from '../supabase/core/client.ts';
 
 export interface PendingNotification {
   id: string;

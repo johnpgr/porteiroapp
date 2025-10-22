@@ -1,2 +1,2 @@
-export * from './useLembretes';
-export * from './usePendingNotificationsCore';
+export * from './useLembretes.ts';
+export * from './usePendingNotificationsCore.ts';

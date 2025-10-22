@@ -1,7 +1,7 @@
-import { createSupabaseClient, type TypedSupabaseClient } from '../core/client';
-import type { PlatformDetector } from '../utils/platform';
-import { PlatformConfigManager } from '../config/platformConfig';
-import { AuthLogger } from '../utils/logger';
+import { createSupabaseClient, type TypedSupabaseClient } from '../core/client.ts';
+import type { PlatformDetector } from '../utils/platform.ts';
+import { PlatformConfigManager } from '../config/platformConfig.ts';
+import { AuthLogger } from '../utils/logger.ts';
 
 export interface UnifiedSupabaseClientOptions {
   url: string;

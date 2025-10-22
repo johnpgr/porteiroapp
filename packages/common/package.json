@@ -2,24 +2,29 @@
   "name": "@porteiroapp/common",
   "version": "0.1.0",
   "private": true,
-  "main": "./index.ts",
-  "types": "./index.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.ts",
-      "default": "./index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./supabase": {
-      "types": "./supabase/index.ts",
-      "default": "./supabase/index.ts"
+      "types": "./dist/supabase/index.d.ts",
+      "default": "./dist/supabase/index.js"
     },
     "./hooks": {
-      "types": "./hooks/index.ts",
-      "default": "./hooks/index.ts"
+      "types": "./dist/hooks/index.d.ts",
+      "default": "./dist/hooks/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
