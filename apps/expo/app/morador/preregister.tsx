@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,10 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../../utils/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import { notifyPorteiroVisitorAuthorized } from '../../utils/pushNotifications';
-import BottomNav from '../../components/BottomNav';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
+import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
+import BottomNav from '~/components/BottomNav';
 
 export default function PreregisterScreen() {
   const { user } = useAuth();

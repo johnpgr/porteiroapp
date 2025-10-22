@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
-import AuthForm from '../../components/AuthForm';
-import { adminAuth } from '../../utils/supabase';
+import AuthForm from '~/components/AuthForm';
+import { adminAuth } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 

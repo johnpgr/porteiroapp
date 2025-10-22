@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   SafeAreaView,
   Modal,
 } from 'react-native';
-import { supabase, adminAuth } from '../../utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import { router } from 'expo-router';
 
 interface Building {

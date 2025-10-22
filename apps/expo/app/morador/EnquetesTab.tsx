@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
+import { supabase } from '~/utils/supabase';
 
 interface PollOption {
   id: string;

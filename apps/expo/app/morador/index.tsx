@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { useState, useEffect, useCallback } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   View,
   Text,
@@ -10,11 +10,9 @@ import {
   Alert,
   SafeAreaView,
   ActivityIndicator,
-  Image,
 } from 'react-native';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { flattenStyles } from '~/utils/styles';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import { useUserApartment } from '~/hooks/useUserApartment';

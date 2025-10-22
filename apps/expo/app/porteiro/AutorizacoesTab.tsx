@@ -1,11 +1,17 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollView, TextInput } from 'react-native';
-import { supabase } from '../../utils/supabase';
-import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
-import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
-import ApartmentSearchModal from './components/modals/ApartmentSearchModal';
+import { supabase } from '~/utils/supabase';
+import { notifyResidentOfVisitorArrival } from '~/services/notifyResidentService';
+import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
 
-const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }) => {
+interface AutorizacoesTabProps {
+  buildingId: string;
+  user: any; // Consider replacing 'any' with a more specific user type if available
+  filter?: string;
+  timeFilter?: any; // Consider replacing 'any' with a more specific type for timeFilter
+}
+
+const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }: AutorizacoesTabProps) => {
   const [activities, setActivities] = useState([]);
   const [preAuthorizedVisitors, setPreAuthorizedVisitors] = useState([]);
   const [visitorLogs, setVisitorLogs] = useState([]);

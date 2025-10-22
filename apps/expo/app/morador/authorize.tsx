@@ -14,12 +14,12 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';
-import { supabase } from '../../utils/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import { VisitorCard } from '../../components/VisitorCard';
-import { flattenStyles } from '../../utils/styles';
-import BottomNav from '../../components/BottomNav';
-import { notifyPorteiroVisitorAuthorized } from '../../utils/pushNotifications';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
+import { VisitorCard } from '~/components/VisitorCard';
+import { flattenStyles } from '~/utils/styles';
+import BottomNav from '~/components/BottomNav';
+import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
 
 interface Visitor {
   id: string;
