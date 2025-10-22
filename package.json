@@ -17,6 +17,7 @@
     "build:mobile": "pnpm --filter @porteiroapp/porteiro-mobile build",
     "build:web": "pnpm --filter @porteiroapp/porteiro-site build",
     "build:api": "pnpm --filter @porteiroapp/interfone-api build",
+    "build:common": "pnpm --filter @porteiroapp/common build",
     "start:web": "pnpm --filter @porteiroapp/porteiro-site start",
     "start:api": "pnpm --filter @porteiroapp/interfone-api start",
     "test": "pnpm --filter @porteiroapp/tests test:all",

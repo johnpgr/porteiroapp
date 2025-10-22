@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,9 @@ import {
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { supabase, adminAuth } from '../../utils/supabase';
+import { supabase, adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import notificationService from '../../services/whatsappService';
+import notificationService from '~/services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { supabaseAdmin } from '~/utils/supabase-admin';
 
