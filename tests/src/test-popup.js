@@ -1,8 +1,9 @@
+const { env } = require('@porteiroapp/env/node');
 const { createClient } = require('@supabase/supabase-js');
 
 // Configuração do Supabase
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Mock do Alert para simular o comportamento

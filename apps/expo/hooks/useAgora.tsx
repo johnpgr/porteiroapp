@@ -9,10 +9,6 @@ import RtcEngine, {
   IRtcEngineEventHandler,
 } from 'react-native-agora';
 
-// Configurações do Agora
-const AGORA_APP_ID = 'f9e7edb820194834801f62707068743d';
-const API_BASE_URL = 'http://localhost:3001/api';
-
 export interface AgoraConfig {
   appId: string;
   channelName: string;
@@ -54,7 +50,7 @@ export const useAgora = (): UseAgoraReturn => {
       console.log('🎙️ Inicializando Agora Engine...');
 
       const agoraEngine = RtcEngine.create({
-        appId: AGORA_APP_ID,
+        appId: process.env.EXPO_PUBLIC_AGORA_APP_ID || '',
         logConfig: {
           level: __DEV__ ? 0x0001 : 0x0000, // Debug em desenvolvimento
         },
@@ -135,7 +131,7 @@ export const useAgora = (): UseAgoraReturn => {
       console.log('🔑 Buscando token RTC para canal:', channelName, 'UID:', uid);
 
       const response = await fetch(
-        `${API_BASE_URL}/agora/rtc?channelName=${channelName}&uid=${uid}`
+        `${process.env.EXPO_PUBLIC_API_BASE_URL}/agora/rtc?channelName=${channelName}&uid=${uid}`
       );
 
       if (!response.ok) {

@@ -5,6 +5,8 @@ const twilioService = require('../services/twilioService');
 
 const router = express.Router();
 
+// Environment variables accessed via process.env
+
 // Configuração do Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,

@@ -339,7 +339,7 @@ class IntercomCallService {
 
     // Notificar backend que chamada foi atendida
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/intercom/answer`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/intercom/answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -370,7 +370,7 @@ class IntercomCallService {
 
     // Notificar backend que chamada foi recusada
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/intercom/hangup`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/intercom/hangup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -397,7 +397,7 @@ class IntercomCallService {
 
     // Notificar backend sobre timeout
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/intercom/hangup`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/intercom/hangup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

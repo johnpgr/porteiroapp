@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const DatabaseService = require('./src/services/db.service');
+// Environment variables accessed via process.env
 
 // Carregar variáveis de ambiente
-dotenv.config();
+dotprocess.env.config();
 
 // Importar rotas
 const callRoutes = require('./src/routes/call.routes');
@@ -12,7 +13,7 @@ const tokenRoutes = require('./src/routes/token.routes');
 
 // Criar aplicação Express
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 // Middleware de CORS
 app.use(cors({

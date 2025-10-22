@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TypedSupabaseClient } from '../supabase/core/client';
+import type { TypedSupabaseClient } from '../supabase/core/client';
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
 // import { useNotifications } from './useNotifications';
 // import { useReminderScheduler } from './useReminderScheduler';
@@ -79,7 +79,7 @@ export function createUseLembretes(deps: UseLembretesDeps) {
 
   // Função para logs apenas de erros críticos
   const logError = useCallback((message: string, error?: any) => {
-    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
       console.error(`[useLembretes] ${message}`, error || '');
     }
   }, []);

@@ -22,10 +22,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "catalog:react19",
-    "@supabase/supabase-js": "^2.57.0"
+    "@supabase/supabase-js": "^2.57.0",
+    "react": "catalog:react19"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "@types/react": "catalog:react19",
     "typescript": "catalog:"
   }

@@ -8,17 +8,12 @@ if (Platform.OS !== 'web') {
   AsyncStorage = require('@react-native-async-storage/async-storage').default;
 }
 
-// Configurações do projeto Supabase
-const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-const supabaseAnonKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
-
-// Criar cliente unificado usando a factory
+// Criar cliente unificado usando a factory com variáveis validadas
 export const { client: supabase, unified } = SupabaseClientFactory.createReactNativeClient(
   Platform.OS,
   {
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
+    url: process.env.EXPO_PUBLIC_SUPABASE_URL!,
+    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
     storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     logLevel: __DEV__ ? 'info' : 'error',
   }

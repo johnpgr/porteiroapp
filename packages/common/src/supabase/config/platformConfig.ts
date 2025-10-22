@@ -213,7 +213,7 @@ export class PlatformConfigManager {
   /**
    * Obter configurações do Supabase otimizadas
    */
-  public getSupabaseOptions(storage?: any): SupabaseConfig['options'] {
+  public getSupabaseOptions(storage?: any): NonNullable<SupabaseConfig['options']> {
     const platform = this.platformDetector.getPlatform();
     const isServer = this.platformDetector.isServer();
     const isMobile = this.platformDetector.isMobile();

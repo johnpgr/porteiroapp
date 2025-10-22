@@ -1,10 +1,10 @@
-import { TypedSupabaseClient } from '../core/client';
-import { UnifiedSupabaseClient, UnifiedSupabaseClientOptions } from '../client/unifiedClient';
+import type { TypedSupabaseClient } from '../core/client';
+import { UnifiedSupabaseClient } from '../client/unifiedClient';
 import { 
   BrowserPlatformDetector, 
   ReactNativePlatformDetector, 
   ServerPlatformDetector,
-  PlatformDetector 
+  type PlatformDetector 
 } from '../utils/platform';
 
 export interface ClientFactoryOptions {
@@ -31,8 +31,8 @@ export class SupabaseClientFactory {
       url: options.url,
       anonKey: options.anonKey,
       platformDetector,
-      storage: options.storage,
-      logLevel: options.logLevel,
+      ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
 
     return {
@@ -53,8 +53,8 @@ export class SupabaseClientFactory {
       url: options.url,
       anonKey: options.anonKey,
       platformDetector,
-      storage: options.storage,
-      logLevel: options.logLevel,
+      ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
 
     return {
@@ -75,7 +75,7 @@ export class SupabaseClientFactory {
       url: options.url,
       anonKey: options.anonKey,
       platformDetector,
-      logLevel: options.logLevel,
+      ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
 
     return {
@@ -95,8 +95,8 @@ export class SupabaseClientFactory {
       url: options.url,
       anonKey: options.anonKey,
       platformDetector,
-      storage: options.storage,
-      logLevel: options.logLevel,
+      ...(options.storage !== undefined && { storage: options.storage }),
+      ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
 
     return {

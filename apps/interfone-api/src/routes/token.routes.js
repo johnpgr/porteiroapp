@@ -33,6 +33,8 @@ router.post('/validate', TokenController.validateToken);
  * GET /api/tokens/test
  * Endpoint de teste para verificar se a API de tokens está funcionando
  */
+// Environment variables accessed via process.env
+
 router.get('/test', (req, res) => {
   const agoraConfigured = !!(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE);
   

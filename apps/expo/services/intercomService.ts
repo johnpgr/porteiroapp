@@ -6,7 +6,7 @@ const DEFAULT_ANDROID_EMULATOR_URL = 'https://5302cc59505a.ngrok-free.app/';
 const INTERCOM_API_BASE_URL =
   process.env.EXPO_PUBLIC_INTERCOM_API_URL ||
   process.env.EXPO_PUBLIC_INTERFONE_API_URL ||
-  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
   (Platform.OS === 'android' ? DEFAULT_ANDROID_EMULATOR_URL : DEFAULT_LOCAL_URL);
 
 interface ApiResponse<T> {

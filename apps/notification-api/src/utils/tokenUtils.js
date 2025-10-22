@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
+// Environment variables accessed via process.env
 
 // Chave secreta para JWT (deve ser definida nas variáveis de ambiente)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Duração padrão do token (30 minutos)
 const TOKEN_EXPIRATION = '30m';

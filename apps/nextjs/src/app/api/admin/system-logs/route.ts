@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { requireSuperAdmin, validateInput, sanitizeInput } from '@/middleware/auth';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 // GET - Listar logs do sistema
 export async function GET(request: NextRequest) {
   try {

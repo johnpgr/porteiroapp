@@ -1,4 +1,5 @@
 const twilio = require('twilio');
+// Environment variables accessed via process.env
 
 class TwilioService {
   constructor() {
@@ -50,7 +51,7 @@ class TwilioService {
     const invalidVars = [];
 
     for (const [varName, description] of Object.entries(requiredVars)) {
-      const value = process.env[varName];
+      const value = env[varName];
       
       if (!value || value.includes('your_') || value.includes('xxxxxxxx')) {
         missingVars.push(`${varName}: ${description}`);

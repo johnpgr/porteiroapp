@@ -1,4 +1,5 @@
 const { RtcTokenBuilder, RtcRole } = require('agora-token');
+// Environment variables accessed via process.env
 
 /**
  * Controlador para geração de tokens RTC da Agora

@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verify } from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const jwtSecret = process.env.JWT_SECRET || 'your-jwt-secret';
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
 // Interface para dados do admin
 interface AdminData {
@@ -40,7 +36,7 @@ export async function verifyAuthToken(request: NextRequest): Promise<{ admin?: A
     }
 
     // Verificar e decodificar token
-    const decoded = verify(token, jwtSecret) as any;
+    const decoded = verify(token, process.env.JWT_SECRET || 'your-jwt-secret') as any;
     
     // Buscar dados atualizados do admin
     const { data: admin, error } = await supabase

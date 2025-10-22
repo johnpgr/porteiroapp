@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs';
 import type { Database } from '@porteiroapp/common/supabase';
 
 type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row'];
-
 type Admin = Tables<'admin_profiles'>;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

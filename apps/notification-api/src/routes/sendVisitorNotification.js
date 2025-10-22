@@ -2,12 +2,11 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { sendWhatsApp } = require('../services/whatsappService');
 const { validateVisitorWhatsAppData } = require('../validators/visitorValidator');
+// Environment variables accessed via process.env
 const router = express.Router();
 
 // Configuração do Supabase
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 /**
  * Endpoint para enviar mensagem WhatsApp para visitantes

@@ -19,13 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { sendPushNotification } from '../../utils/pushNotifications';
 import notificationService from '../../services/whatsappService';
 import * as Crypto from 'expo-crypto';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
-const supabaseAdmin = createClient(
-  'https://ycamhxzumzkpxuhtugxc.supabase.co',
-  supabaseServiceRoleKey
-);
+import { supabaseAdmin } from '~/utils/supabase-admin';
 
 // Função utilitária para formatação de placa de veículo
 const formatLicensePlate = (input: string): string => {

@@ -1,13 +1,13 @@
 const { Resend } = require('resend');
+// Environment variables accessed via process.env
 
 let resendInstance = null;
 function getResend() {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  if (!process.env.RESEND_API_KEY) {
     throw new Error('RESEND_API_KEY não configurado');
   }
   if (!resendInstance) {
-    resendInstance = new Resend(apiKey);
+    resendInstance = new Resend(process.env.RESEND_API_KEY);
   }
   return resendInstance;
 }

@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { env } from '@porteiroapp/env/expo';
 
 // Configuração do Supabase
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
+const supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL || 'https://ycamhxzumzkpxuhtugxc.supabase.co';
+const supabaseKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
 const { client: supabase } = SupabaseClientFactory.createBrowserClient({
   url: supabaseUrl,
   anonKey: supabaseKey,

@@ -1,4 +1,5 @@
 const axios = require('axios');
+// Environment variables accessed via process.env
 
 // Configurações da Evolution API
 const EVOLUTION_API_CONFIG = {

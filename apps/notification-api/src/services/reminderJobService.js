@@ -2,11 +2,10 @@ const { createClient } = require('@supabase/supabase-js');
 const emailService = require('./emailService');
 const whatsappService = require('./whatsappService');
 const logger = require('../utils/logger');
+// Environment variables accessed via process.env
 
 // Configuração do Supabase
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 class ReminderJobService {
   constructor() {

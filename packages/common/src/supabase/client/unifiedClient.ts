@@ -1,4 +1,4 @@
-import { createSupabaseClient, TypedSupabaseClient } from '../core/client';
+import { createSupabaseClient, type TypedSupabaseClient } from '../core/client';
 import type { PlatformDetector } from '../utils/platform';
 import { PlatformConfigManager } from '../config/platformConfig';
 import { AuthLogger } from '../utils/logger';

@@ -16,9 +16,10 @@ const visitorAuthorizationRoutes = require('./src/routes/visitorAuthorization');
 const whatsappWebhookRoutes = require('./src/routes/whatsappWebhook');
 const interactiveNotificationsRoutes = require('./src/routes/interactiveNotifications');
 const intercomRoutes = require('./src/routes/intercom');
+// Environment variables accessed via process.env
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 // Middleware de logging
 app.use(morgan('combined'));

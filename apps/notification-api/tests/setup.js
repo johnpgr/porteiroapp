@@ -2,6 +2,7 @@
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const Client = require('socket.io-client');
+// Environment variables accessed via process.env
 
 // Configurações globais de timeout para testes
 jest.setTimeout(30000);

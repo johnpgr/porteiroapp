@@ -8,14 +8,9 @@ if (Platform.OS !== 'web') {
   AsyncStorage = require('@react-native-async-storage/async-storage').default;
 }
 
-// Configurações do projeto Supabase
-export const supabaseUrl = 'https://ycamhxzumzkpxuhtugxc.supabase.co';
-
 // IMPORTANTE: Service role key deve ser mantida em segredo e nunca exposta no código do cliente
 // Em produção, operações privilegiadas devem ser feitas através de uma API backend segura
 // Esta implementação é apenas para desenvolvimento/testes controlados
-export const supabaseServiceKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTcyMTAzMSwiZXhwIjoyMDcxMjk3MDMxfQ.5abRJDfQeKopRnaoYmFgoS7-0SoldraEMp_VPM7OjdQ';
 
 /**
  * Cliente admin com service role key para operações privilegiadas
@@ -28,8 +23,8 @@ export const supabaseServiceKey =
  */
 export const { client: supabaseAdmin, unified: unifiedAdmin } =
   SupabaseClientFactory.createReactNativeClient(Platform.OS, {
-    url: supabaseUrl,
-    anonKey: supabaseServiceKey, // Usando service role key no lugar da anon key
+    url: process.env.EXPO_PUBLIC_SUPABASE_URL!,
+    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!, // Note: In production, use backend API for admin operations
     storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     logLevel: __DEV__ ? 'info' : 'error',
   });

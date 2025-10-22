@@ -1,13 +1,12 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { sendWhatsApp, sendWhatsAppWithButtons } = require('../services/whatsappService');
+// Environment variables accessed via process.env
 
 const router = express.Router();
 
 // Configuração do Supabase
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Webhook para receber mensagens do WhatsApp
 router.post('/', async (req, res) => {
