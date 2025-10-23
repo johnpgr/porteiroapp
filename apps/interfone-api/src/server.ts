@@ -7,11 +7,7 @@ import type {
 } from "express";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import DatabaseService from "./services/db.service.ts";
-
-// Load environment variables
-dotenv.config();
 
 // Import routes
 import callRoutes from "./routes/call.routes.ts";

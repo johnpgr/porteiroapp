@@ -1,6 +1,7 @@
 import type { Request, Response, Router } from 'express';
 import express from 'express';
 import TokenController from '../controllers/token.controller.ts';
+import agoraService from '../services/agora.service.ts';
 
 const router: Router = express.Router();
 
@@ -62,9 +63,9 @@ router.get('/config', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
-      appId: process.env.AGORA_APP_ID || null,
-      configured: !!(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
-      tokenExpirationHours: 24
+      appId: agoraService.getAppId(),
+      configured: !!agoraService.getAppId(),
+      defaultTtlSeconds: agoraService.getDefaultTtlSeconds()
     }
   });
 });

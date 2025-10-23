@@ -12,7 +12,6 @@
     "@porteiroapp/common": "workspace:*",
     "jsonwebtoken": "catalog:",
     "bcryptjs": "^3.0.2",
-    "dotenv": "catalog:",
     "lucide-react": "^0.542.0",
     "date-fns": "catalog:",
     "next": "15.5.0",

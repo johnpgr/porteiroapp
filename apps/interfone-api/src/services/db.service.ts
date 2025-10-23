@@ -1,12 +1,8 @@
-import dotenv from "dotenv";
 import {
   SupabaseClientFactory,
   type TypedSupabaseClient,
   UnifiedSupabaseClient,
 } from "@porteiroapp/common/supabase";
-import { randomUUID } from "crypto";
-
-dotenv.config();
 
 /**
  * Serviço de conexão com Supabase
@@ -126,17 +122,21 @@ class DatabaseService {
   async createIntercomCall(
     apartmentId: string,
     doormanId: string,
+    options?: {
+      channelName?: string | null;
+      status?: string;
+      startedAt?: string;
+    },
   ): Promise<any> {
     try {
-      const callId = randomUUID();
-
       const { data, error } = await this.supabase
         .from("intercom_calls")
         .insert({
           apartment_id: apartmentId,
           doorman_id: doormanId,
-          status: "calling",
-          started_at: new Date().toISOString(),
+          status: options?.status ?? "ringing",
+          started_at: options?.startedAt ?? new Date().toISOString(),
+          twilio_conference_sid: options?.channelName ?? null,
         })
         .select()
         .single();
@@ -218,6 +218,7 @@ class DatabaseService {
 
       return {
         ...data,
+        channel_name: data.twilio_conference_sid ?? data.twilio_call_sid ?? null,
         apartment_number: data.apartments?.number,
         building_id: data.apartments?.building_id,
         building_name: data.apartments?.buildings?.name,
@@ -244,7 +245,11 @@ class DatabaseService {
         .eq("id", callId)
         .single();
 
-      if (checkError || !currentCall || currentCall.status !== "calling") {
+      if (
+        checkError ||
+        !currentCall ||
+        (currentCall.status !== "calling" && currentCall.status !== "ringing")
+      ) {
         throw new Error("Chamada não está mais disponível para ser atendida");
       }
 
