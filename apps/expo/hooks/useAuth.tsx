@@ -7,12 +7,24 @@ import React, {
   ReactNode,
   useRef,
 } from 'react';
-import { User } from '@supabase/supabase-js';
+import type { User } from '@porteiroapp/common/supabase';
 import { router } from 'expo-router';
 import { Alert } from 'react-native';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
+
+export type SignInReturn =
+  | {
+      user: User;
+      success: true;
+      error: null;
+    }
+  | {
+      user: null;
+      success: false;
+      error: string;
+    };
 
 export interface AuthUser {
   id: string;
@@ -28,7 +40,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signIn: (email: string, password: string) => Promise<SignInReturn>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   isSessionValid: () => Promise<boolean>;
@@ -47,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Evitar carregamentos concorrentes/duplicados de perfil
   const loadingProfileRef = useRef(false);
   const lastLoadedRef = useRef<{ userId: string; at: number } | null>(null);
-  
+
   // Constantes para configuração de sessão
   const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias em ms
   const REFRESH_THRESHOLD = 24 * 60 * 60 * 1000; // Refresh 24h antes de expirar
@@ -62,18 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para verificar e tratar erro JWT expired
   const handleJWTExpiredError = (error: any, signOutCallback: () => Promise<void>) => {
     if (error && (error.code === 'PGRST303' || error.message?.includes('JWT expired'))) {
-      Alert.alert(
-        'Sessão Expirada',
-        'Sua sessão expirou. Faça login novamente.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              signOutCallback();
-            }
-          }
-        ]
-      );
+      Alert.alert('Sessão Expirada', 'Sua sessão expirou. Faça login novamente.', [
+        {
+          text: 'OK',
+          onPress: () => {
+            signOutCallback();
+          },
+        },
+      ]);
       return true; // Indica que o erro foi tratado
     }
     return false; // Indica que não é um erro JWT expired
@@ -82,15 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para verificar se a sessão é válida
   const isSessionValid = useCallback(async (): Promise<boolean> => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       if (!session?.access_token) {
         return false;
       }
 
       // Verifica se o token ainda é válido
       const tokenValid = TokenStorage.isTokenValid(session.access_token);
-      
+
       return tokenValid;
     } catch (error) {
       logError('Erro ao verificar sessão:', error);
@@ -102,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.refreshSession();
-      
+
       if (error) {
         logError('Erro no refresh da sessão:', error);
         return false;
@@ -111,13 +121,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session?.access_token) {
         // Salva o novo token com expiração de 30 dias
         await TokenStorage.saveToken(data.session.access_token, SESSION_DURATION / 1000);
-        
+
         // Agenda próximo refresh
         scheduleTokenRefresh();
-        
+
         return true;
       }
-      
+
       return false;
     } catch (error) {
       logError('Erro no refresh da sessão:', error);
@@ -134,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Agenda refresh para 24h antes da expiração
     refreshTimerRef.current = setTimeout(async () => {
       const success = await refreshSession();
-      
+
       if (!success) {
         logError('Falha no refresh automático, fazendo logout');
         await signOut();
@@ -151,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     heartbeatTimerRef.current = setInterval(async () => {
       try {
         const sessionValid = await isSessionValid();
-        
+
         if (!sessionValid) {
           logError('Sessão inválida detectada no heartbeat, fazendo logout');
           await signOut();
@@ -162,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (user) {
           const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
           const column = user.user_type === 'admin' ? 'updated_at' : 'last_login';
-          
+
           await supabase
             .from(table)
             .update({ [column]: new Date().toISOString() })
@@ -178,7 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Para todos os timers antes do logout
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
@@ -196,27 +206,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(authStateChangeTimeoutRef.current);
         authStateChangeTimeoutRef.current = null;
       }
-      
+
       const { error } = await supabase.auth.signOut();
       if (error) {
         logError('Erro no logout do Supabase:', error);
       }
-      
+
       // Limpa todos os dados armazenados
       await TokenStorage.clearAll();
-      
+
       setUser(null);
-      
+
       // Limpa refs de controle
       lastLoadedRef.current = null;
       loadingProfileRef.current = false;
       lastAuthEventRef.current = null;
-      
     } catch (error) {
       logError('Erro no logout:', error);
       // Mesmo com erro, limpa o estado local
       setUser(null);
-      
+
       // Força limpeza dos dados mesmo com erro
       try {
         await TokenStorage.clearAll();
@@ -233,15 +242,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Verifica se há uma sessão válida
       const sessionValid = await isSessionValid();
-      
+
       if (!sessionValid) {
         return;
       }
 
       // Verifica se já temos os dados do usuário carregados
       if (!user) {
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         if (session?.user) {
           await loadUserProfile(session.user);
           // Não chama recursivamente - deixa o useEffect lidar com a atualização do estado
@@ -313,7 +324,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (refreshSuccess) {
           // Tenta novamente obter a sessão
-          const { data: { session: newSession } } = await supabase.auth.getSession();
+          const {
+            data: { session: newSession },
+          } = await supabase.auth.getSession();
 
           if (newSession?.user) {
             await loadUserProfile(newSession.user);
@@ -351,32 +364,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Implementa debounce para evitar múltiplas chamadas rápidas
       const now = Date.now();
       const lastEvent = lastAuthEventRef.current;
-      
+
       // Se é o mesmo evento em menos de 1 segundo, ignora
-      if (lastEvent && lastEvent.event === event && (now - lastEvent.timestamp) < 1000) {
+      if (lastEvent && lastEvent.event === event && now - lastEvent.timestamp < 1000) {
         return;
       }
-      
+
       // Atualiza o último evento
       lastAuthEventRef.current = { event, timestamp: now };
-      
+
       // Limpa timeout anterior se existir
       if (authStateChangeTimeoutRef.current) {
         clearTimeout(authStateChangeTimeoutRef.current);
       }
-      
+
       // Executa com debounce de 300ms
       authStateChangeTimeoutRef.current = setTimeout(async () => {
         if (event === 'SIGNED_IN' && session?.user) {
           // Verifica se já existe um token válido antes de salvar
           const hasValidToken = await TokenStorage.hasValidToken();
-          
+
           if (session.access_token && !hasValidToken) {
             await TokenStorage.saveToken(session.access_token, SESSION_DURATION / 1000);
           }
-          
+
           await loadUserProfile(session.user);
-          
+
           // Inicia sistemas de manutenção da sessão
           scheduleTokenRefresh();
           startHeartbeat();
@@ -394,7 +407,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearInterval(sessionCheckIntervalRef.current);
             sessionCheckIntervalRef.current = null;
           }
-          
+
           // Limpa dados armazenados
           await TokenStorage.clearAll();
           setUser(null);
@@ -409,7 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Cleanup na desmontagem do componente
     return () => {
       subscription.unsubscribe();
-      
+
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
@@ -468,7 +481,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (adminProfile && adminProfile.is_active) {
-          
           // Atualiza o updated_at na tabela admin_profiles
           await supabase
             .from('admin_profiles')
@@ -490,15 +502,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // Se encontrou perfil na tabela profiles
-        // Só atualiza last_login se passou mais de 5 minutos desde a última atualização
-        const lastLogin = profile.last_login ? new Date(profile.last_login) : null;
+        // Só atualiza last_seen se passou mais de 5 minutos desde a última atualização
+        const lastLogin = profile.last_seen ? new Date(profile.last_seen) : null;
         const now = new Date();
-        const shouldUpdateLogin = !lastLogin || (now.getTime() - lastLogin.getTime()) > 5 * 60 * 1000;
-        
+        const shouldUpdateLogin = !lastLogin || now.getTime() - lastLogin.getTime() > 5 * 60 * 1000;
+
         if (shouldUpdateLogin) {
           await supabase
             .from('profiles')
-            .update({ last_login: now.toISOString() })
+            .update({ last_seen: now.toISOString() })
             .eq('user_id', authUser.id);
         }
 
@@ -518,19 +530,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await TokenStorage.saveUserData({
         id: userData.id,
         email: userData.email,
-        role: userData.user_type === 'admin' ? 'admin' : userData.user_type === 'porteiro' ? 'porteiro' : 'morador',
+        role:
+          userData.user_type === 'admin'
+            ? 'admin'
+            : userData.user_type === 'porteiro'
+              ? 'porteiro'
+              : 'morador',
         building_id: userData.building_id,
         apartment_id: undefined, // Pode ser expandido futuramente
       });
 
       // Só atualiza o user se os dados realmente mudaram
-      setUser(prevUser => {
-        if (!prevUser || 
-            prevUser.id !== userData.id ||
-            prevUser.email !== userData.email ||
-            prevUser.user_type !== userData.user_type ||
-            prevUser.building_id !== userData.building_id ||
-            prevUser.last_login !== userData.last_login) {
+      setUser((prevUser) => {
+        if (
+          !prevUser ||
+          prevUser.id !== userData.id ||
+          prevUser.email !== userData.email ||
+          prevUser.user_type !== userData.user_type ||
+          prevUser.building_id !== userData.building_id ||
+          prevUser.last_login !== userData.last_login
+        ) {
           return userData;
         }
         return prevUser;
@@ -548,10 +567,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (
-    email: string,
-    password: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  const signIn = async (email: string, password: string): Promise<SignInReturn> => {
     try {
       setLoading(true);
 
@@ -568,11 +584,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             error.message === 'Invalid login credentials'
               ? 'Email ou senha incorretos'
               : 'Erro na autenticação',
+          user: null,
         };
       }
 
       if (!data.user || !data.session) {
-        return { success: false, error: 'Usuário não encontrado' };
+        return { success: false, error: 'Usuário não encontrado', user: null };
       }
 
       // Salva o token com expiração de 30 dias
@@ -607,16 +624,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Não bloqueia o login se falhar o registro do push token
       }
 
-      return { success: true };
+      return { success: true, user: data.user, error: null };
     } catch (error) {
       logError('Erro no login:', error);
-      return { success: false, error: 'Erro interno do servidor' };
+      return { success: false, error: 'Erro interno do servidor', user: null };
     } finally {
       setLoading(false);
     }
   };
-
-
 
   const updatePushToken = async (token: string) => {
     if (!user) return;
@@ -629,13 +644,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
 
-      await supabase
-        .from(table)
-        .update({ push_token: token })
-        .eq('user_id', user.id);
+      await supabase.from(table).update({ push_token: token }).eq('user_id', user.id);
 
       // Atualiza o estado sem criar um novo objeto se não necessário
-      setUser(prevUser => {
+      setUser((prevUser) => {
         if (!prevUser || prevUser.push_token === token) {
           return prevUser;
         }

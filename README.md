@@ -179,6 +179,7 @@ Never commit secrets. Use `.env.local`/`.env` files and your deployment provider
 
 For deeper details, see:
 - `CLAUDE.md` for an architecture summary and workflows
+- `docs/agora-voice-plan.md` for Agora Voice integration plan, implementation details, and security measures
 - `apps/interfone-api/README.md` for API endpoints
 - `packages/common/README.md` and `packages/common/supabase/README.md` for shared Supabase usage
 - `tests/README.md` for test suites and execution

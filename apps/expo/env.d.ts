@@ -13,7 +13,6 @@ declare global {
       // Supabase
       EXPO_PUBLIC_SUPABASE_URL: string;
       EXPO_PUBLIC_SUPABASE_ANON_KEY: string;
-      EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: string;
 
       // Agora (Video/Audio calls)
       EXPO_PUBLIC_AGORA_APP_ID?: string;

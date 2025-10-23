@@ -7,6 +7,7 @@ import type {
 } from "express";
 import express from "express";
 import cors from "cors";
+import { randomUUID } from "crypto";
 import DatabaseService from "./services/db.service.ts";
 
 // Import routes
@@ -27,7 +28,8 @@ app.use(
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Request-ID"],
+    exposedHeaders: ["X-Request-ID"],
   }),
 );
 
@@ -35,10 +37,19 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Request ID middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const requestId = req.headers['x-request-id'] as string || randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader('X-Request-ID', requestId);
+  next();
+});
+
 // Logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const timestamp = new Date().toISOString();
-  console.log(`📡 ${timestamp} - ${req.method} ${req.path}`);
+  const requestId = (req as any).requestId || 'unknown';
+  console.log(`📡 [${requestId}] ${timestamp} - ${req.method} ${req.path}`);
 
   // Log body for POST/PUT requests (except sensitive data)
   if (["POST", "PUT"].includes(req.method) && req.body) {
@@ -46,7 +57,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     // Remove sensitive data from log
     if (logBody.password) logBody.password = "[REDACTED]";
     if (logBody.token) logBody.token = "[REDACTED]";
-    console.log(`📝 Body:`, logBody);
+    if (logBody.rtcToken) logBody.rtcToken = "[REDACTED]";
+    if (logBody.rtmToken) logBody.rtmToken = "[REDACTED]";
+    console.log(`📝 [${requestId}] Body:`, logBody);
   }
 
   next();
@@ -156,13 +169,15 @@ app.use((req: Request, res: Response) => {
       "POST /api/tokens/generate": "Gerar token RTC",
       "POST /api/tokens/generate-multiple": "Gerar múltiplos tokens",
       "POST /api/tokens/validate": "Validar token",
+      "POST /api/tokens/for-call": "Gerar token vinculado a chamada",
     },
   });
 });
 
 // Global error handler
 const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
-  console.error("🔥 Erro não tratado:", error);
+  const requestId = (req as any).requestId || 'unknown';
+  console.error(`🔥 [${requestId}] Erro não tratado:`, error);
 
   // Don't expose error details in production
   const isDevelopment = process.env.NODE_ENV !== "production";
@@ -171,6 +186,7 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
     success: false,
     error: isDevelopment ? error.message : "Erro interno do servidor",
     timestamp: new Date().toISOString(),
+    requestId,
     ...(isDevelopment && { stack: error.stack }),
   });
 };
@@ -224,6 +240,7 @@ async function startServer() {
         "   POST /api/tokens/generate-multiple - Gerar múltiplos tokens",
       );
       console.log("   POST /api/tokens/validate - Validar token");
+      console.log("   POST /api/tokens/for-call - Gerar token vinculado a chamada");
       console.log("");
       console.log("🔗 Para testar: curl http://localhost:" + PORT);
     });

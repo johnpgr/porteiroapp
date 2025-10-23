@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AuthForm from '../../components/AuthForm';
-import { useAuth } from '../../hooks/useAuth';
+import AuthForm from '~/components/AuthForm';
+import { useAuth } from '~/hooks/useAuth';
 import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 
 export default function PorteiroLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
-  const hasNavigatedRef = useRef(false);
-  const { signIn, user, loading: authLoading, checkAndRedirectUser } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     return () => {
@@ -22,21 +21,10 @@ export default function PorteiroLogin() {
     };
   }, []);
 
-  useEffect(() => {
-    // Redireciona diretamente para /porteiro se o usuário já estiver logado
-    if (!authLoading && user?.user_type === 'porteiro') {
-      if (!hasNavigatedRef.current) {
-        hasNavigatedRef.current = true;
-        if (loginTimeoutRef.current) {
-          clearTimeout(loginTimeoutRef.current);
-          loginTimeoutRef.current = null;
-        }
-        router.replace('/porteiro');
-      }
-    } else if (!authLoading && !user) {
-      hasNavigatedRef.current = false;
-    }
-  }, [authLoading, user]);
+  // Redirect if user is already logged in as porteiro
+  if (!authLoading && user?.user_type === 'porteiro') {
+    return <Redirect href="/porteiro" />;
+  }
 
   const handleLogin = async (
     email: string,
@@ -47,7 +35,6 @@ export default function PorteiroLogin() {
     }
 
     try {
-      hasNavigatedRef.current = false;
       setIsLoading(true);
 
       loginTimeoutRef.current = setTimeout(() => {
@@ -64,7 +51,7 @@ export default function PorteiroLogin() {
       }
 
       // Registrar push token imediatamente após login bem-sucedido
-      if (result.user?.id) {
+      if (result.user.id) {
         console.log('🔔 [PorteiroLogin] Registrando push token após login...');
         await registerPushTokenAfterLogin(result.user.id, 'porteiro');
       }

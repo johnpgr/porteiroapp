@@ -348,19 +348,42 @@ class CallController {
       const updatedCall = await DatabaseService.getCallById(callId);
       const participants = await DatabaseService.getCallParticipants(callId);
 
-      console.log(`✅ Chamada ${callId} atendida por ${userId}`);
+      // Generate token bundle for the answering user to eliminate extra round-trip
+      const channelName = updatedCall?.channel_name ?? call.channel_name;
+      const tokenBundle = channelName
+        ? await agoraService.generateTokenBundle({
+            channelName,
+            uid: userId,
+            role: 'publisher'
+          })
+        : null;
+
+      console.log(`✅ Chamada ${callId} atendida por ${userId}${tokenBundle ? ' (tokens incluídos)' : ''}`);
 
       res.json({
         success: true,
         data: {
           call: {
             id: updatedCall?.id ?? callId,
-            channelName: updatedCall?.channel_name ?? call.channel_name ?? null,
+            channelName: channelName ?? null,
             status: updatedCall?.status ?? 'active',
             answeredBy: userId,
             answeredAt: updatedCall?.answered_at ?? new Date().toISOString()
           },
-          participants
+          participants,
+          tokens: tokenBundle
+            ? {
+                appId: tokenBundle.appId,
+                channelName: tokenBundle.channelName,
+                rtcToken: tokenBundle.rtcToken,
+                rtmToken: tokenBundle.rtmToken,
+                uid: tokenBundle.uid,
+                rtcRole: tokenBundle.rtcRole,
+                ttlSeconds: tokenBundle.ttlSeconds,
+                expiresAt: tokenBundle.expiresAt,
+                issuedAt: tokenBundle.issuedAt
+              }
+            : undefined
         }
       });
 
