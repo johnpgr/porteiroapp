@@ -31,5 +31,10 @@
     "typecheck": "pnpm --recursive --filter \"./apps/**\" --filter \"./packages/**\" typecheck",
     "clean": "pnpm --recursive exec rm -rf node_modules dist .next .expo",
     "clean:install": "pnpm clean && pnpm install"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "react-native@0.81.5": "patches/react-native@0.81.5.patch"
+    }
   }
 }
