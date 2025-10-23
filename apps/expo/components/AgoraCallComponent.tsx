@@ -92,7 +92,6 @@ export const AgoraCallComponent: React.FC<AgoraCallComponentProps> = ({
     try {
       console.log('🚀 Iniciando chamada no canal:', channelName);
       setCallState('connecting');
-
       await joinChannel({
         appId: 'f9e7edb820194834801f62707068743d',
         channelName,
@@ -152,7 +151,6 @@ export const AgoraCallComponent: React.FC<AgoraCallComponentProps> = ({
             enableVideo: false, // Apenas áudio
           }}
         />
-
         {/* Controles customizados sobrepostos */}
         <View style={styles.controlsOverlay}>
           <View style={styles.topBar}>

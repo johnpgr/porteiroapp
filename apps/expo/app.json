@@ -41,7 +41,14 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+<<<<<<< HEAD:apps/expo/app.json
         "UIBackgroundModes": ["remote-notification", "remote-notification"],
+=======
+        "UIBackgroundModes": [
+          "remote-notification",
+          "remote-notification"
+        ],
+>>>>>>> origin/develop:app.json
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera for video calls",
         "NSMicrophoneUsageDescription": "This app needs access to microphone for voice calls"
