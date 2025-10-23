@@ -1,0 +1,38 @@
+{
+  "name": "@porteiroapp/interfone-api",
+  "version": "1.0.0",
+  "description": "API para sistema de interfone com Agora Voice SDK",
+  "type": "module",
+  "main": "src/server.ts",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node src/server.ts",
+    "dev": "node --watch --env-file=.env src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "interfone",
+    "agora",
+    "voice",
+    "api",
+    "nodejs"
+  ],
+  "dependencies": {
+    "@porteiroapp/common": "workspace:*",
+    "agora-token": "^2.0.5",
+    "cors": "^2.8.5",
+    "express": "^5",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5",
+    "@types/node": "^20.10.5",
+    "nodemon": "^3.0.1",
+    "typescript": "^5.3.3"
+  }
+}

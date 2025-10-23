@@ -4,627 +4,204 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PorteiroApp is a multi-tenant condominium management system built with Expo/React Native and Supabase. The application supports 4 distinct user roles (Admin, Porteiro/Doorman, Morador/Resident, Visitante/Visitor) with separate authentication flows and feature sets for managing building access, visitor registration, deliveries, and communications.
+PorteiroApp is a multi-tenant condominium management system with three main applications and a shared package library. The system handles resident registration, visitor management, video/audio calls via Agora SDK, and admin operations.
 
-## Technology Stack
+## Monorepo Structure
 
-- **Frontend**: Expo 54 + React Native 0.79.5 + React 19
-- **Backend**: Supabase (PostgreSQL, Auth, Storage)
-- **Routing**: Expo Router 5.1.4 (file-based routing)
-- **Language**: TypeScript (strict mode)
-- **State Management**: React Context + local useState (no Redux/Zustand)
+This is a **pnpm workspace monorepo** using Node 22+ with native TypeScript ESM support.
+
+### Applications (`apps/`)
+
+1. **interfone-api** - Express API server for intercom/call management
+   - TypeScript with native Node 22 ESM (no bundler)
+   - Handles Agora voice calls, token generation, call history
+   - Direct PostgreSQL connections via Supabase
+   - Runs on port 3000 (default) or 3001
+
+2. **expo** (porteiro-mobile) - React Native mobile app
+   - Expo Router for file-based routing
+   - Four user roles with separate layouts: `admin/`, `morador/`, `porteiro/`, `visitante/`
+   - Uses Agora React Native SDK for voice/video calls
+   - React 19 + React Native 0.81.4
+
+3. **nextjs** (porteiro-site) - Next.js 15 web application
+   - App Router with Turbopack for dev
+   - Admin dashboard, resident registration, login flows
+   - Tailwind CSS v4 + React 19
+
+### Packages (`packages/`)
+
+1. **common** - Shared code across all apps
+   - Supabase client with platform-aware configuration
+   - Unified client works across Node, React Native, and browser
+   - Shared TypeScript types (database schema)
+   - React hooks (e.g., `usePendingNotificationsCore`, `useLembretes`)
+   - Must be built before use: `pnpm build:common`
+
+### Tests (`tests/`)
+
+- Automated API tests for validation
+- Three test suites: basic, advanced, and database persistence
+- Tests are in JavaScript (not TypeScript)
 
 ## Development Commands
 
-### Starting the App
+### Setup & Installation
 ```bash
-npm start                 # Start Expo dev server
-npm run android          # Run on Android device/emulator
-npm run ios             # Run on iOS device/simulator
-npm run web             # Run in web browser
+pnpm install                    # Install all dependencies
+pnpm clean:install             # Clean reinstall
+```
+
+### Development (all apps in parallel)
+```bash
+pnpm dev                       # Run all apps in parallel
+pnpm dev:mobile                # Expo mobile app only
+pnpm dev:web                   # Next.js web app only
+pnpm dev:api                   # Interfone API only
+```
+
+### Building
+```bash
+pnpm build                     # Build all apps and packages
+pnpm build:common              # Build common package (required before building apps)
+pnpm build:mobile              # Build mobile app
+pnpm build:web                 # Build web app
+pnpm build:api                 # Build API (TypeScript compilation)
+```
+
+### Testing
+```bash
+pnpm test                      # Run all tests
+pnpm test:unit                 # Unit tests only
+pnpm test:advanced             # Advanced API tests
+pnpm test:persistence          # Database persistence tests
 ```
 
 ### Code Quality
 ```bash
-npm run lint            # Run ESLint and Prettier checks
-npm run format          # Auto-fix ESLint issues and format code
+pnpm lint                      # Lint all packages
+pnpm lint:mobile               # Lint mobile app only
+pnpm lint:web                  # Lint web app only
+pnpm format                    # Format mobile app code
+pnpm typecheck                 # TypeCheck all TypeScript packages
 ```
 
-### Database
-- Migrations are in `supabase/migrations/`
-- Apply migrations via Supabase Dashboard or CLI
-- No local database commands (cloud-hosted Supabase)
-
-## Architecture
-
-### Multi-Role System
-
-The app implements **4 distinct user roles** with completely separate workflows:
-
-1. **Admin** (`admin_profiles` table)
-   - Access: `/admin/login` → `/admin/*`
-   - Features: Building management, user management, communications, activity logs
-   - Can manage multiple buildings via `building_admins` junction table
-   - Authentication: `adminAuth` utility (separate from regular users)
-
-2. **Porteiro/Doorman** (`profiles` table with `user_type='porteiro'`)
-   - Access: `/porteiro/login` → `/porteiro/*`
-   - Features: Visitor check-in, delivery reception, vehicle registration, building-scoped operations
-   - Tied to single building via `building_id`
-   - Main screen: `app/porteiro/index.tsx` (2580 lines with 5 tabs)
-
-3. **Morador/Resident** (`profiles` table with `user_type='morador'`)
-   - Access: `/morador/login` → `/morador/*`
-   - Features: Visitor authorization, notifications, profile management
-   - Linked to apartments via `apartment_residents` junction table (many-to-many)
-   - Multi-step flows for registration and visitor authorization
-
-4. **Visitante/Visitor** (no login required initially)
-   - Access: `/visitante/*`
-   - Features: Emergency contact, registration, status checking
-
-### Dual Profile System
-
-**Critical architectural decision**: Admin users are completely separate from regular users.
-
-- **`profiles` table**: Porteiros and Moradores
-  - Fields: `user_id`, `name`, `email`, `phone`, `user_type`, `building_id`, `cpf`
-
-- **`admin_profiles` table**: Administrators only
-  - Fields: `user_id`, `name`, `email`, `phone`, `role`, `is_active`
-  - Linked to buildings via `building_admins` junction table
-
-Authentication flow checks both tables based on login context.
-
-### Multi-Tenancy
-
-**Building-scoped data isolation**:
-- Each building is an independent data unit
-- Porteiros: Query filter `eq('building_id', user.building_id)`
-- Moradores: Via apartment linkage through `apartment_residents`
-- Admins: Only see buildings assigned via `building_admins`
-
-### Authentication Flow
-
-Implemented in `hooks/useAuth.tsx`:
-
-1. `signIn(email, password)` → Supabase Auth
-2. On success, check `profiles` table first
-3. If not found and might be admin, check `admin_profiles`
-4. Load appropriate profile based on `user_type`
-5. Session persisted via AsyncStorage
-
-**Authorization**:
-- `<ProtectedRoute>` component wraps all authenticated screens
-- `usePermissions()` hook provides role-based feature access
-- Checks user type and redirects to appropriate login
-
-### Database Schema
-
-**Key tables**:
-- `buildings` - Condominium buildings
-- `apartments` - Individual units within buildings
-- `apartment_residents` - Many-to-many junction (resident ↔ apartment)
-- `profiles` - Porteiro and Morador profiles
-- `admin_profiles` - Administrator profiles
-- `building_admins` - Many-to-many junction (admin ↔ building)
-- `visitors` - Visitor records
-- `visitor_logs` - Entry/exit tracking (tipo_log: 'IN'/'OUT')
-- `deliveries` - Package reception
-- `vehicles` - Resident vehicles
-- `communications` - Building announcements
-
-**RLS Policies**:
-- Enabled on all tables but mostly permissive
-- Access control primarily handled at application layer via `user_type` checks
-- Some policies disabled in recent migrations for development
-
-### File Structure
-
-```
-app/                              # Expo Router file-based routing
-├── _layout.tsx                   # Root layout with AuthProvider
-├── index.tsx                     # Home/role selector
-├── admin/                        # Admin role routes
-│   ├── _layout.tsx
-│   ├── login.tsx
-│   ├── index.tsx                 # Admin dashboard
-│   ├── users.tsx
-│   ├── buildings.tsx
-│   └── ...
-├── porteiro/                     # Doorman role routes
-│   ├── _layout.tsx
-│   ├── login.tsx
-│   ├── index.tsx                 # Main dashboard (5 tabs)
-│   └── ...
-├── morador/                      # Resident role routes
-│   ├── _layout.tsx
-│   ├── login.tsx
-│   ├── index.tsx
-│   ├── cadastro/                 # Multi-step registration
-│   │   ├── novo.tsx
-│   │   ├── relacionamento.tsx
-│   │   ├── telefone.tsx
-│   │   └── ...
-│   └── visitantes/               # Multi-step visitor auth
-│       ├── nome.tsx
-│       ├── cpf.tsx
-│       └── ...
-└── visitante/                    # Visitor role routes
-
-components/                       # Shared UI components
-├── ProtectedRoute.tsx           # Authorization wrapper
-├── AuthForm.tsx                 # Reusable login form
-├── porteiro/                    # Role-specific components
-│   ├── RegistrarVisitante.tsx
-│   ├── RegistrarEncomenda.tsx
-│   └── RegistrarVeiculo.tsx
-└── ...
-
-services/
-├── notificationService.ts       # Push notifications (currently disabled)
-└── audioService.ts              # Audio recording (disabled for web)
-
-utils/
-├── supabase.ts                  # Supabase client + adminAuth service
-├── whatsapp.ts                  # WhatsApp integration (stubs)
-└── styles.ts                    # Style utilities
-
-types/
-└── database.ts                  # Auto-generated Supabase types
-
-hooks/
-└── useAuth.tsx                  # AuthProvider context
-
-supabase/migrations/             # 70+ migration files
+### Production
+```bash
+pnpm start:web                 # Start Next.js production server
+pnpm start:api                 # Start API production server
 ```
 
-## Common Development Patterns
+## Architecture Patterns
 
-### Data Fetching Pattern
+### Shared Package System
 
-Standard pattern used throughout:
+The `@porteiroapp/common` package provides cross-platform Supabase integration:
 
-```typescript
-const [data, setData] = useState(null);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState(null);
+- **Platform Detection**: Automatically detects Node.js, React Native, or browser
+- **Unified Client**: `UnifiedSupabaseClient` works consistently across all platforms
+- **Configuration Manager**: `PlatformConfigManager` applies platform-specific settings
+- **Auth Logger**: Platform-aware logging for authentication flows
 
-useEffect(() => {
-  fetchData();
-}, [dependencies]);
+When making changes to common package:
+1. Edit source in `packages/common/`
+2. Run `pnpm build:common` to compile TypeScript
+3. Changes are automatically available to apps via workspace protocol
 
-const fetchData = async () => {
-  try {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('table')
-      .select('columns')
-      .eq('filter', value);
+### API Architecture (interfone-api)
 
-    if (error) throw error;
-    setData(data);
-  } catch (err) {
-    setError(err.message);
-    Alert.alert('Error', 'User-friendly message');
-  } finally {
-    setLoading(false);
-  }
-};
-```
+The API uses a clean Express architecture:
+- **Controllers** (`src/controllers/`) - Request handling and response logic
+- **Routes** (`src/routes/`) - Route definitions and middleware
+- **Services** (`src/services/`) - Business logic and database operations
+- **Native ESM** - Uses `.ts` extensions in imports, Node 22 native TypeScript
 
-### Supabase Query Patterns
+Key features:
+- Agora token generation for RTC calls
+- Call management (start, answer, decline, end)
+- Call history and active call tracking
+- Health checks at `/` and `/api/status`
 
-**Simple SELECT**:
-```typescript
-const { data, error } = await supabase
-  .from('table')
-  .select('*')
-  .eq('column', value)
-  .single(); // Returns one row
-```
+### Mobile App Structure (expo)
 
-**JOIN queries** (use `!inner` for required joins):
-```typescript
-const { data } = await supabase
-  .from('visitor_logs')
-  .select(`
-    id, log_time, tipo_log,
-    visitors!inner(id, name, document),
-    apartments!inner(number, building_id)
-  `)
-  .eq('status', 'approved');
-```
+File-based routing with Expo Router:
+- `app/_layout.tsx` - Root layout
+- `app/admin/` - Admin role screens and `_layout.tsx`
+- `app/morador/` - Resident role screens and `_layout.tsx`
+- `app/porteiro/` - Doorman role screens and `_layout.tsx`
+- `app/visitante/` - Visitor role screens and `_layout.tsx`
 
-**Building-scoped queries** (Porteiro):
-```typescript
-.eq('building_id', user.building_id)
-```
+Each role has its own layout file that defines navigation structure.
 
-**Apartment-scoped queries** (Morador):
-```typescript
-// First get user's apartments
-const { data: apartments } = await supabase
-  .from('apartment_residents')
-  .select('apartment_id')
-  .eq('profile_id', user.id);
+### Web App Structure (nextjs)
 
-// Then query with apartment IDs
-.in('apartment_id', apartmentIds)
-```
+Next.js App Router structure:
+- `src/app/` - App router pages and layouts
+- `src/app/api/` - API routes (server-side endpoints)
+- `src/components/` - React components
+- `src/hooks/` - Custom React hooks
+- `src/lib/` - Utility libraries and configurations
+- `src/middleware.ts` - Next.js middleware for auth/routing
 
-### Admin Auth Service
+## Environment Configuration
 
-Use `adminAuth` object from `utils/supabase.ts`:
+### interfone-api (.env)
+Required variables:
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` - For voice calls
+- `EVOLUTION_BASE_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` - WhatsApp integration (optional)
+- `JWT_SECRET` - For token signing
+- `PORT` - Server port (default: 3000)
 
-```typescript
-import { supabase, adminAuth } from '~/utils/supabase';
+### expo (.env)
+Required variables (all prefixed with `EXPO_PUBLIC_` for client access):
+- `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE`
+- `API_BASE_URL` - Points to interfone-api
 
-// Admin operations
-await adminAuth.signIn(email, password);
-await adminAuth.getCurrentAdmin();
-await adminAuth.getAdminBuildings(adminProfileId);
-await adminAuth.createAdminProfile(userData);
-await adminAuth.assignAdminToBuilding(adminId, buildingId);
-```
+### nextjs (.env.local)
+Standard Next.js environment variables for Supabase and API endpoints.
 
-All admin operations include:
-- Automatic retry with exponential backoff (up to 3 times)
-- 15-20s timeout handling
-- Network connectivity checks on iOS
-- Detailed error logging
+## Key Technical Decisions
 
-### Multi-step Forms
+### TypeScript Configuration
+- All apps use TypeScript 5.9+
+- Common package exports `.d.ts` types for type safety across workspace
+- Native Node 22 ESM in API (no bundler needed)
 
-For complex registration flows (e.g., morador cadastro, visitor authorization):
+### Package Manager
+- **pnpm 9.15+** is required (enforced via `packageManager` field)
+- Workspace protocol (`workspace:*`) for internal dependencies
+- Catalog feature for shared dependency versions across packages
 
-1. Each step is a separate route: `cadastro/novo.tsx`, `cadastro/relacionamento.tsx`, etc.
-2. State managed in parent `_layout.tsx`
-3. Navigate between steps: `router.push('/morador/cadastro/relacionamento')`
-4. Benefits: Browser back button works naturally, easier to test individual steps
+### Supabase Integration
+The common package centralizes all Supabase logic to ensure consistent behavior:
+- Platform-specific storage adapters (AsyncStorage for RN, localStorage for web)
+- Session persistence configuration per platform
+- Automatic auth state management
+- Type-safe database queries using generated types
 
-### Modal Management
+### Monorepo Dependencies
+When a package depends on `@porteiroapp/common`, it references the built output in `packages/common/dist/`. Always rebuild common after changes.
 
-```typescript
-const [modalVisible, setModalVisible] = useState(false);
+## Important Notes
 
-<Modal
-  visible={modalVisible}
-  onRequestClose={() => setModalVisible(false)}
-  transparent
-  animationType="slide"
->
-  {/* Modal content */}
-</Modal>
-```
+- **Node Version**: Node 22.18.0+ is required for native TypeScript ESM support
+- **API Port**: interfone-api runs on port 3001 in development (tests expect this)
+- **Build Order**: Build `common` package before building apps that depend on it
+- **Parallel Dev**: The root `pnpm dev` runs all apps simultaneously with `--parallel` flag
+- **File Extensions**: API uses `.ts` extensions in imports (ESM requirement)
+- **React Version**: All apps use React 19 (via pnpm catalog)
 
-### Error Handling
+## Testing Notes
 
-Consistent pattern across app:
+Tests are located in `tests/` directory and validate the `/api/register-resident` endpoint and other API functionality. Before running tests:
+1. Ensure API is running: `pnpm dev:api`
+2. API should be accessible at `http://localhost:3001`
+3. Run from root: `pnpm test` or navigate to `tests/` and run specific test files
 
-```typescript
-if (error) {
-  console.error('🔥 Context: ' + error.message);
-  Alert.alert('Error Title', 'User-friendly message');
-  return; // or throw
-}
-```
-
-Use emoji prefixes in logs:
-- `🔐` Authentication
-- `🔍` Queries
-- `✅` Success
-- `❌` Errors
-- `⏳` Timeouts
-
-## Important Considerations
-
-### TypeScript Path Aliases
-
-Use `~/*` for imports from project root:
-
-```typescript
-import { supabase } from '~/utils/supabase';
-import { useAuth } from '~/hooks/useAuth';
-```
-
-Configured in `tsconfig.json` with `baseUrl: "."` and `paths: { "~/*": ["*"] }`.
-
-### Platform-Specific Code
-
-iOS has special timeout handling (20s vs 10s) and network checks. See `utils/supabase.ts` for platform detection via `Platform.OS === 'ios'`.
-
-### Disabled Features
-
-**Currently commented out/disabled**:
-1. Push notifications (`notificationService.ts`)
-2. Audio recording for emergencies (`audioService.ts` - web incompatibility)
-3. Real-time Supabase subscriptions (`.on('*', ...)` listeners)
-4. Emergency button backend (routes exist, incomplete)
-
-### Environment Variables
-
-Required in `.env`:
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_ANON_KEY` - Public anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (backend only)
-- WhatsApp/Twilio credentials (Evolution API integration)
-
-### Security
-
-- **Never commit `.env`** (already in `.gitignore`)
-- RLS policies are permissive - rely on application-layer auth checks
-- All mutations check `user_type` before allowing operations
-- Use `ProtectedRoute` wrapper for all authenticated screens
-
-## Visitor Lifecycle Example
-
-Demonstrates multi-role interaction:
-
-1. **Morador** authorizes visitor → `INSERT INTO visitors`
-2. **Porteiro** sees in "Autorizacoes" tab → `SELECT FROM visitors WHERE status='authorized'`
-3. Porteiro confirms arrival → `INSERT INTO visitor_logs (tipo_log='IN')`
-4. Porteiro logs exit → `INSERT INTO visitor_logs (tipo_log='OUT')`
-5. **Morador** views history → `SELECT FROM visitor_logs` (filtered by apartment)
-
-## Database Migrations
-
-- 70+ migration files in `supabase/migrations/`
-- Key migration: `009_multiple_residents_per_apartment.sql` - Introduced `apartment_residents` junction table
-- Apply via Supabase Dashboard or CLI
-- Test migrations include debug queries (`check_*.sql`, `verify_*.sql`)
-
-## Debugging
-
-**Extensive logging** throughout codebase:
-- Check browser console (web) or React Native debugger
-- iOS-specific logs in `supabase.ts` for network issues
-- SQL test queries in migration folder for database debugging
-
-**Common issues**:
-- RLS policy blocking queries → Check policies in Supabase Dashboard
-- Login fails → Verify user exists in correct table (`profiles` vs `admin_profiles`)
-- Building-scoped data not showing → Verify `building_id` matches user's building
-- Apartment data missing → Check `apartment_residents` junction table entries
-
-## Code Style
-
-- **Language**: Domain language is Portuguese (morador, porteiro, visitante)
-- **TypeScript**: Strict mode enabled
-- **Formatting**: Run `npm run format` before commits
-- **Naming**: camelCase for variables/functions, PascalCase for components
-- **Components**: Functional components with hooks only (no classes)
-- **🧠Boas práticas de programação**
-
-> Sempre que possível, use as práticas a seguir ao escrever, revisar ou refatorar código.
->
-> O objetivo é manter o código **simples, limpo, legível, reutilizável e fácil de dar manutenção**.
->
-> ---
->
-> ### 🧩 **KISS (Keep It Simple, Stupid)**
->
-> **Ideia:** mantenha o código simples e direto, evite complexidade desnecessária.
->
-> **Ruim:**
->
-> ```js
-> function soma(a, b) {
->   if (typeof a === "number" && typeof b === "number") {
->     return a + b;
->   } else {
->     return parseInt(a) + parseInt(b);
->   }
-> }
-> ```
->
-> **Melhor (KISS):**
->
-> ```js
-> function soma(a, b) {
->   return Number(a) + Number(b);
-> }
-> ```
->
-> ---
->
-> ### 🔁 **DRY (Don’t Repeat Yourself)**
->
-> **Ideia:** evite repetir código. Se algo se repete, transforme em função, componente ou módulo.
->
-> **Ruim:**
->
-> ```js
-> console.log("Erro: usuário não encontrado");
-> alert("Erro: usuário não encontrado");
-> ```
->
-> **Melhor (DRY):**
->
-> ```js
-> function exibirErro(msg) {
->   console.log(`Erro: ${msg}`);
->   alert(`Erro: ${msg}`);
-> }
-> exibirErro("usuário não encontrado");
-> ```
->
-> ---
->
-> ### 🧼 **Clean Code**
->
-> **Ideia:** código limpo é fácil de ler, entender e manter.
->
-> * Use **nomes claros e descritivos**
-> * Funções devem ter **uma única responsabilidade**
-> * Evite **comentários desnecessários**
-> * Mantenha **formatação e estilo consistentes**
->
-> **Ruim:**
->
-> ```js
-> function x(a, b) {
->   return a * b + a * a;
-> }
-> ```
->
-> **Melhor (Clean Code):**
->
-> ```js
-> function calcularAreaTotal(base, altura) {
->   return base * altura + base * base;
-> }
-> ```
->
-> ---
->
-> ### ⚙️ **SOLID**
->
-> **Conjunto de princípios para código orientado a objetos bem estruturado e flexível.**
->
-> * **S — Single Responsibility:** cada módulo deve ter uma única responsabilidade.
->
->   ```js
->   // Ruim: função faz várias coisas
->   function salvarUsuario(usuario) {
->     validarUsuario(usuario);
->     salvarNoBanco(usuario);
->     enviarEmailBoasVindas(usuario);
->   }
->
->   // Melhor: separar responsabilidades
->   function salvarUsuario(usuario) {
->     validarUsuario(usuario);
->     salvarNoBanco(usuario);
->   }
->
->   function enviarBoasVindas(usuario) {
->     enviarEmailBoasVindas(usuario);
->   }
->   ```
->
-> * **O — Open/Closed:** código aberto para extensão, fechado para modificação.
->
->   ```js
->   // Em vez de editar a função original, adicione novas classes ou métodos.
->   class EnviadorDeNotificacao {
->     enviar(mensagem) {}
->   }
->
->   class EnviadorEmail extends EnviadorDeNotificacao {
->     enviar(mensagem) { console.log("Email:", mensagem); }
->   }
->
->   class EnviadorSMS extends EnviadorDeNotificacao {
->     enviar(mensagem) { console.log("SMS:", mensagem); }
->   }
->   ```
->
-> * **L — Liskov Substitution:** classes filhas devem poder substituir as pais sem quebrar o sistema.
->
-> * **I — Interface Segregation:** prefira interfaces pequenas e específicas.
->
-> * **D — Dependency Inversion:** dependa de abstrações, não implementações concretas.
->
-> ---
->
-> ### 🚫 **YAGNI (You Aren’t Gonna Need It)**
->
-> **Ideia:** não adicione funcionalidades que ainda não são necessárias.
->
-> **Ruim:**
->
-> ```js
-> // Adicionando suporte a múltiplas moedas sem precisar ainda
-> function calcularPreco(produto, moeda = "BRL") {
->   if (moeda === "USD") return produto.preco * 0.19;
->   if (moeda === "EUR") return produto.preco * 0.17;
->   return produto.preco;
-> }
-> ```
->
-> **Melhor (YAGNI):**
->
-> ```js
-> function calcularPreco(produto) {
->   return produto.preco;
-> }
-> ```
->
-> ---
->
-> ### 🧱 **SOC (Separation of Concerns)**
->
-> **Ideia:** separe responsabilidades em camadas/módulos distintos.
->
-> **Exemplo (front/back):**
->
-> * Frontend → interface e experiência do usuário
-> * Backend → lógica de negócio
-> * Banco de dados → persistência de dados
->
-> **Exemplo em código:**
->
-> ```js
-> // Controller
-> function criarUsuarioController(req, res) {
->   const usuario = criarUsuarioService(req.body);
->   res.json(usuario);
-> }
->
-> // Service
-> function criarUsuarioService(dados) {
->   validarDados(dados);
->   return salvarUsuarioNoBanco(dados);
-> }
-> ```
->
-> ---
->
-> ### ⚡ **Convention Over Configuration**
->
-> **Ideia:** use convenções padrão (nomes, pastas, rotas) para evitar configuração manual.
-> Exemplo: frameworks como Next.js ou Rails já trazem convenções que reduzem o boilerplate.
->
-> **Ruim:**
-> Criar estrutura de pastas e rotas personalizadas para tudo.
->
-> **Melhor:**
-> Seguir convenções do framework (ex: `/pages`, `/api`, etc.).
->
-> ---
->
-> ### 🧭 **Principle of Least Surprise**
->
-> **Ideia:** o código deve fazer exatamente o que parece que vai fazer.
->
-> **Ruim:**
->
-> ```js
-> function deletarUsuario(id) {
->   // apenas desativa, mas o nome sugere exclusão real
->   desativarUsuario(id);
-> }
-> ```
->
-> **Melhor:**
->
-> ```js
-> function desativarUsuario(id) {
->   // nome e ação coerentes
->   desativarUsuarioNoBanco(id);
-> }
-> ```
->
-> ---
->
-> **💡 Em resumo:**
->
-> * Escreva código legível, modular e simples.
-> * Evite repetições e complexidade.
-> * Mantenha separação clara entre responsabilidades.
-> * Siga padrões e convenções.
-> * Faça o código expressar sua intenção de forma clara e previsível.
-
----
-- em hipotese alguma mude o layout ou design do projeto atual, mude apenas se eu for bem claro e peça pra vc mudar algo no layout ou design, ao contrario nao mude nada do css etc.
+Tests validate:
+- Registration with valid/invalid data
+- Database persistence
+- Concurrent request handling
+- Response structure and field validation
