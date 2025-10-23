@@ -12,7 +12,7 @@ import {
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { audioService } from '~/services/audioService';
-import { initiateIntercomCall, rejectIntercomCall } from '~/services/intercomService';
+import { useAgora } from '~/hooks/useAgora';
 
 const supabaseClient = supabase as any;
 
@@ -21,25 +21,30 @@ interface IntercomModalProps {
   onClose: () => void;
 }
 
-type CallState = 'idle' | 'calling' | 'ringing' | 'connecting' | 'connected' | 'ended';
-
 export default function IntercomModal({ visible, onClose }: IntercomModalProps) {
   const { user } = useAuth();
-  const [callState, setCallState] = useState<CallState>('idle');
   const [apartmentNumber, setApartmentNumber] = useState('');
-  const [currentCallId, setCurrentCallId] = useState<string | null>(null);
-  const [callDuration, setCallDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [buildingName, setBuildingName] = useState('');
   const [buildingId, setBuildingId] = useState<string | null>(null);
-  const [notificationsSent, setNotificationsSent] = useState(0);
-  const [callMessage, setCallMessage] = useState('');
   const [doormanName, setDoormanName] = useState<string>('Porteiro');
+  const [callDuration, setCallDuration] = useState(0);
 
-  // Refs para WebRTC
+  // Refs for call timer
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const webSocketRef = useRef<WebSocket | null>(null);
+
+  // Initialize useAgora hook
+  const {
+    callState,
+    activeCall,
+    isMuted,
+    isSpeakerOn,
+    error,
+    setCurrentUser,
+    startIntercomCall,
+    endActiveCall,
+    toggleMute,
+    toggleSpeaker,
+  } = useAgora();
 
   // Listener para mudanças de estado da chamada para controlar áudio
   useEffect(() => {
@@ -57,6 +62,17 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
 
     handleCallStateChange();
   }, [callState]);
+
+  // Set current user for Agora hook
+  useEffect(() => {
+    if (user?.id) {
+      setCurrentUser({
+        id: user.id,
+        userType: 'porteiro',
+        displayName: doormanName || user.email?.split('@')[0] || 'Porteiro',
+      });
+    }
+  }, [user?.id, user?.email, doormanName, setCurrentUser]);
 
   // Carregar informações do prédio do porteiro
   const loadBuildingInfo = useCallback(async () => {
@@ -101,7 +117,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     }
   }, [user?.email, user?.id]);
 
-  // Iniciar chamada utilizando serviço unificado
+  // Iniciar chamada utilizando useAgora hook
   const initiateCall = async () => {
     const trimmedApartment = apartmentNumber.trim();
 
@@ -123,24 +139,8 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       return;
     }
 
-    const handleCallFailure = async (message: string) => {
-      console.warn('❌ Falha ao iniciar chamada:', message);
-      Alert.alert('Erro', message);
-      try {
-        await audioService.stopRingtone();
-      } catch (audioError) {
-        console.error('❌ Erro ao parar som de chamada:', audioError);
-      }
-      setCallState('idle');
-      setCallMessage('');
-      setNotificationsSent(0);
-      setCurrentCallId(null);
-    };
-
     try {
-      setCallState('calling');
-      setCallMessage('Conectando com o interfone...');
-
+      // Initialize and play ringtone
       try {
         await audioService.initialize();
         await audioService.loadRingtone();
@@ -149,29 +149,25 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         console.warn('⚠️ Erro ao inicializar áudio:', audioError);
       }
 
-      const result = await initiateIntercomCall({
+      // Start the call using the useAgora hook
+      const payload = await startIntercomCall({
         apartmentNumber: trimmedApartment,
         buildingId,
-        doormanId: user.id,
-        doormanName,
       });
 
-      if (!result.success || !result.callId) {
-        await handleCallFailure(result.error || 'Não foi possível iniciar a chamada');
-        return;
-      }
-
-      console.log('✅ Chamada iniciada com sucesso:', result);
-
-      setCurrentCallId(result.callId);
-      setNotificationsSent(result.notificationsSent ?? 0);
-      setCallMessage(result.message || 'Chamando morador...');
-      setCallState('ringing');
+      console.log('✅ Chamada iniciada com sucesso:', payload);
     } catch (error) {
       const err = error as Error;
       const message = err?.message || 'Erro inesperado ao iniciar a chamada';
 
-      await handleCallFailure(message);
+      console.warn('❌ Falha ao iniciar chamada:', message);
+      Alert.alert('Erro', message);
+
+      try {
+        await audioService.stopRingtone();
+      } catch (audioError) {
+        console.error('❌ Erro ao parar som de chamada:', audioError);
+      }
     }
   };
 
@@ -191,65 +187,54 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     }
   };
 
-  // Encerrar chamada
-  const endCall = async () => {
-    if (!currentCallId) {
-      onClose();
-      return;
-    }
-
-    if (!user?.id) {
-      console.warn('⚠️ Usuário não autenticado ao tentar encerrar chamada');
-      onClose();
-      return;
-    }
-
+  // Encerrar chamada usando useAgora hook
+  const handleEndCall = async () => {
     try {
-      setCallMessage('Encerrando chamada...');
-      await rejectIntercomCall({
-        callId: currentCallId,
-        userId: user.id,
-        userType: 'doorman',
-        reason: 'ended',
-      });
-    } catch (error) {
-      console.error('Erro ao encerrar chamada:', error);
-    } finally {
+      // Stop ringtone
       await audioService.stopRingtone();
 
+      // End the call using useAgora
+      await endActiveCall('hangup');
+
+      // Stop timer
       stopCallTimer();
-      setCallState('ended');
-      setCurrentCallId(null);
       setCallDuration(0);
-      setIsMuted(false);
-      setIsSpeakerOn(false);
-      setCallMessage('Chamada encerrada');
 
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-      }
-
+      // Reset UI state after a short delay
       setTimeout(() => {
-        setCallState('idle');
         setApartmentNumber('');
-        setNotificationsSent(0);
-        setCallMessage('');
         onClose();
       }, 2000);
+    } catch (error) {
+      console.error('Erro ao encerrar chamada:', error);
+
+      // Even if there's an error, clean up
+      await audioService.stopRingtone();
+      stopCallTimer();
+      setCallDuration(0);
+      setApartmentNumber('');
+      onClose();
     }
   };
 
-  // Alternar mute
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-    // Em implementação real, controlaria o áudio do WebRTC
+  // Handle mute toggle
+  const handleToggleMute = async () => {
+    try {
+      await toggleMute();
+    } catch (error) {
+      console.error('Erro ao alternar microfone:', error);
+      Alert.alert('Erro', 'Não foi possível alternar o microfone');
+    }
   };
 
-  // Alternar speaker
-  const toggleSpeaker = () => {
-    setIsSpeakerOn(!isSpeakerOn);
-    // Em implementação real, controlaria o speaker do dispositivo
+  // Handle speaker toggle
+  const handleToggleSpeaker = async () => {
+    try {
+      await toggleSpeaker();
+    } catch (error) {
+      console.error('Erro ao alternar alto-falante:', error);
+      Alert.alert('Erro', 'Não foi possível alternar o alto-falante');
+    }
   };
 
   // Formatar duração da chamada
@@ -347,68 +332,76 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   );
 
   // Renderizar interface da chamada
-  const renderCallInterface = () => (
-    <View style={styles.callContainer}>
-      <View style={styles.callHeader}>
-        <Text style={styles.callTitle}>
-          {callState === 'calling' && 'Chamando...'}
-          {callState === 'ringing' && 'Tocando...'}
-          {callState === 'connecting' && 'Conectando...'}
-          {callState === 'connected' && 'Em chamada'}
-          {callState === 'ended' && 'Chamada encerrada'}
-        </Text>
-        <Text style={styles.callSubtitle}>
-          Apartamento {apartmentNumber} - {buildingName}
-        </Text>
+  const renderCallInterface = () => {
+    const participants = activeCall?.participants || [];
+    const participantCount = participants.length;
 
-        {/* Mostrar feedback de notificações */}
-        {notificationsSent > 0 && (
-          <Text style={styles.notificationFeedback}>
-            📱 {notificationsSent} notificação{notificationsSent > 1 ? 'ões' : ''} enviada
-            {notificationsSent > 1 ? 's' : ''}
+    return (
+      <View style={styles.callContainer}>
+        <View style={styles.callHeader}>
+          <Text style={styles.callTitle}>
+            {callState === 'dialing' && 'Chamando...'}
+            {callState === 'ringing' && 'Tocando...'}
+            {callState === 'connecting' && 'Conectando...'}
+            {callState === 'connected' && 'Em chamada'}
+            {callState === 'ending' && 'Encerrando...'}
+            {callState === 'ended' && 'Chamada encerrada'}
           </Text>
-        )}
+          <Text style={styles.callSubtitle}>
+            Apartamento {apartmentNumber} - {buildingName}
+          </Text>
 
-        {/* Mostrar mensagem da chamada */}
-        {callMessage && <Text style={styles.callMessage}>{callMessage}</Text>}
+          {/* Show participant count */}
+          {participantCount > 0 && (
+            <Text style={styles.notificationFeedback}>
+              👥 {participantCount} participante{participantCount > 1 ? 's' : ''}
+            </Text>
+          )}
 
-        {callState === 'connected' && (
-          <Text style={styles.callDuration}>{formatCallDuration(callDuration)}</Text>
-        )}
-      </View>
+          {/* Show error if any */}
+          {error && <Text style={styles.errorMessage}>⚠️ {error}</Text>}
 
-      {callState === 'calling' || callState === 'ringing' || callState === 'connecting' ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          {callState === 'ringing' && (
-            <Text style={styles.ringingText}>🔊 Som de chamada tocando</Text>
+          {callState === 'connected' && (
+            <Text style={styles.callDuration}>{formatCallDuration(callDuration)}</Text>
           )}
         </View>
-      ) : null}
 
-      {callState === 'connected' && (
-        <View style={styles.callControls}>
-          <TouchableOpacity
-            style={[styles.controlButton, isMuted && styles.controlButtonActive]}
-            onPress={toggleMute}>
-            <Text style={styles.controlButtonText}>{isMuted ? '🔇' : '🎤'}</Text>
-          </TouchableOpacity>
+        {(callState === 'dialing' || callState === 'ringing' || callState === 'connecting') && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+            {callState === 'ringing' && (
+              <Text style={styles.ringingText}>🔊 Som de chamada tocando</Text>
+            )}
+          </View>
+        )}
 
-          <TouchableOpacity
-            style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
-            onPress={toggleSpeaker}>
-            <Text style={styles.controlButtonText}>{isSpeakerOn ? '🔊' : '🔈'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {callState === 'connected' && (
+          <View style={styles.callControls}>
+            <TouchableOpacity
+              style={[styles.controlButton, isMuted && styles.controlButtonActive]}
+              onPress={handleToggleMute}>
+              <Text style={styles.controlButtonText}>{isMuted ? '🔇' : '🎤'}</Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity style={styles.endCallButton} onPress={endCall}>
-        <Text style={styles.endCallButtonText}>
-          {callState === 'ended' ? '✓ Encerrada' : '📞 Encerrar'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+            <TouchableOpacity
+              style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
+              onPress={handleToggleSpeaker}>
+              <Text style={styles.controlButtonText}>{isSpeakerOn ? '🔊' : '🔈'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.endCallButton}
+          onPress={handleEndCall}
+          disabled={callState === 'ending' || callState === 'ended'}>
+          <Text style={styles.endCallButtonText}>
+            {callState === 'ended' ? '✓ Encerrada' : callState === 'ending' ? 'Encerrando...' : '📞 Encerrar'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   // Effect para carregar informações quando modal abre
   useEffect(() => {
@@ -420,22 +413,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Effect para limpeza quando modal fecha
   useEffect(() => {
     if (!visible) {
-      // Limpar timers e conexões
+      // Limpar timers
       stopCallTimer();
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-      }
 
-      // Reset do estado
-      setCallState('idle');
+      // Reset apartment number
       setApartmentNumber('');
-      setCurrentCallId(null);
       setCallDuration(0);
-      setIsMuted(false);
-      setIsSpeakerOn(false);
-      setNotificationsSent(0);
-      setCallMessage('');
     }
   }, [visible]);
 
@@ -593,6 +576,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
     fontStyle: 'italic',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#f44336',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontWeight: '600',
   },
   callDuration: {
     fontSize: 20,

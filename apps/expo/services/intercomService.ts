@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import type { CallStartPayload } from './calling';
 
 const DEFAULT_LOCAL_URL = 'http://localhost:3001';
 const DEFAULT_ANDROID_EMULATOR_URL = 'https://5302cc59505a.ngrok-free.app/';
@@ -84,15 +85,6 @@ async function makeRequest<T>(path: string, options: RequestInit = {}): Promise<
   }
 }
 
-interface StartCallResponse {
-  call: any;
-  participants?: any[];
-  apartment?: any;
-  doorman?: any;
-  notificationsSent?: number;
-  message?: string;
-}
-
 interface CallStatusResponse {
   call: {
     id: string;
@@ -127,7 +119,7 @@ export interface DeclineIntercomCallParams {
 export async function initiateIntercomCall(
   params: InitiateIntercomCallParams
 ): Promise<InitiateIntercomCallResult> {
-  const response = await makeRequest<StartCallResponse>('/api/calls/start', {
+  const response = await makeRequest<CallStartPayload>('/api/calls/start', {
     method: 'POST',
     body: JSON.stringify(params),
   });

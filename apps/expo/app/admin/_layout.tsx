@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   bottomNav: {
-    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
@@ -102,6 +102,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     height: BOTTOM_NAV_HEIGHT,
+    ...(Platform.OS === 'web' && {
+      position: 'fixed' as 'absolute', // Type assertion for web compatibility
+    }),
   },
   navItem: {
     flex: 1,

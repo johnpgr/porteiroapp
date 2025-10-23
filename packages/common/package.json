@@ -11,6 +11,10 @@
     "./hooks": {
       "types": "./dist/hooks/index.d.ts",
       "default": "./dist/hooks/index.js"
+    },
+    "./calling": {
+      "types": "./dist/calling/index.d.ts",
+      "default": "./dist/calling/index.js"
     }
   },
   "files": [
