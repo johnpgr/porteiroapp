@@ -13,17 +13,16 @@ class DatabaseService {
   private unified: UnifiedSupabaseClient;
 
   constructor() {
-    // Initialize Supabase client
+    // Initialize Supabase client with service role key
     const { client, unified } = SupabaseClientFactory.createServerClient({
       url: process.env.SUPABASE_URL!,
-      anonKey: process.env.SUPABASE_ANON_KEY!,
-      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!, 
+      key: process.env.SUPABASE_SERVICE_ROLE_KEY!, 
     });
 
     this.supabase = client;
     this.unified = unified;
 
-    console.log("🔗 Cliente Supabase inicializado");
+    console.log("🔗 Cliente Supabase inicializado com service role key");
   }
 
   /**

@@ -5,8 +5,7 @@ import { AuthLogger } from '../utils/logger.ts';
 
 export interface UnifiedSupabaseClientOptions {
   url: string;
-  anonKey: string;
-  serviceKey?: string;
+  key: string;
   platformDetector: PlatformDetector;
   storage?: any;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -32,10 +31,16 @@ export class UnifiedSupabaseClient {
     // Criar cliente Supabase com configurações otimizadas
     const supabaseOptions = this.configManager.getSupabaseOptions(options.storage);
     
+    // Detect if the key is a service role key by checking the JWT payload
+    const isServiceRoleKey = this.isServiceRoleKey(options.key);
+    console.log('isServiceRoleKey', isServiceRoleKey);
+    
     this.client = createSupabaseClient({
       url: options.url,
-      anonKey: options.anonKey,
-      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
+      ...(isServiceRoleKey 
+        ? { serviceKey: options.key }
+        : { anonKey: options.key }
+      ),
       options: supabaseOptions,
     });
 
@@ -246,5 +251,30 @@ export class UnifiedSupabaseClient {
       });
       callback(event, session);
     });
+  }
+
+  /**
+   * Detect if a key is a service role key by decoding the JWT payload
+   */
+  private isServiceRoleKey(key: string): boolean {
+    try {
+      // JWT format: header.payload.signature
+      const parts = key.split('.');
+      if (parts.length !== 3 || !parts[1]) return false;
+
+      // Base64url decode (replace URL-safe chars and add padding)
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+      
+      // Decode the payload
+      const payload = JSON.parse(
+        Buffer.from(base64 + padding, 'base64').toString('utf-8')
+      );
+
+      // Check if the role is 'service_role'
+      return payload.role === 'service_role';
+    } catch {
+      return false;
+    }
   }
 }

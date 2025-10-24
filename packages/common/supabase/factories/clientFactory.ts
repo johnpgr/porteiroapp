@@ -9,8 +9,7 @@ import {
 
 export interface ClientFactoryOptions {
   url: string;
-  anonKey: string;
-  serviceKey?: string;
+  key: string;
   storage?: any;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
@@ -30,8 +29,7 @@ export class SupabaseClientFactory {
     
     const unified = new UnifiedSupabaseClient({
       url: options.url,
-      anonKey: options.anonKey,
-      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
+      key: options.key,
       platformDetector,
       ...(options.storage !== undefined && { storage: options.storage }),
       ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
@@ -53,8 +51,7 @@ export class SupabaseClientFactory {
     
     const unified = new UnifiedSupabaseClient({
       url: options.url,
-      anonKey: options.anonKey,
-      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
+      key: options.key,
       platformDetector,
       ...(options.storage !== undefined && { storage: options.storage }),
       ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
@@ -76,8 +73,7 @@ export class SupabaseClientFactory {
 
     const unified = new UnifiedSupabaseClient({
       url: options.url,
-      anonKey: options.anonKey,
-      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
+      key: options.key,
       platformDetector,
       ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
@@ -97,8 +93,7 @@ export class SupabaseClientFactory {
   ): { client: TypedSupabaseClient; unified: UnifiedSupabaseClient } {
     const unified = new UnifiedSupabaseClient({
       url: options.url,
-      anonKey: options.anonKey,
-      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
+      key: options.key,
       platformDetector,
       ...(options.storage !== undefined && { storage: options.storage }),
       ...(options.logLevel !== undefined && { logLevel: options.logLevel }),

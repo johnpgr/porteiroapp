@@ -15,7 +15,7 @@ const SUPABASE_SERVICE_KEY =
 
 const { client: supabase } = SupabaseClientFactory.createServerClient({
   url: SUPABASE_URL,
-  anonKey: SUPABASE_SERVICE_KEY,
+  key: SUPABASE_SERVICE_KEY,
 });
 
 // Dados de teste válidos

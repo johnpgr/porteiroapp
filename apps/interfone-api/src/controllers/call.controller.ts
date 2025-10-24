@@ -351,7 +351,7 @@ class CallController {
       // Generate token bundle for the answering user to eliminate extra round-trip
       const channelName = updatedCall?.channel_name ?? call.channel_name;
       const tokenBundle = channelName
-        ? await agoraService.generateTokenBundle({
+        ? agoraService.generateTokenPair({
             channelName,
             uid: userId,
             role: 'publisher'
@@ -373,7 +373,6 @@ class CallController {
           participants,
           tokens: tokenBundle
             ? {
-                appId: tokenBundle.appId,
                 channelName: tokenBundle.channelName,
                 rtcToken: tokenBundle.rtcToken,
                 rtmToken: tokenBundle.rtmToken,

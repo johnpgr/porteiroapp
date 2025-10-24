@@ -9,11 +9,11 @@ const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 
 const { client: supabase } = SupabaseClientFactory.createBrowserClient({
   url: supabaseUrl,
-  anonKey: supabaseAnonKey,
+  key: supabaseAnonKey,
 });
 const { client: supabaseAdmin } = SupabaseClientFactory.createServerClient({
   url: supabaseUrl,
-  anonKey: supabaseServiceKey,
+  key: supabaseServiceKey,
 });
 
 // Dados de teste

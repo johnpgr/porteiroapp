@@ -8,7 +8,7 @@ const supabaseUrl = env.EXPO_PUBLIC_SUPABASE_URL || 'https://ycamhxzumzkpxuhtugx
 const supabaseKey = env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljYW1oeHp1bXprcHh1aHR1Z3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MjEwMzEsImV4cCI6MjA3MTI5NzAzMX0.CBgkeAVbxlyJHftmVWSkSPefrbOdMckMvtakRTDpgc8';
 const { client: supabase } = SupabaseClientFactory.createBrowserClient({
   url: supabaseUrl,
-  anonKey: supabaseKey,
+  key: supabaseKey,
 });
 
 interface AlertOptions {

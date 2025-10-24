@@ -13,7 +13,7 @@ export const { client: supabase, unified } = SupabaseClientFactory.createReactNa
   Platform.OS,
   {
     url: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    key: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     logLevel: __DEV__ ? 'info' : 'error',
   }

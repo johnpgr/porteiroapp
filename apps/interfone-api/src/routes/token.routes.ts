@@ -20,7 +20,7 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     // Create anon client for JWT validation (service role key can't validate user tokens)
     const { client } = SupabaseClientFactory.createBrowserClient({
       url: process.env.SUPABASE_URL || '',
-      anonKey: process.env.SUPABASE_ANON_KEY || ''
+      key: process.env.SUPABASE_ANON_KEY || ''
     });
 
     const { data, error } = await client.auth.getUser(accessToken);

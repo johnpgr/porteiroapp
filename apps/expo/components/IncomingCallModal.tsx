@@ -13,11 +13,7 @@ interface IncomingCallModalProps {
 }
 
 const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose, agoraContext }) => {
-  if (!agoraContext) {
-    return null;
-  }
-
-  const { incomingInvite, callState, answerIncomingCall, declineIncomingCall, isConnecting } = agoraContext;
+  const { incomingInvite, callState, answerIncomingCall, declineIncomingCall, isConnecting } = agoraContext ?? {};
 
   const isVisible = useMemo(() => {
     if (typeof visible === 'boolean') return visible;
@@ -45,10 +41,14 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
     };
   }, [isVisible]);
 
+  if (!agoraContext) {
+    return null;
+  }
+
   const handleAccept = async () => {
     try {
       await agoraAudioService.stopRingtone();
-      await answerIncomingCall();
+      await answerIncomingCall?.();
       onClose?.();
     } catch {
       // no-op; useAgora will set error state
@@ -58,7 +58,7 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
   const handleDecline = async () => {
     try {
       await agoraAudioService.stopRingtone();
-      await declineIncomingCall('declined');
+      await declineIncomingCall?.('declined');
       onClose?.();
     } catch {
       // no-op

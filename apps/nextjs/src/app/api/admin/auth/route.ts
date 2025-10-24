@@ -14,7 +14,7 @@ const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
 
 const { client: supabase } = SupabaseClientFactory.createServerClient({
   url: supabaseUrl,
-  anonKey: supabaseServiceKey,
+  key: supabaseServiceKey,
   logLevel: process.env.NODE_ENV === 'development' ? 'info' : 'error',
 });
 
