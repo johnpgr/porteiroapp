@@ -222,7 +222,7 @@ export const sendWhatsAppMessage = async (
       building: residentData.building,
       apartment: residentData.apartment,
       profile_id: residentData.profile_id,
-      temporary_password: residentData.temporaryPassword || residentData.temporary_password
+      temporary_password: residentData.temporaryPassword || residentData.temporaryPassword
     };
 
     console.log('🌐 Fazendo chamada para API:', {
