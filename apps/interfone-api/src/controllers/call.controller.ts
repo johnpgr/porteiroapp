@@ -155,7 +155,8 @@ class CallController {
           status: 'ringing',
           rtcUid: String(resident.id),
           rtmId: String(resident.id),
-          pushToken: resident.push_token ?? null
+          pushToken: resident.push_token ?? null,
+          notification_enabled: resident.notification_enabled ?? false
         });
 
         inviteTargets.push(String(resident.id));
@@ -193,19 +194,50 @@ class CallController {
         invitePayload.context = context;
       }
 
-      const pushFallbackTargets = participants
-        .filter((participant: any) => participant.user_type === 'resident' && participant.pushToken)
-        .map((participant: any) => ({
-          userId: participant.user_id,
-          pushToken: participant.pushToken,
-          name: participant.name
-        }));
+      // Filter residents who can receive push notifications (need BOTH token AND enabled)
+      const residentParticipants = participants.filter((p: any) => p.user_type === 'resident');
+      const withTokens = residentParticipants.filter((p: any) => p.pushToken);
+      const withNotificationsEnabled = residentParticipants.filter((p: any) => p.notification_enabled);
+      const eligibleForNotifications = residentParticipants.filter((p: any) => p.pushToken && p.notification_enabled);
+
+      console.log(`📊 Resident notification eligibility:`);
+      console.log(`   Total residents: ${residentParticipants.length}`);
+      console.log(`   With push tokens: ${withTokens.length}`);
+      console.log(`   With notifications enabled: ${withNotificationsEnabled.length}`);
+      console.log(`   Eligible (both): ${eligibleForNotifications.length}`);
+
+      const pushFallbackTargets = eligibleForNotifications.map((participant: any) => ({
+        userId: participant.user_id,
+        pushToken: participant.pushToken,
+        name: participant.name
+      }));
 
       const serializedParticipants = participants.map((participant: any) => {
-        // Remover dados sensíveis (push tokens) do payload público
-        const { pushToken, ...rest } = participant;
+        // Remover dados sensíveis (push tokens, notification settings) do payload público
+        const { pushToken, notification_enabled, ...rest } = participant;
         return rest;
       });
+
+      // Warn if no residents can receive push notifications (RTM still works for open apps)
+      if (pushFallbackTargets.length === 0 && residentParticipants.length > 0) {
+        console.warn(`⚠️  No residents will receive push notifications (call will rely on RTM for open apps)`);
+        console.warn(`   Total residents: ${residentParticipants.length}`);
+        console.warn(`   With push tokens: ${withTokens.length}`);
+        console.warn(`   With notifications enabled: ${withNotificationsEnabled.length}`);
+        console.warn(`   Eligible (both): ${eligibleForNotifications.length}`);
+
+        // Determine specific reason
+        let reason: string;
+        if (withTokens.length === 0) {
+          reason = 'No residents have registered push tokens';
+        } else if (withNotificationsEnabled.length === 0) {
+          reason = 'All residents have notifications disabled';
+        } else {
+          reason = 'No residents have both push token and notifications enabled';
+        }
+        console.warn(`   Reason: ${reason}`);
+        console.warn(`   ℹ️  Call will proceed - residents with app open will receive RTM invite`);
+      }
 
       // Send push notifications as fallback for RTM invites
       let pushNotificationsSent = 0;

@@ -15,8 +15,4 @@ ALTER TABLE call_participants
       'missed',
       'disconnected'
     )
-<<<<<<< HEAD:packages/common/supabase/migrations/20251021_update_call_participant_statuses.sql
   );
-=======
-  );
->>>>>>> origin/develop:supabase/migrations/20251021_update_call_participant_statuses.sql

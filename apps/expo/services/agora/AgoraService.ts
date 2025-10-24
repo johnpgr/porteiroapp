@@ -405,11 +405,50 @@ class AgoraService {
   async loginRtm(bundle: { uid: string; rtmToken: string; expiresAt?: string }) {
     const engine = await this.ensureRtmEngine();
     this.setRtmStatus('connecting');
+
     if (this.rtmSession) {
       try { await engine.logout(); } catch {}
     }
+
+    console.log(`🔐 [AgoraService] Iniciando login RTM para uid: ${bundle.uid}`);
+
+    // Wait for ConnectionStateChanged event
+    const connectionPromise = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        console.warn(`⚠️ [AgoraService] Timeout aguardando conexão RTM`);
+        resolve(); // Don't reject, just resolve to continue
+      }, 5000);
+
+      const listener = (state: RtmConnectionState, reason: any) => {
+        console.log(`📡 [AgoraService] ConnectionStateChanged: state=${state}, reason=${reason}`);
+        console.log(`📡 [AgoraService] Checking: state === CONNECTED? ${state === RtmConnectionState.CONNECTED}, RtmConnectionState.CONNECTED = ${RtmConnectionState.CONNECTED}`);
+
+        // Check for connected state (value 3)
+        if (state === RtmConnectionState.CONNECTED || state === 3) {
+          cleanup();
+          console.log(`✅ [AgoraService] RTM conectado com sucesso`);
+          resolve();
+        }
+      };
+
+      let subscription: any = null;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (subscription) {
+          subscription.remove(); // Workaround for SDK bug - use .remove() instead of engine.removeListener()
+        }
+      };
+
+      subscription = engine.addListener('ConnectionStateChanged', listener);
+    });
+
     await engine.loginV2(bundle.uid, bundle.rtmToken);
     this.rtmSession = { uid: bundle.uid, token: bundle.rtmToken, expiresAt: bundle.expiresAt };
+
+    console.log(`⏳ [AgoraService] Aguardando evento de conexão RTM...`);
+    await connectionPromise;
+
     this.setRtmStatus('connected');
     this.scheduleStandbyRenewal(bundle.expiresAt);
   }
@@ -449,13 +488,30 @@ class AgoraService {
   }
 
   async sendPeerMessage(targets: string[], payload: unknown) {
-    if (!this.rtmEngine) throw new Error('RTM não inicializado');
+    if (!this.rtmEngine) {
+      throw new Error('RTM não inicializado');
+    }
+
+    if (this.rtmStatus !== 'connected') {
+      throw new Error(`RTM não está conectado. Estado atual: ${this.rtmStatus}`);
+    }
+
     const data = JSON.stringify(payload);
-    for (const target of Array.from(new Set(targets)).filter(Boolean)) {
-      await this.rtmEngine.sendMessageToPeerV2(target, new RtmMessage(data), {
-        enableOfflineMessaging: true,
-        enableHistoricalMessaging: true,
-      });
+    const uniqueTargets = Array.from(new Set(targets)).filter(Boolean);
+    console.log(`📤 [AgoraService] Enviando mensagem RTM para ${uniqueTargets.length} alvos (status: ${this.rtmStatus})`);
+
+    for (const target of uniqueTargets) {
+      try {
+        console.log(`📤 [AgoraService] Enviando para: ${target}`);
+        await this.rtmEngine.sendMessageToPeerV2(target, new RtmMessage(data), {
+          enableOfflineMessaging: true,
+          enableHistoricalMessaging: true,
+        });
+        console.log(`✅ [AgoraService] Mensagem enviada para: ${target}`);
+      } catch (err) {
+        console.error(`❌ [AgoraService] Falha ao enviar para ${target}:`, err);
+        throw err;
+      }
     }
   }
 

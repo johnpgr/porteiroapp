@@ -396,15 +396,21 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   const ensureRtmLoggedIn = useCallback(
     async (bundle: AgoraTokenBundle): Promise<RtmEngine> => {
+      console.log(`🔐 [ensureRtmLoggedIn] Iniciando login RTM para uid: ${bundle.uid}`);
+      console.log(`🔐 [ensureRtmLoggedIn] RTM Status atual: ${rtmStatus}`);
+
       const engineInstance = await ensureRtmEngine();
       const session = rtmSessionRef.current;
 
       if (session && session.uid === bundle.uid && session.token === bundle.rtmToken && rtmStatus === 'connected') {
+        console.log(`✅ [ensureRtmLoggedIn] Já conectado com mesma sessão`);
         return engineInstance;
       }
 
+      console.log(`🔄 [ensureRtmLoggedIn] Fazendo login RTM...`);
       await agoraService.loginRtm({ uid: bundle.uid, rtmToken: bundle.rtmToken, expiresAt: bundle.expiresAt });
       rtmSessionRef.current = { uid: bundle.uid, token: bundle.rtmToken, expiresAt: bundle.expiresAt };
+      console.log(`✅ [ensureRtmLoggedIn] Login RTM concluído`);
       return engineInstance;
     },
     [ensureRtmEngine, rtmStatus]
@@ -549,13 +555,19 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       if (targets.length > 0) {
         try {
+          console.log(`📤 Tentando enviar convite RTM para ${targets.length} alvos:`, targets);
+          console.log(`📤 RTM Status atual: ${rtmStatus}`);
           await sendPeerSignal(targets, {
             ...payload.signaling.invite,
             from: bundle.uid,
             ts: Date.now(),
           });
+          console.log(`✅ Convite RTM enviado com sucesso`);
         } catch (signalError) {
-          console.warn('⚠️ Falha ao enviar convite RTM:', signalError);
+          console.error('⚠️ Falha ao enviar convite RTM:', signalError);
+          console.error('   Erro detalhado:', JSON.stringify(signalError, null, 2));
+          console.error('   RTM Status:', rtmStatus);
+          console.error('   Alvos:', targets);
         }
       }
 
