@@ -16,7 +16,8 @@ class DatabaseService {
     // Initialize Supabase client
     const { client, unified } = SupabaseClientFactory.createServerClient({
       url: process.env.SUPABASE_URL!,
-      anonKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      anonKey: process.env.SUPABASE_ANON_KEY!,
+      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY!, 
     });
 
     this.supabase = client;

@@ -160,6 +160,55 @@ class TokenController {
   }
 
   /**
+   * Gera um token RTM para modo standby (apenas RTM, sem RTC)
+   * Usado por moradores para manter conexão RTM e receber convites de chamada
+   * Body: { uid, ttlSeconds? }
+   */
+  static async generateStandbyToken(req: Request, res: Response): Promise<void> {
+    try {
+      const { uid, ttlSeconds } = req.body ?? {};
+
+      if (!uid) {
+        res.status(400).json({
+          success: false,
+          error: 'uid é obrigatório'
+        });
+        return;
+      }
+
+      // Generate RTM-only token with long TTL for standby mode
+      const defaultTtl = ttlSeconds || 3600; // 1 hour default for standby
+      const bundle = agoraService.generateTokenPair({
+        channelName: '__standby__', // Placeholder channel (RTM doesn't need it)
+        uid: String(uid),
+        role: 'subscriber',
+        ttlSeconds: defaultTtl
+      });
+
+      console.log(
+        `✅ Token RTM standby gerado para uid=${bundle.uid}, ttl=${bundle.ttlSeconds}s`
+      );
+
+      res.json({
+        success: true,
+        data: {
+          appId: agoraService.getAppId(),
+          rtmToken: bundle.rtmToken,
+          uid: bundle.uid,
+          expiresAt: bundle.expiresAt,
+          ttlSeconds: bundle.ttlSeconds
+        }
+      });
+    } catch (error) {
+      console.error('🔥 Erro ao gerar token RTM standby:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
    * Gera um token vinculado a uma chamada existente
    * Body: { callId, uid, role? }
    */

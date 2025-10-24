@@ -199,7 +199,7 @@ export default function MoradorDashboard() {
       fetchVisitorsHistory();
       checkFirstLoginStatus();
     }
-  }, [user?.id, checkFirstLoginStatus]);
+  }, [user?.id, fetchVisitorsHistory, checkFirstLoginStatus]);
 
   // Subscription para atualização automática dos visitor_logs
   useEffect(() => {

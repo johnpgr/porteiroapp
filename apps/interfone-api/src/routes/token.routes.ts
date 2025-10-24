@@ -7,27 +7,35 @@ import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
 const router: Router = express.Router();
 
 // Simple auth middleware using Supabase access token
+// IMPORTANT: Use anon key client to validate user JWTs, not service role key
 async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = (req.headers['authorization'] || req.headers['Authorization']) as string | undefined;
     if (!authHeader || !/^Bearer\s+/i.test(authHeader)) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
+      res.status(401).json({ success: false, error: 'Unauthorized - No token provided' });
       return;
     }
     const accessToken = authHeader.replace(/^Bearer\s+/i, '');
-    const { client } = SupabaseClientFactory.createServerClient({
+
+    // Create anon client for JWT validation (service role key can't validate user tokens)
+    const { client } = SupabaseClientFactory.createBrowserClient({
       url: process.env.SUPABASE_URL || '',
-      anonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+      anonKey: process.env.SUPABASE_ANON_KEY || ''
     });
+
     const { data, error } = await client.auth.getUser(accessToken);
     if (error || !data?.user) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
+      console.error('🔥 Auth validation failed:', error?.message || 'No user data');
+      res.status(401).json({ success: false, error: 'Unauthorized - Invalid token' });
       return;
     }
+
+    console.log('✅ Auth success for user:', data.user.id);
     (req as any).authUser = data.user;
     next();
   } catch (e) {
-    res.status(401).json({ success: false, error: 'Unauthorized' });
+    console.error('🔥 Auth exception:', e);
+    res.status(401).json({ success: false, error: 'Unauthorized - Server error' });
   }
 }
 
@@ -107,6 +115,13 @@ router.post('/generate-multiple', requireAuth, TokenController.generateMultipleT
  * Body: { callId, uid, role? }
  */
 router.post('/for-call', requireAuth, TokenController.generateTokenForCall);
+
+/**
+ * POST /api/tokens/standby
+ * Gera token RTM para modo standby (moradores aguardando chamadas)
+ * Body: { uid, ttlSeconds? }
+ */
+router.post('/standby', requireAuth, TokenController.generateStandbyToken);
 
 /**
  * POST /api/tokens/validate

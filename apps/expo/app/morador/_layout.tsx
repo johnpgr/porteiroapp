@@ -3,7 +3,7 @@ import { Stack, usePathname } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import type { Subscription } from 'expo-notifications';
 import { useAuth } from '~/hooks/useAuth';
-import useAgora from '~/hooks/useAgora';
+import useAgoraHook from '~/hooks/useAgora';
 import IncomingCallModal from '~/components/IncomingCallModal';
 import { registerForPushNotificationsAsync, savePushToken } from '~/services/notificationService';
 
@@ -14,11 +14,11 @@ export default function MoradorLayout() {
   const { user } = useAuth();
 
   // Initialize Agora hook with current user context
-  const agoraContext = useAgora({
+  const agoraContext = useAgoraHook({
     currentUser: user ? {
       id: user.id,
       userType: 'morador',
-      displayName: user.user_metadata?.full_name || user.email || null
+      displayName: (user as any)?.user_metadata?.full_name || user.email || null
     } : null,
     appId: process.env.EXPO_PUBLIC_AGORA_APP_ID,
   });
@@ -122,13 +122,11 @@ export default function MoradorLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="authorize" />
-        <Stack.Screen name="token-authorize" />
         <Stack.Screen name="preregister" />
         <Stack.Screen name="logs" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="emergency" />
         <Stack.Screen name="avisos" />
-        <Stack.Screen name="visitantes/novo" />
         <Stack.Screen name="visitantes/nome" />
         <Stack.Screen name="visitantes/cpf" />
         <Stack.Screen name="visitantes/foto" />

@@ -28,7 +28,12 @@ app.use(
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Request-ID"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Request-ID",
+    ],
     exposedHeaders: ["X-Request-ID"],
   }),
 );
@@ -39,16 +44,16 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Request ID middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const requestId = req.headers['x-request-id'] as string || randomUUID();
+  const requestId = (req.headers["x-request-id"] as string) || randomUUID();
   (req as any).requestId = requestId;
-  res.setHeader('X-Request-ID', requestId);
+  res.setHeader("X-Request-ID", requestId);
   next();
 });
 
 // Logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const timestamp = new Date().toISOString();
-  const requestId = (req as any).requestId || 'unknown';
+  const requestId = (req as any).requestId || "unknown";
   console.log(`📡 [${requestId}] ${timestamp} - ${req.method} ${req.path}`);
 
   // Log body for POST/PUT requests (except sensitive data)
@@ -176,7 +181,7 @@ app.use((req: Request, res: Response) => {
 
 // Global error handler
 const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
-  const requestId = (req as any).requestId || 'unknown';
+  const requestId = (req as any).requestId || "unknown";
   console.error(`🔥 [${requestId}] Erro não tratado:`, error);
 
   // Don't expose error details in production
@@ -240,7 +245,9 @@ async function startServer() {
         "   POST /api/tokens/generate-multiple - Gerar múltiplos tokens",
       );
       console.log("   POST /api/tokens/validate - Validar token");
-      console.log("   POST /api/tokens/for-call - Gerar token vinculado a chamada");
+      console.log(
+        "   POST /api/tokens/for-call - Gerar token vinculado a chamada",
+      );
       console.log("");
       console.log("🔗 Para testar: curl http://localhost:" + PORT);
     });

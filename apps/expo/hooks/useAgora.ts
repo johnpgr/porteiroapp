@@ -1,20 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import {
-  AudioProfileType,
-  AudioScenarioType,
-  ChannelProfileType,
-  ClientRoleType,
-  IRtcEngine,
-  IRtcEngineEventHandler,
-  createAgoraRtcEngine
-} from 'react-native-agora';
-import RtmEngine, {
-  RtmConnectionState,
-  RTMPeerMessage,
-  RtmMessage,
-  SendMessageOptions
-} from 'agora-react-native-rtm';
+import { IRtcEngine } from 'react-native-agora';
+import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
 import type {
   AgoraTokenBundle,
   CallLifecycleState,
@@ -22,11 +9,12 @@ import type {
   CallStartPayload,
   RtmInviteSignal,
   RtmSignal,
-  RtmSignalType
+  RtmSignalType,
 } from '@porteiroapp/common/calling';
 import { deriveNextStateFromSignal } from '~/services/calling';
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
+import { agoraService } from '~/services/agora/AgoraService';
 
 type UserType = 'porteiro' | 'morador';
 
@@ -88,6 +76,7 @@ interface ApiResponse<T> {
   message?: string;
 }
 
+
 interface CallStatusResponse {
   call: Record<string, any>;
   participants: any[];
@@ -137,17 +126,19 @@ const resolveApiBaseUrl = (explicit?: string): string => {
   return DEFAULT_LOCAL_URL;
 };
 
-const apiRequest = async <T,>(
+const apiRequest = async <T>(
   baseUrl: string,
   path: string,
   init: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
+  // Extract headers from init to avoid overwriting merged headers when spreading ...init
+  const { headers: initHeaders, ...restInit } = init;
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+    ...restInit,
     headers: {
       'Content-Type': 'application/json',
-      ...(init.headers || {})
+      ...(initHeaders || {}),
     },
-    ...init
   });
 
   const raw = (await response
@@ -159,7 +150,7 @@ const apiRequest = async <T,>(
     return {
       success: false,
       error: message,
-      message
+      message,
     };
   }
 
@@ -195,20 +186,18 @@ const normalizeParticipant = (participant: any): CallParticipantSnapshot | null 
   const userType =
     participant?.user_type ??
     participant?.role ??
-    (participant?.userType ?? participant?.roleType ?? null);
+    participant?.userType ??
+    participant?.roleType ??
+    null;
 
   const role: CallParticipantSnapshot['role'] =
-    participant?.role ??
-    (userType === 'porteiro' || userType === 'doorman' ? 'caller' : 'callee');
+    participant?.role ?? (userType === 'porteiro' || userType === 'doorman' ? 'caller' : 'callee');
 
   const status: CallParticipantSnapshot['status'] =
-    participant?.status ??
-    (participant?.joined_at ? 'connected' : 'invited');
+    participant?.status ?? (participant?.joined_at ? 'connected' : 'invited');
 
-  const rtcUid =
-    toStringId(participant?.rtcUid ?? participant?.rtc_uid ?? userId) ?? userId;
-  const rtmId =
-    toStringId(participant?.rtmId ?? participant?.rtm_id ?? userId) ?? userId;
+  const rtcUid = toStringId(participant?.rtcUid ?? participant?.rtc_uid ?? userId) ?? userId;
+  const rtmId = toStringId(participant?.rtmId ?? participant?.rtm_id ?? userId) ?? userId;
 
   return {
     userId,
@@ -216,14 +205,10 @@ const normalizeParticipant = (participant: any): CallParticipantSnapshot | null 
     status,
     rtcUid,
     rtmId,
-    name:
-      participant?.name ??
-      participant?.full_name ??
-      participant?.display_name ??
-      null,
+    name: participant?.name ?? participant?.full_name ?? participant?.display_name ?? null,
     phone: participant?.phone ?? participant?.mobile ?? null,
     avatarUrl: participant?.avatarUrl ?? participant?.avatar_url ?? null,
-    userType: userType ?? undefined
+    userType: userType ?? undefined,
   };
 };
 
@@ -257,7 +242,7 @@ const fetchCallStatus = async (
 
   return {
     call: response.data.call,
-    participants: response.data.participants ?? []
+    participants: response.data.participants ?? [],
   };
 };
 
@@ -276,9 +261,9 @@ const fetchTokenBundle = async (
     body: JSON.stringify({
       channelName: params.channelName,
       uid: params.uid,
-      role: params.role ?? 'publisher'
+      role: params.role ?? 'publisher',
     }),
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   });
 
   if (!response.success || !response.data) {
@@ -309,13 +294,15 @@ const fetchTokenForCall = async (
     body: JSON.stringify({
       callId: params.callId,
       uid: params.uid,
-      role: params.role ?? 'publisher'
+      role: params.role ?? 'publisher',
     }),
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   });
 
   if (!response.success || !response.data) {
-    throw new Error(response.error || response.message || 'Não foi possível obter token da chamada');
+    throw new Error(
+      response.error || response.message || 'Não foi possível obter token da chamada'
+    );
   }
 
   return {
@@ -326,7 +313,7 @@ const fetchTokenForCall = async (
     rtcRole: response.data.rtcRole,
     issuedAt: response.data.issuedAt,
     expiresAt: response.data.expiresAt,
-    ttlSeconds: response.data.ttlSeconds
+    ttlSeconds: response.data.ttlSeconds,
   };
 };
 
@@ -355,16 +342,14 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   const engineRef = useRef<IRtcEngine | null>(null);
   const rtmEngineRef = useRef<RtmEngine | null>(null);
   const rtmSessionRef = useRef<{ uid: string; token: string; expiresAt?: string } | null>(null);
+  const prevUserIdRef = useRef<string | undefined>(undefined);
 
   const agoraAppId = useMemo(() => {
     const resolved = options?.appId ?? process.env.EXPO_PUBLIC_AGORA_APP_ID ?? '';
     return resolved;
   }, [options?.appId]);
 
-  const apiBaseUrl = useMemo(
-    () => resolveApiBaseUrl(options?.apiBaseUrl),
-    [options?.apiBaseUrl]
-  );
+  const apiBaseUrl = useMemo(() => resolveApiBaseUrl(options?.apiBaseUrl), [options?.apiBaseUrl]);
   const apiBaseUrlRef = useRef(apiBaseUrl);
 
   useEffect(() => {
@@ -375,183 +360,51 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     apiBaseUrlRef.current = apiBaseUrl;
   }, [apiBaseUrl]);
 
+  // Configure AgoraService with latest appId and API base URL
+  useEffect(() => {
+    agoraService.configure({ appId: agoraAppId, apiBaseUrl });
+  }, [agoraAppId, apiBaseUrl]);
+
+  // Sync currentUser state with options when parent component updates it
+  // Use ref to track previous ID and only update state when ID actually changes
+  useEffect(() => {
+    const newUserId = options?.currentUser?.id;
+
+    if (newUserId !== prevUserIdRef.current) {
+      setCurrentUser(options?.currentUser ?? null);
+      prevUserIdRef.current = newUserId;
+    }
+    // propagate to service
+    agoraService.setCurrentUser(options?.currentUser ?? null);
+  }, [options?.currentUser]);
+
   const schemaVersion = options?.schemaVersion ?? 1;
 
   const initializeRtcEngine = useCallback(async (): Promise<IRtcEngine> => {
-    if (!agoraAppId) {
-      throw new Error('AGORA_APP_ID não configurado');
-    }
-
-    if (engineRef.current) {
-      return engineRef.current;
-    }
-
-    const rtcEngine = createAgoraRtcEngine();
-
-    const result = rtcEngine.initialize({
-      appId: agoraAppId,
-      logConfig: {
-        level: __DEV__ ? 0x0001 : 0x0000
-      }
-    });
-
-    if (result !== 0) {
-      throw new Error(`Falha ao inicializar o Agora RTC (código ${result})`);
-    }
-
-    const eventHandler: IRtcEngineEventHandler = {
-      onJoinChannelSuccess: (connection) => {
-        console.log('✅ Entrou no canal Agora:', connection.channelId);
-        setIsJoined(true);
-        setIsConnecting(false);
-        setError(null);
-        setCallState((prev) => (prev === 'ringing' ? 'connecting' : prev));
-      },
-      onLeaveChannel: (connection) => {
-        console.log('👋 Saiu do canal Agora:', connection.channelId);
-        setIsJoined(false);
-        setIsConnecting(false);
-        setCallState((prev) =>
-          prev === 'ending' || prev === 'connected' || prev === 'connecting' ? 'ended' : prev
-        );
-      },
-      onUserJoined: (connection, remoteUid) => {
-        console.log('👤 Participante entrou no canal:', remoteUid);
-        setCallState((prev) =>
-          prev === 'connecting' || prev === 'ringing' || prev === 'dialing' ? 'connected' : prev
-        );
-      },
-      onUserOffline: (connection, remoteUid, reason) => {
-        console.log('👤 Participante saiu do canal:', remoteUid, 'Razão:', reason);
-        setCallState((prev) =>
-          prev === 'connected' || prev === 'connecting' ? 'ending' : prev
-        );
-      },
-      onError: (err, msg) => {
-        console.error('❌ Erro no Agora RTC:', err, msg);
-        setError(msg || `Erro RTC ${err}`);
-        setIsConnecting(false);
-        // Clear active call on RTC error
-        if (activeCallRef.current) {
-          setActiveCall(null);
-          activeCallRef.current = null;
-          setCallState('idle');
-        }
-      },
-      onTokenPrivilegeWillExpire: () => {
-        const ac = activeCallRef.current;
-        const cu = currentUserRef.current;
-        if (!ac || !cu) return;
-        fetchTokenForCall(apiBaseUrlRef.current, { callId: ac.callId, uid: cu.id })
-          .then((bundle) => {
-            try {
-              const res = engineRef.current?.renewToken(bundle.rtcToken);
-              if (res !== undefined && res !== 0) {
-                console.warn('⚠️ Falha ao renovar token RTC (willExpire):', res);
-              }
-            } catch (e) {
-              console.warn('⚠️ Erro ao renovar token RTC (willExpire):', e);
-            }
-          })
-          .catch((e) => {
-            console.error('❌ Falha ao obter novo token RTC (willExpire):', e);
-            setError('Token expirado. Encerrando chamada...');
-            // Clear call state - endActiveCall will be called via state change
-            setActiveCall(null);
-            activeCallRef.current = null;
-            setCallState('ending');
-          });
-      },
-      onRequestToken: () => {
-        const ac = activeCallRef.current;
-        const cu = currentUserRef.current;
-        if (!ac || !cu) return;
-        fetchTokenForCall(apiBaseUrlRef.current, { callId: ac.callId, uid: cu.id })
-          .then((bundle) => {
-            try {
-              const res = engineRef.current?.renewToken(bundle.rtcToken);
-              if (res !== undefined && res !== 0) {
-                console.warn('⚠️ Falha ao renovar token RTC (onRequestToken):', res);
-              }
-            } catch (e) {
-              console.warn('⚠️ Erro ao renovar token RTC (onRequestToken):', e);
-            }
-          })
-          .catch((e) => {
-            console.error('❌ Falha ao obter novo token RTC (onRequestToken):', e);
-            setError('Token expirado. Encerrando chamada...');
-            // Clear call state - endActiveCall will be called via state change
-            setActiveCall(null);
-            activeCallRef.current = null;
-            setCallState('ending');
-          });
-      },
-      onAudioRoutingChanged: (routing) => {
-        setIsSpeakerOn(routing === 1);
-      }
-    };
-
-    rtcEngine.registerEventHandler(eventHandler);
-    rtcEngine.setChannelProfile(ChannelProfileType.ChannelProfileCommunication);
-    rtcEngine.setClientRole(ClientRoleType.ClientRoleBroadcaster);
-    rtcEngine.setAudioProfile(AudioProfileType.AudioProfileDefault, AudioScenarioType.AudioScenarioDefault);
-    rtcEngine.enableAudio();
-    rtcEngine.setDefaultAudioRouteToSpeakerphone(true);
-
+    const rtcEngine = await agoraService.ensureRtcEngine();
     engineRef.current = rtcEngine;
     setEngine(rtcEngine);
-
     return rtcEngine;
-  }, [agoraAppId]);
+  }, []);
 
   const ensureRtmEngine = useCallback(async (): Promise<RtmEngine> => {
-    if (!agoraAppId) {
-      throw new Error('AGORA_APP_ID não configurado para RTM');
-    }
-
-    if (rtmEngineRef.current) {
-      return rtmEngineRef.current;
-    }
-
-    const engineInstance = new RtmEngine();
-    await engineInstance.createInstance(agoraAppId);
+    const engineInstance = await agoraService.ensureRtmEngine();
     rtmEngineRef.current = engineInstance;
     setRtmEngine(engineInstance);
     return engineInstance;
-  }, [agoraAppId]);
+  }, []);
 
   const ensureRtmLoggedIn = useCallback(
     async (bundle: AgoraTokenBundle): Promise<RtmEngine> => {
       const engineInstance = await ensureRtmEngine();
       const session = rtmSessionRef.current;
 
-      if (
-        session &&
-        session.uid === bundle.uid &&
-        session.token === bundle.rtmToken &&
-        rtmStatus === 'connected'
-      ) {
+      if (session && session.uid === bundle.uid && session.token === bundle.rtmToken && rtmStatus === 'connected') {
         return engineInstance;
       }
 
-      setRtmStatus('connecting');
-
-      if (session) {
-        try {
-          await engineInstance.logout();
-        } catch (logoutError) {
-          console.warn('⚠️ Falha ao realizar logout RTM anterior:', logoutError);
-        }
-      }
-
-      await engineInstance.loginV2(bundle.uid, bundle.rtmToken);
-      setRtmStatus('connected');
-      rtmSessionRef.current = {
-        uid: bundle.uid,
-        token: bundle.rtmToken,
-        expiresAt: bundle.expiresAt
-      };
-
+      await agoraService.loginRtm({ uid: bundle.uid, rtmToken: bundle.rtmToken, expiresAt: bundle.expiresAt });
+      rtmSessionRef.current = { uid: bundle.uid, token: bundle.rtmToken, expiresAt: bundle.expiresAt };
       return engineInstance;
     },
     [ensureRtmEngine, rtmStatus]
@@ -567,12 +420,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         throw new Error('Permissão de microfone negada');
       }
 
-      const rtcEngine = await initializeRtcEngine();
+      await initializeRtcEngine();
 
       const userAccount =
         typeof config.uid === 'string' && config.uid.length > 0
           ? config.uid
-          : toStringId(config.uid) ?? undefined;
+          : (toStringId(config.uid) ?? undefined);
 
       let token = config.token ?? null;
 
@@ -580,52 +433,27 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         const bundle = await fetchTokenBundle(apiBaseUrl, {
           channelName: config.channelName,
           uid: userAccount,
-          role: config.role
+          role: config.role,
         });
         token = bundle.rtcToken;
       }
 
+      if (!token) {
+        console.warn('⚠️ Token RTC não fornecido e não foi possível obter um token válido.');
+        return;
+      }
+
       if (userAccount) {
-        const registerResult = rtcEngine.registerLocalUserAccount(
-          config.appId ?? agoraAppId,
-          userAccount
-        );
-
-        if (registerResult !== 0) {
-          console.warn('⚠️ Falha ao registrar conta local no Agora:', registerResult);
-        }
-
-        const joinResult = rtcEngine.joinChannelWithUserAccount(
+        await agoraService.joinChannelWithUserAccount({
+          appId: config.appId ?? agoraAppId,
           token,
-          config.channelName,
+          channelName: config.channelName,
           userAccount,
-          {
-            autoSubscribeAudio: true,
-            autoSubscribeVideo: false,
-            publishCameraTrack: false,
-            publishMicrophoneTrack: true
-          }
-        );
-
-        if (joinResult !== 0) {
-          setIsConnecting(false);
-          throw new Error(`Falha ao entrar no canal do Agora (código ${joinResult})`);
-        }
+        });
       } else {
         const numericUid =
           typeof config.uid === 'number' ? config.uid : Math.floor(Math.random() * 100000);
-
-        const joinResult = rtcEngine.joinChannel(token, config.channelName, numericUid, {
-          autoSubscribeAudio: true,
-          autoSubscribeVideo: false,
-          publishCameraTrack: false,
-          publishMicrophoneTrack: true
-        });
-
-        if (joinResult !== 0) {
-          setIsConnecting(false);
-          throw new Error(`Falha ao entrar no canal do Agora (código ${joinResult})`);
-        }
+        await agoraService.joinChannel({ token, channelName: config.channelName, uid: numericUid });
       }
     },
     [agoraAppId, apiBaseUrl, initializeRtcEngine]
@@ -633,12 +461,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   const leaveChannel = useCallback(async (): Promise<void> => {
     try {
-      if (engineRef.current && isJoined) {
-        const result = engineRef.current.leaveChannel();
-        if (result !== 0) {
-          console.warn('⚠️ Falha ao sair do canal do Agora:', result);
-        }
-      }
+      await agoraService.leaveRtcChannel();
     } catch (leaveError) {
       console.error('❌ Erro ao sair do canal:', leaveError);
     } finally {
@@ -646,25 +469,11 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       setIsConnecting(false);
       setCallState((prev) => (prev !== 'idle' ? 'ended' : prev));
     }
-  }, [isJoined]);
+  }, []);
 
   const sendPeerSignal = useCallback(
     async (targets: string[], signal: RtmSignal): Promise<void> => {
-      const engineInstance = rtmEngineRef.current;
-      if (!engineInstance) {
-        throw new Error('RTM não inicializado');
-      }
-
-      const payload = JSON.stringify(signal);
-      const deliveries = targets.map(async (target) => {
-        const options: SendMessageOptions = {
-          enableOfflineMessaging: true,
-          enableHistoricalMessaging: true
-        };
-        return engineInstance.sendMessageToPeerV2(target, new RtmMessage(payload), options);
-      });
-
-      await Promise.all(deliveries);
+      await agoraService.sendPeerMessage(targets, signal);
     },
     []
   );
@@ -686,8 +495,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
           fromUserId: currentUser.id,
           clientVersion: options?.clientVersion ?? null,
           schemaVersion,
-          context: params.context ?? null
-        })
+          context: params.context ?? null,
+        }),
       });
 
       if (!response.success || !response.data) {
@@ -705,7 +514,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       await joinChannel({
         channelName: payload.call.channelName,
         uid: bundle.uid,
-        token: bundle.rtcToken
+        token: bundle.rtcToken,
       });
 
       const targets = uniqueTargets(
@@ -717,7 +526,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
           await sendPeerSignal(targets, {
             ...payload.signaling.invite,
             from: bundle.uid,
-            ts: Date.now()
+            ts: Date.now(),
           });
         } catch (signalError) {
           console.warn('⚠️ Falha ao enviar convite RTM:', signalError);
@@ -730,7 +539,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         participants: payload.participants ?? [],
         localBundle: bundle,
         payload,
-        isOutgoing: true
+        isOutgoing: true,
       };
       setActiveCall(nextActive);
       activeCallRef.current = nextActive;
@@ -744,7 +553,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       joinChannel,
       options?.clientVersion,
       schemaVersion,
-      sendPeerSignal
+      sendPeerSignal,
     ]
   );
 
@@ -768,8 +577,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       method: 'POST',
       body: JSON.stringify({
         userId: currentUser.id,
-        userType: 'resident'
-      })
+        userType: 'resident',
+      }),
     });
 
     // Use tokens from answer response if available, otherwise fetch separately (backward compatibility)
@@ -778,7 +587,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       : await fetchTokenForCall(apiBaseUrl, {
           callId: incomingInvite.signal.callId,
           uid: currentUser.id,
-          role: 'publisher'
+          role: 'publisher',
         });
 
     await ensureRtmLoggedIn(bundle);
@@ -788,14 +597,11 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     await joinChannel({
       channelName: incomingInvite.signal.channel,
       uid: bundle.uid,
-      token: bundle.rtcToken
+      token: bundle.rtcToken,
     });
 
     const targets = uniqueTargets(
-      (participants.length > 0
-        ? participants
-        : incomingInvite.participants ?? []
-      )
+      (participants.length > 0 ? participants : (incomingInvite.participants ?? []))
         .map((participant) => participant.userId)
         .filter((userId) => userId !== currentUser.id)
     );
@@ -806,7 +612,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         v: incomingInvite.signal.v ?? schemaVersion,
         callId: incomingInvite.signal.callId,
         from: currentUser.id,
-        ts: Date.now()
+        ts: Date.now(),
       };
 
       try {
@@ -822,7 +628,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     const nextActive: ActiveCallContext = {
       callId: incomingInvite.signal.callId,
       channelName: incomingInvite.signal.channel,
-      participants: participants.length > 0 ? participants : incomingInvite.participants ?? [],
+      participants: participants.length > 0 ? participants : (incomingInvite.participants ?? []),
       localBundle: bundle,
       payload: answerResponse.data
         ? {
@@ -830,9 +636,14 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
               id: incomingInvite.signal.callId,
               channelName: incomingInvite.signal.channel,
               status: answerResponse.data.call?.status ?? 'connecting',
-              startedAt: answerResponse.data.call?.startedAt ?? answerResponse.data.call?.started_at ?? null,
-              endedAt: answerResponse.data.call?.endedAt ?? answerResponse.data.call?.ended_at ?? null,
-              initiatorId: answerResponse.data.call?.doormanId ?? answerResponse.data.call?.doorman_id ?? incomingInvite.signal.from,
+              startedAt:
+                answerResponse.data.call?.startedAt ?? answerResponse.data.call?.started_at ?? null,
+              endedAt:
+                answerResponse.data.call?.endedAt ?? answerResponse.data.call?.ended_at ?? null,
+              initiatorId:
+                answerResponse.data.call?.doormanId ??
+                answerResponse.data.call?.doorman_id ??
+                incomingInvite.signal.from,
               apartmentNumber:
                 answerResponse.data.call?.apartmentNumber ??
                 answerResponse.data.call?.apartment_number ??
@@ -841,24 +652,24 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
                 answerResponse.data.call?.buildingId ??
                 answerResponse.data.call?.building_id ??
                 null,
-              context: incomingInvite.signal.context ?? null
+              context: incomingInvite.signal.context ?? null,
             },
             participants,
             tokens: {
-              initiator: bundle
+              initiator: bundle,
             },
             signaling: {
               invite: incomingInvite.signal,
               targets,
-              pushFallback: []
+              pushFallback: [],
             },
             metadata: {
               schemaVersion: incomingInvite.signal.v ?? schemaVersion,
-              clientVersion: options?.clientVersion ?? null
-            }
+              clientVersion: options?.clientVersion ?? null,
+            },
           }
         : undefined,
-      isOutgoing: false
+      isOutgoing: false,
     };
     setActiveCall(nextActive);
     activeCallRef.current = nextActive;
@@ -870,7 +681,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     joinChannel,
     options?.clientVersion,
     schemaVersion,
-    sendPeerSignal
+    sendPeerSignal,
   ]);
 
   const declineIncomingCall = useCallback(
@@ -888,22 +699,19 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         body: JSON.stringify({
           userId: currentUser.id,
           userType: currentUser.userType === 'morador' ? 'resident' : currentUser.userType,
-          reason
-        })
+          reason,
+        }),
       });
 
       try {
-        await sendPeerSignal(
-          [incomingInvite.from],
-          {
-            t: 'DECLINE',
-            v: incomingInvite.signal.v ?? schemaVersion,
-            callId: incomingInvite.signal.callId,
-            from: currentUser.id,
-            ts: Date.now(),
-            reason
-          }
-        );
+        await sendPeerSignal([incomingInvite.from], {
+          t: 'DECLINE',
+          v: incomingInvite.signal.v ?? schemaVersion,
+          callId: incomingInvite.signal.callId,
+          from: currentUser.id,
+          ts: Date.now(),
+          reason,
+        });
       } catch (signalError) {
         console.warn('⚠️ Falha ao enviar sinal DECLINE:', signalError);
       }
@@ -927,8 +735,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         body: JSON.stringify({
           userId: currentUser.id,
           userType: currentUser.userType === 'morador' ? 'resident' : currentUser.userType,
-          cause
-        })
+          cause,
+        }),
       });
 
       const targets = activeCall.participants
@@ -937,17 +745,14 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       if (targets.length > 0) {
         try {
-          await sendPeerSignal(
-            uniqueTargets(targets),
-            {
-              t: 'END',
-              v: activeCall.payload?.metadata?.schemaVersion ?? schemaVersion,
-              callId,
-              from: currentUser.id,
-              ts: Date.now(),
-              cause
-            }
-          );
+          await sendPeerSignal(uniqueTargets(targets), {
+            t: 'END',
+            v: activeCall.payload?.metadata?.schemaVersion ?? schemaVersion,
+            callId,
+            from: currentUser.id,
+            ts: Date.now(),
+            cause,
+          });
         } catch (signalError) {
           console.warn('⚠️ Falha ao enviar sinal END:', signalError);
         }
@@ -962,30 +767,14 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   );
 
   const toggleMute = useCallback(async (): Promise<void> => {
-    if (!engineRef.current) {
-      return;
-    }
-
     const nextMuted = !isMuted;
-    const result = engineRef.current.muteLocalAudioStream(nextMuted);
-    if (result !== 0) {
-      throw new Error(`Falha ao alternar microfone (código ${result})`);
-    }
-
+    await agoraService.setMuted(nextMuted);
     setIsMuted(nextMuted);
   }, [isMuted]);
 
   const toggleSpeaker = useCallback(async (): Promise<void> => {
-    if (!engineRef.current) {
-      return;
-    }
-
     const nextSpeaker = !isSpeakerOn;
-    const result = engineRef.current.setDefaultAudioRouteToSpeakerphone(nextSpeaker);
-    if (result !== 0) {
-      throw new Error(`Falha ao alternar alto-falante (código ${result})`);
-    }
-
+    await agoraService.setSpeakerphoneOn(nextSpeaker);
     setIsSpeakerOn(nextSpeaker);
   }, [isSpeakerOn]);
 
@@ -1010,9 +799,11 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         if (rtmStatus === 'connected') {
           await rtmEngineRef.current.logout();
         }
-        const destroyClient = (rtmEngineRef.current as unknown as {
-          destroyClient?: () => void;
-        }).destroyClient;
+        const destroyClient = (
+          rtmEngineRef.current as unknown as {
+            destroyClient?: () => void;
+          }
+        ).destroyClient;
         if (typeof destroyClient === 'function') {
           destroyClient.call(rtmEngineRef.current);
         }
@@ -1035,8 +826,9 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     setError(null);
   }, [leaveChannel, rtmStatus]);
 
-  const handlePeerMessage = useCallback(
-    async (message: RTMPeerMessage): Promise<void> => {
+
+  const rtmMessageCallback = useCallback(
+    async (message: RtmMessage, peerId: string): Promise<void> => {
       let parsed: RtmSignal | null = null;
       try {
         parsed = JSON.parse(message.text) as RtmSignal;
@@ -1069,25 +861,17 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
         setIncomingInvite({
           signal: parsed,
-          from: message.peerId,
+          from: peerId,
           participants: toParticipantList(status?.participants),
           callSummary: status
             ? {
                 callId: parsed.callId,
                 apartmentNumber:
-                  status.call?.apartmentNumber ??
-                  status.call?.apartment_number ??
-                  null,
-                buildingId:
-                  status.call?.buildingId ??
-                  status.call?.building_id ??
-                  null,
-                doormanName:
-                  status.call?.doormanName ??
-                  status.call?.doorman_name ??
-                  null
+                  status.call?.apartmentNumber ?? status.call?.apartment_number ?? null,
+                buildingId: status.call?.buildingId ?? status.call?.building_id ?? null,
+                doormanName: status.call?.doormanName ?? status.call?.doorman_name ?? null,
               }
-            : { callId: parsed.callId }
+            : { callId: parsed.callId },
         });
         setCallState('ringing');
       }
@@ -1095,103 +879,108 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     [activeCall, apiBaseUrl, callState, currentUser?.userType, incomingInvite, leaveChannel]
   );
 
+  // Subscribe to AgoraService RTM status and messages
   useEffect(() => {
-    let messageSubscription: { remove: () => void } | null = null;
-    let connectionSubscription: { remove: () => void } | null = null;
+    const offStatus = agoraService.on('status', (s) => setRtmStatus(s));
+    const offMsg = agoraService.on('rtmMessage', ({ message, peerId }) => {
+      void rtmMessageCallback(message, peerId);
+    });
+    return () => {
+      offStatus();
+      offMsg();
+    };
+  }, [rtmMessageCallback]);
 
-    const attach = async () => {
-      if (!rtmEngineRef.current) {
-        return;
+  // Subscribe to AgoraService RTC events
+  useEffect(() => {
+    const offJoin = agoraService.on('rtcJoinSuccess', ({ channelId }) => {
+      console.log('✅ Entrou no canal Agora:', channelId);
+      setIsJoined(true);
+      setIsConnecting(false);
+      setError(null);
+      setCallState((prev) => (prev === 'ringing' ? 'connecting' : prev));
+    });
+
+    const offLeave = agoraService.on('rtcLeave', ({ channelId }) => {
+      console.log('👋 Saiu do canal Agora:', channelId);
+      setIsJoined(false);
+      setIsConnecting(false);
+      setCallState((prev) =>
+        prev === 'ending' || prev === 'connected' || prev === 'connecting' ? 'ended' : prev
+      );
+    });
+
+    const offUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
+      console.log('👤 Participante entrou no canal:', remoteUid);
+      setCallState((prev) =>
+        prev === 'connecting' || prev === 'ringing' || prev === 'dialing' ? 'connected' : prev
+      );
+    });
+
+    const offUserOffline = agoraService.on('rtcUserOffline', ({ remoteUid, reason }) => {
+      console.log('👤 Participante saiu do canal:', remoteUid, 'Razão:', reason);
+      setCallState((prev) => (prev === 'connected' || prev === 'connecting' ? 'ending' : prev));
+    });
+
+    const offRtcError = agoraService.on('rtcError', ({ code, message }) => {
+      console.error('❌ Erro no Agora RTC:', code, message);
+      setError(message || `Erro RTC ${code}`);
+      setIsConnecting(false);
+      if (activeCallRef.current) {
+        setActiveCall(null);
+        activeCallRef.current = null;
+        setCallState('idle');
       }
+    });
 
-      messageSubscription = rtmEngineRef.current.addListener(
-        'messageReceived',
-        (message: RTMPeerMessage) => {
-          void handlePeerMessage(message);
-        }
-      );
+    const offRouting = agoraService.on('audioRoutingChanged', ({ routing }) => {
+      setIsSpeakerOn(routing === 1);
+    });
 
-      connectionSubscription = rtmEngineRef.current.addListener(
-        'connectionStateChanged',
-        ({ state }: RtmConnectionState) => {
-          const mapped: RtmStatus =
-            state === RtmConnectionState.CONNECTED
-              ? 'connected'
-              : state === RtmConnectionState.CONNECTING
-                ? 'connecting'
-                : 'disconnected';
-          setRtmStatus(mapped);
-        }
-      );
+    const renewRtcToken = async () => {
+      const ac = activeCallRef.current;
+      const cu = currentUserRef.current;
+      if (!ac || !cu) return;
+      try {
+        const bundle = await fetchTokenForCall(apiBaseUrlRef.current, {
+          callId: ac.callId,
+          uid: cu.id,
+        });
+        await agoraService.renewRtcToken(bundle.rtcToken);
+      } catch (e) {
+        console.error('❌ Falha ao renovar token RTC:', e);
+        setError('Token expirado. Encerrando chamada...');
+        setActiveCall(null);
+        activeCallRef.current = null;
+        setCallState('ending');
+      }
     };
 
-    void attach();
+    const offWillExpire = agoraService.on('rtcTokenPrivilegeWillExpire', renewRtcToken);
+    const offRequestToken = agoraService.on('rtcRequestToken', renewRtcToken);
 
     return () => {
-      messageSubscription?.remove();
-      connectionSubscription?.remove();
+      offJoin();
+      offLeave();
+      offUserJoined();
+      offUserOffline();
+      offRtcError();
+      offRouting();
+      offWillExpire();
+      offRequestToken();
     };
-  }, [handlePeerMessage]);
+  }, []);
 
-  // RTM auto-reconnection with exponential backoff
+  // Reconnection handled by AgoraService
+
+  // RTM token renewal for active calls - proactively renew before expiry
   useEffect(() => {
-    if (rtmStatus !== 'disconnected' || !currentUser || !rtmSessionRef.current) {
-      return;
-    }
-
-    const maxRetries = 5;
-    const baseDelay = 2000; // 2 seconds
-    let retryCount = 0;
-    let reconnectTimer: NodeJS.Timeout | null = null;
-    let isMounted = true;
-
-    const attemptReconnect = async () => {
-      if (!isMounted || retryCount >= maxRetries) {
-        if (retryCount >= maxRetries) {
-          console.error('❌ [useAgora] RTM reconnection failed after', maxRetries, 'attempts');
-          setError('RTM connection lost. Please restart the app.');
-        }
-        return;
-      }
-
-      const delay = baseDelay * Math.pow(2, retryCount);
-      retryCount++;
-      console.log(`🔄 [useAgora] Attempting RTM reconnection (${retryCount}/${maxRetries}) in ${delay}ms...`);
-
-      reconnectTimer = setTimeout(async () => {
-        if (!isMounted || !rtmSessionRef.current) {
-          return;
-        }
-
-        try {
-          console.log(`🔄 [useAgora] Reconnecting RTM... (attempt ${retryCount})`);
-          const engine = await ensureRtmEngine();
-          await engine.loginV2(rtmSessionRef.current.uid, rtmSessionRef.current.token);
-          console.log('✅ [useAgora] RTM reconnected successfully');
-          retryCount = 0; // Reset retry count on success
-        } catch (error) {
-          console.warn(`⚠️ [useAgora] RTM reconnection attempt ${retryCount} failed:`, error);
-          // Schedule next retry
-          if (isMounted && retryCount < maxRetries) {
-            attemptReconnect();
-          }
-        }
-      }, delay);
-    };
-
-    attemptReconnect();
-
-    return () => {
-      isMounted = false;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
-    };
-  }, [rtmStatus, currentUser, ensureRtmEngine]);
-
-  // RTM token renewal - proactively renew before expiry
-  useEffect(() => {
-    if (rtmStatus !== 'connected' || !currentUser || !rtmSessionRef.current || !activeCallRef.current) {
+    if (
+      rtmStatus !== 'connected' ||
+      !currentUser ||
+      !rtmSessionRef.current ||
+      !activeCallRef.current
+    ) {
       return;
     }
 
@@ -1213,7 +1002,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         try {
           const bundle = await fetchTokenForCall(apiBaseUrlRef.current, {
             callId: activeCallRef.current!.callId,
-            uid: currentUser.id
+            uid: currentUser.id,
           });
 
           const engine = await ensureRtmEngine();
@@ -1223,7 +1012,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
           rtmSessionRef.current = {
             uid: bundle.uid,
             token: bundle.rtmToken,
-            expiresAt: bundle.expiresAt
+            expiresAt: bundle.expiresAt,
           };
 
           console.log('✅ [useAgora] RTM token renewed successfully');
@@ -1241,13 +1030,15 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       return;
     }
 
-    console.log(`⏰ [useAgora] RTM token renewal scheduled in ${Math.floor(timeUntilRenewal / 1000)}s`);
+    console.log(
+      `⏰ [useAgora] RTM token renewal scheduled in ${Math.floor(timeUntilRenewal / 1000)}s`
+    );
 
     const renewalTimer = setTimeout(async () => {
       try {
         const bundle = await fetchTokenForCall(apiBaseUrlRef.current, {
           callId: activeCallRef.current!.callId,
-          uid: currentUser.id
+          uid: currentUser.id,
         });
 
         const engine = await ensureRtmEngine();
@@ -1257,7 +1048,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         rtmSessionRef.current = {
           uid: bundle.uid,
           token: bundle.rtmToken,
-          expiresAt: bundle.expiresAt
+          expiresAt: bundle.expiresAt,
         };
 
         console.log('✅ [useAgora] RTM token renewed successfully (scheduled)');
@@ -1278,11 +1069,16 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
   }, [rtmStatus, currentUser, activeCall, ensureRtmEngine]);
 
+  // Standby renewal handled by AgoraService
+
+  // Proactive RTM initialization via service
+  const userId = currentUser?.id;
+  const userType = currentUser?.userType;
   useEffect(() => {
-    return () => {
-      void cleanup();
-    };
-  }, [cleanup]);
+    if (!userId || userType !== 'morador') return;
+    void agoraService.initializeStandby();
+  }, [userId, userType, activeCall, agoraAppId]);
+
 
   return {
     engine,
@@ -1306,7 +1102,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     leaveChannel,
     toggleMute,
     toggleSpeaker,
-    cleanup
+    cleanup,
   };
 };
 

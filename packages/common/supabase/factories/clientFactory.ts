@@ -73,10 +73,11 @@ export class SupabaseClientFactory {
     options: ClientFactoryOptions
   ): { client: TypedSupabaseClient; unified: UnifiedSupabaseClient } {
     const platformDetector = new ServerPlatformDetector();
-    
+
     const unified = new UnifiedSupabaseClient({
       url: options.url,
       anonKey: options.anonKey,
+      ...(options.serviceKey !== undefined && { serviceKey: options.serviceKey }),
       platformDetector,
       ...(options.logLevel !== undefined && { logLevel: options.logLevel }),
     });
