@@ -467,7 +467,15 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     } finally {
       setIsJoined(false);
       setIsConnecting(false);
-      setCallState((prev) => (prev !== 'idle' ? 'ended' : prev));
+      setCallState((prev) => {
+        const next = prev !== 'idle' ? 'ended' : prev;
+        if (next === 'ended') {
+          setTimeout(() => {
+            setCallState((current) => (current === 'ended' ? 'idle' : current));
+          }, 2000);
+        }
+        return next;
+      });
     }
   }, []);
 
@@ -511,11 +519,29 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       setCallState('ringing');
 
-      await joinChannel({
+      const nextActive: ActiveCallContext = {
+        callId: payload.call.id,
         channelName: payload.call.channelName,
-        uid: bundle.uid,
-        token: bundle.rtcToken,
-      });
+        participants: payload.participants ?? [],
+        localBundle: bundle,
+        payload,
+        isOutgoing: true,
+      };
+      setActiveCall(nextActive);
+      activeCallRef.current = nextActive;
+
+      try {
+        await joinChannel({
+          channelName: payload.call.channelName,
+          uid: bundle.uid,
+          token: bundle.rtcToken,
+        });
+      } catch (err) {
+        setActiveCall(null);
+        activeCallRef.current = null;
+        setCallState('idle');
+        throw err;
+      }
 
       const targets = uniqueTargets(
         payload.signaling.targets.filter((target) => target !== bundle.uid)
@@ -533,16 +559,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         }
       }
 
-      const nextActive: ActiveCallContext = {
-        callId: payload.call.id,
-        channelName: payload.call.channelName,
-        participants: payload.participants ?? [],
-        localBundle: bundle,
-        payload,
-        isOutgoing: true,
-      };
-      setActiveCall(nextActive);
-      activeCallRef.current = nextActive;
+      
 
       return payload;
     },
@@ -758,10 +775,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         }
       }
 
-      await leaveChannel();
+      // Set state to 'ending' before leaving channel so UI updates immediately
       setCallState('ending');
       setActiveCall(null);
       activeCallRef.current = null;
+      
+      await leaveChannel();
     },
     [activeCall, apiBaseUrl, currentUser, leaveChannel, schemaVersion, sendPeerSignal]
   );
@@ -905,9 +924,20 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       console.log('👋 Saiu do canal Agora:', channelId);
       setIsJoined(false);
       setIsConnecting(false);
-      setCallState((prev) =>
-        prev === 'ending' || prev === 'connected' || prev === 'connecting' ? 'ended' : prev
-      );
+      setCallState((prev) => {
+        // Transition to 'ended' for any active call state (not just ending/connected/connecting)
+        const isActiveCallState = prev === 'ending' || prev === 'connected' || prev === 'connecting' || prev === 'ringing' || prev === 'dialing';
+        const nextState = isActiveCallState ? 'ended' : prev;
+        
+        // Automatically transition from 'ended' to 'idle' after a short delay
+        if (nextState === 'ended') {
+          setTimeout(() => {
+            setCallState((current) => current === 'ended' ? 'idle' : current);
+          }, 2000);
+        }
+        
+        return nextState;
+      });
     });
 
     const offUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
