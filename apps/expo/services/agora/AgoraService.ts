@@ -425,7 +425,7 @@ class AgoraService {
         console.log(`📡 [AgoraService] Checking: state === CONNECTED? ${state === RtmConnectionState.CONNECTED}, RtmConnectionState.CONNECTED = ${RtmConnectionState.CONNECTED}`);
 
         // Check for connected state (value 3)
-        if (state === RtmConnectionState.CONNECTED || state === 3) {
+        if (state === RtmConnectionState.CONNECTED) {
           cleanup();
           console.log(`✅ [AgoraService] RTM conectado com sucesso`);
           resolve();
@@ -443,13 +443,19 @@ class AgoraService {
       subscription = engine.addListener('ConnectionStateChanged', listener);
     });
 
+    console.log(`⏳ [AgoraService] Chamando loginV2...`);
     await engine.loginV2(bundle.uid, bundle.rtmToken);
     this.rtmSession = { uid: bundle.uid, token: bundle.rtmToken, expiresAt: bundle.expiresAt };
 
     console.log(`⏳ [AgoraService] Aguardando evento de conexão RTM...`);
     await connectionPromise;
 
+    // Give SDK a moment to fully initialize after connection event
+    console.log(`⏳ [AgoraService] Aguardando SDK estabilizar (200ms)...`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     this.setRtmStatus('connected');
+    console.log(`✅ [AgoraService] RTM login completo e pronto para envio`);
     this.scheduleStandbyRenewal(bundle.expiresAt);
   }
 
@@ -508,8 +514,23 @@ class AgoraService {
           enableHistoricalMessaging: true,
         });
         console.log(`✅ [AgoraService] Mensagem enviada para: ${target}`);
-      } catch (err) {
-        console.error(`❌ [AgoraService] Falha ao enviar para ${target}:`, err);
+      } catch (err: any) {
+        const codeRaw = (err?.code ?? err?.message) as unknown;
+        const codeNum = typeof codeRaw === 'number' ? codeRaw : Number(codeRaw);
+        const isOfflineAcceptable = codeNum === 3 || codeNum === 4;
+
+        if (isOfflineAcceptable) {
+          console.warn(`⚠️ [AgoraService] Peer ${target} offline/cached (code ${codeNum}). Prosseguindo.`);
+          console.warn(`   Detalhes (não-fatal):`, err);
+          continue;
+        }
+
+        console.error(`❌ [AgoraService] Falha ao enviar para ${target}`);
+        console.error(`   Erro:`, err);
+        console.error(`   Erro code:`, err?.code);
+        console.error(`   Erro message:`, err?.message);
+        console.error(`   RTM session:`, this.rtmSession);
+        console.error(`   RTM status:`, this.rtmStatus);
         throw err;
       }
     }
