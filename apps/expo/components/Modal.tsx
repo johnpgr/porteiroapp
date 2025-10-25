@@ -20,7 +20,7 @@ type Props = ModalProps & {
 
 export function Modal({
   children,
-  safeAreaEdges = ['top'],
+  safeAreaEdges = ['top', 'bottom', 'left', 'right'],
   safeAreaStyle,
   ...modalProps
 }: Props) {
