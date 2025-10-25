@@ -1,6 +1,6 @@
 import React, { ReactNode, useMemo } from 'react';
-import { Modal, Pressable, View, TouchableOpacity, Text, StyleSheet,
-} from 'react-native';
+import { Pressable, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Ionicons } from '@expo/vector-icons';
 
 type Placement = 'top-right' | 'top-left';

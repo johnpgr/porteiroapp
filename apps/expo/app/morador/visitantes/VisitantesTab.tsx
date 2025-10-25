@@ -8,9 +8,9 @@ import {
   ScrollView,
   ActivityIndicator,
   TextInput,
-  Modal,
   Alert,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

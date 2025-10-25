@@ -5,7 +5,6 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -14,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';

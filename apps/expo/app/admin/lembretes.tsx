@@ -8,10 +8,10 @@ import {
   Alert,
   TextInput,
   Platform,
-  Modal,
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';

@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  Modal,
   TextInput,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';

@@ -7,8 +7,8 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  Modal,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import type { Database } from '~/types/database';

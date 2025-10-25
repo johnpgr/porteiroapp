@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, Modal, Image, ScrollView, TextInput } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, ScrollView, TextInput } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { notifyResidentOfVisitorArrival } from '~/services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';

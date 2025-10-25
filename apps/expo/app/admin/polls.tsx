@@ -7,10 +7,10 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  Modal,
   FlatList,
   Platform,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';

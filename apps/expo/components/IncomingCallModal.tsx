@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Phone, PhoneOff } from 'lucide-react-native';
 import type { UseAgoraReturn } from '~/hooks/useAgora';
 import agoraAudioService from '~/services/audioService';

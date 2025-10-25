@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Modal, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput, Image, ScrollView } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Ionicons } from '@expo/vector-icons';
 import { PendingNotification, NotificationResponse } from '~/hooks/usePendingNotifications';
 

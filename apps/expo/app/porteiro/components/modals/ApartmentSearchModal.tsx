@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
+import { Modal } from '~/components/Modal';
 
 interface ApartmentSearchModalProps {
   visible: boolean;

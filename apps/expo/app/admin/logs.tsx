@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { router } from 'expo-router';
 

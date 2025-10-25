@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   Image,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Ionicons } from '@expo/vector-icons';
 import { useFirstLogin } from '../hooks/useFirstLogin';
 import { useAuth } from '../hooks/useAuth';

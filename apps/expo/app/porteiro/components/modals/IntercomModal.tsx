@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { audioService } from '~/services/audioService';
@@ -424,30 +424,24 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       animationType="slide"
       presentationStyle="fullScreen"
       onRequestClose={onClose}>
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Interfone</Text>
-            <View style={styles.headerSpacer} />
-          </View>
-
-          <View style={styles.content}>
-            {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
-          </View>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Interfone</Text>
+          <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+
+        <View style={styles.content}>
+          {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',

@@ -4,9 +4,9 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
-  Modal,
   Platform,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import {
   GestureDetector,
   Gesture,
@@ -178,6 +178,7 @@ const BottomSheetModal = forwardRef<BottomSheetModalRef, BottomSheetModalProps>(
         transparent
         animationType="none"
         statusBarTranslucent
+        safeAreaEdges={[]}
         onRequestClose={closeSheet}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <View style={styles.container}>

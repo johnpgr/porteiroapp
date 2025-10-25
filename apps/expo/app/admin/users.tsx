@@ -8,9 +8,9 @@ import {
   TextInput,
   Alert,
   Image,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';

@@ -6,10 +6,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
