@@ -33,7 +33,6 @@ export class UnifiedSupabaseClient {
     
     // Detect if the key is a service role key by checking the JWT payload
     const isServiceRoleKey = this.isServiceRoleKey(options.key);
-    console.log('isServiceRoleKey', isServiceRoleKey);
     
     this.client = createSupabaseClient({
       url: options.url,

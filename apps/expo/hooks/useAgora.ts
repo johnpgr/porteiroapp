@@ -330,6 +330,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   const [callState, setCallState] = useState<CallLifecycleState>('idle');
   const [activeCall, setActiveCall] = useState<ActiveCallContext | null>(null);
   const activeCallRef = useRef<ActiveCallContext | null>(null);
+  const callStateRef = useRef<CallLifecycleState>('idle');
   const currentUserRef = useRef<CurrentUserContext | null>(currentUser);
   const [incomingInvite, setIncomingInvite] = useState<IncomingInviteContext | null>(null);
 
@@ -355,6 +356,10 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   useEffect(() => {
     apiBaseUrlRef.current = apiBaseUrl;
@@ -477,7 +482,14 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         const next = prev !== 'idle' ? 'ended' : prev;
         if (next === 'ended') {
           setTimeout(() => {
-            setCallState((current) => (current === 'ended' ? 'idle' : current));
+            // Clear activeCall first, then transition state
+            // Separate calls to ensure React properly updates dependencies
+            setActiveCall(null);
+            activeCallRef.current = null;
+
+            setCallState((current) => {
+              return current === 'ended' ? 'idle' : current;
+            });
           }, 2000);
         }
         return next;
@@ -623,37 +635,13 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
     const participants = toParticipantList(answerResponse.data?.participants);
 
-    await joinChannel({
-      channelName: incomingInvite.signal.channel,
-      uid: bundle.uid,
-      token: bundle.rtcToken,
-    });
-
     const targets = uniqueTargets(
       (participants.length > 0 ? participants : (incomingInvite.participants ?? []))
         .map((participant) => participant.userId)
         .filter((userId) => userId !== currentUser.id)
     );
 
-    if (targets.length > 0) {
-      const answerSignal: RtmSignal = {
-        t: 'ANSWER',
-        v: incomingInvite.signal.v ?? schemaVersion,
-        callId: incomingInvite.signal.callId,
-        from: currentUser.id,
-        ts: Date.now(),
-      };
-
-      try {
-        await sendPeerSignal(targets, answerSignal);
-      } catch (signalError) {
-        console.warn('⚠️ Falha ao enviar sinal de ANSWER:', signalError);
-      }
-    }
-
-    setIncomingInvite(null);
-    setCallState('connecting');
-
+    // Build activeCall context BEFORE joining channel
     const nextActive: ActiveCallContext = {
       callId: incomingInvite.signal.callId,
       channelName: incomingInvite.signal.channel,
@@ -700,8 +688,34 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         : undefined,
       isOutgoing: false,
     };
+
+    // Set all state BEFORE joining channel so rtcJoinSuccess sees correct state
+    setIncomingInvite(null);
+    setCallState('connecting');
     setActiveCall(nextActive);
     activeCallRef.current = nextActive;
+
+    await joinChannel({
+      channelName: incomingInvite.signal.channel,
+      uid: bundle.uid,
+      token: bundle.rtcToken,
+    });
+
+    if (targets.length > 0) {
+      const answerSignal: RtmSignal = {
+        t: 'ANSWER',
+        v: incomingInvite.signal.v ?? schemaVersion,
+        callId: incomingInvite.signal.callId,
+        from: currentUser.id,
+        ts: Date.now(),
+      };
+
+      try {
+        await sendPeerSignal(targets, answerSignal);
+      } catch (signalError) {
+        console.warn('⚠️ Falha ao enviar sinal de ANSWER:', signalError);
+      }
+    }
   }, [
     apiBaseUrl,
     currentUser,
@@ -788,10 +802,9 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       }
 
       // Set state to 'ending' before leaving channel so UI updates immediately
+      // Don't clear activeCall yet - modal needs it to show 'ending' state
       setCallState('ending');
-      setActiveCall(null);
-      activeCallRef.current = null;
-      
+
       await leaveChannel();
     },
     [activeCall, apiBaseUrl, currentUser, leaveChannel, schemaVersion, sendPeerSignal]
@@ -877,8 +890,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         setCallState(nextState);
 
         if (parsed.t === 'END' || parsed.t === 'DECLINE') {
+          // Don't clear activeCall here - let leaveChannel handle it after timer
           await leaveChannel();
-          setActiveCall(null);
         }
         return;
       }
@@ -925,15 +938,23 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   // Subscribe to AgoraService RTC events
   useEffect(() => {
     const offJoin = agoraService.on('rtcJoinSuccess', ({ channelId }) => {
-      console.log('✅ Entrou no canal Agora:', channelId);
       setIsJoined(true);
       setIsConnecting(false);
       setError(null);
-      setCallState((prev) => (prev === 'ringing' ? 'connecting' : prev));
+      setCallState((prev) => {
+        // Doorman starting call: ringing → connecting (waits for resident to join)
+        if (prev === 'ringing') {
+          return 'connecting';
+        }
+        // Resident answering: connecting → connected (already joined after doorman)
+        if (prev === 'connecting' && activeCallRef.current) {
+          return 'connected';
+        }
+        return prev;
+      });
     });
 
     const offLeave = agoraService.on('rtcLeave', ({ channelId }) => {
-      console.log('👋 Saiu do canal Agora:', channelId);
       setIsJoined(false);
       setIsConnecting(false);
       setCallState((prev) => {
@@ -953,15 +974,26 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     });
 
     const offUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
-      console.log('👤 Participante entrou no canal:', remoteUid);
       setCallState((prev) =>
         prev === 'connecting' || prev === 'ringing' || prev === 'dialing' ? 'connected' : prev
       );
     });
 
     const offUserOffline = agoraService.on('rtcUserOffline', ({ remoteUid, reason }) => {
-      console.log('👤 Participante saiu do canal:', remoteUid, 'Razão:', reason);
       setCallState((prev) => (prev === 'connected' || prev === 'connecting' ? 'ending' : prev));
+
+      const currentState = callStateRef.current;
+      const isTerminalState =
+        currentState === 'idle' ||
+        currentState === 'ended' ||
+        currentState === 'declined' ||
+        currentState === 'failed' ||
+        currentState === 'missed';
+      const shouldForceLeave = !activeCallRef.current?.isOutgoing;
+
+      if (!isTerminalState && shouldForceLeave && activeCallRef.current) {
+        void leaveChannel();
+      }
     });
 
     const offRtcError = agoraService.on('rtcError', ({ code, message }) => {
@@ -1011,7 +1043,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       offWillExpire();
       offRequestToken();
     };
-  }, []);
+  }, [leaveChannel]);
 
   // Reconnection handled by AgoraService
 

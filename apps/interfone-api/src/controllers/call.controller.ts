@@ -63,7 +63,7 @@ class CallController {
 
       // Criar chamada no banco de dados primeiro
       const call = await DatabaseService.createIntercomCall(apartment.id, effectiveDoormanId, {
-        status: 'ringing'
+        status: 'calling'
       });
 
       // Verificar se a chamada foi criada com sucesso
@@ -281,7 +281,7 @@ class CallController {
             channelName,
             apartmentNumber,
             buildingId,
-            status: call.status ?? 'ringing',
+            status: call.status ?? 'calling',
             startedAt: call.started_at,
             initiatorId: String(effectiveDoormanId),
             context: context ?? null
@@ -354,7 +354,7 @@ class CallController {
         return;
       }
 
-      if (call.status !== 'ringing') {
+      if (call.status !== 'calling') {
         res.status(400).json({
           success: false,
           error: 'Chamada não está disponível para atendimento'
@@ -362,8 +362,8 @@ class CallController {
         return;
       }
 
-      // Atualizar status da chamada para 'active'
-      await DatabaseService.updateCallStatus(callId, 'active');
+      // Atualizar status da chamada para 'answered'
+      await DatabaseService.updateCallStatus(callId, 'answered');
 
       // Atualizar participante que atendeu
       await DatabaseService.updateCallParticipant(callId, userId, {
@@ -398,7 +398,7 @@ class CallController {
           call: {
             id: updatedCall?.id ?? callId,
             channelName: channelName ?? null,
-            status: updatedCall?.status ?? 'active',
+            status: updatedCall?.status ?? 'answered',
             answeredBy: userId,
             answeredAt: updatedCall?.answered_at ?? new Date().toISOString()
           },
