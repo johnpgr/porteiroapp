@@ -26,13 +26,12 @@
     "agora-token": "^2.0.5",
     "cors": "^2.8.5",
     "express": "^5",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5",
-    "@types/node": "^20.10.5",
-    "nodemon": "^3.0.1",
-    "typescript": "^5.3.3"
+    "@types/node": "^20.10.5"
   }
 }
