@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, Image, Modal, ScrollView, TextInput } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  TextInput,
+} from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { notifyResidentOfVisitorArrival } from '~/services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
@@ -11,7 +21,12 @@ interface AutorizacoesTabProps {
   timeFilter?: any; // Consider replacing 'any' with a more specific type for timeFilter
 }
 
-const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externalTimeFilter }: AutorizacoesTabProps) => {
+const AutorizacoesTab = ({
+  buildingId,
+  user,
+  filter = 'all',
+  timeFilter: externalTimeFilter,
+}: AutorizacoesTabProps) => {
   const [activities, setActivities] = useState([]);
   const [preAuthorizedVisitors, setPreAuthorizedVisitors] = useState([]);
   const [visitorLogs, setVisitorLogs] = useState([]);
@@ -26,7 +41,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   const [activeSection, setActiveSection] = useState('visitors');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState(externalTimeFilter || 'all');
-  const [showSearch, setShowSearch] = useState(false);
   const [showApartmentModal, setShowApartmentModal] = useState(false);
   const [apartmentNumber, setApartmentNumber] = useState('');
   const [apartmentVisitors, setApartmentVisitors] = useState([]);
@@ -39,7 +53,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   const [loadingMore, setLoadingMore] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // pending, approved, all
   const [typeFilter, setTypeFilter] = useState('all'); // direto, com_aprovacao, all
-  
+
   const ITEMS_PER_PAGE = 20;
 
   // REMOVIDO: Funções para gerenciar decisões notificadas
@@ -51,7 +65,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
@@ -80,35 +94,28 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para remover encomenda
   const removerEncomenda = async (delivery: any) => {
     try {
-      Alert.alert(
-        'Confirmar Remoção',
-        'Tem certeza que deseja remover esta encomenda?',
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel'
-          },
-          {
-            text: 'Remover',
-            style: 'destructive',
-            onPress: async () => {
-              const { error } = await supabase
-                .from('deliveries')
-                .delete()
-                .eq('id', delivery.id);
+      Alert.alert('Confirmar Remoção', 'Tem certeza que deseja remover esta encomenda?', [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('deliveries').delete().eq('id', delivery.id);
 
-              if (error) {
-                console.error('Erro ao remover encomenda:', error);
-                Alert.alert('Erro', 'Não foi possível remover a encomenda');
-                return;
-              }
-
-              Alert.alert('Sucesso', 'Encomenda removida');
-              fetchActivities();
+            if (error) {
+              console.error('Erro ao remover encomenda:', error);
+              Alert.alert('Erro', 'Não foi possível remover a encomenda');
+              return;
             }
-          }
-        ]
-      );
+
+            Alert.alert('Sucesso', 'Encomenda removida');
+            fetchActivities();
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Erro ao remover encomenda:', error);
       Alert.alert('Erro', 'Não foi possível remover a encomenda');
@@ -116,30 +123,39 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   };
 
   // Função para buscar logs de visitantes
-  const fetchVisitorLogs = useCallback(async (page = 0, loadMore = false) => {
-    console.log('🔍 [fetchVisitorLogs] INICIANDO - buildingId:', buildingId, 'statusFilter:', statusFilter, 'page:', page);
+  const fetchVisitorLogs = useCallback(
+    async (page = 0, loadMore = false) => {
+      console.log(
+        '🔍 [fetchVisitorLogs] INICIANDO - buildingId:',
+        buildingId,
+        'statusFilter:',
+        statusFilter,
+        'page:',
+        page
+      );
 
-    if (!buildingId) {
-      console.log('⚠️ [fetchVisitorLogs] buildingId não fornecido, abortando');
-      return;
-    }
-
-    try {
-      if (!loadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
+      if (!buildingId) {
+        console.log('⚠️ [fetchVisitorLogs] buildingId não fornecido, abortando');
+        return;
       }
 
-      // Criar filtros de data para o dia atual
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      try {
+        if (!loadMore) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
+        }
 
-      // Buscar logs de visitantes com informações completas
-      let query = supabase
-        .from('visitor_logs')
-        .select(`
+        // Criar filtros de data para o dia atual
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        // Buscar logs de visitantes com informações completas
+        let query = supabase
+          .from('visitor_logs')
+          .select(
+            `
           id,
           visitor_id,
           building_id,
@@ -162,119 +178,137 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           apartments(
             number
           )
-        `)
-        .eq('building_id', buildingId)
-        .gte('log_time', startOfToday.toISOString())
-        .lt('log_time', startOfTomorrow.toISOString())
-        .order('log_time', { ascending: false });
+        `
+          )
+          .eq('building_id', buildingId)
+          .gte('log_time', startOfToday.toISOString())
+          .lt('log_time', startOfTomorrow.toISOString())
+          .order('log_time', { ascending: false });
 
-      // Aplicar filtro de status
-      if (statusFilter === 'pending') {
-        query = query.eq('notification_status', 'pending');
-      } else if (statusFilter === 'approved') {
-        query = query.eq('notification_status', 'approved');
-      }
-
-      // Aplicar paginação
-      const startIndex = page * ITEMS_PER_PAGE;
-      const endIndex = startIndex + ITEMS_PER_PAGE - 1;
-      query = query.range(startIndex, endIndex);
-
-      const { data: logsData, error } = await query;
-
-      if (error) {
-        console.error('❌ [fetchVisitorLogs] Erro ao buscar visitor_logs:', error);
-        console.error('❌ [fetchVisitorLogs] Detalhes do erro:', JSON.stringify(error, null, 2));
-        return;
-      }
-
-      console.log(`✅ [fetchVisitorLogs] Query executada com sucesso!`);
-      console.log(`📊 [fetchVisitorLogs] Total de logs encontrados: ${logsData?.length || 0}`);
-      console.log(`📝 [fetchVisitorLogs] Primeiros 3 logs:`, logsData?.slice(0, 3));
-
-      // Buscar nomes dos moradores que autorizaram (resident_response_by)
-      const residentIds = logsData?.filter(log => log.resident_response_by).map(log => log.resident_response_by) || [];
-      const uniqueResidentIds = [...new Set(residentIds)];
-
-      let residentNames = {} as Record<string, string>;
-      if (uniqueResidentIds.length > 0) {
-        const { data: residentsData } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', uniqueResidentIds);
-
-        if (residentsData) {
-          residentNames = residentsData.reduce((acc, profile) => {
-            acc[profile.id] = profile.full_name;
-            return acc;
-          }, {} as Record<string, string>);
+        // Aplicar filtro de status
+        if (statusFilter === 'pending') {
+          query = query.eq('notification_status', 'pending');
+        } else if (statusFilter === 'approved') {
+          query = query.eq('notification_status', 'approved');
         }
-      }
 
-      // Buscar nomes dos usuários (porteiros/moradores) que constam em authorized_by
-      const authorizedIds = logsData?.filter(log => log.authorized_by).map(log => log.authorized_by) || [];
-      const uniqueAuthorizedIds = [...new Set(authorizedIds)];
+        // Aplicar paginação
+        const startIndex = page * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE - 1;
+        query = query.range(startIndex, endIndex);
 
-      let authorizedNames = {} as Record<string, string>;
-      if (uniqueAuthorizedIds.length > 0) {
-        const { data: authorizedProfiles } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', uniqueAuthorizedIds);
+        const { data: logsData, error } = await query;
 
-        if (authorizedProfiles) {
-          authorizedNames = authorizedProfiles.reduce((acc, profile) => {
-            acc[profile.id] = profile.full_name;
-            return acc;
-          }, {} as Record<string, string>);
+        if (error) {
+          console.error('❌ [fetchVisitorLogs] Erro ao buscar visitor_logs:', error);
+          console.error('❌ [fetchVisitorLogs] Detalhes do erro:', JSON.stringify(error, null, 2));
+          return;
         }
-      }
 
-      // Mapear dados com nomes dos moradores
-      const mappedLogs = logsData?.map(log => ({
-        ...log,
-        visitor_name: log.visitors?.name || log.guest_name,
-        visitor_document: log.visitors?.document,
-        visitor_phone: log.visitors?.phone,
-        apartment_number: log.apartments?.number,
-        resident_response_by_name: log.resident_response_by ? residentNames[log.resident_response_by] : null,
-        authorized_by_name: log.authorized_by ? authorizedNames[log.authorized_by] : null
-      })) || [];
+        console.log(`✅ [fetchVisitorLogs] Query executada com sucesso!`);
+        console.log(`📊 [fetchVisitorLogs] Total de logs encontrados: ${logsData?.length || 0}`);
+        console.log(`📝 [fetchVisitorLogs] Primeiros 3 logs:`, logsData?.slice(0, 3));
 
-      console.log(`📦 [fetchVisitorLogs] Logs mapeados: ${mappedLogs.length} itens`);
-      console.log(`📦 [fetchVisitorLogs] Primeiros 3 logs mapeados:`, mappedLogs.slice(0, 3));
+        // Buscar nomes dos moradores que autorizaram (resident_response_by)
+        const residentIds =
+          logsData
+            ?.filter((log) => log.resident_response_by)
+            .map((log) => log.resident_response_by) || [];
+        const uniqueResidentIds = [...new Set(residentIds)];
 
-      // DEBUG: Verificar os nomes mapeados
-      mappedLogs.slice(0, 3).forEach(log => {
-        console.log(`🔍 [DEBUG] Log ${log.id}:`, {
-          resident_response_by: log.resident_response_by,
-          resident_response_by_name: log.resident_response_by_name,
-          authorized_by: log.authorized_by,
-          authorized_by_name: log.authorized_by_name
+        let residentNames = {} as Record<string, string>;
+        if (uniqueResidentIds.length > 0) {
+          const { data: residentsData } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', uniqueResidentIds);
+
+          if (residentsData) {
+            residentNames = residentsData.reduce(
+              (acc, profile) => {
+                acc[profile.id] = profile.full_name;
+                return acc;
+              },
+              {} as Record<string, string>
+            );
+          }
+        }
+
+        // Buscar nomes dos usuários (porteiros/moradores) que constam em authorized_by
+        const authorizedIds =
+          logsData?.filter((log) => log.authorized_by).map((log) => log.authorized_by) || [];
+        const uniqueAuthorizedIds = [...new Set(authorizedIds)];
+
+        let authorizedNames = {} as Record<string, string>;
+        if (uniqueAuthorizedIds.length > 0) {
+          const { data: authorizedProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', uniqueAuthorizedIds);
+
+          if (authorizedProfiles) {
+            authorizedNames = authorizedProfiles.reduce(
+              (acc, profile) => {
+                acc[profile.id] = profile.full_name;
+                return acc;
+              },
+              {} as Record<string, string>
+            );
+          }
+        }
+
+        // Mapear dados com nomes dos moradores
+        const mappedLogs =
+          logsData?.map((log) => ({
+            ...log,
+            visitor_name: log.visitors?.name || log.guest_name,
+            visitor_document: log.visitors?.document,
+            visitor_phone: log.visitors?.phone,
+            apartment_number: log.apartments?.number,
+            resident_response_by_name: log.resident_response_by
+              ? residentNames[log.resident_response_by]
+              : null,
+            authorized_by_name: log.authorized_by ? authorizedNames[log.authorized_by] : null,
+          })) || [];
+
+        console.log(`📦 [fetchVisitorLogs] Logs mapeados: ${mappedLogs.length} itens`);
+        console.log(`📦 [fetchVisitorLogs] Primeiros 3 logs mapeados:`, mappedLogs.slice(0, 3));
+
+        // DEBUG: Verificar os nomes mapeados
+        mappedLogs.slice(0, 3).forEach((log) => {
+          console.log(`🔍 [DEBUG] Log ${log.id}:`, {
+            resident_response_by: log.resident_response_by,
+            resident_response_by_name: log.resident_response_by_name,
+            authorized_by: log.authorized_by,
+            authorized_by_name: log.authorized_by_name,
+          });
         });
-      });
 
-      // Atualizar estado com paginação
-      if (loadMore) {
-        setVisitorLogs(prev => [...prev, ...mappedLogs]);
-      } else {
-        setVisitorLogs(mappedLogs);
-        setVisitorLogsPage(0);
+        // Atualizar estado com paginação
+        if (loadMore) {
+          setVisitorLogs((prev) => [...prev, ...mappedLogs]);
+        } else {
+          setVisitorLogs(mappedLogs);
+          setVisitorLogsPage(0);
+        }
+
+        // Verificar se há mais dados
+        setHasMoreVisitorLogs(mappedLogs.length === ITEMS_PER_PAGE);
+
+        console.log(
+          `✅ [fetchVisitorLogs] Estado visitorLogs atualizado com ${mappedLogs.length} itens`
+        );
+      } catch (error) {
+        console.error('❌ [fetchVisitorLogs] EXCEÇÃO:', error);
+        console.error('❌ [fetchVisitorLogs] Stack trace:', error.stack);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+        console.log('🏁 [fetchVisitorLogs] FINALIZADO');
       }
-
-      // Verificar se há mais dados
-      setHasMoreVisitorLogs(mappedLogs.length === ITEMS_PER_PAGE);
-      
-      console.log(`✅ [fetchVisitorLogs] Estado visitorLogs atualizado com ${mappedLogs.length} itens`);
-    } catch (error) {
-      console.error('❌ [fetchVisitorLogs] EXCEÇÃO:', error);
-      console.error('❌ [fetchVisitorLogs] Stack trace:', error.stack);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-      console.log('🏁 [fetchVisitorLogs] FINALIZADO');
-    }
-  }, [buildingId, statusFilter]);
+    },
+    [buildingId, statusFilter]
+  );
 
   // useEffect para buscar dados quando buildingId ou statusFilter mudarem
   useEffect(() => {
@@ -285,7 +319,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
   const confirmarChegada = async (visit) => {
     try {
-      const activity = activities.find(a => a.id === visit.id);
+      const activity = activities.find((a) => a.id === visit.id);
       if (!activity) return;
 
       // Buscar dados completos do visitante
@@ -307,8 +341,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         const isOutsideAllowedTime =
-          currentTime < visitorData.visit_start_time ||
-          currentTime > visitorData.visit_end_time;
+          currentTime < visitorData.visit_start_time || currentTime > visitorData.visit_end_time;
 
         if (isOutsideAllowedTime) {
           // Mostrar popup de confirmação
@@ -320,13 +353,13 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
                 {
                   text: 'Cancelar',
                   style: 'cancel',
-                  onPress: () => resolve(false)
+                  onPress: () => resolve(false),
                 },
                 {
                   text: 'Confirmar',
                   style: 'default',
-                  onPress: () => resolve(true)
-                }
+                  onPress: () => resolve(true),
+                },
               ],
               { cancelable: false }
             );
@@ -341,9 +374,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Função para gerar UUID compatível com React Native
       const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
           return v.toString(16);
         });
       };
@@ -359,7 +392,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Se não encontrar proprietário, busca qualquer morador do apartamento
       if (!apartmentResident || residentError) {
-        console.log('🔍 [confirmarChegada] Proprietário não encontrado, buscando qualquer morador do apartamento');
+        console.log(
+          '🔍 [confirmarChegada] Proprietário não encontrado, buscando qualquer morador do apartamento'
+        );
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
@@ -377,9 +412,14 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
         residentName = apartmentResident.profiles.full_name;
-        console.log(`✅ [confirmarChegada] Morador encontrado: ${residentName} (ID: ${residentId})`);
+        console.log(
+          `✅ [confirmarChegada] Morador encontrado: ${residentName} (ID: ${residentId})`
+        );
       } else {
-        console.error('❌ [confirmarChegada] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
+        console.error(
+          '❌ [confirmarChegada] Nenhum morador encontrado para apartment_id:',
+          visitorData.apartment_id
+        );
       }
 
       // Buscar dados do apartamento
@@ -405,13 +445,11 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         tipo_log: 'IN',
         visit_session_id: generateUUID(),
         resident_response_by: residentId,
-        photo_url: visitorData.photo_url
+        photo_url: visitorData.photo_url,
       };
 
       // Registrar entrada aprovada no visitor_logs
-      const { error } = await supabase
-        .from('visitor_logs')
-        .insert(logData);
+      const { error } = await supabase.from('visitor_logs').insert(logData);
 
       if (error) {
         console.error('Erro ao registrar entrada:', error);
@@ -421,8 +459,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Atualizar status do visitante baseado no tipo
       if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
-        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${visit.id}) para 'expirado'`);
-        
+        console.log(
+          `🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${visit.id}) para 'expirado'`
+        );
+
         const { error: updateError } = await supabase
           .from('visitors')
           .update({ status: 'expirado' })
@@ -432,12 +472,16 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           console.error('❌ Erro ao atualizar status do visitante:', updateError);
           // Não interromper o fluxo, apenas logar o erro
         } else {
-          console.log(`✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`);
+          console.log(
+            `✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`
+          );
         }
       } else if (visitorData.visit_type === 'frequente') {
         console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
-        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+        console.log(
+          `ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`
+        );
       }
 
       // NOVA IMPLEMENTAÇÃO: Disparar notificação para o morador
@@ -452,13 +496,19 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           visitorId: visit.id,
           purpose: visitorData.purpose || 'Visita',
           photo_url: visitorData.photo_url,
-          entry_type: 'visitor'
+          entry_type: 'visitor',
         });
 
         if (notificationResult.success) {
-          console.log('✅ [confirmarChegada] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
+          console.log(
+            '✅ [confirmarChegada] Notificação WhatsApp enviada com sucesso:',
+            notificationResult.message
+          );
         } else {
-          console.warn('⚠️ [confirmarChegada] Falha ao enviar WhatsApp:', notificationResult.message);
+          console.warn(
+            '⚠️ [confirmarChegada] Falha ao enviar WhatsApp:',
+            notificationResult.message
+          );
         }
 
         // 2. Enviar Push Notification via Edge Function
@@ -469,18 +519,20 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             visitorName: visitorData.name || activity.title.replace('👤 ', ''),
             apartmentNumber: apartmentData?.number || 'N/A',
             purpose: visitorData.purpose || 'Visita',
-            photoUrl: visitorData.photo_url
+            photoUrl: visitorData.photo_url,
           });
 
           if (pushResult.success) {
-            console.log('✅ [confirmarChegada] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+            console.log(
+              '✅ [confirmarChegada] Push notification enviada:',
+              `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`
+            );
           } else {
             console.warn('⚠️ [confirmarChegada] Falha ao enviar push:', pushResult.message);
           }
         } catch (pushError) {
           console.error('❌ [confirmarChegada] Erro ao enviar push notification:', pushError);
         }
-
       } catch (notificationError) {
         console.error('❌ [confirmarChegada] Erro ao enviar notificação:', notificationError);
         // Não interromper o fluxo principal, apenas logar o erro
@@ -498,139 +550,172 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Nota: Subscriptions em tempo real foram desabilitadas conforme instruções do projeto
 
   // Função para buscar visitantes pré-autorizados (apenas da tabela visitors)
-  const fetchPreAuthorizedVisitors = useCallback(async (page = 0, loadMore = false) => {
-    console.log('🔍 [fetchPreAuthorizedVisitors] INICIANDO - buildingId:', buildingId, 'typeFilter:', typeFilter, 'page:', page);
+  const fetchPreAuthorizedVisitors = useCallback(
+    async (page = 0, loadMore = false) => {
+      console.log(
+        '🔍 [fetchPreAuthorizedVisitors] INICIANDO - buildingId:',
+        buildingId,
+        'typeFilter:',
+        typeFilter,
+        'page:',
+        page
+      );
 
-    if (!buildingId) {
-      console.log('⚠️ [fetchPreAuthorizedVisitors] buildingId não fornecido, abortando');
-      return;
-    }
-
-    try {
-      if (!loadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      // Criar filtros de data para o dia atual
-      const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      const todayString = startOfToday.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-      // Buscar apenas visitantes da tabela visitors (pré-autorizados pelos moradores)
-      let visitQuery = supabase
-        .from('visitors')
-        .select(`
-          *,
-          apartments!inner(number, building_id)
-        `)
-        .eq('apartments.building_id', buildingId)
-        .neq('status', 'rejected')
-        .neq('status', 'nao_permitido')
-        .neq('status', 'não autorizado')
-        .neq('status', 'expirado')
-        .order('created_at', { ascending: false });
-
-      // Aplicar filtro do dia atual
-      // Para visitantes pontuais: filtrar por visit_date = data atual
-      // Para visitantes frequentes: verificar se o dia atual está nos allowed_days
-      // Para visitantes sem data específica: filtrar por created_at >= início do dia atual
-      visitQuery = visitQuery.or(`visit_date.eq.${todayString},and(visit_date.is.null,created_at.gte.${startOfToday.toISOString()})`);
-
-      // Aplicar filtro de tipo
-      if (typeFilter === 'direto') {
-        visitQuery = visitQuery.eq('access_type', 'direto');
-      } else if (typeFilter === 'com_aprovacao') {
-        visitQuery = visitQuery.eq('access_type', 'com_aprovacao');
-      }
-
-      // Aplicar paginação
-      const startIndex = page * ITEMS_PER_PAGE;
-      const endIndex = startIndex + ITEMS_PER_PAGE - 1;
-      visitQuery = visitQuery.range(startIndex, endIndex);
-
-      const { data: visitResult, error: visitError } = await visitQuery;
-
-      if (visitError) {
-        console.error('❌ [fetchPreAuthorizedVisitors] Erro ao buscar visitors:', visitError);
+      if (!buildingId) {
+        console.log('⚠️ [fetchPreAuthorizedVisitors] buildingId não fornecido, abortando');
         return;
       }
 
-      console.log(`✅ [fetchPreAuthorizedVisitors] Visitantes pré-autorizados encontrados: ${visitResult?.length || 0}`);
+      try {
+        if (!loadMore) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
+        }
 
-      // Processar visitantes pré-autorizados (filtrar expirados)
-      const visitActivities: ActivityEntry[] = (visitResult || [])
-        .filter((visit: any) => visit.status !== 'expirado') // Filtrar visitantes expirados
-        .map((visit: any) => {
-          const isApproved = visit.status === 'aprovado';
-          const isDireto = visit.access_type === 'direto';
-          const isPending = visit.status === 'pendente';
-          const visitorName = visit.name || 'Visitante';
-          const allowDirectAccess = isDireto;
+        // Criar filtros de data para o dia atual
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const todayString = startOfToday.toISOString().split('T')[0]; // YYYY-MM-DD format
 
-          // Determinar o status exibido
-          let displayStatus = isApproved ? 'Aprovado' : isDireto ? 'Entrada Liberada' : isPending ? 'Aguardando resposta' : 'Negado';
-          if ((isApproved || isDireto) && allowDirectAccess) {
-            displayStatus = 'Entrada Liberada';
-          }
+        // Buscar apenas visitantes da tabela visitors (pré-autorizados pelos moradores)
+        let visitQuery = supabase
+          .from('visitors')
+          .select(
+            `
+          *,
+          apartments!inner(number, building_id)
+        `
+          )
+          .eq('apartments.building_id', buildingId)
+          .neq('status', 'rejected')
+          .neq('status', 'nao_permitido')
+          .neq('status', 'não autorizado')
+          .neq('status', 'expirado')
+          .order('created_at', { ascending: false });
 
-          return {
-            id: visit.id,
-            type: 'visit',
-            title: `👤 ${visitorName}`,
-            subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-            status: displayStatus,
-            time: formatDate(visit.visit_date || visit.created_at),
-            icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
-            color: allowDirectAccess ? '#4CAF50' : '#FF9800',
-            photo_url: visit.photo_url,
-            details: [
-              `Documento: ${visit.document || 'N/A'}`,
-              `Telefone: ${visit.phone || 'N/A'}`,
-              `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-              ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
-              ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
-              ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
-            ],
-            actions: isApproved ? {
-              primary: {
-                label: 'Confirmar Entrada',
-                action: () => confirmarChegada(visit),
-                color: allowDirectAccess ? '#2196F3' : '#4CAF50'
-              }
-            } : undefined
-          };
-        });
+        // Aplicar filtro do dia atual
+        // Para visitantes pontuais: filtrar por visit_date = data atual
+        // Para visitantes frequentes: verificar se o dia atual está nos allowed_days
+        // Para visitantes sem data específica: filtrar por created_at >= início do dia atual
+        visitQuery = visitQuery.or(
+          `visit_date.eq.${todayString},and(visit_date.is.null,created_at.gte.${startOfToday.toISOString()})`
+        );
 
-      // Atualizar estado com paginação
-      if (loadMore) {
-        setPreAuthorizedVisitors(prev => [...prev, ...visitActivities]);
-      } else {
-        setPreAuthorizedVisitors(visitActivities);
-        setPreAuthorizedPage(0);
+        // Aplicar filtro de tipo
+        if (typeFilter === 'direto') {
+          visitQuery = visitQuery.eq('access_type', 'direto');
+        } else if (typeFilter === 'com_aprovacao') {
+          visitQuery = visitQuery.eq('access_type', 'com_aprovacao');
+        }
+
+        // Aplicar paginação
+        const startIndex = page * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE - 1;
+        visitQuery = visitQuery.range(startIndex, endIndex);
+
+        const { data: visitResult, error: visitError } = await visitQuery;
+
+        if (visitError) {
+          console.error('❌ [fetchPreAuthorizedVisitors] Erro ao buscar visitors:', visitError);
+          return;
+        }
+
+        console.log(
+          `✅ [fetchPreAuthorizedVisitors] Visitantes pré-autorizados encontrados: ${visitResult?.length || 0}`
+        );
+
+        // Processar visitantes pré-autorizados (filtrar expirados)
+        const visitActivities: ActivityEntry[] = (visitResult || [])
+          .filter((visit: any) => visit.status !== 'expirado') // Filtrar visitantes expirados
+          .map((visit: any) => {
+            const isApproved = visit.status === 'aprovado';
+            const isDireto = visit.access_type === 'direto';
+            const isPending = visit.status === 'pendente';
+            const visitorName = visit.name || 'Visitante';
+            const allowDirectAccess = isDireto;
+
+            // Determinar o status exibido
+            let displayStatus = isApproved
+              ? 'Aprovado'
+              : isDireto
+                ? 'Entrada Liberada'
+                : isPending
+                  ? 'Aguardando resposta'
+                  : 'Negado';
+            if ((isApproved || isDireto) && allowDirectAccess) {
+              displayStatus = 'Entrada Liberada';
+            }
+
+            return {
+              id: visit.id,
+              type: 'visit',
+              title: `👤 ${visitorName}`,
+              subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+              status: displayStatus,
+              time: formatDate(visit.visit_date || visit.created_at),
+              icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
+              color: allowDirectAccess ? '#4CAF50' : '#FF9800',
+              photo_url: visit.photo_url,
+              details: [
+                `Documento: ${visit.document || 'N/A'}`,
+                `Telefone: ${visit.phone || 'N/A'}`,
+                `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
+                ...(visit.visit_date
+                  ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`]
+                  : []),
+                ...(visit.visit_start_time && visit.visit_end_time
+                  ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`]
+                  : []),
+                ...(visit.allowed_days
+                  ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`]
+                  : []),
+              ],
+              actions: isApproved
+                ? {
+                    primary: {
+                      label: 'Confirmar Entrada',
+                      action: () => confirmarChegada(visit),
+                      color: allowDirectAccess ? '#2196F3' : '#4CAF50',
+                    },
+                  }
+                : undefined,
+            };
+          });
+
+        // Atualizar estado com paginação
+        if (loadMore) {
+          setPreAuthorizedVisitors((prev) => [...prev, ...visitActivities]);
+        } else {
+          setPreAuthorizedVisitors(visitActivities);
+          setPreAuthorizedPage(0);
+        }
+
+        // Verificar se há mais dados
+        setHasMorePreAuthorized(visitActivities.length === ITEMS_PER_PAGE);
+
+        console.log(
+          `✅ [fetchPreAuthorizedVisitors] ${visitActivities.length} visitantes pré-autorizados processados`
+        );
+      } catch (error) {
+        console.error('❌ [fetchPreAuthorizedVisitors] Erro:', error);
+        Alert.alert('Erro', 'Não foi possível carregar os visitantes pré-autorizados');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
-
-      // Verificar se há mais dados
-      setHasMorePreAuthorized(visitActivities.length === ITEMS_PER_PAGE);
-      
-      console.log(`✅ [fetchPreAuthorizedVisitors] ${visitActivities.length} visitantes pré-autorizados processados`);
-
-    } catch (error) {
-      console.error('❌ [fetchPreAuthorizedVisitors] Erro:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os visitantes pré-autorizados');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [buildingId, typeFilter]);
+    },
+    [buildingId, typeFilter]
+  );
 
   // Esta função não será mais usada - substituída por fetchPreAuthorizedVisitors
   const fetchActivities = useCallback(async () => {
     // Função removida - agora usamos fetchPreAuthorizedVisitors para pré-autorizados
     // e fetchVisitorLogs para logs de visitantes
-    console.log('⚠️ [fetchActivities] Função descontinuada - use fetchPreAuthorizedVisitors ou fetchVisitorLogs');
+    console.log(
+      '⚠️ [fetchActivities] Função descontinuada - use fetchPreAuthorizedVisitors ou fetchVisitorLogs'
+    );
     return;
   }, []);
 
@@ -644,15 +729,22 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Effect para carregar visitor_logs quando timeFilter mudar
   useEffect(() => {
     if (buildingId) {
-      console.log('🔄 [AutorizacoesTab] TimeFilter mudou para:', timeFilter, '- recarregando visitor_logs');
+      console.log(
+        '🔄 [AutorizacoesTab] TimeFilter mudou para:',
+        timeFilter,
+        '- recarregando visitor_logs'
+      );
       fetchVisitorLogs();
     }
   }, [timeFilter, buildingId]);
 
   // Effect para recarregar dados quando houver mudanças nas notificações
   useEffect(() => {
-    console.log('🔄 [AutorizacoesTab] useEffect notificações mudaram - count:', notifications.length);
-    
+    console.log(
+      '🔄 [AutorizacoesTab] useEffect notificações mudaram - count:',
+      notifications.length
+    );
+
     if (notifications.length > 0) {
       console.log('✅ [AutorizacoesTab] Recarregando dados devido a novas notificações...');
       // Recarregar ambos os dados quando houver novas notificações
@@ -669,7 +761,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para obter contagem de filtros (apenas para pré-autorizados)
   const getFilterCount = (filterType: 'all' | 'delivery' | 'visit') => {
     if (filterType === 'all') return preAuthorizedVisitors.length;
-    return preAuthorizedVisitors.filter(activity => activity.type === filterType).length;
+    return preAuthorizedVisitors.filter((activity) => activity.type === filterType).length;
   };
 
   // Função para alternar expansão de cards
@@ -698,7 +790,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     const date = new Date(timestamp);
     return date.toLocaleTimeString('pt-BR', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -707,7 +799,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
@@ -718,25 +810,25 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         return {
           text: 'ENTRADA LIBERADA',
           color: '#4CAF50',
-          icon: '✅'
+          icon: '✅',
         };
       case 'rejected':
         return {
-          text: 'Rejeitado', 
+          text: 'Rejeitado',
           color: '#F44336',
-          icon: '❌'
+          icon: '❌',
         };
       case 'pending':
         return {
           text: 'Aguardando resposta',
-          color: '#FF9800', 
-          icon: '⏳'
+          color: '#FF9800',
+          icon: '⏳',
         };
       default:
         return {
           text: 'Registrado',
           color: '#2196F3',
-          icon: '📝'
+          icon: '📝',
         };
     }
   };
@@ -768,7 +860,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para avisar morador
   const handleNotifyResident = async (activityId: string) => {
     try {
-      const activity = preAuthorizedVisitors.find(a => a.id === activityId);
+      const activity = preAuthorizedVisitors.find((a) => a.id === activityId);
       if (!activity) return;
 
       // Buscar dados do visitante para verificar o access_type e horários
@@ -796,8 +888,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         const isOutsideAllowedTime =
-          currentTime < visitorData.visit_start_time ||
-          currentTime > visitorData.visit_end_time;
+          currentTime < visitorData.visit_start_time || currentTime > visitorData.visit_end_time;
 
         if (isOutsideAllowedTime) {
           // Mostrar popup de confirmação
@@ -809,13 +900,13 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
                 {
                   text: 'Cancelar',
                   style: 'cancel',
-                  onPress: () => resolve(false)
+                  onPress: () => resolve(false),
                 },
                 {
                   text: 'Confirmar',
                   style: 'default',
-                  onPress: () => resolve(true)
-                }
+                  onPress: () => resolve(true),
+                },
               ],
               { cancelable: false }
             );
@@ -830,9 +921,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Função para gerar UUID compatível com React Native
       const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
           return v.toString(16);
         });
       };
@@ -848,7 +939,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Se não encontrar proprietário, busca qualquer morador do apartamento
       if (!apartmentResident || residentError) {
-        console.log('🔍 [handleNotifyResident] Proprietário não encontrado, buscando qualquer morador do apartamento');
+        console.log(
+          '🔍 [handleNotifyResident] Proprietário não encontrado, buscando qualquer morador do apartamento'
+        );
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
@@ -866,9 +959,14 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
         residentName = apartmentResident.profiles.full_name;
-        console.log(`✅ [handleNotifyResident] Morador encontrado: ${residentName} (ID: ${residentId})`);
+        console.log(
+          `✅ [handleNotifyResident] Morador encontrado: ${residentName} (ID: ${residentId})`
+        );
       } else {
-        console.error('❌ [handleNotifyResident] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
+        console.error(
+          '❌ [handleNotifyResident] Nenhum morador encontrado para apartment_id:',
+          visitorData.apartment_id
+        );
       }
 
       // Criar automaticamente um novo registro no visitor_logs
@@ -884,12 +982,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         visit_session_id: generateUUID(),
         resident_response_by: residentId,
         purpose: `Notificação de chegada do visitante - Aguardando aprovação do morador`,
-        photo_url: visitorData.photo_url
+        photo_url: visitorData.photo_url,
       };
 
-      const { error: insertError } = await supabase
-        .from('visitor_logs')
-        .insert(logData);
+      const { error: insertError } = await supabase.from('visitor_logs').insert(logData);
 
       if (insertError) {
         console.error('Erro ao criar registro no visitor_logs:', insertError);
@@ -899,8 +995,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Atualizar status do visitante baseado no tipo
       if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
-        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`);
-        
+        console.log(
+          `🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`
+        );
+
         const { error: updateError } = await supabase
           .from('visitors')
           .update({ status: 'expirado' })
@@ -910,12 +1008,16 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           console.error('❌ Erro ao atualizar status do visitante:', updateError);
           // Não interromper o fluxo, apenas logar o erro
         } else {
-          console.log(`✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`);
+          console.log(
+            `✅ Status do visitante ${visitorData.visit_type} ${visitorData.name} atualizado para 'expirado'`
+          );
         }
       } else if (visitorData.visit_type === 'frequente') {
         console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
-        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+        console.log(
+          `ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`
+        );
       }
 
       // Enviar notificação push para o morador
@@ -926,11 +1028,14 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           visitorName: visitorData.name || activity.title.replace('👤 ', ''),
           apartmentNumber: visitorData.apartments?.number || 'N/A',
           purpose: visitorData.purpose || 'Visita',
-          photoUrl: visitorData.photo_url
+          photoUrl: visitorData.photo_url,
         });
 
         if (pushResult.success) {
-          console.log('✅ [handleNotifyResident] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+          console.log(
+            '✅ [handleNotifyResident] Push notification enviada:',
+            `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`
+          );
         } else {
           console.warn('⚠️ [handleNotifyResident] Falha ao enviar push:', pushResult.message);
         }
@@ -938,9 +1043,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         console.error('❌ [handleNotifyResident] Erro ao enviar push notification:', pushError);
       }
 
-      const statusMessage = visitorData.access_type === 'com_aprovacao'
-        ? 'Morador notificado! Aguardando aprovação.'
-        : 'Visitante autorizado e morador notificado!';
+      const statusMessage =
+        visitorData.access_type === 'com_aprovacao'
+          ? 'Morador notificado! Aguardando aprovação.'
+          : 'Visitante autorizado e morador notificado!';
 
       Alert.alert('Sucesso', statusMessage);
       fetchPreAuthorizedVisitors(); // Recarregar visitantes pré-autorizados
@@ -954,7 +1060,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   // Função para check de entrada
   const handleCheckIn = async (activityId: string) => {
     try {
-      const activity = preAuthorizedVisitors.find(a => a.id === activityId);
+      const activity = preAuthorizedVisitors.find((a) => a.id === activityId);
       if (!activity) return;
 
       // Buscar dados completos do visitante
@@ -972,9 +1078,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Função para gerar UUID compatível com React Native
       const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
           return v.toString(16);
         });
       };
@@ -990,7 +1096,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Se não encontrar proprietário, busca qualquer morador do apartamento
       if (!apartmentResident || residentError) {
-        console.log('🔍 [handleCheckIn] Proprietário não encontrado, buscando qualquer morador do apartamento');
+        console.log(
+          '🔍 [handleCheckIn] Proprietário não encontrado, buscando qualquer morador do apartamento'
+        );
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
@@ -1010,7 +1118,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         residentName = apartmentResident.profiles.full_name;
         console.log(`✅ [handleCheckIn] Morador encontrado: ${residentName} (ID: ${residentId})`);
       } else {
-        console.error('❌ [handleCheckIn] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
+        console.error(
+          '❌ [handleCheckIn] Nenhum morador encontrado para apartment_id:',
+          visitorData.apartment_id
+        );
       }
 
       // Criar dados do log baseado no access_type
@@ -1026,13 +1137,11 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
         visit_session_id: generateUUID(),
         resident_response_by: residentId,
         purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${residentName}`,
-        photo_url: visitorData.photo_url
+        photo_url: visitorData.photo_url,
       };
 
       // Registrar entrada aprovada no visitor_logs
-      const { error } = await supabase
-        .from('visitor_logs')
-        .insert(logData);
+      const { error } = await supabase.from('visitor_logs').insert(logData);
 
       if (error) {
         console.error('Erro ao registrar entrada:', error);
@@ -1042,8 +1151,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
       // Atualizar status do visitante baseado no tipo
       if (visitorData.visit_type === 'pontual' || visitorData.visit_type === 'prestador_servico') {
-        console.log(`🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`);
-        
+        console.log(
+          `🔄 Atualizando status do visitante ${visitorData.visit_type} ${visitorData.name} (ID: ${activityId}) para 'expirado'`
+        );
+
         const { error: updateError } = await supabase
           .from('visitors')
           .update({ status: 'expirado' })
@@ -1058,7 +1169,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       } else if (visitorData.visit_type === 'frequente') {
         console.log(`ℹ️ Visitante frequente ${visitorData.name} mantém status 'pendente'`);
       } else {
-        console.log(`ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`);
+        console.log(
+          `ℹ️ Visitante ${visitorData.name} é do tipo '${visitorData.visit_type}', mantendo status atual`
+        );
       }
 
       // Buscar dados do apartamento
@@ -1084,11 +1197,14 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           visitorId: activityId,
           purpose: visitorData.purpose || 'Visita',
           photo_url: visitorData.photo_url,
-          entry_type: 'visitor'
+          entry_type: 'visitor',
         });
 
         if (notificationResult.success) {
-          console.log('✅ [handleCheckIn] Notificação WhatsApp enviada com sucesso:', notificationResult.message);
+          console.log(
+            '✅ [handleCheckIn] Notificação WhatsApp enviada com sucesso:',
+            notificationResult.message
+          );
         } else {
           console.warn('⚠️ [handleCheckIn] Falha ao enviar WhatsApp:', notificationResult.message);
         }
@@ -1101,18 +1217,20 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             visitorName: visitorData.name || activity.title.replace('👤 ', ''),
             apartmentNumber: apartmentData?.number || 'N/A',
             purpose: visitorData.purpose || 'Visita',
-            photoUrl: visitorData.photo_url
+            photoUrl: visitorData.photo_url,
           });
 
           if (pushResult.success) {
-            console.log('✅ [handleCheckIn] Push notification enviada:', `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`);
+            console.log(
+              '✅ [handleCheckIn] Push notification enviada:',
+              `${pushResult.sent} enviada(s), ${pushResult.failed} falha(s)`
+            );
           } else {
             console.warn('⚠️ [handleCheckIn] Falha ao enviar push:', pushResult.message);
           }
         } catch (pushError) {
           console.error('❌ [handleCheckIn] Erro ao enviar push notification:', pushError);
         }
-
       } catch (notificationError) {
         console.error('❌ [handleCheckIn] Erro ao enviar notificação:', notificationError);
         // Não interromper o fluxo principal, apenas logar o erro
@@ -1151,10 +1269,12 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       // Buscar visitantes pré-autorizados deste apartamento
       const { data: visitors, error: visitorsError } = await supabase
         .from('visitors')
-        .select(`
+        .select(
+          `
           *,
           apartments!inner(number, building_id)
-        `)
+        `
+        )
         .eq('apartment_id', apartment.id)
         .neq('status', 'rejected')
         .neq('status', 'nao_permitido')
@@ -1169,7 +1289,10 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
       }
 
       if (!visitors || visitors.length === 0) {
-        Alert.alert('Nenhum Visitante', `Não há visitantes pré-autorizados para o apartamento ${aptNumber}`);
+        Alert.alert(
+          'Nenhum Visitante',
+          `Não há visitantes pré-autorizados para o apartamento ${aptNumber}`
+        );
         setApartmentVisitors([]);
         return;
       }
@@ -1186,32 +1309,52 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           type: 'visit',
           title: `👤 ${visitorName}`,
           subtitle: `Apto ${visit.apartments?.number || 'N/A'} • ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
-          status: isApproved ? (allowDirectAccess ? 'ENTRADA LIBERADA Direta' : 'ENTRADA LIBERADA Direta') : isPending ? 'Pendente' : 'Não Autorizado',
+          status: isApproved
+            ? allowDirectAccess
+              ? 'ENTRADA LIBERADA Direta'
+              : 'ENTRADA LIBERADA Direta'
+            : isPending
+              ? 'Pendente'
+              : 'Não Autorizado',
           time: formatDate(visit.visit_date || visit.created_at),
           icon: isApproved ? (allowDirectAccess ? '🚀' : '✅') : isPending ? '⏳' : '❌',
-          color: isApproved ? (allowDirectAccess ? '#2196F3' : '#4CAF50') : isPending ? '#FF9800' : '#F44336',
+          color: isApproved
+            ? allowDirectAccess
+              ? '#2196F3'
+              : '#4CAF50'
+            : isPending
+              ? '#FF9800'
+              : '#F44336',
           photo_url: visit.photo_url,
           details: [
             `Documento: ${visit.document || 'N/A'}`,
             `Telefone: ${visit.phone || 'N/A'}`,
             `Tipo: ${visit.visit_type === 'frequente' ? 'Visitante Frequente' : 'Visita Pontual'}`,
             ...(allowDirectAccess ? ['🚀 Pode subir direto (não precisa avisar morador)'] : []),
-            ...(visit.visit_date ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`] : []),
-            ...(visit.visit_start_time && visit.visit_end_time ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`] : []),
+            ...(visit.visit_date
+              ? [`Data agendada: ${new Date(visit.visit_date).toLocaleDateString('pt-BR')}`]
+              : []),
+            ...(visit.visit_start_time && visit.visit_end_time
+              ? [`Horário: ${visit.visit_start_time} - ${visit.visit_end_time}`]
+              : []),
             ...(visit.allowed_days ? [`Dias permitidos: ${visit.allowed_days.join(', ')}`] : []),
           ],
-          actions: isApproved ? {
-            primary: {
-              label: 'Confirmar Entrada',
-              action: () => confirmarChegada(visit),
-              color: allowDirectAccess ? '#2196F3' : '#4CAF50'
-            }
-          } : undefined
+          actions: isApproved
+            ? {
+                primary: {
+                  label: 'Confirmar Entrada',
+                  action: () => confirmarChegada(visit),
+                  color: allowDirectAccess ? '#2196F3' : '#4CAF50',
+                },
+              }
+            : undefined,
         };
       });
 
       setApartmentVisitors(processedVisitors);
-      console.log(`✅ Encontrados ${processedVisitors.length} visitante(s) pré-autorizado(s) para o apartamento ${aptNumber}`);
+      console.log(
+        `✅ Encontrados ${processedVisitors.length} visitante(s) pré-autorizado(s) para o apartamento ${aptNumber}`
+      );
     } catch (error) {
       console.error('Erro ao buscar visitantes do apartamento:', error);
       Alert.alert('Erro', 'Não foi possível buscar os visitantes');
@@ -1220,11 +1363,11 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
   // Funções auxiliares para o teclado numérico
   const handleNumberPress = (num: string) => {
-    setApartmentNumber(prev => prev + num);
+    setApartmentNumber((prev) => prev + num);
   };
 
   const handleBackspace = () => {
-    setApartmentNumber(prev => prev.slice(0, -1));
+    setApartmentNumber((prev) => prev.slice(0, -1));
   };
 
   const handleClear = () => {
@@ -1244,7 +1387,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
 
   // Componente LogCard
   // Função para filtrar logs de visitantes por nome
-  const filteredVisitorLogs = visitorLogs.filter(log => {
+  const filteredVisitorLogs = visitorLogs.filter((log) => {
     if (!searchQuery.trim()) return true;
 
     const searchLower = searchQuery.toLowerCase().trim();
@@ -1261,7 +1404,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
   console.log('🎨 [RENDER] loading:', loading);
 
   // Função para filtrar visitantes pré-autorizados por nome
-  const filteredPreAuthorizedVisitors = preAuthorizedVisitors.filter(activity => {
+  const filteredPreAuthorizedVisitors = preAuthorizedVisitors.filter((activity) => {
     if (!searchQuery.trim()) return true;
 
     const searchLower = searchQuery.toLowerCase().trim();
@@ -1279,12 +1422,9 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
     const isExpanded = expandedCards.has(log.id);
     const statusInfo = getVisitorLogStatus(log.notification_status, log.tipo_log);
     const logIcon = getLogIcon(log.entry_type);
-    
+
     return (
-      <TouchableOpacity
-        style={styles.logCard}
-        onPress={() => toggleCardExpansion(log.id)}
-      >
+      <TouchableOpacity style={styles.logCard} onPress={() => toggleCardExpansion(log.id)}>
         <View style={styles.logHeader}>
           <View style={styles.logIcon}>
             <Text style={styles.iconText}>{statusInfo.icon}</Text>
@@ -1298,27 +1438,22 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
               {log.tipo_log && ` • ${log.tipo_log === 'IN' ? 'Entrada' : 'Saída'}`}
             </Text>
             <View style={styles.logMeta}>
-              <Text style={[styles.logStatus, { color: statusInfo.color }]}>
-                {statusInfo.text}
-              </Text>
+              <Text style={[styles.logStatus, { color: statusInfo.color }]}>{statusInfo.text}</Text>
               <Text style={styles.logTime}>
-                {formatLogTime(log.log_time || log.created_at)} • {formatLogDate(log.log_time || log.created_at)}
+                {formatLogTime(log.log_time || log.created_at)} •{' '}
+                {formatLogDate(log.log_time || log.created_at)}
               </Text>
             </View>
           </View>
           {log.photo_url && (
             <View style={styles.photoContainer}>
               <TouchableOpacity onPress={() => openImageModal(log.photo_url)}>
-                <Image
-                  source={{ uri: log.photo_url }}
-                  style={styles.logPhoto}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: log.photo_url }} style={styles.logPhoto} resizeMode="cover" />
               </TouchableOpacity>
             </View>
           )}
         </View>
-        
+
         {isExpanded && (
           <View style={styles.logDetails}>
             {log.visitors?.document && (
@@ -1330,29 +1465,30 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             {log.entry_type && (
               <Text style={styles.detailText}>🏷️ Tipo: {getDisplayType(log.entry_type)}</Text>
             )}
-            {log.purpose && (
-              <Text style={styles.detailText}>📝 Propósito: {log.purpose}</Text>
-            )}
+            {log.purpose && <Text style={styles.detailText}>📝 Propósito: {log.purpose}</Text>}
             {log.delivery_destination && (
               <Text style={styles.detailText}>📍 Destino: {log.delivery_destination}</Text>
             )}
             {/* Exibir "Autorizado por" apenas quando status for aprovado; nunca mostrar IDs */}
-            {log.notification_status === 'approved' && (log.resident_response_by_name || log.authorized_by_name) && (
-              <Text style={styles.detailText}>
-                ✅ Autorizado por: {log.resident_response_by_name || log.authorized_by_name}
-              </Text>
-            )}
-            <Text style={styles.detailText}>🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às {formatLogTime(log.log_time || log.created_at)}</Text>
+            {log.notification_status === 'approved' &&
+              (log.resident_response_by_name || log.authorized_by_name) && (
+                <Text style={styles.detailText}>
+                  ✅ Autorizado por: {log.resident_response_by_name || log.authorized_by_name}
+                </Text>
+              )}
+            <Text style={styles.detailText}>
+              🕐 Registrado: {formatLogDate(log.log_time || log.created_at)} às{' '}
+              {formatLogTime(log.log_time || log.created_at)}
+            </Text>
           </View>
         )}
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.expandIndicator}
           onPress={(e) => {
             e.stopPropagation();
             toggleCardExpansion(log.id);
-          }}
-        >
+          }}>
           <Text style={styles.expandText}>
             {isExpanded ? '▲ Menos detalhes' : '▼ Mais detalhes'}
           </Text>
@@ -1375,23 +1511,44 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             // Filtros de status para visitantes
             <>
               <TouchableOpacity
-                style={[styles.timeFilterButton, statusFilter === 'all' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  statusFilter === 'all' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setStatusFilter('all')}>
-                <Text style={[styles.timeFilterButtonText, statusFilter === 'all' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    statusFilter === 'all' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Todos
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.timeFilterButton, statusFilter === 'pending' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  statusFilter === 'pending' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setStatusFilter('pending')}>
-                <Text style={[styles.timeFilterButtonText, statusFilter === 'pending' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    statusFilter === 'pending' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Pendente
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.timeFilterButton, statusFilter === 'approved' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  statusFilter === 'approved' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setStatusFilter('approved')}>
-                <Text style={[styles.timeFilterButtonText, statusFilter === 'approved' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    statusFilter === 'approved' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Aprovado
                 </Text>
               </TouchableOpacity>
@@ -1400,123 +1557,144 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             // Filtros de tipo para pré-autorizados
             <>
               <TouchableOpacity
-                style={[styles.timeFilterButton, typeFilter === 'all' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  typeFilter === 'all' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setTypeFilter('all')}>
-                <Text style={[styles.timeFilterButtonText, typeFilter === 'all' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    typeFilter === 'all' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Todos
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.timeFilterButton, typeFilter === 'direto' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  typeFilter === 'direto' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setTypeFilter('direto')}>
-                <Text style={[styles.timeFilterButtonText, typeFilter === 'direto' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    typeFilter === 'direto' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Direto
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.timeFilterButton, typeFilter === 'com_aprovacao' && styles.timeFilterButtonActive]}
+                style={[
+                  styles.timeFilterButton,
+                  typeFilter === 'com_aprovacao' && styles.timeFilterButtonActive,
+                ]}
                 onPress={() => setTypeFilter('com_aprovacao')}>
-                <Text style={[styles.timeFilterButtonText, typeFilter === 'com_aprovacao' && styles.timeFilterButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.timeFilterButtonText,
+                    typeFilter === 'com_aprovacao' && styles.timeFilterButtonTextActive,
+                  ]}>
                   Com Aprovação
                 </Text>
               </TouchableOpacity>
             </>
           )}
-          <TouchableOpacity
-            style={[styles.timeFilterButton, showSearch && styles.timeFilterButtonActive]}
-            onPress={() => {
-              setShowSearch(!showSearch);
-              if (showSearch) {
-                setSearchQuery('');
-              }
-            }}>
-            <Text style={[styles.timeFilterButtonText, showSearch && styles.timeFilterButtonTextActive]}>
-              🔍
-            </Text>
-          </TouchableOpacity>
+        </View>
+
+        {/* Campo de Pesquisa */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por nome..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+              <Text style={styles.clearSearchButtonText}>✕</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Toggle para alternar entre seções */}
         <View style={styles.sectionToggleContainer}>
           <TouchableOpacity
-            style={[styles.sectionToggleButton, activeSection === 'visitors' && styles.sectionToggleButtonActive]}
+            style={[
+              styles.sectionToggleButton,
+              activeSection === 'visitors' && styles.sectionToggleButtonActive,
+            ]}
             onPress={() => setActiveSection('visitors')}>
-            <Text style={[styles.sectionToggleButtonText, activeSection === 'visitors' && styles.sectionToggleButtonTextActive]}>
+            <Text
+              style={[
+                styles.sectionToggleButtonText,
+                activeSection === 'visitors' && styles.sectionToggleButtonTextActive,
+              ]}>
               👤 Visitantes
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sectionToggleButton, activeSection === 'preauthorized' && styles.sectionToggleButtonActive]}
+            style={[
+              styles.sectionToggleButton,
+              activeSection === 'preauthorized' && styles.sectionToggleButtonActive,
+            ]}
             onPress={() => setActiveSection('preauthorized')}>
-            <Text style={[styles.sectionToggleButtonText, activeSection === 'preauthorized' && styles.sectionToggleButtonTextActive]}>
+            <Text
+              style={[
+                styles.sectionToggleButtonText,
+                activeSection === 'preauthorized' && styles.sectionToggleButtonTextActive,
+              ]}>
               ✅ Pré-autorizados
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Campo de Pesquisa - Condicional */}
-        {showSearch && (
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="🔍 Buscar por nome..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="words"
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setSearchQuery('')}>
-                <Text style={styles.clearSearchButtonText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
 
         {/* Seção de Visitantes */}
         {activeSection === 'visitors' && (
           <>
             <Text style={styles.sectionTitle}>Visitantes</Text>
             {/* Lista de Visitor Logs */}
-        <View style={styles.logsList}>
-          {filteredVisitorLogs.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📝</Text>
-              <Text style={styles.emptyTitle}>
-                {searchQuery.trim() ? 'Nenhum visitante encontrado' : 'Nenhum registro encontrado'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {searchQuery.trim()
-                  ? `Não há visitantes com o nome "${searchQuery}"`
-                  : 'Não há registros de visitantes para exibir'}
-              </Text>
-            </View>
-          ) : (
-            <>
-              {filteredVisitorLogs.map((log) => (
-                <LogCard key={log.id} log={log} />
-              ))}
-              {/* Botão Carregar Mais para Visitantes */}
-              {hasMoreVisitorLogs && (
-                <TouchableOpacity
-                  style={styles.loadMoreButton}
-                  onPress={() => {
-                    const nextPage = visitorLogsPage + 1;
-                    setVisitorLogsPage(nextPage);
-                    fetchVisitorLogs(nextPage, true);
-                  }}
-                  disabled={loadingMore}>
-                  <Text style={styles.loadMoreButtonText}>
-                    {loadingMore ? 'Carregando...' : 'Carregar mais'}
+            <View style={styles.logsList}>
+              {filteredVisitorLogs.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyIcon}>📝</Text>
+                  <Text style={styles.emptyTitle}>
+                    {searchQuery.trim()
+                      ? 'Nenhum visitante encontrado'
+                      : 'Nenhum registro encontrado'}
                   </Text>
-                </TouchableOpacity>
+                  <Text style={styles.emptySubtitle}>
+                    {searchQuery.trim()
+                      ? `Não há visitantes com o nome "${searchQuery}"`
+                      : 'Não há registros de visitantes para exibir'}
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {filteredVisitorLogs.map((log) => (
+                    <LogCard key={log.id} log={log} />
+                  ))}
+                  {/* Botão Carregar Mais para Visitantes */}
+                  {hasMoreVisitorLogs && (
+                    <TouchableOpacity
+                      style={styles.loadMoreButton}
+                      onPress={() => {
+                        const nextPage = visitorLogsPage + 1;
+                        setVisitorLogsPage(nextPage);
+                        fetchVisitorLogs(nextPage, true);
+                      }}
+                      disabled={loadingMore}>
+                      <Text style={styles.loadMoreButtonText}>
+                        {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </View>
+            </View>
           </>
         )}
 
@@ -1525,116 +1703,123 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           <>
             <Text style={styles.sectionTitle}>Convidados Pré-autorizados</Text>
             {/* Lista de Atividades */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando visitantes pré-autorizados...</Text>
-          </View>
-        ) : filteredPreAuthorizedVisitors.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>👤</Text>
-            <Text style={styles.emptyTitle}>
-              {searchQuery.trim() ? 'Nenhum resultado encontrado' : 'Nenhum visitante pré-autorizado'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery.trim()
-                ? `Não há visitantes pré-autorizados com o nome "${searchQuery}"`
-                : 'Não há visitantes pré-autorizados pelos moradores para exibir'
-              }
-            </Text>
-          </View>
-        ) : (
-          <>
-            {filteredPreAuthorizedVisitors.map((activity) => (
-              <TouchableOpacity
-                key={activity.id}
-                style={styles.activityCard}
-                onPress={() => toggleCardExpansion(activity.id)}>
-                <View style={styles.activityHeader}>
-                  <Text style={styles.activityIcon}>{activity.icon}</Text>
-                  <View style={styles.activityInfo}>
-                    <Text style={styles.activityTitle} numberOfLines={1}>{activity.title}</Text>
-                    <Text style={styles.activitySubtitle} numberOfLines={1}>{activity.subtitle}</Text>
-                  </View>
-                  <View style={styles.activityMeta}>
-                    <Text style={[styles.activityStatus, { color: activity.color }]}>{activity.status === 'direto' ? 'ENTRADA LIBERADA' : activity.status}</Text>
-                    <Text style={styles.activityTime}>{activity.time}</Text>
-                  </View>
-                </View>
-                {/* Detalhes expandidos */}
-                {expandedCards.has(activity.id) && (
-                  <View style={styles.activityDetails}>
-                    {activity.details.map((detail, index) => (
-                      <Text key={index} style={styles.activityDetail}>{detail}</Text>
-                    ))}
-                    
-                    {/* Botão Ver Foto */}
-                    <TouchableOpacity 
-                      style={styles.viewPhotoActionButton}
-                      onPress={() => activity.photo_url ? openImageModal(activity.photo_url) : Alert.alert('Sem Foto', 'Visitante está sem foto')}>
-                      <Text style={styles.viewPhotoActionButtonText}>
-                        📷 Ver Foto
-                      </Text>
-                    </TouchableOpacity>
-
-                    {/* Lógica condicional para botões de ação */}
-                    {(() => {
-                      // Função auxiliar para determinar se pode entrar diretamente
-                      const canEnterDirectly = activity.status === 'direto' || activity.status === 'Entrada Liberada'
-                                             
-                      
-                      if (canEnterDirectly) {
-                        // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
-                        const isDirectAccess = activity.status === 'direto' || activity.status === 'Entrada Liberada';
-                        return (
-                          <TouchableOpacity 
-                            style={styles.checkInButton}
-                            onPress={() => handleCheckIn(activity.id)}>
-                            <Text style={styles.checkInButtonText}>
-                              ✅ Confirmar Entrada
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      } else {
-                        // Para visitantes pendentes ou não autorizados: botão Avisar Morador
-                        return (
-                          <TouchableOpacity 
-                            style={styles.notifyResidentButton}
-                            onPress={() => handleNotifyResident(activity.id)}>
-                            <Text style={styles.notifyResidentButtonText}>
-                              🔔 Avisar Morador
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      }
-                    })()}
-                    
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-            
-            {/* Botão Carregar Mais para Pré-autorizados */}
-            {hasMorePreAuthorized && (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => {
-                  const nextPage = preAuthorizedPage + 1;
-                  setPreAuthorizedPage(nextPage);
-                  fetchPreAuthorizedVisitors(nextPage, true);
-                }}
-                disabled={loadingMore}>
-                <Text style={styles.loadMoreButtonText}>
-                  {loadingMore ? 'Carregando...' : 'Carregar mais'}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Carregando visitantes pré-autorizados...</Text>
+              </View>
+            ) : filteredPreAuthorizedVisitors.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>👤</Text>
+                <Text style={styles.emptyTitle}>
+                  {searchQuery.trim()
+                    ? 'Nenhum resultado encontrado'
+                    : 'Nenhum visitante pré-autorizado'}
                 </Text>
-              </TouchableOpacity>
+                <Text style={styles.emptySubtitle}>
+                  {searchQuery.trim()
+                    ? `Não há visitantes pré-autorizados com o nome "${searchQuery}"`
+                    : 'Não há visitantes pré-autorizados pelos moradores para exibir'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {filteredPreAuthorizedVisitors.map((activity) => (
+                  <TouchableOpacity
+                    key={activity.id}
+                    style={styles.activityCard}
+                    onPress={() => toggleCardExpansion(activity.id)}>
+                    <View style={styles.activityHeader}>
+                      <Text style={styles.activityIcon}>{activity.icon}</Text>
+                      <View style={styles.activityInfo}>
+                        <Text style={styles.activityTitle} numberOfLines={1}>
+                          {activity.title}
+                        </Text>
+                        <Text style={styles.activitySubtitle} numberOfLines={1}>
+                          {activity.subtitle}
+                        </Text>
+                      </View>
+                      <View style={styles.activityMeta}>
+                        <Text style={[styles.activityStatus, { color: activity.color }]}>
+                          {activity.status === 'direto' ? 'ENTRADA LIBERADA' : activity.status}
+                        </Text>
+                        <Text style={styles.activityTime}>{activity.time}</Text>
+                      </View>
+                    </View>
+                    {/* Detalhes expandidos */}
+                    {expandedCards.has(activity.id) && (
+                      <View style={styles.activityDetails}>
+                        {activity.details.map((detail, index) => (
+                          <Text key={index} style={styles.activityDetail}>
+                            {detail}
+                          </Text>
+                        ))}
+
+                        {/* Botão Ver Foto */}
+                        <TouchableOpacity
+                          style={styles.viewPhotoActionButton}
+                          onPress={() =>
+                            activity.photo_url
+                              ? openImageModal(activity.photo_url)
+                              : Alert.alert('Sem Foto', 'Visitante está sem foto')
+                          }>
+                          <Text style={styles.viewPhotoActionButtonText}>📷 Ver Foto</Text>
+                        </TouchableOpacity>
+
+                        {/* Lógica condicional para botões de ação */}
+                        {(() => {
+                          // Função auxiliar para determinar se pode entrar diretamente
+                          const canEnterDirectly =
+                            activity.status === 'direto' || activity.status === 'Entrada Liberada';
+
+                          if (canEnterDirectly) {
+                            // Para visitantes com entrada liberada: apenas botão Confirmar Entrada
+                            const isDirectAccess =
+                              activity.status === 'direto' ||
+                              activity.status === 'Entrada Liberada';
+                            return (
+                              <TouchableOpacity
+                                style={styles.checkInButton}
+                                onPress={() => handleCheckIn(activity.id)}>
+                                <Text style={styles.checkInButtonText}>✅ Confirmar Entrada</Text>
+                              </TouchableOpacity>
+                            );
+                          } else {
+                            // Para visitantes pendentes ou não autorizados: botão Avisar Morador
+                            return (
+                              <TouchableOpacity
+                                style={styles.notifyResidentButton}
+                                onPress={() => handleNotifyResident(activity.id)}>
+                                <Text style={styles.notifyResidentButtonText}>
+                                  🔔 Avisar Morador
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          }
+                        })()}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+
+                {/* Botão Carregar Mais para Pré-autorizados */}
+                {hasMorePreAuthorized && (
+                  <TouchableOpacity
+                    style={styles.loadMoreButton}
+                    onPress={() => {
+                      const nextPage = preAuthorizedPage + 1;
+                      setPreAuthorizedPage(nextPage);
+                      fetchPreAuthorizedVisitors(nextPage, true);
+                    }}
+                    disabled={loadingMore}>
+                    <Text style={styles.loadMoreButtonText}>
+                      {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </>
         )}
-          </>
-          
-        )}
-        
-
       </ScrollView>
 
       {/* Modal de Confirmação */}
@@ -1672,9 +1857,7 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
             activeOpacity={1}
             onPress={closeImageModal}>
             <View style={styles.imageModalContent}>
-              <TouchableOpacity
-                style={styles.closeImageButton}
-                onPress={closeImageModal}>
+              <TouchableOpacity style={styles.closeImageButton} onPress={closeImageModal}>
                 <Text style={styles.closeImageButtonText}>✕</Text>
               </TouchableOpacity>
               {selectedImage && (
@@ -1688,7 +1871,6 @@ const AutorizacoesTab = ({ buildingId, user, filter = 'all', timeFilter: externa
           </TouchableOpacity>
         </View>
       </Modal>
-
     </>
   );
 };
@@ -1727,7 +1909,8 @@ const styles = StyleSheet.create({
   sectionToggleContainer: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginVertical: 16,
+    marginTop: 4,
+    marginBottom: 12,
     backgroundColor: '#f0f0f0',
     borderRadius: 25,
     padding: 4,
@@ -1794,7 +1977,7 @@ const styles = StyleSheet.create({
   timeFilterContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingBottom: 6,
     gap: 8,
   },
   timeFilterButton: {
@@ -1821,11 +2004,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 20,
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
@@ -1884,7 +2067,7 @@ const styles = StyleSheet.create({
   activityCard: {
     backgroundColor: '#fff',
     marginHorizontal: 8, // Reduzido de 12 para 8 para mais espaço
-    marginVertical: 12, 
+    marginVertical: 12,
     borderRadius: 12,
     elevation: 2,
     overflow: 'hidden',
