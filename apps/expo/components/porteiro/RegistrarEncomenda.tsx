@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Image,
@@ -900,7 +899,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
           <Text style={styles.closeButtonText}>✕</Text>
@@ -937,7 +936,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         {currentStep === 'foto' && renderFotoStep()}
         {currentStep === 'confirmacao' && renderConfirmacaoStep()}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -7,7 +7,6 @@ import {
   Linking,
   Alert,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -36,7 +35,7 @@ export default function EmergencyPage() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.warningText}>⚠️ Use apenas em situações de emergência real</Text>
 
@@ -100,7 +99,7 @@ export default function EmergencyPage() {
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

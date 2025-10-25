@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  SafeAreaView,
   TextInput,
   Platform,
   Modal,
@@ -450,7 +449,7 @@ export default function LembretesAdmin() {
   const filteredLembretes = getFilteredLembretes();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -564,7 +563,7 @@ export default function LembretesAdmin() {
 
       {renderFiltersModal()}
       {renderEditModal()}
-    </SafeAreaView>
+    </View>
   );
 
   function renderEditModal() {

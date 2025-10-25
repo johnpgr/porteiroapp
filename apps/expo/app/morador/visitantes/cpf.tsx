@@ -7,7 +7,6 @@ import {
   TextInput,
   Alert,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -117,7 +116,7 @@ export default function CPFVisitante() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -201,7 +200,7 @@ export default function CPFVisitante() {
           </TouchableOpacity>
         </View>
         <BottomNav activeTab="visitantes" />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

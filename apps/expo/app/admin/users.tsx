@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
   Image,
-  SafeAreaView,
   Modal,
   ActivityIndicator,
 } from 'react-native';
@@ -2303,14 +2302,14 @@ export default function UsersManagement() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Carregando usuários...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>👥 Gerenciar Usuários</Text>
       </View>
@@ -2351,7 +2350,7 @@ export default function UsersManagement() {
 
       {/* Modal de Cadastro de Veículos */}
       <Modal visible={showVehicleForm} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>🚗 Cadastrar Novo Veículo</Text>
             <TouchableOpacity onPress={() => setShowVehicleForm(false)}>
@@ -2509,12 +2508,12 @@ export default function UsersManagement() {
               )}
             </View>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Modal de Listagem de Usuários */}
       <Modal visible={showUserListModal} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>📋 Usuários Cadastrados</Text>
             <TouchableOpacity onPress={() => setShowUserListModal(false)}>
@@ -2728,12 +2727,12 @@ export default function UsersManagement() {
               })()}
             </ScrollView>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Modal de Lista de Veículos */}
       <Modal visible={showVehicleListModal} animationType="slide" presentationStyle="fullScreen">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>🚙 Veículos Cadastrados</Text>
             <TouchableOpacity onPress={() => setShowVehicleListModal(false)}>
@@ -2878,12 +2877,12 @@ export default function UsersManagement() {
               )}
             </ScrollView>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Modal de Seleção de Prédios */}
       <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowBuildingModal(false)}>
               <Text style={styles.closeButton}>Cancelar</Text>
@@ -2903,9 +2902,9 @@ export default function UsersManagement() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator
 } from 'react-native';
@@ -155,7 +154,7 @@ function TestesContent() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -288,7 +287,7 @@ function TestesContent() {
       </ScrollView>
 
       <BottomNav />
-    </SafeAreaView>
+    </View>
   );
 }
 

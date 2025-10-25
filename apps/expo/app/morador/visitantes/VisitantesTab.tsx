@@ -10,7 +10,6 @@ import {
   TextInput,
   Modal,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -2229,7 +2228,7 @@ export default function VisitantesTab() {
           animationType="slide"
           transparent={false}
           onRequestClose={() => setShowPreRegistrationModal(false)}>
-          <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalOverlay}>
             <View
               style={[
                 styles.modalContent,
@@ -2816,7 +2815,7 @@ export default function VisitantesTab() {
                 </TouchableOpacity>
               </View>
             </View>
-          </SafeAreaView>
+          </View>
         </Modal>
 
         {/* Modal de Edição */}
@@ -2825,7 +2824,7 @@ export default function VisitantesTab() {
           animationType="slide"
           transparent={true}
           onRequestClose={() => setShowEditModal(false)}>
-          <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalOverlay}>
             <View
               style={[
                 styles.modalContent,
@@ -3166,7 +3165,7 @@ export default function VisitantesTab() {
                 </TouchableOpacity>
               </View>
             </View>
-          </SafeAreaView>
+          </View>
         </Modal>
       </ScrollView>
 

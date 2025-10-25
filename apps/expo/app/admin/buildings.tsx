@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -181,15 +180,15 @@ export default function BuildingsManagement() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <Text>Carregando...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.push('/admin')}>
             <Text style={styles.backButtonText}>← Voltar</Text>
@@ -272,7 +271,7 @@ export default function BuildingsManagement() {
             )}
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

@@ -7,7 +7,6 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  SafeAreaView,
   Modal,
   FlatList,
   Image,
@@ -1038,7 +1037,7 @@ export default function Communications() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderHeader()}
       {activeTab === 'communications' ? renderCommunications() : renderPolls()}
       {renderCommunicationsModal()}
@@ -1318,7 +1317,7 @@ export default function Communications() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

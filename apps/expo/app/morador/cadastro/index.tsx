@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Modal,
   TextInput,
   Alert,
@@ -1345,14 +1344,14 @@ export default function CadastroTab() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           {renderHeader()}
           {renderCadastroTab()}
         </View>
         <BottomNav activeTab="cadastro" />
         {renderAvatarMenu()}
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

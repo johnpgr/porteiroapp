@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -83,7 +82,7 @@ export default function NotificationsScreen() {
   }, [user?.id]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -142,7 +141,7 @@ export default function NotificationsScreen() {
         )}
       </ScrollView>
       <BottomNav activeTab="notifications" />
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -1,34 +1,33 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { router } from 'expo-router';
+import { Phone } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  TextInput,
-  Alert,
-  Modal,
-  Image,
-  ActivityIndicator,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
-import AutorizacoesTab from './AutorizacoesTab';
-import IntercomModal from './components/modals/IntercomModal';
-import { router } from 'expo-router';
-import { supabase } from '~/utils/supabase';
-import { flattenStyles } from '~/utils/styles';
+import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import { useAuth } from '~/hooks/useAuth';
 import { useShiftControl } from '~/hooks/useShiftControl';
-import ActivityLogs from './logs';
-import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
 import notificationService from '~/services/notificationService';
+import { flattenStyles } from '~/utils/styles';
+import { supabase } from '~/utils/supabase';
 import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import AutorizacoesTab from './AutorizacoesTab';
+import IntercomModal from './components/modals/IntercomModal';
+import ActivityLogs from './logs';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -2012,7 +2011,7 @@ export default function PorteiroDashboard() {
       )}
 
       {!activeFlow && (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
           {!isInitializing && (
             <>
               {renderTopMenu()}
@@ -2120,7 +2119,7 @@ export default function PorteiroDashboard() {
               </View>
             </>
           )}
-        </SafeAreaView>
+        </View>
       )}
 
       {/* Modal de Confirmação */}

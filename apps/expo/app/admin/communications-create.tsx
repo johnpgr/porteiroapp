@@ -7,7 +7,6 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  SafeAreaView,
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -395,7 +394,7 @@ export default function CommunicationsCreate() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderHeader()}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderCommunicationForm()}
@@ -404,7 +403,7 @@ export default function CommunicationsCreate() {
       {renderCommunicationTypePicker()}
       {renderCommunicationPriorityPicker()}
       {renderCommunicationBuildingPicker()}
-    </SafeAreaView>
+    </View>
   );
 }
 

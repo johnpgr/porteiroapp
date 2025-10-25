@@ -7,7 +7,6 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  SafeAreaView,
   Modal,
   FlatList,
   Platform,
@@ -611,7 +610,7 @@ export default function Polls() {
       animationType="slide"
       onRequestClose={() => setShowPollsModal(false)}
     >
-      <SafeAreaView style={styles.modalContainer}>
+      <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalHeaderTitle}>Enquetes Criadas</Text>
           <TouchableOpacity
@@ -666,12 +665,12 @@ export default function Polls() {
             showsVerticalScrollIndicator={false}
           />
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderHeader()}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderPollForm()}
@@ -690,7 +689,7 @@ export default function Polls() {
       
       {renderPollBuildingPicker()}
       {renderPollsModal()}
-    </SafeAreaView>
+    </View>
   );
 }
 

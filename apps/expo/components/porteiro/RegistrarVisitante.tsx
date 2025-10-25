@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Image,
@@ -1181,7 +1180,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onClose}>
           <Text style={styles.backButtonText}>← Voltar</Text>
@@ -1203,7 +1202,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       </View>
 
       {renderCurrentStep()}
-    </SafeAreaView>
+    </View>
   );
 }
 

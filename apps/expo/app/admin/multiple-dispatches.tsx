@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -566,15 +565,15 @@ export default function MultipleDispatchesScreen() {
 
   if (loading && !isProcessing) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
         <Text style={styles.loadingText}>Carregando dados...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#007AFF" />
@@ -701,7 +700,7 @@ export default function MultipleDispatchesScreen() {
 
       {/* Modal de Seleção de Prédios */}
       <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowBuildingModal(false)}>
               <Text style={styles.closeButton}>Cancelar</Text>
@@ -722,12 +721,12 @@ export default function MultipleDispatchesScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Modal de Seleção de Apartamentos */}
       <Modal visible={showApartmentModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowApartmentModal(false)}>
               <Text style={styles.closeButton}>Cancelar</Text>
@@ -754,10 +753,10 @@ export default function MultipleDispatchesScreen() {
               ))
             }
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 

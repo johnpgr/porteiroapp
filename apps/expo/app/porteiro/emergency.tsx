@@ -7,7 +7,6 @@ import {
   Linking,
   Alert,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -37,7 +36,7 @@ export default function PorteiroEmergencyPage() {
 
   return (
     <ProtectedRoute redirectTo="/porteiro/login" userType="porteiro">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <ArrowLeft color="#fff" size={30} />
@@ -104,7 +103,7 @@ export default function PorteiroEmergencyPage() {
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

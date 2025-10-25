@@ -8,7 +8,6 @@ import {
   Alert,
   TextInput,
   Image,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -164,7 +163,7 @@ export default function PreregisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -271,7 +270,7 @@ export default function PreregisterScreen() {
         </View>
       </ScrollView>
       <BottomNav activeTab="preregister" />
-    </SafeAreaView>
+    </View>
   );
 }
 

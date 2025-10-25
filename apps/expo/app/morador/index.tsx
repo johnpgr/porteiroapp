@@ -8,7 +8,6 @@ import {
   ScrollView,
   Modal,
   Alert,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
@@ -323,7 +322,7 @@ export default function MoradorDashboard() {
       transparent
       animationType="fade"
       onRequestClose={() => setShowAvatarMenu(false)}>
-      <SafeAreaView style={styles.modalOverlay}>
+      <View style={styles.modalOverlay}>
         <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAvatarMenu(false)}>
           <View style={styles.avatarMenu}>
           <TouchableOpacity
@@ -349,7 +348,7 @@ export default function MoradorDashboard() {
           </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 
@@ -529,7 +528,7 @@ export default function MoradorDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           {renderHeader()}
           {renderContent()}
@@ -544,7 +543,7 @@ export default function MoradorDashboard() {
             checkFirstLoginStatus();
           }}
         />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

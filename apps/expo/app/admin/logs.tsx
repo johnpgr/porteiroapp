@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  SafeAreaView,
   Modal,
 } from 'react-native';
 import { supabase, adminAuth } from '~/utils/supabase';
@@ -280,7 +279,7 @@ export default function SystemLogs() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>📊 Histórico de visitantes</Text>
         </View>
@@ -584,7 +583,7 @@ export default function SystemLogs() {
             </View>
           </View>
         </Modal>
-      </SafeAreaView>
+      </View>
   );
 }
 

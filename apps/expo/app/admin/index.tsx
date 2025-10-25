@@ -9,7 +9,6 @@ import {
   Alert,
   Image,
   Linking,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -157,11 +156,11 @@ export default function AdminDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         {renderHeader()}
         {renderContent()}
         {/* BottomNav fixa é renderizada no layout global */}
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

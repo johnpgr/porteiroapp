@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
   Image,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -746,18 +745,18 @@ export default function MoradorProfile() {
   if (loading) {
     return (
       <ProtectedRoute redirectTo="/morador/login" userType="morador">
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Carregando perfil...</Text>
           </View>
-        </SafeAreaView>
+        </View>
       </ProtectedRoute>
     );
   }
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -1041,7 +1040,7 @@ export default function MoradorProfile() {
             fetchProfile();
           }}
         />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

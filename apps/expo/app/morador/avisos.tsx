@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -569,7 +568,7 @@ const AvisosTab = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView style={styles.content}>
         {realtimeError && (
           <View style={styles.errorContainer}>
@@ -647,7 +646,7 @@ const AvisosTab = () => {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

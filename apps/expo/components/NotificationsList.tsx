@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { NotificationData } from '../hooks/useNotifications';
+import { RealtimeNotificationData } from '../hooks/useNotifications';
 
 interface NotificationsListProps {
-  notifications: NotificationData[];
+  notifications: RealtimeNotificationData[];
   onAcknowledge: (notificationId: string) => void;
   onClearAll: () => void;
 }

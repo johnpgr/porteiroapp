@@ -7,7 +7,6 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  SafeAreaView,
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -244,7 +243,7 @@ export default function NovoLembrete() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -603,7 +602,7 @@ export default function NovoLembrete() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
