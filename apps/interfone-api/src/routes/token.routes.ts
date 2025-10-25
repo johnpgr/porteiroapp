@@ -1,35 +1,134 @@
-import type { Request, Response, Router } from 'express';
+import type { Request, Response, Router, NextFunction } from 'express';
 import express from 'express';
 import TokenController from '../controllers/token.controller.ts';
 import agoraService from '../services/agora.service.ts';
+import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
 
 const router: Router = express.Router();
+
+// Simple auth middleware using Supabase access token
+// IMPORTANT: Use anon key client to validate user JWTs, not service role key
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const authHeader = (req.headers['authorization'] || req.headers['Authorization']) as string | undefined;
+    if (!authHeader || !/^Bearer\s+/i.test(authHeader)) {
+      res.status(401).json({ success: false, error: 'Unauthorized - No token provided' });
+      return;
+    }
+    const accessToken = authHeader.replace(/^Bearer\s+/i, '');
+
+    // Create anon client for JWT validation (service role key can't validate user tokens)
+    const { client } = SupabaseClientFactory.createBrowserClient({
+      url: process.env.SUPABASE_URL || '',
+      key: process.env.SUPABASE_ANON_KEY || ''
+    });
+
+    const { data, error } = await client.auth.getUser(accessToken);
+    if (error || !data?.user) {
+      console.error('🔥 Auth validation failed:', error?.message || 'No user data');
+      res.status(401).json({ success: false, error: 'Unauthorized - Invalid token' });
+      return;
+    }
+
+    console.log('✅ Auth success for user:', data.user.id);
+    (req as any).authUser = data.user;
+    next();
+  } catch (e) {
+    console.error('🔥 Auth exception:', e);
+    res.status(401).json({ success: false, error: 'Unauthorized - Server error' });
+  }
+}
+
+// Helper to extract client IP securely (prevents spoofing)
+function getClientIp(req: Request): string {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  // Use leftmost IP from x-forwarded-for to prevent spoofing
+  if (Array.isArray(forwardedFor)) {
+    return forwardedFor[0]?.split(',')[0]?.trim() || 'unknown';
+  }
+  if (typeof forwardedFor === 'string') {
+    return forwardedFor.split(',')[0]?.trim() || 'unknown';
+  }
+  return req.ip || 'unknown';
+}
+
+// Simple in-memory rate limiter (per IP)
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 60; // 60 req/min
+const rateBuckets = new Map<string, { count: number; windowStart: number }>();
+
+// Cleanup expired rate limit buckets to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets.entries()) {
+    if (now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+      rateBuckets.delete(key);
+    }
+  }
+}, RATE_LIMIT_WINDOW_MS);
+
+function rateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = getClientIp(req);
+  const key = `${ip}`;
+  const now = Date.now();
+
+  const bucket = rateBuckets.get(key);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateBuckets.set(key, { count: 1, windowStart: now });
+    return next();
+  }
+
+  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+    res.status(429).json({ success: false, error: 'Too Many Requests' });
+    return;
+  }
+
+  bucket.count += 1;
+  return next();
+}
 
 /**
  * Rotas para gerenciamento de tokens RTC da Agora
  * Todas as rotas são prefixadas com /api/tokens
  */
 
+// Apply rate limiting to all token routes
+router.use(rateLimit);
+
 /**
  * POST /api/tokens/generate
  * Gera um token RTC para um usuário específico
  * Body: { channelName, uid, role? }
  */
-router.post('/generate', TokenController.generateToken);
+router.post('/generate', requireAuth, TokenController.generateToken);
 
 /**
  * POST /api/tokens/generate-multiple
  * Gera tokens para múltiplos usuários (útil para chamadas em grupo)
- * Body: { channelName, users: [{ uid, role? }] }
+ * Body: { channelName, participants: [{ uid, role? }] }
  */
-router.post('/generate-multiple', TokenController.generateMultipleTokens);
+router.post('/generate-multiple', requireAuth, TokenController.generateMultipleTokens);
+
+/**
+ * POST /api/tokens/for-call
+ * Gera token vinculado a uma chamada existente
+ * Body: { callId, uid, role? }
+ */
+router.post('/for-call', requireAuth, TokenController.generateTokenForCall);
+
+/**
+ * POST /api/tokens/standby
+ * Gera token RTM para modo standby (moradores aguardando chamadas)
+ * Body: { uid, ttlSeconds? }
+ */
+router.post('/standby', requireAuth, TokenController.generateStandbyToken);
 
 /**
  * POST /api/tokens/validate
  * Valida se um token ainda é válido
  * Body: { token, channelName, uid }
  */
-router.post('/validate', TokenController.validateToken);
+router.post('/validate', requireAuth, TokenController.validateToken);
 
 /**
  * GET /api/tokens/test
@@ -50,7 +149,8 @@ router.get('/test', (req: Request, res: Response) => {
     endpoints: {
       'POST /api/tokens/generate': 'Gerar token individual',
       'POST /api/tokens/generate-multiple': 'Gerar múltiplos tokens',
-      'POST /api/tokens/validate': 'Validar token'
+      'POST /api/tokens/validate': 'Validar token',
+      'POST /api/tokens/for-call': 'Gerar token vinculado a chamada'
     }
   });
 });

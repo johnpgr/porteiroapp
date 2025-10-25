@@ -11,7 +11,8 @@
       "Bash(find:*)",
       "Bash(timeout /t 5 /nobreak)",
       "WebFetch(domain:jamesavisaapi.jamesconcierge.com)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(pnpm build:common:*)"
     ],
     "deny": [],
     "ask": []

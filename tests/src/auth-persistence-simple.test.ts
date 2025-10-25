@@ -12,7 +12,7 @@ const supabaseAnonKey =
 
 const { client: supabase } = SupabaseClientFactory.createBrowserClient({
   url: supabaseUrl,
-  anonKey: supabaseAnonKey,
+  key: supabaseAnonKey,
 });
 
 // Mock do TokenStorage para testes

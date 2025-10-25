@@ -5,6 +5,26 @@ import {
 } from "@porteiroapp/common/supabase";
 
 /**
+ * Valid status values for intercom_calls table
+ * Based on CHECK constraint: status IN ('calling', 'answered', 'ended', 'missed')
+ */
+export type IntercomCallStatus = "calling" | "answered" | "ended" | "missed";
+
+/**
+ * Valid status values for call_participants table
+ * Based on CHECK constraint (updated migration 20251021)
+ */
+export type CallParticipantStatus =
+  | "notified"
+  | "invited"
+  | "ringing"
+  | "answered"
+  | "connected"
+  | "declined"
+  | "missed"
+  | "disconnected";
+
+/**
  * Serviço de conexão com Supabase
  * Utiliza o cliente JavaScript do Supabase em vez de conexão direta PostgreSQL
  */
@@ -13,16 +33,16 @@ class DatabaseService {
   private unified: UnifiedSupabaseClient;
 
   constructor() {
-    // Initialize Supabase client
+    // Initialize Supabase client with service role key
     const { client, unified } = SupabaseClientFactory.createServerClient({
       url: process.env.SUPABASE_URL!,
-      anonKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      key: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     });
 
     this.supabase = client;
     this.unified = unified;
 
-    console.log("🔗 Cliente Supabase inicializado");
+    console.log("🔗 Cliente Supabase inicializado com service role key");
   }
 
   /**
@@ -117,6 +137,7 @@ class DatabaseService {
    * Cria uma nova chamada de interfone
    * @param apartmentId - ID do apartamento
    * @param doormanId - ID do porteiro
+   * @param options - Opções da chamada
    * @returns Dados da chamada criada
    */
   async createIntercomCall(
@@ -124,7 +145,7 @@ class DatabaseService {
     doormanId: string,
     options?: {
       channelName?: string | null;
-      status?: string;
+      status?: IntercomCallStatus;
       startedAt?: string;
     },
   ): Promise<any> {
@@ -134,7 +155,7 @@ class DatabaseService {
         .insert({
           apartment_id: apartmentId,
           doorman_id: doormanId,
-          status: options?.status ?? "ringing",
+          status: options?.status ?? "calling",
           started_at: options?.startedAt ?? new Date().toISOString(),
           twilio_conference_sid: options?.channelName ?? null,
         })
@@ -218,7 +239,8 @@ class DatabaseService {
 
       return {
         ...data,
-        channel_name: data.twilio_conference_sid ?? data.twilio_call_sid ?? null,
+        channel_name:
+          data.twilio_conference_sid ?? data.twilio_call_sid ?? null,
         apartment_number: data.apartments?.number,
         building_id: data.apartments?.building_id,
         building_name: data.apartments?.buildings?.name,
@@ -245,11 +267,7 @@ class DatabaseService {
         .eq("id", callId)
         .single();
 
-      if (
-        checkError ||
-        !currentCall ||
-        (currentCall.status !== "calling" && currentCall.status !== "ringing")
-      ) {
+      if (checkError || !currentCall || currentCall.status !== "calling") {
         throw new Error("Chamada não está mais disponível para ser atendida");
       }
 
@@ -529,10 +547,13 @@ class DatabaseService {
   /**
    * Atualiza status da chamada
    * @param callId - ID da chamada
-   * @param status - Novo status
+   * @param status - Novo status ('calling' | 'answered' | 'ended' | 'missed')
    * @returns Chamada atualizada
    */
-  async updateCallStatus(callId: string, status: string): Promise<any> {
+  async updateCallStatus(
+    callId: string,
+    status: IntercomCallStatus,
+  ): Promise<any> {
     try {
       const { data, error } = await this.supabase
         .from("intercom_calls")
@@ -625,21 +646,15 @@ class DatabaseService {
         .from("call_participants")
         .select(
           `
-          id,
-          call_id,
-          resident_id,
-          status,
-          joined_at,
-          left_at,
-          created_at,
-          profiles:profiles!call_participants_resident_id_fkey(
             id,
-            full_name,
-            name,
-            phone,
-            user_type
-          )
-        `,
+            call_id,
+            resident_id,
+            status,
+            joined_at,
+            left_at,
+            created_at,
+            profiles!call_participants_resident_id_fkey(id, full_name, phone, user_type)
+          `,
         )
         .eq("call_id", callId);
 
@@ -670,7 +685,7 @@ class DatabaseService {
           created_at: participant.created_at,
           user_type: normalizedType,
           raw_user_type: rawUserType,
-          name: profile.full_name || profile.name || null,
+          name: profile.full_name || null,
           phone: profile.phone || null,
         };
       });
@@ -758,7 +773,7 @@ class DatabaseService {
         `,
         )
         .eq("apartments.building_id", buildingId)
-        .in("status", ["calling", "ringing", "active"])
+        .in("status", ["calling", "answered"])
         .order("started_at", { ascending: false });
 
       if (error) {

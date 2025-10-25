@@ -11,7 +11,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const { client: supabase } = SupabaseClientFactory.createServerClient({
   url: SUPABASE_URL,
-  anonKey: SUPABASE_SERVICE_KEY,
+  key: SUPABASE_SERVICE_KEY,
 });
 
 interface Response {

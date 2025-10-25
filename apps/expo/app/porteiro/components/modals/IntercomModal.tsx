@@ -396,7 +396,11 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
           onPress={handleEndCall}
           disabled={callState === 'ending' || callState === 'ended'}>
           <Text style={styles.endCallButtonText}>
-            {callState === 'ended' ? '✓ Encerrada' : callState === 'ending' ? 'Encerrando...' : '📞 Encerrar'}
+            {callState === 'ended'
+              ? '✓ Encerrada'
+              : callState === 'ending'
+                ? 'Encerrando...'
+                : '📞 Encerrar'}
           </Text>
         </TouchableOpacity>
       </View>

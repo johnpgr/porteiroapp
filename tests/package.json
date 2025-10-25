@@ -13,6 +13,7 @@
     "test:auth:simple": "node --test src/auth-persistence-simple.test.ts",
     "test:popup": "node --test src/test-popup.test.ts",
     "test:modal": "node --test src/test-modal-force.test.ts",
+    "test:token": "node --test src/token-security.test.ts",
     "test:all": "node --test src/**/*.test.ts",
     "test:watch": "node --test --watch src/**/*.test.ts"
   },

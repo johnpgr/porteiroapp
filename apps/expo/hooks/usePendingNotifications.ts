@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { notificationApi } from '../services/notificationApi';
 import * as Notifications from 'expo-notifications';
 import { notifyPorteirosVisitorResponse } from '../services/pushNotificationService';
+import { respondToNotification as respondCore } from '@porteiroapp/common/hooks';
 
 interface PendingNotification {
   id: string;
@@ -334,43 +335,26 @@ export const usePendingNotifications = () => {
     response: NotificationResponse
   ) => {
     try {
-      // Buscar building_id antes de atualizar
-      const { data: logData, error: logError } = await supabase
-        .from('visitor_logs')
-        .select('building_id')
-        .eq('id', notificationId)
-        .single();
+      const result = await respondCore(
+        {
+          supabase,
+          apartmentId: apartmentId ?? null,
+          userId: user?.id
+        },
+        notificationId,
+        response
+      );
 
-      if (logError || !logData?.building_id) {
-        console.error('Erro ao buscar building_id:', logError);
-        throw new Error('Não foi possível identificar o prédio');
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao processar resposta');
       }
 
-      const updateData: any = {
-        notification_status: response.action === 'approve' ? 'approved' : 'rejected',
-        resident_response_at: new Date().toISOString(),
-        resident_response_by: user?.id,
-      };
-      
-      if (response.reason) {
-        updateData.rejection_reason = response.reason;
+      if (result.buildingId) {
+        await notifyDoorkeepers(notificationId, response, result.buildingId);
+      } else {
+        console.warn('[usePendingNotifications] Building ID ausente após resposta, push não enviado');
       }
       
-      if (response.delivery_destination) {
-        updateData.delivery_destination = response.delivery_destination;
-      }
-      
-      const { error } = await supabase
-        .from('visitor_logs')
-        .update(updateData)
-        .eq('id', notificationId);
-      
-      if (error) throw error;
-
-      // Notificar porteiros sobre a resposta do morador
-      await notifyDoorkeepers(notificationId, response, logData.building_id);
-      
-      // Remover da lista local
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       
       return { success: true };
@@ -378,7 +362,7 @@ export const usePendingNotifications = () => {
       console.error('Erro ao responder notificação:', err);
       return { success: false, error: err.message };
     }
-  }, [user?.id, notifyDoorkeepers]);
+  }, [apartmentId, notifyDoorkeepers, user?.id]);
 
   // Inicializar
   useEffect(() => {

@@ -20,6 +20,8 @@
     "build:common": "pnpm --filter @porteiroapp/common build",
     "start:web": "pnpm --filter @porteiroapp/porteiro-site start",
     "start:api": "pnpm --filter @porteiroapp/interfone-api start",
+    "start:android": "pnpm --filter @porteiroapp/porteiro-mobile android",
+    "start:ios": "pnpm --filter @porteiroapp/porteiro-mobile ios",
     "test": "pnpm --filter @porteiroapp/tests test:all",
     "test:unit": "pnpm --filter @porteiroapp/tests test",
     "test:advanced": "pnpm --filter @porteiroapp/tests test:advanced",
@@ -29,6 +31,10 @@
     "lint:web": "pnpm --filter @porteiroapp/porteiro-site lint",
     "format": "pnpm --filter @porteiroapp/porteiro-mobile format",
     "typecheck": "pnpm --recursive --filter \"./apps/**\" --filter \"./packages/**\" typecheck",
+    "supabase": "supabase",
+    "db:link": "supabase link --project-ref $SUPABASE_PROJECT_REF",
+    "db:push": "supabase db push --db-url $DATABASE_URL",
+    "db:migrate": "supabase db push --db-url $DATABASE_URL",
     "clean": "rm -rf node_modules && pnpm --recursive exec rm -rf node_modules dist .next .expo",
     "clean:install": "pnpm clean && pnpm install"
   },
@@ -36,5 +42,8 @@
     "patchedDependencies": {
       "react-native@0.81.5": "patches/react-native@0.81.5.patch"
     }
+  },
+  "devDependencies": {
+    "supabase": "^2.53.6"
   }
 }

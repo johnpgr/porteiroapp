@@ -63,7 +63,7 @@ class CallController {
 
       // Criar chamada no banco de dados primeiro
       const call = await DatabaseService.createIntercomCall(apartment.id, effectiveDoormanId, {
-        status: 'ringing'
+        status: 'calling'
       });
 
       // Verificar se a chamada foi criada com sucesso
@@ -155,7 +155,8 @@ class CallController {
           status: 'ringing',
           rtcUid: String(resident.id),
           rtmId: String(resident.id),
-          pushToken: resident.push_token ?? null
+          pushToken: resident.push_token ?? null,
+          notification_enabled: resident.notification_enabled ?? false
         });
 
         inviteTargets.push(String(resident.id));
@@ -193,19 +194,50 @@ class CallController {
         invitePayload.context = context;
       }
 
-      const pushFallbackTargets = participants
-        .filter((participant: any) => participant.user_type === 'resident' && participant.pushToken)
-        .map((participant: any) => ({
-          userId: participant.user_id,
-          pushToken: participant.pushToken,
-          name: participant.name
-        }));
+      // Filter residents who can receive push notifications (need BOTH token AND enabled)
+      const residentParticipants = participants.filter((p: any) => p.user_type === 'resident');
+      const withTokens = residentParticipants.filter((p: any) => p.pushToken);
+      const withNotificationsEnabled = residentParticipants.filter((p: any) => p.notification_enabled);
+      const eligibleForNotifications = residentParticipants.filter((p: any) => p.pushToken && p.notification_enabled);
+
+      console.log(`📊 Resident notification eligibility:`);
+      console.log(`   Total residents: ${residentParticipants.length}`);
+      console.log(`   With push tokens: ${withTokens.length}`);
+      console.log(`   With notifications enabled: ${withNotificationsEnabled.length}`);
+      console.log(`   Eligible (both): ${eligibleForNotifications.length}`);
+
+      const pushFallbackTargets = eligibleForNotifications.map((participant: any) => ({
+        userId: participant.user_id,
+        pushToken: participant.pushToken,
+        name: participant.name
+      }));
 
       const serializedParticipants = participants.map((participant: any) => {
-        // Remover dados sensíveis (push tokens) do payload público
-        const { pushToken, ...rest } = participant;
+        // Remover dados sensíveis (push tokens, notification settings) do payload público
+        const { pushToken, notification_enabled, ...rest } = participant;
         return rest;
       });
+
+      // Warn if no residents can receive push notifications (RTM still works for open apps)
+      if (pushFallbackTargets.length === 0 && residentParticipants.length > 0) {
+        console.warn(`⚠️  No residents will receive push notifications (call will rely on RTM for open apps)`);
+        console.warn(`   Total residents: ${residentParticipants.length}`);
+        console.warn(`   With push tokens: ${withTokens.length}`);
+        console.warn(`   With notifications enabled: ${withNotificationsEnabled.length}`);
+        console.warn(`   Eligible (both): ${eligibleForNotifications.length}`);
+
+        // Determine specific reason
+        let reason: string;
+        if (withTokens.length === 0) {
+          reason = 'No residents have registered push tokens';
+        } else if (withNotificationsEnabled.length === 0) {
+          reason = 'All residents have notifications disabled';
+        } else {
+          reason = 'No residents have both push token and notifications enabled';
+        }
+        console.warn(`   Reason: ${reason}`);
+        console.warn(`   ℹ️  Call will proceed - residents with app open will receive RTM invite`);
+      }
 
       // Send push notifications as fallback for RTM invites
       let pushNotificationsSent = 0;
@@ -249,7 +281,7 @@ class CallController {
             channelName,
             apartmentNumber,
             buildingId,
-            status: call.status ?? 'ringing',
+            status: call.status ?? 'calling',
             startedAt: call.started_at,
             initiatorId: String(effectiveDoormanId),
             context: context ?? null
@@ -322,7 +354,7 @@ class CallController {
         return;
       }
 
-      if (call.status !== 'ringing') {
+      if (call.status !== 'calling') {
         res.status(400).json({
           success: false,
           error: 'Chamada não está disponível para atendimento'
@@ -330,8 +362,8 @@ class CallController {
         return;
       }
 
-      // Atualizar status da chamada para 'active'
-      await DatabaseService.updateCallStatus(callId, 'active');
+      // Atualizar status da chamada para 'answered'
+      await DatabaseService.updateCallStatus(callId, 'answered');
 
       // Atualizar participante que atendeu
       await DatabaseService.updateCallParticipant(callId, userId, {
@@ -348,19 +380,41 @@ class CallController {
       const updatedCall = await DatabaseService.getCallById(callId);
       const participants = await DatabaseService.getCallParticipants(callId);
 
-      console.log(`✅ Chamada ${callId} atendida por ${userId}`);
+      // Generate token bundle for the answering user to eliminate extra round-trip
+      const channelName = updatedCall?.channel_name ?? call.channel_name;
+      const tokenBundle = channelName
+        ? agoraService.generateTokenPair({
+            channelName,
+            uid: userId,
+            role: 'publisher'
+          })
+        : null;
+
+      console.log(`✅ Chamada ${callId} atendida por ${userId}${tokenBundle ? ' (tokens incluídos)' : ''}`);
 
       res.json({
         success: true,
         data: {
           call: {
             id: updatedCall?.id ?? callId,
-            channelName: updatedCall?.channel_name ?? call.channel_name ?? null,
-            status: updatedCall?.status ?? 'active',
+            channelName: channelName ?? null,
+            status: updatedCall?.status ?? 'answered',
             answeredBy: userId,
             answeredAt: updatedCall?.answered_at ?? new Date().toISOString()
           },
-          participants
+          participants,
+          tokens: tokenBundle
+            ? {
+                channelName: tokenBundle.channelName,
+                rtcToken: tokenBundle.rtcToken,
+                rtmToken: tokenBundle.rtmToken,
+                uid: tokenBundle.uid,
+                rtcRole: tokenBundle.rtcRole,
+                ttlSeconds: tokenBundle.ttlSeconds,
+                expiresAt: tokenBundle.expiresAt,
+                issuedAt: tokenBundle.issuedAt
+              }
+            : undefined
         }
       });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import {
   View,
@@ -10,21 +10,15 @@ import {
   TextInput,
   Modal,
   Alert,
-  Platform,
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { supabase } from '../../../utils/supabase';
-import { useAuth } from '../../../hooks/useAuth';
-import { 
-  sendWhatsAppMessage, 
-  validateBrazilianPhone, 
-  formatBrazilianPhone,
-  generateWhatsAppMessage,
-  type ResidentData 
-} from '../../../utils/whatsapp';
+import { sendVisitorWhatsApp } from '~/services/whatsappService';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
+import { validateBrazilianPhone, formatBrazilianPhone } from '~/utils/whatsapp';
 // Removed old notification service - using Edge Functions for push notifications
 import * as Crypto from 'expo-crypto';
 
@@ -32,10 +26,10 @@ import * as Crypto from 'expo-crypto';
 const formatDate = (value: string): string => {
   // Remove todos os caracteres não numéricos
   const numbers = value.replace(/\D/g, '');
-  
+
   // Limita a 8 dígitos (DDMMAAAA)
   const limitedNumbers = numbers.slice(0, 8);
-  
+
   // Aplica a máscara DD/MM/AAAA progressivamente
   if (limitedNumbers.length === 0) {
     return '';
@@ -51,7 +45,7 @@ const formatDate = (value: string): string => {
 const formatTime = (value: string): string => {
   // Remove todos os caracteres não numéricos
   const numbers = value.replace(/\D/g, '');
-  
+
   // Aplica a máscara HH:MM
   if (numbers.length <= 2) {
     return numbers;
@@ -63,48 +57,48 @@ const formatTime = (value: string): string => {
 // Funções de validação
 const validateDate = (dateString: string): boolean => {
   if (!dateString || dateString.length !== 10) return false;
-  
+
   const [day, month, year] = dateString.split('/').map(Number);
-  
+
   if (!day || !month || !year) return false;
   if (day < 1 || day > 31) return false;
   if (month < 1 || month > 12) return false;
-  
+
   // Verifica se a data é válida
   const date = new Date(year, month - 1, day);
   if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) {
     return false;
   }
-  
+
   // Permite datas a partir de hoje (data atual) - incluindo hoje
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Remove horas para comparar apenas a data
   date.setHours(0, 0, 0, 0);
-  
+
   return date >= today;
 };
 
 const validateTime = (timeString: string): boolean => {
   if (!timeString || timeString.length !== 5) return false;
-  
+
   const [hours, minutes] = timeString.split(':').map(Number);
-  
+
   if (isNaN(hours) || isNaN(minutes)) return false;
   if (hours < 0 || hours > 23) return false;
   if (minutes < 0 || minutes > 59) return false;
-  
+
   return true;
 };
 
 const validateTimeRange = (startTime: string, endTime: string): boolean => {
   if (!validateTime(startTime) || !validateTime(endTime)) return false;
-  
+
   const [startHours, startMinutes] = startTime.split(':').map(Number);
   const [endHours, endMinutes] = endTime.split(':').map(Number);
-  
+
   const startTotalMinutes = startHours * 60 + startMinutes;
   const endTotalMinutes = endHours * 60 + endMinutes;
-  
+
   return endTotalMinutes > startTotalMinutes;
 };
 
@@ -116,16 +110,18 @@ const generateTemporaryPassword = (): string => {
 // Função para criar hash da senha usando expo-crypto
 const hashPassword = async (password: string): Promise<string> => {
   // Usar SHA-256 para criar hash da senha
-  const hash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    password,
-    { encoding: Crypto.CryptoEncoding.HEX }
-  );
+  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password, {
+    encoding: Crypto.CryptoEncoding.HEX,
+  });
   return hash;
 };
 
 // Função para gerar senha temporária (removida a funcionalidade de armazenamento)
-const generateTemporaryPasswordForVisitor = async (visitorName: string, visitorPhone: string, visitorId: string): Promise<string> => {
+const generateTemporaryPasswordForVisitor = async (
+  visitorName: string,
+  visitorPhone: string,
+  visitorId: string
+): Promise<string> => {
   try {
     const plainPassword = generateTemporaryPassword();
     console.log('🔑 Senha temporária gerada para visitante:', visitorName, visitorPhone);
@@ -143,7 +139,7 @@ interface Visitor {
   phone: string | null;
   photo_url: string | null;
   access_type?: 'direto' | 'com_aprovacao';
-  status: string;
+  status: string | null;
   visitor_type: string;
   created_at: string;
   updated_at: string;
@@ -205,22 +201,22 @@ export default function VisitantesTab() {
     allowed_days: [],
     max_simultaneous_visits: 1,
     validity_start: '',
-    validity_end: ''
+    validity_end: '',
   });
-  
+
   // Estado para armazenar apartment_id e evitar múltiplas consultas
   const [apartmentId, setApartmentId] = useState<string | null>(null);
   const [apartmentIdLoading, setApartmentIdLoading] = useState(false);
-  
+
   // Rate limiting para pré-cadastros
   const [lastRegistrationTime, setLastRegistrationTime] = useState<number>(0);
   const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
   const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
-  
+
   // Rate limiting para múltiplos visitantes
   const [lastSubmissionTime, setLastSubmissionTime] = useState<number>(0);
   const RATE_LIMIT_MS = 30000; // 30 segundos entre submissões múltiplas
-  
+
   // Estados para modal de edição
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
@@ -232,44 +228,42 @@ export default function VisitantesTab() {
     visit_start_time: '',
     visit_end_time: '',
     allowed_days: [],
-    max_simultaneous_visits: 1
+    max_simultaneous_visits: 1,
   });
-  
+
   // Estado para controlar expansão dos cards
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
-  
+
   // Estado para armazenar veículos
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  
+
   // Estados para paginação e filtros
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
   const ITEMS_PER_PAGE = 10;
-  
+
   // Estados para o modal de filtros
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
-  const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
-  
+  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>(
+    'pendente'
+  );
+  const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>(
+    'todos'
+  );
+
   // Estados para múltiplos visitantes
   const [registrationMode, setRegistrationMode] = useState<'individual' | 'multiple'>('individual');
   const [multipleVisitors, setMultipleVisitors] = useState<MultipleVisitor[]>([
-    { name: '', phone: '' }
+    { name: '', phone: '' },
   ]);
   const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  
+
   // Função para alternar expansão do card
   const toggleCardExpansion = (visitorId: string) => {
     setExpandedCardId(expandedCardId === visitorId ? null : visitorId);
   };
-  
-
-
-
-
-
 
   // Função para carregar apartment_id uma única vez
   const loadApartmentId = useCallback(async (): Promise<string | null> => {
@@ -279,14 +273,16 @@ export default function VisitantesTab() {
 
     if (apartmentIdLoading) {
       // Se já está carregando, aguarda um pouco e tenta novamente
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       return apartmentId;
     }
 
     try {
       setApartmentIdLoading(true);
-      
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
       if (!authUser) {
         throw new Error('Usuário não autenticado');
       }
@@ -364,7 +360,8 @@ export default function VisitantesTab() {
       console.log('📋 Buscando visitantes do apartamento...');
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitors')
-        .select(`
+        .select(
+          `
           id,
           name,
           document,
@@ -379,13 +376,14 @@ export default function VisitantesTab() {
           visit_date,
           visit_start_time,
           visit_end_time
-        `)
+        `
+        )
         .eq('apartment_id', currentApartmentId)
         .order('created_at', { ascending: false });
 
       if (visitorsError) {
         console.error('❌ Erro ao buscar visitantes:', visitorsError);
-        
+
         // Tratamento específico para erros de coluna inexistente
         if (visitorsError.code === '42703') {
           setError('Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
@@ -404,7 +402,8 @@ export default function VisitantesTab() {
       console.log('🚗 Buscando veículos de visitantes do apartamento...');
       const { data: vehiclesData, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select(`
+        .select(
+          `
           id,
           license_plate,
           brand,
@@ -414,7 +413,8 @@ export default function VisitantesTab() {
           apartment_id,
           ownership_type,
           created_at
-        `)
+        `
+        )
         .eq('apartment_id', currentApartmentId)
         .eq('ownership_type', 'visita')
         .order('created_at', { ascending: false });
@@ -428,7 +428,7 @@ export default function VisitantesTab() {
       }
 
       // Mapear os dados dos visitantes
-      const mappedVisitors: Visitor[] = (visitorsData || []).map(visitor => ({
+      const mappedVisitors: Visitor[] = (visitorsData || []).map((visitor) => ({
         id: visitor.id,
         name: visitor.name || 'Nome não informado',
         document: visitor.document,
@@ -436,17 +436,20 @@ export default function VisitantesTab() {
         photo_url: visitor.photo_url,
         status: visitor.status,
         visitor_type: visitor.visitor_type || 'comum',
-        access_type: visitor.access_type || 'com_aprovacao',
+        access_type:
+          visitor.access_type === 'direto' || visitor.access_type === 'com_aprovacao'
+            ? visitor.access_type
+            : 'com_aprovacao',
         created_at: visitor.created_at,
         updated_at: visitor.updated_at,
-        apartment_id: visitor.apartment_id,
+        apartment_id: visitor.apartment_id ?? "",
         visit_date: visitor.visit_date,
         visit_start_time: visitor.visit_start_time,
-        visit_end_time: visitor.visit_end_time
+        visit_end_time: visitor.visit_end_time,
       }));
 
       // Mapear os dados dos veículos
-      const mappedVehicles: Vehicle[] = (vehiclesData || []).map(vehicle => ({
+      const mappedVehicles: Vehicle[] = (vehiclesData || []).map((vehicle) => ({
         id: vehicle.id,
         license_plate: vehicle.license_plate,
         brand: vehicle.brand,
@@ -455,7 +458,7 @@ export default function VisitantesTab() {
         type: vehicle.type,
         apartment_id: vehicle.apartment_id,
         ownership_type: vehicle.ownership_type || 'proprietario',
-        created_at: vehicle.created_at
+        created_at: vehicle.created_at,
       }));
 
       setVisitors(mappedVisitors);
@@ -502,23 +505,23 @@ export default function VisitantesTab() {
 
     // Aplicar filtro de status
     if (statusFilter !== 'todos') {
-      filteredVisitors = visitors.filter(visitor => {
+      filteredVisitors = visitors.filter((visitor) => {
         // Normalizar status para comparação
         const visitorStatus = visitor.status?.toLowerCase();
         const filterStatus = statusFilter.toLowerCase();
-        
+
         // Permitir apenas 'pendente' e 'expirado'
         if (filterStatus === 'pendente') {
           return visitorStatus === 'pendente';
         } else if (filterStatus === 'expirado') {
           return visitorStatus === 'expirado';
         }
-        
+
         return false;
       });
     } else {
       // Quando 'todos', mostrar apenas visitantes com status 'pendente' ou 'expirado'
-      filteredVisitors = visitors.filter(visitor => {
+      filteredVisitors = visitors.filter((visitor) => {
         const visitorStatus = visitor.status?.toLowerCase();
         return visitorStatus === 'pendente' || visitorStatus === 'expirado';
       });
@@ -526,19 +529,19 @@ export default function VisitantesTab() {
 
     // Aplicar filtro de tipo
     let combinedItems: any[] = [];
-    
+
     if (typeFilter === 'todos') {
       // Mostrar visitantes e veículos
       combinedItems = [
-        ...filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' })),
-        ...filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }))
+        ...filteredVisitors.map((visitor) => ({ ...visitor, itemType: 'visitor' })),
+        ...filteredVehicles.map((vehicle) => ({ ...vehicle, itemType: 'vehicle' })),
       ];
     } else if (typeFilter === 'visitantes') {
       // Mostrar apenas visitantes
-      combinedItems = filteredVisitors.map(visitor => ({ ...visitor, itemType: 'visitor' }));
+      combinedItems = filteredVisitors.map((visitor) => ({ ...visitor, itemType: 'visitor' }));
     } else if (typeFilter === 'veiculos') {
       // Mostrar apenas veículos
-      combinedItems = filteredVehicles.map(vehicle => ({ ...vehicle, itemType: 'vehicle' }));
+      combinedItems = filteredVehicles.map((vehicle) => ({ ...vehicle, itemType: 'vehicle' }));
     }
 
     // Calcular paginação
@@ -548,10 +551,10 @@ export default function VisitantesTab() {
     const paginatedItems = combinedItems.slice(startIndex, endIndex);
 
     return {
-      visitors: paginatedItems.filter(item => item.itemType === 'visitor'),
-      vehicles: paginatedItems.filter(item => item.itemType === 'vehicle'),
+      visitors: paginatedItems.filter((item) => item.itemType === 'visitor'),
+      vehicles: paginatedItems.filter((item) => item.itemType === 'vehicle'),
       totalPages,
-      totalItems: combinedItems.length
+      totalItems: combinedItems.length,
     };
   };
 
@@ -563,7 +566,7 @@ export default function VisitantesTab() {
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     } catch {
       return 'Data inválida';
@@ -615,7 +618,8 @@ export default function VisitantesTab() {
     // Implementação compatível com React Native usando Math.random()
     const chars = '0123456789abcdef';
     let token = '';
-    for (let i = 0; i < 64; i++) { // 64 caracteres hex = 32 bytes
+    for (let i = 0; i < 64; i++) {
+      // 64 caracteres hex = 32 bytes
       token += chars[Math.floor(Math.random() * 16)];
     }
     return token;
@@ -650,17 +654,19 @@ export default function VisitantesTab() {
     const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
     const match = dateString.match(dateRegex);
     if (!match) return false;
-    
+
     const [, day, month, year] = match;
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     date.setHours(0, 0, 0, 0);
-    
-    return date.getDate() == parseInt(day) && 
-           date.getMonth() == parseInt(month) - 1 && 
-           date.getFullYear() == parseInt(year) &&
-           date >= today; // Data deve ser atual ou futura
+
+    return (
+      date.getDate() == parseInt(day) &&
+      date.getMonth() == parseInt(month) - 1 &&
+      date.getFullYear() == parseInt(year) &&
+      date >= today
+    ); // Data deve ser atual ou futura
   };
 
   // Função para validar formato de horário (HH:MM)
@@ -676,7 +682,7 @@ export default function VisitantesTab() {
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
@@ -687,11 +693,15 @@ export default function VisitantesTab() {
   };
 
   // Função para formatar período de visita completo
-  const formatVisitPeriod = (date: string | null, startTime: string | null, endTime: string | null): string => {
+  const formatVisitPeriod = (
+    date: string | null,
+    startTime: string | null,
+    endTime: string | null
+  ): string => {
     const formattedDate = formatVisitDate(date);
     const formattedStartTime = formatVisitTime(startTime);
     const formattedEndTime = formatVisitTime(endTime);
-    
+
     if (date && (startTime || endTime)) {
       return `${formattedDate} das ${formattedStartTime} às ${formattedEndTime}`;
     }
@@ -699,7 +709,9 @@ export default function VisitantesTab() {
   };
 
   // Função para verificar conflitos de agendamento
-  const checkSchedulingConflicts = async (visitData: any): Promise<{ hasConflict: boolean; message?: string }> => {
+  const checkSchedulingConflicts = async (
+    visitData: any
+  ): Promise<{ hasConflict: boolean; message?: string }> => {
     try {
       // Usar apartment_id do estado
       const currentApartmentId = await loadApartmentId();
@@ -731,7 +743,7 @@ export default function VisitantesTab() {
             if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
               return {
                 hasConflict: true,
-                message: `Conflito de horário com visitante ${conflict.name} (${conflict.visit_start_time} - ${conflict.visit_end_time})`
+                message: `Conflito de horário com visitante ${conflict.name} (${conflict.visit_start_time} - ${conflict.visit_end_time})`,
               };
             }
           }
@@ -752,7 +764,7 @@ export default function VisitantesTab() {
 
           for (const conflict of conflicts) {
             // Verificar se há dias em comum
-            const commonDays = visitData.allowed_days.filter((day: string) => 
+            const commonDays = visitData.allowed_days.filter((day: string) =>
               conflict.allowed_days.includes(day)
             );
 
@@ -764,7 +776,7 @@ export default function VisitantesTab() {
               if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
                 return {
                   hasConflict: true,
-                  message: `Conflito de horário com visitante ${conflict.name} nos dias: ${commonDays.join(', ')} (${conflict.visit_start_time} - ${conflict.visit_end_time})`
+                  message: `Conflito de horário com visitante ${conflict.name} nos dias: ${commonDays.join(', ')} (${conflict.visit_start_time} - ${conflict.visit_end_time})`,
                 };
               }
             }
@@ -822,7 +834,9 @@ export default function VisitantesTab() {
   };
 
   // Função para verificar limite de visitas simultâneas
-  const checkSimultaneousVisitsLimit = async (visitData: any): Promise<{ exceedsLimit: boolean; message?: string }> => {
+  const checkSimultaneousVisitsLimit = async (
+    visitData: any
+  ): Promise<{ exceedsLimit: boolean; message?: string }> => {
     try {
       // Garantir que temos o apartment_id
       const currentApartmentId = await loadApartmentId();
@@ -831,7 +845,7 @@ export default function VisitantesTab() {
       }
 
       const maxLimit = visitData.max_simultaneous_visits || 1;
-      
+
       if (visitData.visit_type === 'pontual') {
         // Contar visitas pontuais na mesma data e horário
         const { data: simultaneousVisits } = await supabase
@@ -846,32 +860,32 @@ export default function VisitantesTab() {
         if (simultaneousVisits && simultaneousVisits.length > 0) {
           const newStartMinutes = timeToMinutes(visitData.visit_start_time);
           const newEndMinutes = timeToMinutes(visitData.visit_end_time);
-          
+
           // Contar visitas que se sobrepõem no horário
           let overlappingCount = 0;
-          
+
           for (const visit of simultaneousVisits) {
             const { data: visitDetails } = await supabase
               .from('visitors')
               .select('visit_start_time, visit_end_time')
               .eq('id', visit.id)
               .maybeSingle();
-              
+
             if (visitDetails) {
               const existingStartMinutes = timeToMinutes(visitDetails.visit_start_time);
               const existingEndMinutes = timeToMinutes(visitDetails.visit_end_time);
-              
+
               // Verificar sobreposição
               if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
                 overlappingCount++;
               }
             }
           }
-          
+
           if (overlappingCount >= maxLimit) {
             return {
               exceedsLimit: true,
-              message: `Limite de ${maxLimit} visita(s) simultânea(s) excedido. Já existem ${overlappingCount} visita(s) agendada(s) para este horário.`
+              message: `Limite de ${maxLimit} visita(s) simultânea(s) excedido. Já existem ${overlappingCount} visita(s) agendada(s) para este horário.`,
             };
           }
         }
@@ -888,34 +902,34 @@ export default function VisitantesTab() {
         if (frequentVisits && frequentVisits.length > 0) {
           const newStartMinutes = timeToMinutes(visitData.visit_start_time);
           const newEndMinutes = timeToMinutes(visitData.visit_end_time);
-          
+
           // Verificar cada dia da semana
           for (const day of visitData.allowed_days) {
             let overlappingCount = 0;
-            
+
             for (const visit of frequentVisits) {
               // Verificar se o visitante tem o mesmo dia permitido
               if (visit.allowed_days.includes(day)) {
                 const existingStartMinutes = timeToMinutes(visit.visit_start_time);
                 const existingEndMinutes = timeToMinutes(visit.visit_end_time);
-                
+
                 // Verificar sobreposição de horários
                 if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
                   overlappingCount++;
                 }
               }
             }
-            
+
             if (overlappingCount >= maxLimit) {
               return {
                 exceedsLimit: true,
-                message: `Limite de ${maxLimit} visita(s) simultânea(s) excedido para ${day}. Já existem ${overlappingCount} visita(s) frequente(s) agendada(s) para este dia e horário.`
+                message: `Limite de ${maxLimit} visita(s) simultânea(s) excedido para ${day}. Já existem ${overlappingCount} visita(s) frequente(s) agendada(s) para este dia e horário.`,
               };
             }
           }
         }
       }
-      
+
       return { exceedsLimit: false };
     } catch (error) {
       console.error('Erro ao verificar limite de visitas simultâneas:', error);
@@ -926,15 +940,20 @@ export default function VisitantesTab() {
   // Função para processar pré-cadastro
   const handlePreRegistration = async () => {
     if (isSubmittingPreRegistration) return;
-    
+
     // Rate limiting - verificar cooldown
     const now = Date.now();
     if (now - lastRegistrationTime < REGISTRATION_COOLDOWN) {
-      const remainingTime = Math.ceil((REGISTRATION_COOLDOWN - (now - lastRegistrationTime)) / 1000);
-      Alert.alert('Aguarde', `Aguarde ${remainingTime} segundos antes de fazer outro pré-cadastro.`);
+      const remainingTime = Math.ceil(
+        (REGISTRATION_COOLDOWN - (now - lastRegistrationTime)) / 1000
+      );
+      Alert.alert(
+        'Aguarde',
+        `Aguarde ${remainingTime} segundos antes de fazer outro pré-cadastro.`
+      );
       return;
     }
-    
+
     // Sanitizar dados de entrada
     const sanitizedName = sanitizeInput(preRegistrationData.name);
     const sanitizedPhone = sanitizeInput(preRegistrationData.phone);
@@ -946,122 +965,143 @@ export default function VisitantesTab() {
         throw new Error('Erro ao obter apartment_id');
       }
 
-    // Validar campos obrigatórios
-    if (!sanitizedName || !sanitizedPhone) {
-      Alert.alert('Erro', 'Nome completo e telefone são obrigatórios.');
-      return;
-    }
-
-    // Validar nome
-    if (!validateName(sanitizedName)) {
-      Alert.alert('Erro', 'Nome deve conter apenas letras e espaços (2-50 caracteres).');
-      return;
-    }
-
-    // Validar telefone
-    if (!validatePhoneNumber(sanitizedPhone) || !validateBrazilianPhone(sanitizedPhone)) {
-      Alert.alert('Erro', 'Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX');
-      return;
-    }
-
-    // Validações removidas: visit_reason e access_type não existem na tabela
-
-    // Validar período de validade se fornecido
-    if (preRegistrationData.validity_start && !validateDate(preRegistrationData.validity_start)) {
-      Alert.alert('Erro', 'Data de início da validade inválida. Use o formato DD/MM/AAAA.');
-      return;
-    }
-
-    if (preRegistrationData.validity_end && !validateDate(preRegistrationData.validity_end)) {
-      Alert.alert('Erro', 'Data de fim da validade inválida. Use o formato DD/MM/AAAA.');
-      return;
-    }
-
-    // Verificar se data de início é anterior à data de fim
-    if (preRegistrationData.validity_start && preRegistrationData.validity_end) {
-      const startDate = parseDate(preRegistrationData.validity_start);
-      const endDate = parseDate(preRegistrationData.validity_end);
-      if (startDate >= endDate) {
-        Alert.alert('Erro', 'Data de início da validade deve ser anterior à data de fim.');
+      // Validar campos obrigatórios
+      if (!sanitizedName || !sanitizedPhone) {
+        Alert.alert('Erro', 'Nome completo e telefone são obrigatórios.');
         return;
       }
-    }
 
-    // Validações específicas para agendamento
-    if (preRegistrationData.visit_type === 'pontual') {
-      if (!preRegistrationData.visit_date) {
-        Alert.alert('Erro', 'Para visitas pontuais, a data é obrigatória.');
+      // Validar nome
+      if (!validateName(sanitizedName)) {
+        Alert.alert('Erro', 'Nome deve conter apenas letras e espaços (2-50 caracteres).');
         return;
       }
-      
-      if (!validateDate(preRegistrationData.visit_date)) {
-        Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA e uma data atual ou futura.');
+
+      // Validar telefone
+      if (!validatePhoneNumber(sanitizedPhone) || !validateBrazilianPhone(sanitizedPhone)) {
+        Alert.alert('Erro', 'Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX');
         return;
       }
-      
-      // Verificar horários apenas se ambos estiverem preenchidos
-      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
-      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
-      
-      // Se um horário está preenchido, ambos devem estar
-      if (hasStartTime !== hasEndTime) {
-        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
+
+      // Validações removidas: visit_reason e access_type não existem na tabela
+
+      // Validar período de validade se fornecido
+      if (preRegistrationData.validity_start && !validateDate(preRegistrationData.validity_start)) {
+        Alert.alert('Erro', 'Data de início da validade inválida. Use o formato DD/MM/AAAA.');
         return;
       }
-      
-      // Se ambos os horários estão preenchidos, validar formato e sequência
-      if (hasStartTime && hasEndTime) {
-        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
-          return;
-        }
-        
-        // Verificar se horário de início é anterior ao de fim
-        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-        
-        if (startMinutes >= endMinutes) {
-          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+
+      if (preRegistrationData.validity_end && !validateDate(preRegistrationData.validity_end)) {
+        Alert.alert('Erro', 'Data de fim da validade inválida. Use o formato DD/MM/AAAA.');
+        return;
+      }
+
+      // Verificar se data de início é anterior à data de fim
+      if (preRegistrationData.validity_start && preRegistrationData.validity_end) {
+        const startDate = parseDate(preRegistrationData.validity_start);
+        const endDate = parseDate(preRegistrationData.validity_end);
+        if (startDate >= endDate) {
+          Alert.alert('Erro', 'Data de início da validade deve ser anterior à data de fim.');
           return;
         }
       }
-    } else if (preRegistrationData.visit_type === 'frequente') {
-      if (!preRegistrationData.allowed_days || preRegistrationData.allowed_days.length === 0) {
-        Alert.alert('Erro', 'Para visitas frequentes, selecione pelo menos um dia da semana.');
-        return;
-      }
-      
-      // Verificar horários apenas se ambos estiverem preenchidos
-      const hasStartTime = preRegistrationData.visit_start_time && preRegistrationData.visit_start_time.trim() !== '';
-      const hasEndTime = preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
-      
-      // Se um horário está preenchido, ambos devem estar
-      if (hasStartTime !== hasEndTime) {
-        Alert.alert('Erro', 'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.');
-        return;
-      }
-      
-      // Se ambos os horários estão preenchidos, validar formato e sequência
-      if (hasStartTime && hasEndTime) {
-        if (!validateTime(preRegistrationData.visit_start_time) || !validateTime(preRegistrationData.visit_end_time)) {
-          Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+
+      // Validações específicas para agendamento
+      if (preRegistrationData.visit_type === 'pontual') {
+        if (!preRegistrationData.visit_date) {
+          Alert.alert('Erro', 'Para visitas pontuais, a data é obrigatória.');
           return;
         }
-        
-        // Verificar se horário de início é anterior ao de fim
-        const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
-        const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-        
-        if (startMinutes >= endMinutes) {
-          Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+
+        if (!validateDate(preRegistrationData.visit_date)) {
+          Alert.alert(
+            'Erro',
+            'Data inválida. Use o formato DD/MM/AAAA e uma data atual ou futura.'
+          );
           return;
         }
+
+        // Verificar horários apenas se ambos estiverem preenchidos
+        const hasStartTime =
+          preRegistrationData.visit_start_time &&
+          preRegistrationData.visit_start_time.trim() !== '';
+        const hasEndTime =
+          preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+
+        // Se um horário está preenchido, ambos devem estar
+        if (hasStartTime !== hasEndTime) {
+          Alert.alert(
+            'Erro',
+            'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.'
+          );
+          return;
+        }
+
+        // Se ambos os horários estão preenchidos, validar formato e sequência
+        if (hasStartTime && hasEndTime) {
+          if (
+            !validateTime(preRegistrationData.visit_start_time) ||
+            !validateTime(preRegistrationData.visit_end_time)
+          ) {
+            Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+            return;
+          }
+
+          // Verificar se horário de início é anterior ao de fim
+          const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+          const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+
+          if (startMinutes >= endMinutes) {
+            Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+            return;
+          }
+        }
+      } else if (preRegistrationData.visit_type === 'frequente') {
+        if (!preRegistrationData.allowed_days || preRegistrationData.allowed_days.length === 0) {
+          Alert.alert('Erro', 'Para visitas frequentes, selecione pelo menos um dia da semana.');
+          return;
+        }
+
+        // Verificar horários apenas se ambos estiverem preenchidos
+        const hasStartTime =
+          preRegistrationData.visit_start_time &&
+          preRegistrationData.visit_start_time.trim() !== '';
+        const hasEndTime =
+          preRegistrationData.visit_end_time && preRegistrationData.visit_end_time.trim() !== '';
+
+        // Se um horário está preenchido, ambos devem estar
+        if (hasStartTime !== hasEndTime) {
+          Alert.alert(
+            'Erro',
+            'Se definir horários, preencha tanto o horário de início quanto o de fim. Deixe ambos em branco para liberação 24h.'
+          );
+          return;
+        }
+
+        // Se ambos os horários estão preenchidos, validar formato e sequência
+        if (hasStartTime && hasEndTime) {
+          if (
+            !validateTime(preRegistrationData.visit_start_time) ||
+            !validateTime(preRegistrationData.visit_end_time)
+          ) {
+            Alert.alert('Erro', 'Horário inválido. Use o formato HH:MM.');
+            return;
+          }
+
+          // Verificar se horário de início é anterior ao de fim
+          const [startHour, startMin] = preRegistrationData.visit_start_time.split(':').map(Number);
+          const [endHour, endMin] = preRegistrationData.visit_end_time.split(':').map(Number);
+          const startMinutes = startHour * 60 + startMin;
+          const endMinutes = endHour * 60 + endMin;
+
+          if (startMinutes >= endMinutes) {
+            Alert.alert('Erro', 'Horário de início deve ser anterior ao horário de fim.');
+            return;
+          }
+        }
       }
-    }
 
       // Atualizar timestamp do último registro
       setLastRegistrationTime(now);
@@ -1084,13 +1124,20 @@ export default function VisitantesTab() {
         .eq('apartment_id', currentApartmentId)
         .maybeSingle();
 
-      console.log('🔍 Verificando visitante existente:', { name: sanitizedName, phone: sanitizedPhone, existingVisitor });
+      console.log('🔍 Verificando visitante existente:', {
+        name: sanitizedName,
+        phone: sanitizedPhone,
+        existingVisitor,
+      });
 
       if (existingVisitor) {
         // Se o visitante existe e está expirado, permitir recadastração
         if (existingVisitor.status?.toLowerCase() === 'expirado') {
-          console.log('♻️ Visitante expirado encontrado, permitindo recadastração:', existingVisitor.id);
-          
+          console.log(
+            '♻️ Visitante expirado encontrado, permitindo recadastração:',
+            existingVisitor.id
+          );
+
           // Atualizar visitante expirado ao invés de criar novo
           const updateData = {
             status: initialStatus,
@@ -1102,7 +1149,7 @@ export default function VisitantesTab() {
             visit_end_time: preRegistrationData.visit_end_time || '23:59',
             max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
             is_recurring: preRegistrationData.visit_type === 'frequente',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           };
 
           // Adicionar campos específicos baseados no tipo de visita
@@ -1142,12 +1189,14 @@ export default function VisitantesTab() {
           // Buscar dados do apartamento e prédio para o WhatsApp
           const { data: apartmentDataRecadastro, error: apartmentErrorRecadastro } = await supabase
             .from('apartments')
-            .select(`
+            .select(
+              `
               number,
               buildings!inner (
                 name
               )
-            `)
+            `
+            )
             .eq('id', currentApartmentId)
             .single();
 
@@ -1155,48 +1204,60 @@ export default function VisitantesTab() {
           const apartmentNumberRecadastro = apartmentDataRecadastro?.number || 'Apartamento';
 
           // Gerar link de completação do cadastro
-          const baseRegistrationUrlRecadastro = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+          const baseRegistrationUrlRecadastro =
+            process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL ||
+            'https://jamesavisa.jamesconcierge.com';
           const completionLinkRecadastro = `${baseRegistrationUrlRecadastro}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
-          console.log('📱 [Recadastro] Enviando WhatsApp para visitante recadastrado:', sanitizedPhone);
+          console.log(
+            '📱 [Recadastro] Enviando WhatsApp para visitante recadastrado:',
+            sanitizedPhone
+          );
           let whatsappSentRecadastro = false;
           let whatsappErrorRecadastro = '';
 
           try {
-            const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
-
             const whatsappResultRecadastro = await sendVisitorWhatsApp({
               name: sanitizedName,
               phone: sanitizedPhone.replace(/\D/g, ''),
               building: buildingNameRecadastro,
               apartment: apartmentNumberRecadastro,
-              url: completionLinkRecadastro
+              url: completionLinkRecadastro,
             });
 
             if (whatsappResultRecadastro.success) {
-              console.log('✅ [Recadastro] WhatsApp enviado com sucesso para visitante recadastrado');
+              console.log(
+                '✅ [Recadastro] WhatsApp enviado com sucesso para visitante recadastrado'
+              );
               whatsappSentRecadastro = true;
             } else {
-              console.warn('⚠️ [Recadastro] Erro ao enviar WhatsApp:', whatsappResultRecadastro.error);
+              console.warn(
+                '⚠️ [Recadastro] Erro ao enviar WhatsApp:',
+                whatsappResultRecadastro.error
+              );
               whatsappErrorRecadastro = whatsappResultRecadastro.error || 'Erro desconhecido';
             }
           } catch (whatsappError) {
             console.error('❌ [Recadastro] Exceção ao enviar WhatsApp:', whatsappError);
-            whatsappErrorRecadastro = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
+            whatsappErrorRecadastro =
+              whatsappError instanceof Error
+                ? whatsappError.message
+                : 'Erro ao conectar com serviço de WhatsApp';
           }
 
           const successMessageRecadastro = whatsappSentRecadastro
             ? `Visitante recadastrado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
             : `Visitante recadastrado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorRecadastro}\n\nOriente o visitante a entrar em contato.`;
 
-          Alert.alert(
-            'Sucesso',
-            successMessageRecadastro,
-            [{ text: 'OK', onPress: () => {
-              setShowPreRegistrationModal(false);
-              fetchVisitors(); // Recarregar lista
-            }}]
-          );
+          Alert.alert('Sucesso', successMessageRecadastro, [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowPreRegistrationModal(false);
+                fetchVisitors(); // Recarregar lista
+              },
+            },
+          ]);
           return;
         } else {
           // Se o visitante existe e não está expirado, mostrar erro
@@ -1220,7 +1281,7 @@ export default function VisitantesTab() {
         visit_start_time: preRegistrationData.visit_start_time || '00:00',
         visit_end_time: preRegistrationData.visit_end_time || '23:59',
         max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
-        is_recurring: preRegistrationData.visit_type === 'frequente'
+        is_recurring: preRegistrationData.visit_type === 'frequente',
       };
 
       // Adicionar período de validade se fornecido
@@ -1240,20 +1301,26 @@ export default function VisitantesTab() {
         const [day, month, year] = preRegistrationData.visit_date.split('/');
         visitData.visit_date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
       } else if (preRegistrationData.visit_type === 'frequente') {
-         visitData.allowed_days = preRegistrationData.allowed_days;
-       }
+        visitData.allowed_days = preRegistrationData.allowed_days;
+      }
 
       // Verificar conflitos de agendamento
       const conflictCheck = await checkSchedulingConflicts(visitData);
       if (conflictCheck.hasConflict) {
-        Alert.alert('Conflito de Agendamento', conflictCheck.message || 'Há um conflito de horário com outro visitante.');
+        Alert.alert(
+          'Conflito de Agendamento',
+          conflictCheck.message || 'Há um conflito de horário com outro visitante.'
+        );
         return;
       }
 
       // Verificar limite de visitas simultâneas
       const limitCheck = await checkSimultaneousVisitsLimit(visitData);
       if (limitCheck.exceedsLimit) {
-        Alert.alert('Limite Excedido', limitCheck.message || 'Limite de visitas simultâneas excedido.');
+        Alert.alert(
+          'Limite Excedido',
+          limitCheck.message || 'Limite de visitas simultâneas excedido.'
+        );
         return;
       }
 
@@ -1266,12 +1333,18 @@ export default function VisitantesTab() {
 
       if (visitorError) {
         console.error('Erro ao inserir visitante:', visitorError);
-        
+
         // Tratamento específico para erros de coluna inexistente
         if (visitorError.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+          Alert.alert(
+            'Erro de Banco',
+            'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.'
+          );
         } else if (visitorError.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+          Alert.alert(
+            'Erro de Coluna',
+            'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.'
+          );
         } else {
           Alert.alert('Erro', `Erro ao inserir visitante: ${visitorError.message}`);
         }
@@ -1295,12 +1368,14 @@ export default function VisitantesTab() {
       // Buscar dados do apartamento e prédio para o WhatsApp
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartments')
-        .select(`
+        .select(
+          `
           number,
           buildings!inner (
             name
           )
-        `)
+        `
+        )
         .eq('id', currentApartmentId)
         .single();
 
@@ -1312,23 +1387,24 @@ export default function VisitantesTab() {
       const apartmentNumber = apartmentData?.number || 'Apartamento';
 
       // Gerar link de completação do cadastro para visitantes
-      const baseRegistrationUrl = process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
+      const baseRegistrationUrl =
+        process.env.EXPO_PUBLIC_REGISTRATION_SITE_URL || 'https://jamesavisa.jamesconcierge.com';
       const completionLink = `${baseRegistrationUrl}/cadastro/visitante/completar?token=${registrationToken}&phone=${encodeURIComponent(sanitizedPhone)}`;
 
       // Enviar mensagem via WhatsApp usando o serviço correto
-      console.log('📱 [handlePreRegistration] Iniciando envio de WhatsApp para visitante individual...');
+      console.log(
+        '📱 [handlePreRegistration] Iniciando envio de WhatsApp para visitante individual...'
+      );
       let whatsappSent = false;
       let whatsappErrorMessage = '';
 
       try {
-        const { sendVisitorWhatsApp } = await import('../../../services/whatsappService');
-
         console.log('📱 [handlePreRegistration] Chamando sendVisitorWhatsApp com dados:', {
           name: sanitizedName,
           phone: sanitizedPhone.replace(/\D/g, ''),
           building: buildingName,
           apartment: apartmentNumber,
-          url: completionLink
+          url: completionLink,
         });
 
         const whatsappResult = await sendVisitorWhatsApp({
@@ -1336,11 +1412,13 @@ export default function VisitantesTab() {
           phone: sanitizedPhone.replace(/\D/g, ''),
           building: buildingName,
           apartment: apartmentNumber,
-          url: completionLink
+          url: completionLink,
         });
 
         if (whatsappResult.success) {
-          console.log('✅ [handlePreRegistration] Mensagem WhatsApp enviada com sucesso para visitante');
+          console.log(
+            '✅ [handlePreRegistration] Mensagem WhatsApp enviada com sucesso para visitante'
+          );
           whatsappSent = true;
         } else {
           console.warn('⚠️ [handlePreRegistration] Erro ao enviar WhatsApp:', whatsappResult.error);
@@ -1348,7 +1426,10 @@ export default function VisitantesTab() {
         }
       } catch (whatsappError) {
         console.error('❌ [handlePreRegistration] Exceção ao enviar WhatsApp:', whatsappError);
-        whatsappErrorMessage = whatsappError instanceof Error ? whatsappError.message : 'Erro ao conectar com serviço de WhatsApp';
+        whatsappErrorMessage =
+          whatsappError instanceof Error
+            ? whatsappError.message
+            : 'Erro ao conectar com serviço de WhatsApp';
       }
 
       // Mensagem de sucesso com informação sobre WhatsApp
@@ -1356,10 +1437,10 @@ export default function VisitantesTab() {
         ? `Pré-cadastro realizado com sucesso!\n\n✅ Mensagem WhatsApp enviada para ${formatBrazilianPhone(sanitizedPhone)}.`
         : `Pré-cadastro realizado com sucesso!\n\n⚠️ Não foi possível enviar WhatsApp: ${whatsappErrorMessage}\n\nOriente o visitante a entrar em contato.`;
 
-      Alert.alert(
-        'Sucesso!',
-        successMessage,
-        [{ text: 'OK', onPress: () => {
+      Alert.alert('Sucesso!', successMessage, [
+        {
+          text: 'OK',
+          onPress: () => {
             setShowPreRegistrationModal(false);
             setPreRegistrationData({
               name: '',
@@ -1372,11 +1453,12 @@ export default function VisitantesTab() {
               allowed_days: [],
               max_simultaneous_visits: 1,
               validity_start: '',
-              validity_end: ''
+              validity_end: '',
             });
             fetchVisitors(); // Atualizar lista
-          }}]
-        );
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Erro no pré-cadastro:', error);
       Alert.alert('Erro', 'Erro ao realizar pré-cadastro. Tente novamente.');
@@ -1424,7 +1506,7 @@ export default function VisitantesTab() {
       visit_start_time: '',
       visit_end_time: '',
       allowed_days: [],
-      max_simultaneous_visits: 1
+      max_simultaneous_visits: 1,
     });
     setShowEditModal(true);
   };
@@ -1463,28 +1545,32 @@ export default function VisitantesTab() {
           phone: sanitizedPhone.replace(/\D/g, ''),
           visitor_type: editData.visitor_type,
           access_type: editData.access_type,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', editingVisitor.id);
 
       if (updateError) {
         console.error('Erro ao atualizar visitante:', updateError);
-        
+
         // Tratamento específico para erros de coluna inexistente
         if (updateError.code === '42703') {
-          Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+          Alert.alert(
+            'Erro de Banco',
+            'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.'
+          );
         } else if (updateError.code === 'PGRST204') {
-          Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+          Alert.alert(
+            'Erro de Coluna',
+            'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.'
+          );
         } else {
           Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
         }
         return;
       }
 
-      Alert.alert(
-        'Sucesso!',
-        'Visitante atualizado com sucesso!',
-        [{
+      Alert.alert('Sucesso!', 'Visitante atualizado com sucesso!', [
+        {
           text: 'OK',
           onPress: () => {
             setShowEditModal(false);
@@ -1499,12 +1585,12 @@ export default function VisitantesTab() {
               visit_start_time: '',
               visit_end_time: '',
               allowed_days: [],
-              max_simultaneous_visits: 1
+              max_simultaneous_visits: 1,
             });
             fetchVisitors(); // Atualizar lista
-          }
-        }]
-      );
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Erro ao salvar alterações:', error);
       Alert.alert('Erro', 'Erro ao salvar alterações. Tente novamente.');
@@ -1528,7 +1614,7 @@ export default function VisitantesTab() {
       [
         {
           text: 'Cancelar',
-          style: 'cancel'
+          style: 'cancel',
         },
         {
           text: 'Excluir',
@@ -1549,10 +1635,7 @@ export default function VisitantesTab() {
               // 2. Senhas temporárias removidas (não mais necessárias)
 
               // 3. Por último, excluir o visitante
-              const { error } = await supabase
-                .from('visitors')
-                .delete()
-                .eq('id', visitor.id);
+              const { error } = await supabase.from('visitors').delete().eq('id', visitor.id);
 
               if (error) {
                 console.error('Erro ao excluir visitante:', error);
@@ -1564,9 +1647,15 @@ export default function VisitantesTab() {
                     'Este visitante possui registros associados que impedem sua exclusão. Entre em contato com o suporte.'
                   );
                 } else if (error.code === '42703') {
-                  Alert.alert('Erro de Banco', 'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.');
+                  Alert.alert(
+                    'Erro de Banco',
+                    'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.'
+                  );
                 } else if (error.code === 'PGRST204') {
-                  Alert.alert('Erro de Coluna', 'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.');
+                  Alert.alert(
+                    'Erro de Coluna',
+                    'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.'
+                  );
                 } else {
                   Alert.alert('Erro', `Erro ao excluir visitante: ${error.message}`);
                 }
@@ -1579,8 +1668,8 @@ export default function VisitantesTab() {
               console.error('Erro ao excluir visitante:', error);
               Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -1635,14 +1724,18 @@ export default function VisitantesTab() {
       if (!sanitizedName) {
         errors.push(`Visitante ${index + 1}: Nome é obrigatório`);
       } else if (!validateName(sanitizedName)) {
-        errors.push(`Visitante ${index + 1}: Nome deve conter apenas letras e espaços (2-50 caracteres)`);
+        errors.push(
+          `Visitante ${index + 1}: Nome deve conter apenas letras e espaços (2-50 caracteres)`
+        );
       }
 
       // Validar telefone
       if (!sanitizedPhone) {
         errors.push(`Visitante ${index + 1}: Telefone é obrigatório`);
       } else if (!validatePhoneNumber(sanitizedPhone)) {
-        errors.push(`Visitante ${index + 1}: Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX`);
+        errors.push(
+          `Visitante ${index + 1}: Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX`
+        );
       } else {
         const cleanPhone = sanitizedPhone.replace(/\D/g, '');
         if (phoneNumbers.has(cleanPhone)) {
@@ -1677,7 +1770,7 @@ export default function VisitantesTab() {
 
     const results = {
       success: 0,
-      errors: [] as string[]
+      errors: [] as string[],
     };
 
     try {
@@ -1745,7 +1838,7 @@ export default function VisitantesTab() {
               validity_end: preRegistrationData.validity_end || null,
               registration_token: registrationToken,
               status: 'pendente',
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             };
 
             const { error: updateError } = await supabase
@@ -1770,7 +1863,7 @@ export default function VisitantesTab() {
               visit_start_time: preRegistrationData.visit_start_time || '00:00',
               visit_end_time: preRegistrationData.visit_end_time || '23:59',
               max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
-              is_recurring: preRegistrationData.visit_type === 'frequente'
+              is_recurring: preRegistrationData.visit_type === 'frequente',
             };
 
             // Adicionar período de validade se fornecido
@@ -1790,9 +1883,7 @@ export default function VisitantesTab() {
               visitorData.allowed_days = preRegistrationData.allowed_days;
             }
 
-            const { error: insertError } = await supabase
-              .from('visitors')
-              .insert([visitorData]);
+            const { error: insertError } = await supabase.from('visitors').insert([visitorData]);
 
             if (insertError) throw insertError;
           }
@@ -1809,15 +1900,13 @@ export default function VisitantesTab() {
 
       // Mostrar resultado
       let message = `✅ ${results.success} visitante(s) cadastrado(s) com sucesso!`;
-      
+
       if (results.errors.length > 0) {
         message += `\n\n❌ Erros encontrados:\n${results.errors.join('\n')}`;
       }
 
-      Alert.alert(
-        results.errors.length === 0 ? 'Sucesso!' : 'Processamento Concluído',
-        message,
-        [{
+      Alert.alert(results.errors.length === 0 ? 'Sucesso!' : 'Processamento Concluído', message, [
+        {
           text: 'OK',
           onPress: () => {
             setShowPreRegistrationModal(false);
@@ -1834,13 +1923,12 @@ export default function VisitantesTab() {
               allowed_days: [],
               max_simultaneous_visits: 1,
               validity_start: '',
-              validity_end: ''
+              validity_end: '',
             });
             fetchVisitors();
-          }
-        }]
-      );
-
+          },
+        },
+      ]);
     } catch (error) {
       console.error('Erro no processamento múltiplo:', error);
       Alert.alert('Erro', 'Erro durante o processamento. Tente novamente.');
@@ -1853,1193 +1941,1359 @@ export default function VisitantesTab() {
   return (
     <>
       <ScrollView style={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
-        <Text style={styles.sectionDescription}>
-          Cadastre visitantes esperados para facilitar a entrada
-        </Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
+          <Text style={styles.sectionDescription}>
+            Cadastre visitantes esperados para facilitar a entrada
+          </Text>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => setShowPreRegistrationModal(true)}>
-          <Text style={styles.buttonEmoji}>👤</Text>
-          <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => setShowPreRegistrationModal(true)}>
+            <Text style={styles.buttonEmoji}>👤</Text>
+            <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.vehicleButton}
-          onPress={() => router.push('/morador/veiculo')}>
-          <Text style={styles.buttonEmoji}>🚗</Text>
-          <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>📝 Visitantes Pré-cadastrados</Text>
-          <View style={styles.headerButtons}>
-           
-            <TouchableOpacity 
-              style={styles.refreshButton}
-              onPress={fetchVisitors}
-              disabled={loading}
-            >
-              <Ionicons 
-                name="refresh" 
-                size={20} 
-                color={loading ? '#ccc' : '#4CAF50'} 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Botão de Filtros */}
-        <View style={styles.filtersContainer}>
-          <TouchableOpacity 
-            style={styles.filterModalButton}
-            onPress={() => {
-              setTempStatusFilter(statusFilter);
-              setTempTypeFilter(typeFilter);
-              setFilterModalVisible(true);
-            }}
-          >
-            <Ionicons name="filter" size={20} color="#4CAF50" />
-            <Text style={styles.filterModalButtonText}>
-              Filtros {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#666" />
+          <TouchableOpacity
+            style={styles.vehicleButton}
+            onPress={() => router.push('/morador/veiculo')}>
+            <Text style={styles.buttonEmoji}>🚗</Text>
+            <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
         </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
-            <Text style={styles.loadingText}>Carregando visitantes...</Text>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>📝 Visitantes Pré-cadastrados</Text>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={fetchVisitors}
+                disabled={loading}>
+                <Ionicons name="refresh" size={20} color={loading ? '#ccc' : '#4CAF50'} />
+              </TouchableOpacity>
+            </View>
           </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={48} color="#f44336" />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchVisitors}>
-              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+
+          {/* Botão de Filtros */}
+          <View style={styles.filtersContainer}>
+            <TouchableOpacity
+              style={styles.filterModalButton}
+              onPress={() => {
+                setTempStatusFilter(statusFilter);
+                setTempTypeFilter(typeFilter);
+                setFilterModalVisible(true);
+              }}>
+              <Ionicons name="filter" size={20} color="#4CAF50" />
+              <Text style={styles.filterModalButtonText}>
+                Filtros {getActiveFiltersCount() > 0 && `(${getActiveFiltersCount()})`}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
             </TouchableOpacity>
           </View>
-        ) : visitors.length === 0 && vehicles.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>Nenhum visitante ou veículo cadastrado</Text>
-            <Text style={styles.emptySubtext}>
-              Cadastre visitantes e veículos para facilitar a entrada
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Renderizar veículos filtrados */}
-            {getFilteredAndPaginatedVisitors().vehicles.map((vehicle) => (
-              <View key={`vehicle-${vehicle.id}`} style={[styles.visitorCard, styles.vehicleCard]}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardMainInfo}>
-                    <Text style={styles.visitorName}>{vehicle.license_plate}</Text>
-                    <View style={styles.visitorTypeContainer}>
-                      <Text style={styles.visitorTypeIcon}>{getVehicleTypeIcon(vehicle.type)}</Text>
-                      <Text style={styles.visitorTypeText}>{getVehicleTypeText(vehicle.type)}</Text>
-                    </View>
-                    {vehicle.brand && (
-                      <Text style={styles.visitorDocument}>🏷️ {vehicle.brand} {vehicle.model || ''}</Text>
-                    )}
-                    {vehicle.color && (
-                      <Text style={styles.visitorPhone}>🎨 {vehicle.color}</Text>
-                    )}
-                    <Text style={styles.visitorDate}>
-                      Cadastrado: {formatDisplayDate(vehicle.created_at)}
-                    </Text>
-                    <View style={styles.visitorTypeContainer}>
-                      <Text style={styles.visitorTypeIcon}>
-                        {vehicle.ownership_type === 'visita' ? '👥' : '🏠'}
-                      </Text>
-                      <Text style={styles.visitorTypeText}>
-                        {vehicle.ownership_type === 'visita' ? 'Veículo de Visita' : 'Veículo do Proprietário'}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.cardHeaderActions}>
-                    <View style={styles.vehicleBadge}>
-                      <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
-            
-            {/* Renderizar visitantes filtrados */}
-            {getFilteredAndPaginatedVisitors().visitors.map((visitor) => (
-            <View key={visitor.id} style={[
-              styles.visitorCard,
-              hasVisitorFinalStatus(visitor) && styles.visitorCardApproved,
-              visitor.status === 'expirado' && styles.visitorCardExpired
-            ]}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardMainInfo}>
-                  <Text style={[
-                    styles.visitorName,
-                    hasVisitorFinalStatus(visitor) && styles.visitorNameApproved
-                  ]}>{visitor.name}</Text>
-                  {visitor.document && (
-                    <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
-                  )}
-                  {visitor.phone && (
-                    <Text style={styles.visitorPhone}>📞 {visitor.phone}</Text>
-                  )}
-                  <View style={styles.visitorTypeContainer}>
-                    <Text style={styles.visitorTypeIcon}>{getVisitorTypeIcon(visitor.visitor_type)}</Text>
-                    <Text style={styles.visitorTypeText}>{getVisitorTypeText(visitor.visitor_type)}</Text>
-                  </View>
-                  <Text style={styles.visitorDate}>
-                    Cadastrado: {formatDisplayDate(visitor.created_at)}
-                  </Text>
-                  {(visitor.visit_date || visitor.visit_start_time || visitor.visit_end_time) && (
-                    <View style={styles.visitScheduleContainer}>
-                      <Text style={styles.visitScheduleLabel}>🕒 Período de Visita:</Text>
-                      <Text style={styles.visitScheduleText}>
-                        {formatVisitPeriod(visitor.visit_date, visitor.visit_start_time, visitor.visit_end_time)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                
-                <View style={styles.cardHeaderActions}>
-                  <View style={[
-                    styles.statusBadge,
-                    isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved
-                  ]}>
-                    <Text style={styles.statusIcon}>{getStatusIcon(visitor)}</Text>
-                    <Text style={[
-                      styles.statusText,
-                      isVisitorDisapproved(visitor) && styles.statusTextDisapproved
-                    ]}>{getStatusText(visitor)}</Text>
-                  </View>
-                  
-                  {/* Removido indicador "Expirado" incorreto - visitantes aprovados não devem mostrar como expirados */}
-                  
-                  <TouchableOpacity 
-                    style={styles.menuButton}
-                    onPress={() => toggleCardExpansion(visitor.id)}
-                  >
-                    <Text style={styles.menuButtonText}>⋮</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              {expandedCardId === visitor.id && (
-                <View style={styles.expandedActions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled
-                    ]}
-                    onPress={() => handleEditVisitor(visitor)}
-                    disabled={hasVisitorFinalStatus(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText,
-                      hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled
-                    ]}>✏️ Editar</Text>
-                  </TouchableOpacity>
-                  
 
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.actionButton, 
-                      styles.actionButtonDanger
-                    ]}
-                    onPress={() => handleDeleteVisitor(visitor)}
-                  >
-                    <Text style={[
-                      styles.actionButtonText, 
-                      styles.actionButtonTextDanger
-                    ]}>🗑️ Excluir</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4CAF50" />
+              <Text style={styles.loadingText}>Carregando visitantes...</Text>
             </View>
-          ))}
-          
-          {/* Controles de paginação */}
-          {(() => {
-            const { totalPages } = getFilteredAndPaginatedVisitors();
-            if (totalPages > 1) {
-              return (
-                <View style={styles.paginationContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.paginationButton,
-                      currentPage === 1 && styles.paginationButtonDisabled
-                    ]}
-                    onPress={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <Text style={[
-                      styles.paginationButtonText,
-                      currentPage === 1 && styles.paginationButtonTextDisabled
-                    ]}>
-                      ← Anterior
-                    </Text>
-                  </TouchableOpacity>
-                  
-                  <Text style={styles.paginationInfo}>
-                    Página {currentPage} de {totalPages}
-                  </Text>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.paginationButton,
-                      currentPage === totalPages && styles.paginationButtonDisabled
-                    ]}
-                    onPress={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <Text style={[
-                      styles.paginationButtonText,
-                      currentPage === totalPages && styles.paginationButtonTextDisabled
-                    ]}>
-                      Próxima →
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              );
-            }
-            return null;
-          })()}
-          </>
-        )}
-      </View>
-
-      {/* Modal de Pré-cadastro */}
-      <Modal
-        visible={showPreRegistrationModal}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setShowPreRegistrationModal(false)}
-      >
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Pré-cadastro de Visitantes</Text>
-              <TouchableOpacity
-                onPress={() => setShowPreRegistrationModal(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={48} color="#f44336" />
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={fetchVisitors}>
+                <Text style={styles.retryButtonText}>Tentar novamente</Text>
               </TouchableOpacity>
             </View>
+          ) : visitors.length === 0 && vehicles.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>Nenhum visitante ou veículo cadastrado</Text>
+              <Text style={styles.emptySubtext}>
+                Cadastre visitantes e veículos para facilitar a entrada
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Renderizar veículos filtrados */}
+              {getFilteredAndPaginatedVisitors().vehicles.map((vehicle) => (
+                <View
+                  key={`vehicle-${vehicle.id}`}
+                  style={[styles.visitorCard, styles.vehicleCard]}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardMainInfo}>
+                      <Text style={styles.visitorName}>{vehicle.license_plate}</Text>
+                      <View style={styles.visitorTypeContainer}>
+                        <Text style={styles.visitorTypeIcon}>
+                          {getVehicleTypeIcon(vehicle.type)}
+                        </Text>
+                        <Text style={styles.visitorTypeText}>
+                          {getVehicleTypeText(vehicle.type)}
+                        </Text>
+                      </View>
+                      {vehicle.brand && (
+                        <Text style={styles.visitorDocument}>
+                          🏷️ {vehicle.brand} {vehicle.model || ''}
+                        </Text>
+                      )}
+                      {vehicle.color && <Text style={styles.visitorPhone}>🎨 {vehicle.color}</Text>}
+                      <Text style={styles.visitorDate}>
+                        Cadastrado: {formatDisplayDate(vehicle.created_at)}
+                      </Text>
+                      <View style={styles.visitorTypeContainer}>
+                        <Text style={styles.visitorTypeIcon}>
+                          {vehicle.ownership_type === 'visita' ? '👥' : '🏠'}
+                        </Text>
+                        <Text style={styles.visitorTypeText}>
+                          {vehicle.ownership_type === 'visita'
+                            ? 'Veículo de Visita'
+                            : 'Veículo do Proprietário'}
+                        </Text>
+                      </View>
+                    </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Toggle para modo de cadastro */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Modo de Cadastro</Text>
-                <View style={styles.registrationModeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.registrationModeButton,
-                      registrationMode === 'individual' && styles.registrationModeButtonActive
-                    ]}
-                    onPress={() => {
-                      setRegistrationMode('individual');
-                      setMultipleVisitors([{ name: '', phone: '' }]);
-                    }}
-                  >
-                    <Ionicons 
-                      name="person" 
-                      size={20} 
-                      color={registrationMode === 'individual' ? '#fff' : '#4CAF50'} 
-                    />
-                    <Text style={[
-                      styles.registrationModeButtonText,
-                      registrationMode === 'individual' && styles.registrationModeButtonTextActive
-                    ]}>Individual</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.registrationModeButton,
-                      registrationMode === 'multiple' && styles.registrationModeButtonActive
-                    ]}
-                    onPress={() => {
-                      setRegistrationMode('multiple');
-                      if (multipleVisitors.length === 0) {
-                        setMultipleVisitors([{ name: '', phone: '' }]);
-                      }
-                    }}
-                  >
-                    <Ionicons 
-                      name="people" 
-                      size={20} 
-                      color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'} 
-                    />
-                    <Text style={[
-                      styles.registrationModeButtonText,
-                      registrationMode === 'multiple' && styles.registrationModeButtonTextActive
-                    ]}>Múltiplos</Text>
-                  </TouchableOpacity>
+                    <View style={styles.cardHeaderActions}>
+                      <View style={styles.vehicleBadge}>
+                        <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
+              ))}
+
+              {/* Renderizar visitantes filtrados */}
+              {getFilteredAndPaginatedVisitors().visitors.map((visitor) => (
+                <View
+                  key={visitor.id}
+                  style={[
+                    styles.visitorCard,
+                    hasVisitorFinalStatus(visitor) && styles.visitorCardApproved,
+                    visitor.status === 'expirado' && styles.visitorCardExpired,
+                  ]}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardMainInfo}>
+                      <Text
+                        style={[
+                          styles.visitorName,
+                          hasVisitorFinalStatus(visitor) && styles.visitorNameApproved,
+                        ]}>
+                        {visitor.name}
+                      </Text>
+                      {visitor.document && (
+                        <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
+                      )}
+                      {visitor.phone && <Text style={styles.visitorPhone}>📞 {visitor.phone}</Text>}
+                      <View style={styles.visitorTypeContainer}>
+                        <Text style={styles.visitorTypeIcon}>
+                          {getVisitorTypeIcon(visitor.visitor_type)}
+                        </Text>
+                        <Text style={styles.visitorTypeText}>
+                          {getVisitorTypeText(visitor.visitor_type)}
+                        </Text>
+                      </View>
+                      <Text style={styles.visitorDate}>
+                        Cadastrado: {formatDisplayDate(visitor.created_at)}
+                      </Text>
+                      {(visitor.visit_date ||
+                        visitor.visit_start_time ||
+                        visitor.visit_end_time) && (
+                        <View style={styles.visitScheduleContainer}>
+                          <Text style={styles.visitScheduleLabel}>🕒 Período de Visita:</Text>
+                          <Text style={styles.visitScheduleText}>
+                            {formatVisitPeriod(
+                              visitor.visit_date,
+                              visitor.visit_start_time,
+                              visitor.visit_end_time
+                            )}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.cardHeaderActions}>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved,
+                        ]}>
+                        <Text style={styles.statusIcon}>{getStatusIcon(visitor)}</Text>
+                        <Text
+                          style={[
+                            styles.statusText,
+                            isVisitorDisapproved(visitor) && styles.statusTextDisapproved,
+                          ]}>
+                          {getStatusText(visitor)}
+                        </Text>
+                      </View>
+
+                      {/* Removido indicador "Expirado" incorreto - visitantes aprovados não devem mostrar como expirados */}
+
+                      <TouchableOpacity
+                        style={styles.menuButton}
+                        onPress={() => toggleCardExpansion(visitor.id)}>
+                        <Text style={styles.menuButtonText}>⋮</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {expandedCardId === visitor.id && (
+                    <View style={styles.expandedActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          hasVisitorFinalStatus(visitor) && styles.actionButtonDisabled,
+                        ]}
+                        onPress={() => handleEditVisitor(visitor)}
+                        disabled={hasVisitorFinalStatus(visitor)}>
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled,
+                          ]}>
+                          ✏️ Editar
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.actionButtonDanger]}
+                        onPress={() => handleDeleteVisitor(visitor)}>
+                        <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
+                          🗑️ Excluir
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+
+              {/* Controles de paginação */}
+              {(() => {
+                const { totalPages } = getFilteredAndPaginatedVisitors();
+                if (totalPages > 1) {
+                  return (
+                    <View style={styles.paginationContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.paginationButton,
+                          currentPage === 1 && styles.paginationButtonDisabled,
+                        ]}
+                        onPress={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}>
+                        <Text
+                          style={[
+                            styles.paginationButtonText,
+                            currentPage === 1 && styles.paginationButtonTextDisabled,
+                          ]}>
+                          ← Anterior
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text style={styles.paginationInfo}>
+                        Página {currentPage} de {totalPages}
+                      </Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.paginationButton,
+                          currentPage === totalPages && styles.paginationButtonDisabled,
+                        ]}
+                        onPress={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}>
+                        <Text
+                          style={[
+                            styles.paginationButtonText,
+                            currentPage === totalPages && styles.paginationButtonTextDisabled,
+                          ]}>
+                          Próxima →
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
+            </>
+          )}
+        </View>
+
+        {/* Modal de Pré-cadastro */}
+        <Modal
+          visible={showPreRegistrationModal}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setShowPreRegistrationModal(false)}>
+          <SafeAreaView style={styles.modalOverlay}>
+            <View
+              style={[
+                styles.modalContent,
+                { paddingTop: insets.top, paddingBottom: insets.bottom },
+              ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Pré-cadastro de Visitantes</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPreRegistrationModal(false)}
+                  style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Campos para cadastro individual */}
-              {registrationMode === 'individual' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Nome Completo *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.name}
-                      onChangeText={(text) => setPreRegistrationData(prev => ({ ...prev, name: text }))}
-                      placeholder="Digite o nome completo do visitante"
-                      placeholderTextColor="#999"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Telefone *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.phone}
-                      maxLength={15}
-                      onChangeText={(text) => {
-                        // Remove tudo que não é dígito
-                        const cleaned = text.replace(/\D/g, '');
-                        // Limita a 11 dígitos
-                        const limited = cleaned.slice(0, 11);
-                        // Aplica a formatação (XX) 9XXXX-XXXX
-                        let formatted = limited;
-                        if (limited.length > 6) {
-                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
-                        } else if (limited.length > 2) {
-                          formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-                        } else if (limited.length > 0) {
-                          formatted = `(${limited}`;
-                        }
-                        setPreRegistrationData(prev => ({ ...prev, phone: formatted }));
-                      }}
-                      placeholder="(XX) 9XXXX-XXXX"
-                      placeholderTextColor="#999"
-                      keyboardType="phone-pad"
-                    />
-                  </View>
-                </>
-              )}
-
-              {/* Campos para cadastro múltiplo */}
-              {registrationMode === 'multiple' && (
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                {/* Toggle para modo de cadastro */}
                 <View style={styles.inputGroup}>
-                  <View style={styles.multipleVisitorsHeader}>
-                    <Text style={styles.inputLabel}>Visitantes *</Text>
+                  <Text style={styles.inputLabel}>Modo de Cadastro</Text>
+                  <View style={styles.registrationModeSelector}>
                     <TouchableOpacity
-                      style={styles.addVisitorButton}
-                      onPress={addMultipleVisitor}
-                    >
-                      <Ionicons name="add-circle" size={24} color="#4CAF50" />
-                      <Text style={styles.addVisitorButtonText}>Adicionar</Text>
+                      style={[
+                        styles.registrationModeButton,
+                        registrationMode === 'individual' && styles.registrationModeButtonActive,
+                      ]}
+                      onPress={() => {
+                        setRegistrationMode('individual');
+                        setMultipleVisitors([{ name: '', phone: '' }]);
+                      }}>
+                      <Ionicons
+                        name="person"
+                        size={20}
+                        color={registrationMode === 'individual' ? '#fff' : '#4CAF50'}
+                      />
+                      <Text
+                        style={[
+                          styles.registrationModeButtonText,
+                          registrationMode === 'individual' &&
+                            styles.registrationModeButtonTextActive,
+                        ]}>
+                        Individual
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.registrationModeButton,
+                        registrationMode === 'multiple' && styles.registrationModeButtonActive,
+                      ]}
+                      onPress={() => {
+                        setRegistrationMode('multiple');
+                        if (multipleVisitors.length === 0) {
+                          setMultipleVisitors([{ name: '', phone: '' }]);
+                        }
+                      }}>
+                      <Ionicons
+                        name="people"
+                        size={20}
+                        color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'}
+                      />
+                      <Text
+                        style={[
+                          styles.registrationModeButtonText,
+                          registrationMode === 'multiple' &&
+                            styles.registrationModeButtonTextActive,
+                        ]}>
+                        Múltiplos
+                      </Text>
                     </TouchableOpacity>
                   </View>
+                </View>
 
-                  {multipleVisitors.map((visitor, index) => (
-                    <View key={index} style={styles.multipleVisitorItem}>
-                      <View style={styles.multipleVisitorHeader}>
-                        <Text style={styles.multipleVisitorTitle}>Visitante {index + 1}</Text>
-                        {multipleVisitors.length > 1 && (
-                          <TouchableOpacity
-                            style={styles.removeVisitorButton}
-                            onPress={() => removeMultipleVisitor(index)}
-                          >
-                            <Ionicons name="trash" size={20} color="#f44336" />
-                          </TouchableOpacity>
+                {/* Campos para cadastro individual */}
+                {registrationMode === 'individual' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Nome Completo *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.name}
+                        onChangeText={(text) =>
+                          setPreRegistrationData((prev) => ({ ...prev, name: text }))
+                        }
+                        placeholder="Digite o nome completo do visitante"
+                        placeholderTextColor="#999"
+                      />
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Telefone *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.phone}
+                        maxLength={15}
+                        onChangeText={(text) => {
+                          // Remove tudo que não é dígito
+                          const cleaned = text.replace(/\D/g, '');
+                          // Limita a 11 dígitos
+                          const limited = cleaned.slice(0, 11);
+                          // Aplica a formatação (XX) 9XXXX-XXXX
+                          let formatted = limited;
+                          if (limited.length > 6) {
+                            formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                          } else if (limited.length > 2) {
+                            formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                          } else if (limited.length > 0) {
+                            formatted = `(${limited}`;
+                          }
+                          setPreRegistrationData((prev) => ({ ...prev, phone: formatted }));
+                        }}
+                        placeholder="(XX) 9XXXX-XXXX"
+                        placeholderTextColor="#999"
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* Campos para cadastro múltiplo */}
+                {registrationMode === 'multiple' && (
+                  <View style={styles.inputGroup}>
+                    <View style={styles.multipleVisitorsHeader}>
+                      <Text style={styles.inputLabel}>Visitantes *</Text>
+                      <TouchableOpacity
+                        style={styles.addVisitorButton}
+                        onPress={addMultipleVisitor}>
+                        <Ionicons name="add-circle" size={24} color="#4CAF50" />
+                        <Text style={styles.addVisitorButtonText}>Adicionar</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {multipleVisitors.map((visitor, index) => (
+                      <View key={index} style={styles.multipleVisitorItem}>
+                        <View style={styles.multipleVisitorHeader}>
+                          <Text style={styles.multipleVisitorTitle}>Visitante {index + 1}</Text>
+                          {multipleVisitors.length > 1 && (
+                            <TouchableOpacity
+                              style={styles.removeVisitorButton}
+                              onPress={() => removeMultipleVisitor(index)}>
+                              <Ionicons name="trash" size={20} color="#f44336" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        <View style={styles.multipleVisitorFields}>
+                          <View style={styles.multipleVisitorField}>
+                            <Text style={styles.multipleVisitorFieldLabel}>Nome *</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              value={visitor.name}
+                              onChangeText={(text) => updateMultipleVisitor(index, 'name', text)}
+                              placeholder="Nome completo"
+                              placeholderTextColor="#999"
+                            />
+                          </View>
+
+                          <View style={styles.multipleVisitorField}>
+                            <Text style={styles.multipleVisitorFieldLabel}>Telefone *</Text>
+                            <TextInput
+                              style={styles.textInput}
+                              value={visitor.phone}
+                              maxLength={15}
+                              onChangeText={(text) => {
+                                // Remove tudo que não é dígito
+                                const cleaned = text.replace(/\D/g, '');
+                                // Limita a 11 dígitos
+                                const limited = cleaned.slice(0, 11);
+                                // Aplica a formatação (XX) 9XXXX-XXXX
+                                let formatted = limited;
+                                if (limited.length > 6) {
+                                  formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
+                                } else if (limited.length > 2) {
+                                  formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+                                } else if (limited.length > 0) {
+                                  formatted = `(${limited}`;
+                                }
+                                updateMultipleVisitor(index, 'phone', formatted);
+                              }}
+                              placeholder="(XX) 9XXXX-XXXX"
+                              placeholderTextColor="#999"
+                              keyboardType="phone-pad"
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Indicador de processamento para múltiplos visitantes */}
+                    {isProcessingMultiple && (
+                      <View style={styles.processingIndicator}>
+                        <ActivityIndicator size="small" color="#4CAF50" />
+                        <Text style={styles.processingText}>{processingStatus}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tipo de Visita *</Text>
+                  <View style={styles.visitorTypeSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        preRegistrationData.visit_type === 'pontual' &&
+                          styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setPreRegistrationData((prev) => ({ ...prev, visit_type: 'pontual' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          preRegistrationData.visit_type === 'pontual' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Pontual
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        preRegistrationData.visit_type === 'frequente' &&
+                          styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setPreRegistrationData((prev) => ({ ...prev, visit_type: 'frequente' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          preRegistrationData.visit_type === 'frequente' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Frequente
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        preRegistrationData.visit_type === 'prestador_servico' &&
+                          styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setPreRegistrationData((prev) => ({
+                          ...prev,
+                          visit_type: 'prestador_servico',
+                        }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          preRegistrationData.visit_type === 'prestador_servico' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Serviço
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tipo de Aprovação *</Text>
+                  <View style={styles.visitorTypeSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        preRegistrationData.access_type === 'com_aprovacao' &&
+                          styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setPreRegistrationData((prev) => ({
+                          ...prev,
+                          access_type: 'com_aprovacao',
+                        }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          preRegistrationData.access_type === 'com_aprovacao' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Com Aprovação
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        preRegistrationData.access_type === 'direto' &&
+                          styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setPreRegistrationData((prev) => ({ ...prev, access_type: 'direto' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          preRegistrationData.access_type === 'direto' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Liberação Direta
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Campos condicionais para visita pontual */}
+                {preRegistrationData.visit_type === 'pontual' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Data da Visita *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_date}
+                        onChangeText={(text) => {
+                          const formattedDate = formatDate(text);
+                          setPreRegistrationData((prev) => ({
+                            ...prev,
+                            visit_date: formattedDate,
+                          }));
+                        }}
+                        placeholder="DD/MM/AAAA"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputRow}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Início da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_start_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_start_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 15:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Fim da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_end_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_end_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 18:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.infoBox}>
+                      <Text style={styles.infoText}>
+                        💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante
+                        pode entrar a qualquer hora do dia)
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {/* Campos condicionais para visita frequente */}
+                {preRegistrationData.visit_type === 'frequente' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Dias da Semana Permitidos *</Text>
+                      <View style={styles.daysSelector}>
+                        {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map(
+                          (day, index) => {
+                            const dayValue = [
+                              'monday',
+                              'tuesday',
+                              'wednesday',
+                              'thursday',
+                              'friday',
+                              'saturday',
+                              'sunday',
+                            ][index];
+                            const isSelected = preRegistrationData.allowed_days?.includes(dayValue);
+                            return (
+                              <TouchableOpacity
+                                key={dayValue}
+                                style={[styles.dayButton, isSelected && styles.dayButtonActive]}
+                                onPress={() => {
+                                  const currentDays = preRegistrationData.allowed_days || [];
+                                  const newDays = isSelected
+                                    ? currentDays.filter((d) => d !== dayValue)
+                                    : [...currentDays, dayValue];
+                                  setPreRegistrationData((prev) => ({
+                                    ...prev,
+                                    allowed_days: newDays,
+                                  }));
+                                }}>
+                                <Text
+                                  style={[
+                                    styles.dayButtonText,
+                                    isSelected && styles.dayButtonTextActive,
+                                  ]}>
+                                  {day}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          }
                         )}
                       </View>
+                    </View>
 
-                      <View style={styles.multipleVisitorFields}>
-                        <View style={styles.multipleVisitorField}>
-                          <Text style={styles.multipleVisitorFieldLabel}>Nome *</Text>
-                          <TextInput
-                            style={styles.textInput}
-                            value={visitor.name}
-                            onChangeText={(text) => updateMultipleVisitor(index, 'name', text)}
-                            placeholder="Nome completo"
-                            placeholderTextColor="#999"
-                          />
-                        </View>
+                    <View style={styles.timeInputRow}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Início da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_start_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_start_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 08:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
 
-                        <View style={styles.multipleVisitorField}>
-                          <Text style={styles.multipleVisitorFieldLabel}>Telefone *</Text>
-                          <TextInput
-                            style={styles.textInput}
-                            value={visitor.phone}
-                            maxLength={15}
-                            onChangeText={(text) => {
-                              // Remove tudo que não é dígito
-                              const cleaned = text.replace(/\D/g, '');
-                              // Limita a 11 dígitos
-                              const limited = cleaned.slice(0, 11);
-                              // Aplica a formatação (XX) 9XXXX-XXXX
-                              let formatted = limited;
-                              if (limited.length > 6) {
-                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2, 3)}${limited.slice(3, 7)}-${limited.slice(7)}`;
-                              } else if (limited.length > 2) {
-                                formatted = `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-                              } else if (limited.length > 0) {
-                                formatted = `(${limited}`;
-                              }
-                              updateMultipleVisitor(index, 'phone', formatted);
-                            }}
-                            placeholder="(XX) 9XXXX-XXXX"
-                            placeholderTextColor="#999"
-                            keyboardType="phone-pad"
-                          />
-                        </View>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Fim da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_end_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_end_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 18:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
                       </View>
                     </View>
-                  ))}
 
-                  {/* Indicador de processamento para múltiplos visitantes */}
-                  {isProcessingMultiple && (
-                    <View style={styles.processingIndicator}>
-                      <ActivityIndicator size="small" color="#4CAF50" />
-                      <Text style={styles.processingText}>{processingStatus}</Text>
+                    <View style={styles.infoBox}>
+                      <Text style={styles.infoText}>
+                        💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante
+                        pode entrar a qualquer hora do dia)
+                      </Text>
                     </View>
-                  )}
-                </View>
-              )}
+                  </>
+                )}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Visita *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visit_type === 'pontual' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visit_type: 'pontual' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visit_type === 'pontual' && styles.visitorTypeButtonTextActive
-                    ]}>Pontual</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visit_type === 'frequente' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visit_type: 'frequente' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive
-                    ]}>Frequente</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, visit_type: 'prestador_servico' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.visit_type === 'prestador_servico' && styles.visitorTypeButtonTextActive
-                    ]}>Serviço</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Campos condicionais para prestador de serviço */}
+                {preRegistrationData.visit_type === 'prestador_servico' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Data da Visita *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={preRegistrationData.visit_date}
+                        onChangeText={(text) => {
+                          const formattedDate = formatDate(text);
+                          setPreRegistrationData((prev) => ({
+                            ...prev,
+                            visit_date: formattedDate,
+                          }));
+                        }}
+                        placeholder="DD/MM/AAAA"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputRow}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Início da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_start_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_start_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 08:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Horário de Fim da Pré-liberação (opcional)
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={preRegistrationData.visit_end_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setPreRegistrationData((prev) => ({
+                              ...prev,
+                              visit_end_time: formattedTime,
+                            }));
+                          }}
+                          placeholder="HH:MM (ex: 18:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.infoBox}>
+                      <Text style={styles.infoText}>
+                        💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante
+                        pode entrar a qualquer hora do dia)
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowPreRegistrationModal(false)}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    (isSubmittingPreRegistration || isProcessingMultiple) &&
+                      styles.submitButtonDisabled,
+                  ]}
+                  onPress={
+                    registrationMode === 'individual'
+                      ? handlePreRegistration
+                      : handleMultiplePreRegistration
+                  }
+                  disabled={isSubmittingPreRegistration || isProcessingMultiple}>
+                  <Text style={styles.submitButtonText}>
+                    {isSubmittingPreRegistration || isProcessingMultiple
+                      ? registrationMode === 'multiple'
+                        ? 'Processando...'
+                        : 'Enviando...'
+                      : 'Cadastrar'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Aprovação *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
-                    ]}>Com Aprovação</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setPreRegistrationData(prev => ({ ...prev, access_type: 'direto' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      preRegistrationData.access_type === 'direto' && styles.visitorTypeButtonTextActive
-                    ]}>Liberação Direta</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Campos condicionais para visita pontual */}
-              {preRegistrationData.visit_type === 'pontual' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Data da Visita *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.visit_date}
-                      onChangeText={(text) => {
-                        const formattedDate = formatDate(text);
-                        setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
-                      }}
-                      placeholder="DD/MM/AAAA"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
-                  </View>
-
-                  <View style={styles.timeInputRow}>
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_start_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_start_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 15:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_end_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_end_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 18:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                  
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
-                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
-                    </Text>
-                  </View>
-                </>
-              )}
-
-              {/* Campos condicionais para visita frequente */}
-              {preRegistrationData.visit_type === 'frequente' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Dias da Semana Permitidos *</Text>
-                    <View style={styles.daysSelector}>
-                      {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((day, index) => {
-                        const dayValue = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][index];
-                        const isSelected = preRegistrationData.allowed_days?.includes(dayValue);
-                        return (
-                          <TouchableOpacity
-                            key={dayValue}
-                            style={[
-                              styles.dayButton,
-                              isSelected && styles.dayButtonActive
-                            ]}
-                            onPress={() => {
-                              const currentDays = preRegistrationData.allowed_days || [];
-                              const newDays = isSelected 
-                                ? currentDays.filter(d => d !== dayValue)
-                                : [...currentDays, dayValue];
-                              setPreRegistrationData(prev => ({ ...prev, allowed_days: newDays }));
-                            }}
-                          >
-                            <Text style={[
-                              styles.dayButtonText,
-                              isSelected && styles.dayButtonTextActive
-                            ]}>{day}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  <View style={styles.timeInputRow}>
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_start_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_start_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 08:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_end_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_end_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 18:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                  
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
-                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
-                    </Text>
-                  </View>
-
-                </>
-              )}
-
-              {/* Campos condicionais para prestador de serviço */}
-              {preRegistrationData.visit_type === 'prestador_servico' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Data da Visita *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={preRegistrationData.visit_date}
-                      onChangeText={(text) => {
-                        const formattedDate = formatDate(text);
-                        setPreRegistrationData(prev => ({ ...prev, visit_date: formattedDate }));
-                      }}
-                      placeholder="DD/MM/AAAA"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
-                  </View>
-
-                  <View style={styles.timeInputRow}>
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_start_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_start_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 08:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação (opcional)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={preRegistrationData.visit_end_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setPreRegistrationData(prev => ({ ...prev, visit_end_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 18:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                  
-                  <View style={styles.infoBox}>
-                    <Text style={styles.infoText}>
-                      💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode entrar a qualquer hora do dia)
-                    </Text>
-                  </View>
-                </>
-              )}
-
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowPreRegistrationModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  (isSubmittingPreRegistration || isProcessingMultiple) && styles.submitButtonDisabled
-                ]}
-                onPress={registrationMode === 'individual' ? handlePreRegistration : handleMultiplePreRegistration}
-                disabled={isSubmittingPreRegistration || isProcessingMultiple}
-              >
-                <Text style={styles.submitButtonText}>
-                  {isSubmittingPreRegistration || isProcessingMultiple 
-                    ? (registrationMode === 'multiple' ? 'Processando...' : 'Enviando...') 
-                    : 'Cadastrar'}
-                </Text>
-              </TouchableOpacity>
             </View>
-          </View>
-        </SafeAreaView>
-      </Modal>
+          </SafeAreaView>
+        </Modal>
 
-      {/* Modal de Edição */}
-      <Modal
-        visible={showEditModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEditModal(false)}
-      >
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Visitante</Text>
-              <TouchableOpacity
-                onPress={() => setShowEditModal(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+        {/* Modal de Edição */}
+        <Modal
+          visible={showEditModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowEditModal(false)}>
+          <SafeAreaView style={styles.modalOverlay}>
+            <View
+              style={[
+                styles.modalContent,
+                { paddingTop: insets.top, paddingBottom: insets.bottom },
+              ]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Editar Visitante</Text>
+                <TouchableOpacity
+                  onPress={() => setShowEditModal(false)}
+                  style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Nome Completo *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editData.name}
+                    onChangeText={(text) => setEditData((prev) => ({ ...prev, name: text }))}
+                    placeholder="Digite o nome completo do visitante"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Telefone *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editData.phone}
+                    onChangeText={(text) => setEditData((prev) => ({ ...prev, phone: text }))}
+                    placeholder="(XX) 9XXXX-XXXX"
+                    placeholderTextColor="#999"
+                    keyboardType="phone-pad"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
+                  <View style={styles.visitorTypeSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.access_type === 'direto' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() => setEditData((prev) => ({ ...prev, access_type: 'direto' }))}>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.access_type === 'direto' && styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Direto
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setEditData((prev) => ({ ...prev, access_type: 'com_aprovacao' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.access_type === 'com_aprovacao' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Com Aprovação
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tipo de Visitante *</Text>
+                  <View style={styles.visitorTypeSelector}>
+                    {/* <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'comum' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() => setEditData((prev) => ({ ...prev, visit_type: 'comum' }))}>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'comum' && styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Comum
+                      </Text>
+                    </TouchableOpacity> */}
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'frequente' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setEditData((prev) => ({ ...prev, visit_type: 'frequente' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'frequente' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Frequente
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'pontual' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setEditData((prev) => ({ ...prev, visit_type: 'pontual' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'pontual' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Pontual
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'prestador_servico' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setEditData((prev) => ({ ...prev, visit_type: 'prestador_servico' }))
+                      }>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'prestador_servico' &&
+                            styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Prestador de Serviço
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tipo de Visita *</Text>
+                  <View style={styles.visitorTypeSelector}>
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'pontual' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() => setEditData((prev) => ({ ...prev, visit_type: 'pontual' }))}>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'pontual' && styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Pontual
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.visitorTypeButton,
+                        editData.visit_type === 'frequente' && styles.visitorTypeButtonActive,
+                      ]}
+                      onPress={() => setEditData((prev) => ({ ...prev, visit_type: 'frequente' }))}>
+                      <Text
+                        style={[
+                          styles.visitorTypeButtonText,
+                          editData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive,
+                        ]}>
+                        Frequente
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Campos condicionais para visita pontual */}
+                {editData.visit_type === 'pontual' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Data da Visita *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={editData.visit_date}
+                        onChangeText={(text) => {
+                          const formattedDate = formatDate(text);
+                          setEditData((prev) => ({ ...prev, visit_date: formattedDate }));
+                        }}
+                        placeholder="DD/MM/AAAA"
+                        placeholderTextColor="#999"
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
+
+                    <View style={styles.timeInputRow}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={editData.visit_start_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setEditData((prev) => ({ ...prev, visit_start_time: formattedTime }));
+                          }}
+                          placeholder="HH:MM (ex: 15:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={editData.visit_end_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setEditData((prev) => ({ ...prev, visit_end_time: formattedTime }));
+                          }}
+                          placeholder="HH:MM (ex: 18:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+                    </View>
+                  </>
+                )}
+
+                {/* Campos condicionais para visita frequente */}
+                {editData.visit_type === 'frequente' && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Dias da Semana Permitidos *</Text>
+                      <View style={styles.daysSelector}>
+                        {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map(
+                          (day, index) => {
+                            const dayValue = [
+                              'monday',
+                              'tuesday',
+                              'wednesday',
+                              'thursday',
+                              'friday',
+                              'saturday',
+                              'sunday',
+                            ][index];
+                            const isSelected = editData.allowed_days?.includes(dayValue);
+                            return (
+                              <TouchableOpacity
+                                key={dayValue}
+                                style={[styles.dayButton, isSelected && styles.dayButtonActive]}
+                                onPress={() => {
+                                  const currentDays = editData.allowed_days || [];
+                                  const newDays = isSelected
+                                    ? currentDays.filter((d) => d !== dayValue)
+                                    : [...currentDays, dayValue];
+                                  setEditData((prev) => ({ ...prev, allowed_days: newDays }));
+                                }}>
+                                <Text
+                                  style={[
+                                    styles.dayButtonText,
+                                    isSelected && styles.dayButtonTextActive,
+                                  ]}>
+                                  {day}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          }
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={styles.timeInputRow}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>Horário de Início *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={editData.visit_start_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setEditData((prev) => ({ ...prev, visit_start_time: formattedTime }));
+                          }}
+                          placeholder="HH:MM (ex: 08:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.inputLabel}>Horário de Fim *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={editData.visit_end_time}
+                          onChangeText={(text) => {
+                            const formattedTime = formatTime(text);
+                            setEditData((prev) => ({ ...prev, visit_end_time: formattedTime }));
+                          }}
+                          placeholder="HH:MM (ex: 18:00)"
+                          placeholderTextColor="#999"
+                          keyboardType="numeric"
+                          maxLength={5}
+                        />
+                      </View>
+                    </View>
+                  </>
+                )}
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowEditModal(false)}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    isSubmittingPreRegistration && styles.submitButtonDisabled,
+                  ]}
+                  onPress={handleSaveEditedVisitor}
+                  disabled={isSubmittingPreRegistration}>
+                  <Text style={styles.submitButtonText}>
+                    {isSubmittingPreRegistration ? 'Salvando...' : 'Salvar Alterações'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nome Completo *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editData.name}
-                  onChangeText={(text) => setEditData(prev => ({ ...prev, name: text }))}
-                  placeholder="Digite o nome completo do visitante"
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Telefone *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editData.phone}
-                  onChangeText={(text) => setEditData(prev => ({ ...prev, phone: text }))}
-                  placeholder="(XX) 9XXXX-XXXX"
-                  placeholderTextColor="#999"
-                  keyboardType="phone-pad"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Acesso *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.access_type === 'direto' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'direto' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.access_type === 'direto' && styles.visitorTypeButtonTextActive
-                    ]}>Direto</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, access_type: 'com_aprovacao' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.access_type === 'com_aprovacao' && styles.visitorTypeButtonTextActive
-                    ]}>Com Aprovação</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Visitante *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.visitor_type === 'comum' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, visitor_type: 'comum' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.visitor_type === 'comum' && styles.visitorTypeButtonTextActive
-                    ]}>Comum</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.visitor_type === 'frequente' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, visitor_type: 'frequente' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.visitor_type === 'frequente' && styles.visitorTypeButtonTextActive
-                    ]}>Frequente</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tipo de Visita *</Text>
-                <View style={styles.visitorTypeSelector}>
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.visit_type === 'pontual' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, visit_type: 'pontual' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.visit_type === 'pontual' && styles.visitorTypeButtonTextActive
-                    ]}>Pontual</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[
-                      styles.visitorTypeButton,
-                      editData.visit_type === 'frequente' && styles.visitorTypeButtonActive
-                    ]}
-                    onPress={() => setEditData(prev => ({ ...prev, visit_type: 'frequente' }))}
-                  >
-                    <Text style={[
-                      styles.visitorTypeButtonText,
-                      editData.visit_type === 'frequente' && styles.visitorTypeButtonTextActive
-                    ]}>Frequente</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Campos condicionais para visita pontual */}
-              {editData.visit_type === 'pontual' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Data da Visita *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={editData.visit_date}
-                      onChangeText={(text) => {
-                        const formattedDate = formatDate(text);
-                        setEditData(prev => ({ ...prev, visit_date: formattedDate }));
-                      }}
-                      placeholder="DD/MM/AAAA"
-                      placeholderTextColor="#999"
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
-                  </View>
-
-                  <View style={styles.timeInputRow}>
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início da Pré-liberação *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={editData.visit_start_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setEditData(prev => ({ ...prev, visit_start_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 15:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim da Pré-liberação *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={editData.visit_end_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setEditData(prev => ({ ...prev, visit_end_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 18:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                </>
-              )}
-
-              {/* Campos condicionais para visita frequente */}
-              {editData.visit_type === 'frequente' && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Dias da Semana Permitidos *</Text>
-                    <View style={styles.daysSelector}>
-                      {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map((day, index) => {
-                        const dayValue = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'][index];
-                        const isSelected = editData.allowed_days?.includes(dayValue);
-                        return (
-                          <TouchableOpacity
-                            key={dayValue}
-                            style={[
-                              styles.dayButton,
-                              isSelected && styles.dayButtonActive
-                            ]}
-                            onPress={() => {
-                              const currentDays = editData.allowed_days || [];
-                              const newDays = isSelected
-                                ? currentDays.filter(d => d !== dayValue)
-                                : [...currentDays, dayValue];
-                              setEditData(prev => ({ ...prev, allowed_days: newDays }));
-                            }}
-                          >
-                            <Text style={[
-                              styles.dayButtonText,
-                              isSelected && styles.dayButtonTextActive
-                            ]}>{day}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  <View style={styles.timeInputRow}>
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Início *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={editData.visit_start_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setEditData(prev => ({ ...prev, visit_start_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 08:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-
-                    <View style={styles.timeInputGroup}>
-                      <Text style={styles.inputLabel}>Horário de Fim *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={editData.visit_end_time}
-                        onChangeText={(text) => {
-                          const formattedTime = formatTime(text);
-                          setEditData(prev => ({ ...prev, visit_end_time: formattedTime }));
-                        }}
-                        placeholder="HH:MM (ex: 18:00)"
-                        placeholderTextColor="#999"
-                        keyboardType="numeric"
-                        maxLength={5}
-                      />
-                    </View>
-                  </View>
-                </>
-              )}
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setShowEditModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  isSubmittingPreRegistration && styles.submitButtonDisabled
-                ]}
-                onPress={handleSaveEditedVisitor}
-                disabled={isSubmittingPreRegistration}
-              >
-                <Text style={styles.submitButtonText}>
-                  {isSubmittingPreRegistration ? 'Salvando...' : 'Salvar Alterações'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </Modal>
+          </SafeAreaView>
+        </Modal>
       </ScrollView>
 
       {/* Modal de Filtros */}
-    <Modal
-      visible={filterModalVisible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={cancelFilters}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filtros</Text>
-            <TouchableOpacity onPress={cancelFilters}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
+      <Modal
+        visible={filterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={cancelFilters}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filtros</Text>
+              <TouchableOpacity onPress={cancelFilters}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.modalContent}>
-            {/* Filtros de Status */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Status</Text>
-              <View style={styles.filterOptionsRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempStatusFilter === 'todos' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempStatusFilter('todos')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempStatusFilter === 'todos' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Todos
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempStatusFilter === 'pendente' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempStatusFilter('pendente')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempStatusFilter === 'pendente' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Pendentes
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempStatusFilter === 'expirado' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempStatusFilter('expirado')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempStatusFilter === 'expirado' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Expirados
-                  </Text>
-                </TouchableOpacity>
+            <View style={styles.modalContent}>
+              {/* Filtros de Status */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Status</Text>
+                <View style={styles.filterOptionsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempStatusFilter === 'todos' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempStatusFilter('todos')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempStatusFilter === 'todos' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Todos
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempStatusFilter === 'pendente' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempStatusFilter('pendente')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempStatusFilter === 'pendente' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Pendentes
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempStatusFilter === 'expirado' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempStatusFilter('expirado')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempStatusFilter === 'expirado' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Expirados
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Filtros de Tipo */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Tipo</Text>
+                <View style={styles.filterOptionsRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempTypeFilter === 'todos' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempTypeFilter('todos')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempTypeFilter === 'todos' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Todos
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempTypeFilter === 'visitantes' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempTypeFilter('visitantes')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempTypeFilter === 'visitantes' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Visitantes
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalFilterButton,
+                      tempTypeFilter === 'veiculos' && styles.modalFilterButtonActive,
+                    ]}
+                    onPress={() => setTempTypeFilter('veiculos')}>
+                    <Text
+                      style={[
+                        styles.modalFilterButtonText,
+                        tempTypeFilter === 'veiculos' && styles.modalFilterButtonTextActive,
+                      ]}>
+                      Veículos
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
-            {/* Filtros de Tipo */}
-            <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Tipo</Text>
-              <View style={styles.filterOptionsRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempTypeFilter === 'todos' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempTypeFilter('todos')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempTypeFilter === 'todos' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Todos
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempTypeFilter('visitantes')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempTypeFilter === 'visitantes' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Visitantes
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.modalFilterButton,
-                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonActive
-                  ]}
-                  onPress={() => setTempTypeFilter('veiculos')}
-                >
-                  <Text style={[
-                    styles.modalFilterButtonText,
-                    tempTypeFilter === 'veiculos' && styles.modalFilterButtonTextActive
-                  ]}>
-                    Veículos
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelButton} onPress={cancelFilters}>
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
 
-          <View style={styles.modalActions}>
-            <TouchableOpacity 
-              style={styles.modalCancelButton}
-              onPress={cancelFilters}
-            >
-              <Text style={styles.modalCancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.modalApplyButton}
-              onPress={applyFilters}
-            >
-              <Text style={styles.modalApplyButtonText}>Aplicar</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.modalApplyButton} onPress={applyFilters}>
+                <Text style={styles.modalApplyButtonText}>Aplicar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-       </View>
-     </Modal>
+      </Modal>
     </>
   );
 }
@@ -3357,7 +3611,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 35,
     borderLeftColor: '#4CAF50',
-  }, 
+  },
   infoText: {
     fontSize: 12,
     color: '#555',
@@ -3663,7 +3917,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     alignSelf: 'center',
   },
-  
+
   // Estilos do botão de filtro modal
   filterModalButton: {
     flexDirection: 'row',
@@ -3681,35 +3935,35 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
   },
-  
+
   // Estilos do modal
-  modalOverlay: {
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  // modalOverlay: {
+  //   backgroundColor: '#fff',
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // },
   modalContainer: {
     backgroundColor: '#fff',
     width: '90%',
     maxWidth: 400,
     height: '100%',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalContent: {
-    padding: 20,
-  },
+  // modalHeader: {
+  //   flexDirection: 'row',
+  //   justifyContent: 'space-between',
+  //   alignItems: 'center',
+  //   padding: 20,
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: '#eee',
+  // },
+  // modalTitle: {
+  //   fontSize: 20,
+  //   fontWeight: 'bold',
+  //   color: '#333',
+  // },
+  // modalContent: {
+  //   padding: 20,
+  // },
   filterSection: {
     marginBottom: 24,
   },
@@ -3778,7 +4032,7 @@ const styles = StyleSheet.create({
   },
 
   // ========== ESTILOS PARA MÚLTIPLOS VISITANTES ==========
-  
+
   // Seletor de modo de cadastro
   registrationModeSelector: {
     flexDirection: 'row',
@@ -3893,5 +4147,4 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginRight: 8,
   },
-
 });

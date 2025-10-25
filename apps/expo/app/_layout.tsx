@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { useColorScheme, Platform, View, Text, ActivityIndicator } from 'react-native';
+import { useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
@@ -69,7 +69,8 @@ function PushTokenManager() {
     };
 
     registerPushToken();
-  }, [user?.id, user?.push_token]); // Removido updatePushToken das dependências
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, updatePushToken]); // Exclude user.push_token to avoid infinite loops
 
   return null;
 }
@@ -114,6 +115,8 @@ export default function RootLayout() {
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
       }),
     });

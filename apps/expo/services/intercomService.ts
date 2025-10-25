@@ -2,11 +2,9 @@ import { Platform } from 'react-native';
 import type { CallStartPayload } from './calling';
 
 const DEFAULT_LOCAL_URL = 'http://localhost:3001';
-const DEFAULT_ANDROID_EMULATOR_URL = 'https://5302cc59505a.ngrok-free.app/';
+const DEFAULT_ANDROID_EMULATOR_URL = 'http://10.0.2.2:3001';
 
 const INTERCOM_API_BASE_URL =
-  process.env.EXPO_PUBLIC_INTERCOM_API_URL ||
-  process.env.EXPO_PUBLIC_INTERFONE_API_URL ||
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   (Platform.OS === 'android' ? DEFAULT_ANDROID_EMULATOR_URL : DEFAULT_LOCAL_URL);
 
@@ -145,9 +143,9 @@ export async function initiateIntercomCall(
   return {
     success: true,
     callId: call.id,
-    channelName: call.channelName || call.channel_name || null,
+    channelName: call.channelName || (call as any).channel_name || null,
     status: call.status,
-    startedAt: call.startedAt || call.started_at || null,
+    startedAt: call.startedAt || (call as any).started_at || null,
     participants,
     apartment,
     doorman,

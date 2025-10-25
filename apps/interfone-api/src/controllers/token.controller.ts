@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import agoraService, { type GenerateTokenResponse } from '../services/agora.service.ts';
+import DatabaseService from '../services/db.service.ts';
 
 /**
  * Controlador para geração de tokens RTC/RTM da Agora
@@ -154,6 +155,120 @@ class TokenController {
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Gera um token RTM para modo standby (apenas RTM, sem RTC)
+   * Usado por moradores para manter conexão RTM e receber convites de chamada
+   * Body: { uid, ttlSeconds? }
+   */
+  static async generateStandbyToken(req: Request, res: Response): Promise<void> {
+    try {
+      const { uid, ttlSeconds } = req.body ?? {};
+
+      if (!uid) {
+        res.status(400).json({
+          success: false,
+          error: 'uid é obrigatório'
+        });
+        return;
+      }
+
+      // Generate RTM-only token with long TTL for standby mode
+      const defaultTtl = ttlSeconds || 3600; // 1 hour default for standby
+      const bundle = agoraService.generateTokenPair({
+        channelName: '__standby__', // Placeholder channel (RTM doesn't need it)
+        uid: String(uid),
+        role: 'subscriber',
+        ttlSeconds: defaultTtl
+      });
+
+      console.log(
+        `✅ Token RTM standby gerado para uid=${bundle.uid}, ttl=${bundle.ttlSeconds}s`
+      );
+
+      res.json({
+        success: true,
+        data: {
+          appId: agoraService.getAppId(),
+          rtmToken: bundle.rtmToken,
+          uid: bundle.uid,
+          expiresAt: bundle.expiresAt,
+          ttlSeconds: bundle.ttlSeconds
+        }
+      });
+    } catch (error) {
+      console.error('🔥 Erro ao gerar token RTM standby:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Gera um token vinculado a uma chamada existente
+   * Body: { callId, uid, role? }
+   */
+  static async generateTokenForCall(req: Request, res: Response): Promise<void> {
+    try {
+      const { callId, uid, role } = req.body ?? {};
+
+      if (!callId || typeof callId !== 'string') {
+        res.status(400).json({ success: false, error: 'callId é obrigatório' });
+        return;
+      }
+
+      if (!uid) {
+        res.status(400).json({ success: false, error: 'uid é obrigatório' });
+        return;
+      }
+
+      const call = await DatabaseService.getCallById(callId);
+      if (!call) {
+        res.status(404).json({ success: false, error: 'Chamada não encontrada' });
+        return;
+      }
+
+      const status = (call.status || '').toLowerCase();
+      if (status === 'ended' || status === 'declined') {
+        res.status(400).json({ success: false, error: 'Chamada não está ativa' });
+        return;
+      }
+
+      const participants = await DatabaseService.getCallParticipants(callId);
+      const isParticipant =
+        String(call.doorman_id) === String(uid) ||
+        participants.some((p: any) => String(p.user_id ?? p.resident_id) === String(uid));
+
+      if (!isParticipant) {
+        res.status(403).json({ success: false, error: 'Usuário não é participante da chamada' });
+        return;
+      }
+
+      const channelName: string =
+        call.channel_name || call.twilio_conference_sid || `call-${callId}`;
+
+      const tokenBundle = agoraService.generateTokenPair({
+        channelName,
+        uid: String(uid),
+        role,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          appId: agoraService.getAppId(),
+          ...tokenBundle,
+        },
+      });
+    } catch (error) {
+      console.error('🔥 Erro ao gerar token vinculado à chamada:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro interno do servidor',
       });
     }
   }

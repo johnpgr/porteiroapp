@@ -27,7 +27,7 @@ const { client, unified } = SupabaseClientFactory.createReactNativeClient(
   Platform.OS,
   {
     url: 'YOUR_SUPABASE_URL',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+    key: 'YOUR_SUPABASE_ANON_KEY',
     storage: AsyncStorage,
     logLevel: 'info',
   }
@@ -47,7 +47,7 @@ import { SupabaseClientFactory } from '@porteiroapp/common';
 
 const { client, unified } = SupabaseClientFactory.createBrowserClient({
   url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   logLevel: 'error',
 });
 
@@ -61,7 +61,7 @@ import { SupabaseClientFactory } from '@porteiroapp/common';
 
 const { client, unified } = SupabaseClientFactory.createServerClient({
   url: process.env.SUPABASE_URL!,
-  anonKey: process.env.SUPABASE_ANON_KEY!,
+  key: process.env.SUPABASE_SERVICE_ROLE_KEY!,
   logLevel: 'error',
 });
 ```

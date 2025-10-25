@@ -1,3 +1,4 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { TypedSupabaseClient } from '../supabase/core/client.ts';
 
 export interface PendingNotification {
@@ -39,6 +40,88 @@ export interface UsePendingNotificationsCoreDeps {
   supabase: TypedSupabaseClient;
   apartmentId: string | null;
   userId?: string;
+}
+
+const DECISION_CHANNEL_TIMEOUT_MS = 7000;
+
+async function waitForChannelSubscription(
+  channel: RealtimeChannel,
+  timeoutMs: number = DECISION_CHANNEL_TIMEOUT_MS
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Tempo limite ao conectar ao canal de decisões'));
+    }, timeoutMs);
+
+    channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        clearTimeout(timeout);
+        resolve();
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        clearTimeout(timeout);
+        reject(
+          error instanceof Error
+            ? error
+            : new Error(`Falha ao conectar ao canal de decisões (status: ${status})`)
+        );
+      }
+    });
+  });
+}
+
+/**
+ * Broadcasts a resident decision to doorman app via Realtime channel
+ *
+ * TODO: PERFORMANCE OPTIMIZATION NEEDED
+ * Current implementation creates a new channel for each broadcast, which:
+ * - Adds connection overhead (~7s timeout wait)
+ * - Could hit rate limits with many decisions
+ * - Wastes resources by not reusing connections
+ *
+ * Recommended fixes (future):
+ * 1. Reuse a single long-lived channel per building
+ * 2. Switch to postgres_changes trigger pattern
+ * 3. Use Supabase Edge Functions with webhooks
+ *
+ * See: STAGED_CHANGES_REVIEW.md section 3.1 issue #2
+ */
+async function broadcastDecisionUpdate(params: {
+  supabase: TypedSupabaseClient;
+  buildingId: string;
+  payload: Record<string, any>;
+}): Promise<void> {
+  const { supabase, buildingId, payload } = params;
+  const channelName = `porteiro-decisions-${buildingId}`;
+
+  const channel = supabase.channel(channelName, {
+    config: {
+      broadcast: {
+        self: false
+      }
+    }
+  });
+
+  try {
+    await waitForChannelSubscription(channel);
+
+    const sendResult = await channel.send({
+      type: 'broadcast',
+      event: 'visitor_decision_update',
+      payload
+    });
+
+    if (sendResult !== 'ok') {
+      throw new Error(`Envio de broadcast retornou status '${sendResult}'`);
+    }
+  } catch (error) {
+    console.error('[usePendingNotificationsCore] Erro ao enviar broadcast de decisão:', error);
+  } finally {
+    try {
+      await supabase.removeChannel(channel);
+    } catch (removalError) {
+      console.warn('[usePendingNotificationsCore] Falha ao remover canal de decisão:', removalError);
+    }
+  }
 }
 
 /**
@@ -152,6 +235,61 @@ export async function respondToNotification(
       console.error('[usePendingNotificationsCore] Error updating notification:', error);
       return { success: false, error: error.message };
     }
+
+    let broadcastPayload: Record<string, any> | null = null;
+
+    try {
+      const { data: decisionRecord, error: fetchError } = await supabase
+        .from('visitor_logs')
+        .select(`
+          id,
+          visitor_id,
+          notification_status,
+          resident_response_at,
+          resident_response_by,
+          visitors (name),
+          apartments!inner (number, building_id)
+        `)
+        .eq('id', notificationId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.warn(
+          '[usePendingNotificationsCore] Erro ao buscar decisão atualizada para broadcast:',
+          fetchError
+        );
+      }
+
+      if (decisionRecord) {
+        broadcastPayload = {
+          decision: decisionRecord,
+          source: 'resident_response',
+          broadcasted_at: new Date().toISOString()
+        };
+      }
+    } catch (fetchException) {
+      console.warn(
+        '[usePendingNotificationsCore] Exceção ao preparar payload de decisão para broadcast:',
+        fetchException
+      );
+    }
+
+    if (!broadcastPayload) {
+      broadcastPayload = {
+        visitorLogId: notificationId,
+        status: updateData.notification_status,
+        residentResponseBy: updateData.resident_response_by ?? null,
+        residentResponseAt: updateData.resident_response_at,
+        source: 'resident_response',
+        broadcasted_at: new Date().toISOString()
+      };
+    }
+
+    await broadcastDecisionUpdate({
+      supabase,
+      buildingId: logData.building_id,
+      payload: broadcastPayload
+    });
 
     return { success: true, buildingId: logData.building_id };
   } catch (err: any) {

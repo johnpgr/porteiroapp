@@ -26,7 +26,6 @@
     "@react-navigation/native": "^7.0.3",
     "@types/bcrypt": "^6.0.0",
     "agora-react-native-rtm": "^1.5.1",
-    "agora-rn-uikit": "^5.0.2",
     "date-fns": "catalog:",
     "expo": "^54.0.2",
     "expo-av": "~16.0.7",
