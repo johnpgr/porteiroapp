@@ -638,9 +638,12 @@ export default function PorteiroProfile() {
         style: 'destructive',
         onPress: async () => {
           try {
+            console.log('🔓 [PorteiroProfile] Iniciando logout...');
             await signOut();
-            router.replace('/porteiro/login');
-          } catch {
+            console.log('✅ [PorteiroProfile] Logout concluído, ProtectedRoute fará redirect');
+            // ProtectedRoute handle redirect when user becomes null
+          } catch (error) {
+            console.error('❌ [PorteiroProfile] Erro no logout:', error);
             Alert.alert('Erro', 'Falha ao fazer logout');
           }
         },

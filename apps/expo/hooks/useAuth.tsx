@@ -184,9 +184,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, HEARTBEAT_INTERVAL);
   }, [isSessionValid, user, HEARTBEAT_INTERVAL]);
 
+  // Helper function to wrap async operations with timeout
+  const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, operationName: string): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${operationName} timeout after ${timeoutMs}ms`)), timeoutMs)
+      )
+    ]);
+  };
+
   // Função signOut definida antes para evitar problemas de inicialização
   const signOut = useCallback(async () => {
+    const SIGNOUT_TIMEOUT = 10000; // 10 seconds timeout
+
     try {
+      console.log('🔓 [AuthProvider] Starting signOut...');
       setLoading(true);
 
       // Para todos os timers antes do logout
@@ -207,22 +220,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authStateChangeTimeoutRef.current = null;
       }
 
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        logError('Erro no logout do Supabase:', error);
+      // Wrap Supabase signOut with timeout
+      console.log('🔓 [AuthProvider] Calling supabase.auth.signOut...');
+      try {
+        const { error } = await withTimeout(
+          supabase.auth.signOut(),
+          SIGNOUT_TIMEOUT,
+          'Supabase signOut'
+        );
+        if (error) {
+          console.error('❌ [AuthProvider] Supabase signOut error:', error);
+        } else {
+          console.log('✅ [AuthProvider] Supabase signOut successful');
+        }
+      } catch (timeoutError) {
+        console.error('⏱️ [AuthProvider] Supabase signOut timeout:', timeoutError);
       }
 
-      // Limpa todos os dados armazenados
-      await TokenStorage.clearAll();
+      // Wrap TokenStorage.clearAll with timeout
+      console.log('🔓 [AuthProvider] Clearing TokenStorage...');
+      try {
+        await withTimeout(
+          TokenStorage.clearAll(),
+          SIGNOUT_TIMEOUT,
+          'TokenStorage.clearAll'
+        );
+        console.log('✅ [AuthProvider] TokenStorage cleared');
+      } catch (clearError) {
+        console.error('❌ [AuthProvider] TokenStorage.clearAll error:', clearError);
+      }
 
       setUser(null);
+      console.log('✅ [AuthProvider] User state cleared');
 
       // Limpa refs de controle
       lastLoadedRef.current = null;
       loadingProfileRef.current = false;
       lastAuthEventRef.current = null;
+
+      console.log('✅ [AuthProvider] signOut completed successfully');
     } catch (error) {
-      logError('Erro no logout:', error);
+      console.error('❌ [AuthProvider] Critical error in signOut:', error);
       // Mesmo com erro, limpa o estado local
       setUser(null);
 
@@ -230,10 +268,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await TokenStorage.clearAll();
       } catch (clearError) {
-        logError('Erro ao limpar storage durante logout:', clearError);
+        console.error('❌ [AuthProvider] Error clearing storage during error recovery:', clearError);
       }
     } finally {
       setLoading(false);
+      console.log('🔓 [AuthProvider] signOut finally block - loading set to false');
     }
   }, []);
 

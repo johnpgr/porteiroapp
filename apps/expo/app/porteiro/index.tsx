@@ -78,7 +78,7 @@ type LogEntry = {
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 
 export default function PorteiroDashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   // Funções para controle de turno
   const handleStartShift = async () => {
@@ -923,7 +923,7 @@ export default function PorteiroDashboard() {
               setInitialShiftCheckDone(false);
               setIsInitializing(true);
               hasCompletedInitialLoadRef.current = false;
-            await supabase.auth.signOut();
+            await signOut();
             router.replace('/porteiro/login');
           } catch (error) {
             console.error('Erro ao fazer logout:', error);

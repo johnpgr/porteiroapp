@@ -896,6 +896,34 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         return;
       }
 
+      if (incomingInvite?.signal.callId === parsed.callId) {
+        if (parsed.t === 'END' || parsed.t === 'DECLINE') {
+          setIncomingInvite(null);
+
+          const nextState = deriveNextStateFromSignal(callState, parsed.t as RtmSignalType);
+          setCallState((prev) => {
+            if (prev === nextState) {
+              return prev;
+            }
+            return nextState;
+          });
+
+          try {
+            await agoraAudioService.stopRingtone();
+          } catch (stopError) {
+            console.warn('⚠️ Falha ao parar ringtone após cancelamento:', stopError);
+          }
+
+          if (nextState === 'ended' || nextState === 'declined') {
+            setTimeout(() => {
+              setCallState((current) => (current === nextState ? 'idle' : current));
+            }, 2000);
+          }
+
+          return;
+        }
+      }
+
       if (parsed.t === 'INVITE' && currentUser?.userType === 'morador') {
         if (incomingInvite?.signal.callId === parsed.callId) {
           return;
@@ -934,6 +962,110 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       offMsg();
     };
   }, [rtmMessageCallback]);
+
+  useEffect(() => {
+    if (!incomingInvite || currentUser?.userType !== 'morador') {
+      return;
+    }
+
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let consecutiveFailures = 0;
+
+    const mapCallStatusToLifecycle = (status?: string | null): CallLifecycleState => {
+      const normalized = (status ?? '').toLowerCase();
+      switch (normalized) {
+        case 'declined':
+          return 'declined';
+        case 'missed':
+        case 'timeout':
+        case 'timed_out':
+          return 'missed';
+        case 'failed':
+        case 'error':
+        case 'unavailable':
+          return 'failed';
+        default:
+          return 'ended';
+      }
+    };
+
+    const finalizeInvite = (nextState: CallLifecycleState) => {
+      if (cancelled) {
+        return;
+      }
+
+      cancelled = true;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+
+      setIncomingInvite(null);
+      setCallState((prev) => {
+        if (prev === 'ringing' || prev === 'connecting' || prev === 'dialing') {
+          return nextState;
+        }
+        return prev;
+      });
+
+      void agoraAudioService.stopRingtone().catch((stopError) => {
+        console.warn('⚠️ Falha ao parar ringtone após verificação de status da chamada:', stopError);
+      });
+
+      if (nextState === 'ended' || nextState === 'declined' || nextState === 'missed' || nextState === 'failed') {
+        setTimeout(() => {
+          setCallState((current) => (current === nextState ? 'idle' : current));
+        }, 2000);
+      }
+    };
+
+    const checkStatus = async () => {
+      let statusResponse: CallStatusResponse | null = null;
+
+      try {
+        statusResponse = await fetchCallStatus(apiBaseUrlRef.current, incomingInvite.signal.callId);
+      } catch (statusError) {
+        console.warn('⚠️ Falha ao verificar status da chamada:', statusError);
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!statusResponse) {
+        consecutiveFailures += 1;
+
+        if (consecutiveFailures >= 2) {
+          finalizeInvite('ended');
+        }
+
+        return;
+      }
+
+      consecutiveFailures = 0;
+
+      const status = typeof statusResponse.call?.status === 'string' ? statusResponse.call.status : null;
+
+      if (!status || status.toLowerCase() !== 'calling') {
+        const nextState = mapCallStatusToLifecycle(status);
+        finalizeInvite(nextState);
+      }
+    };
+
+    void checkStatus();
+    pollTimer = setInterval(() => {
+      void checkStatus();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+  }, [incomingInvite, currentUser?.userType]);
 
   // Subscribe to AgoraService RTC events
   useEffect(() => {
