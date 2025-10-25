@@ -214,6 +214,18 @@ export const usePendingNotifications = () => {
       console.log('ℹ️ [usePendingNotifications] Notificação push será enviada pela Edge Function durante o registro');
 
       if (residentPhone) {
+        // Check if WhatsApp already sent via notification_sent_at
+        const { data: logCheck } = await supabase
+          .from('visitor_logs')
+          .select('notification_sent_at')
+          .eq('id', newLog.id)
+          .single();
+
+        if (logCheck?.notification_sent_at) {
+          console.log('🚫 [usePendingNotifications] WhatsApp já enviado - subscription ignorando');
+          return;
+        }
+
         try {
           await notificationApi.sendVisitorWaitingNotification({
             visitor_name: visitorName,
@@ -223,6 +235,14 @@ export const usePendingNotifications = () => {
             apartment: apartmentNumber,
             visitor_log_id: newLog.id
           });
+
+          // Mark as sent by setting notification_sent_at timestamp
+          await supabase
+            .from('visitor_logs')
+            .update({ notification_sent_at: new Date().toISOString() })
+            .eq('id', newLog.id);
+
+          console.log('✅ [usePendingNotifications] WhatsApp enviado e notification_sent_at atualizado');
 
         } catch (whatsappError) {
           console.error('❌ Erro ao enviar WhatsApp:', whatsappError);

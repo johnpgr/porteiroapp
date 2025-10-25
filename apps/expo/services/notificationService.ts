@@ -74,7 +74,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF231F7C',
-        sound: 'default',
+        sound: 'doorbell_push.mp3',
         enableVibrate: true,
         enableLights: true,
         showBadge: true,
@@ -84,20 +84,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         name: 'Visitantes',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        sound: 'default',
+        sound: 'doorbell_push.mp3',
       });
 
       await Notifications.setNotificationChannelAsync('delivery', {
         name: 'Entregas',
         importance: Notifications.AndroidImportance.HIGH,
-        sound: 'default',
+        sound: 'doorbell_push.mp3',
       });
 
       await Notifications.setNotificationChannelAsync('emergency', {
         name: 'Emergências',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 500, 250, 500],
-        sound: 'default',
+        sound: 'doorbell_push.mp3',
       });
     }
 
@@ -165,7 +165,7 @@ export async function sendPushNotification(params: {
     // Criar mensagens para cada token
     const messages = validTokens.map(token => ({
       to: token,
-      sound: 'default',
+      sound: 'doorbell_push.mp3',
       title: params.title,
       body: params.body,
       data: params.data || {},
@@ -417,7 +417,7 @@ export async function scheduleLocalNotification(
         title,
         body,
         data: data || {},
-        sound: 'default',
+        sound: 'doorbell_push.mp3',
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
       trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null,

@@ -651,7 +651,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             entry_type: 'delivery',
             notification_status: 'pending',
             requires_resident_approval: true,
-            notification_sent_at: currentTime,
+            notification_sent_at: null,
             expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutos
             delivery_sender: empresaSelecionada.nome,
             delivery_description: descricaoEncomenda,
@@ -724,23 +724,23 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         }
 
         // 🚫 PROTEÇÃO CRÍTICA WHATSAPP: Verificar se notificação já foi enviada
-        console.log('📱 [RegistrarEncomenda] Verificando status antes de enviar WhatsApp...');
+        console.log('📱 [RegistrarEncomenda] Verificando se WhatsApp já foi enviado...');
 
         if (!visitorLogData?.id) {
           console.warn('⚠️ [RegistrarEncomenda] Visitor log ID não encontrado - pulando notificação');
         } else {
-          // Buscar status atual do visitor_log recém-criado
+          // Buscar se WhatsApp já foi enviado (notification_sent_at != null)
           const { data: currentLog } = await supabase
             .from('visitor_logs')
-            .select('notification_status')
+            .select('notification_sent_at')
             .eq('id', visitorLogData.id)
             .single();
 
-          const currentStatus = currentLog?.notification_status;
-          console.log('📋 [RegistrarEncomenda] Status atual da notificação:', currentStatus);
+          const alreadySent = currentLog?.notification_sent_at !== null;
+          console.log('📋 [RegistrarEncomenda] WhatsApp já enviado?', alreadySent);
 
           // Enviar notificação WhatsApp APENAS se ainda não foi enviada
-          if (currentStatus !== 'sent') {
+          if (!alreadySent) {
             try {
               console.log('📱 [RegistrarEncomenda] Enviando notificação WhatsApp...');
 
@@ -779,13 +779,13 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
                   console.log('✅ [RegistrarEncomenda] Mensagem WhatsApp enviada com sucesso');
 
-                  // Atualizar status IMEDIATAMENTE para evitar reenvios
+                  // Atualizar notification_sent_at IMEDIATAMENTE para evitar reenvios
                   await supabase
                     .from('visitor_logs')
-                    .update({ notification_status: 'sent' })
+                    .update({ notification_sent_at: new Date().toISOString() })
                     .eq('id', visitorLogData.id);
 
-                  console.log('✅ [RegistrarEncomenda] Status atualizado para "sent" - bloqueio ativado');
+                  console.log('✅ [RegistrarEncomenda] notification_sent_at atualizado - bloqueio ativado');
                 }
               }
             } catch (notificationError) {
@@ -793,7 +793,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
               // Não bloquear o fluxo principal se a notificação falhar
             }
           } else {
-            console.log('🚫 [RegistrarEncomenda] WhatsApp JÁ ENVIADO - bloqueando reenvio');
+            console.log('🚫 [RegistrarEncomenda] WhatsApp já enviado (notification_sent_at != null) - bloqueando reenvio');
           }
         }
 
