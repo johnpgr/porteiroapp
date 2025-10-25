@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { router } from 'expo-router';
 import {
   View,
@@ -21,6 +21,7 @@ import { useAuth } from '~/hooks/useAuth';
 import { validateBrazilianPhone, formatBrazilianPhone } from '~/utils/whatsapp';
 // Removed old notification service - using Edge Functions for push notifications
 import * as Crypto from 'expo-crypto';
+import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 
 // Funções de formatação
 const formatDate = (value: string): string => {
@@ -186,6 +187,7 @@ interface MultipleVisitor {
 export default function VisitantesTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const filterModalRef = useRef<BottomSheetModalRef>(null);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -488,13 +490,18 @@ export default function VisitantesTab() {
     setStatusFilter(tempStatusFilter);
     setTypeFilter(tempTypeFilter);
     setCurrentPage(1); // Reset pagination
-    setFilterModalVisible(false);
+    filterModalRef.current?.close();
   };
 
   // Função para cancelar filtros do modal
   const cancelFilters = () => {
     setTempStatusFilter(statusFilter);
     setTempTypeFilter(typeFilter);
+    filterModalRef.current?.close();
+  };
+
+  // Função chamada quando o modal fecha (após animação)
+  const handleFilterModalClose = () => {
     setFilterModalVisible(false);
   };
 
@@ -3164,136 +3171,129 @@ export default function VisitantesTab() {
       </ScrollView>
 
       {/* Modal de Filtros */}
-      <Modal
+      <BottomSheetModal
+        ref={filterModalRef}
         visible={filterModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={cancelFilters}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filtros</Text>
-              <TouchableOpacity onPress={cancelFilters}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
+        onClose={handleFilterModalClose}
+        snapPoints={40}>
+        <View style={styles.bottomSheetHeader}>
+          <Text style={styles.bottomSheetTitle}>Filtros</Text>
+        </View>
 
-            <View style={styles.modalContent}>
-              {/* Filtros de Status */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Status</Text>
-                <View style={styles.filterOptionsRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempStatusFilter === 'todos' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempStatusFilter('todos')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempStatusFilter === 'todos' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Todos
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempStatusFilter === 'pendente' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempStatusFilter('pendente')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempStatusFilter === 'pendente' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Pendentes
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempStatusFilter === 'expirado' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempStatusFilter('expirado')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempStatusFilter === 'expirado' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Expirados
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Filtros de Tipo */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Tipo</Text>
-                <View style={styles.filterOptionsRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempTypeFilter === 'todos' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempTypeFilter('todos')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempTypeFilter === 'todos' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Todos
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempTypeFilter === 'visitantes' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempTypeFilter('visitantes')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempTypeFilter === 'visitantes' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Visitantes
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modalFilterButton,
-                      tempTypeFilter === 'veiculos' && styles.modalFilterButtonActive,
-                    ]}
-                    onPress={() => setTempTypeFilter('veiculos')}>
-                    <Text
-                      style={[
-                        styles.modalFilterButtonText,
-                        tempTypeFilter === 'veiculos' && styles.modalFilterButtonTextActive,
-                      ]}>
-                      Veículos
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelButton} onPress={cancelFilters}>
-                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+        <ScrollView style={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
+          {/* Filtros de Status */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterSectionTitle}>Status</Text>
+            <View style={styles.filterChipsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempStatusFilter === 'todos' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempStatusFilter('todos')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempStatusFilter === 'todos' && styles.filterChipTextActive,
+                  ]}>
+                  Todos
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.modalApplyButton} onPress={applyFilters}>
-                <Text style={styles.modalApplyButtonText}>Aplicar</Text>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempStatusFilter === 'pendente' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempStatusFilter('pendente')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempStatusFilter === 'pendente' && styles.filterChipTextActive,
+                  ]}>
+                  Pendentes
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempStatusFilter === 'expirado' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempStatusFilter('expirado')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempStatusFilter === 'expirado' && styles.filterChipTextActive,
+                  ]}>
+                  Expirados
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Filtros de Tipo */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterSectionTitle}>Tipo</Text>
+            <View style={styles.filterChipsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempTypeFilter === 'todos' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempTypeFilter('todos')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempTypeFilter === 'todos' && styles.filterChipTextActive,
+                  ]}>
+                  Todos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempTypeFilter === 'visitantes' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempTypeFilter('visitantes')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempTypeFilter === 'visitantes' && styles.filterChipTextActive,
+                  ]}>
+                  Visitantes
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  tempTypeFilter === 'veiculos' && styles.filterChipActive,
+                ]}
+                onPress={() => setTempTypeFilter('veiculos')}>
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    tempTypeFilter === 'veiculos' && styles.filterChipTextActive,
+                  ]}>
+                  Veículos
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={styles.bottomSheetFooter}>
+          <TouchableOpacity style={styles.bottomSheetCancelButton} onPress={cancelFilters}>
+            <Text style={styles.bottomSheetCancelButtonText}>Cancelar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.bottomSheetApplyButton} onPress={applyFilters}>
+            <Text style={styles.bottomSheetApplyButtonText}>Aplicar</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </BottomSheetModal>
     </>
   );
 }
@@ -3936,99 +3936,101 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Estilos do modal
-  // modalOverlay: {
-  //   backgroundColor: '#fff',
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  // },
-  modalContainer: {
-    backgroundColor: '#fff',
-    width: '90%',
-    maxWidth: 400,
-    height: '100%',
+  // ========== ESTILOS DO BOTTOM SHEET MODAL ==========
+
+  // Header do Bottom Sheet
+  bottomSheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  // modalHeader: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'space-between',
-  //   alignItems: 'center',
-  //   padding: 20,
-  //   borderBottomWidth: 1,
-  //   borderBottomColor: '#eee',
-  // },
-  // modalTitle: {
-  //   fontSize: 20,
-  //   fontWeight: 'bold',
-  //   color: '#333',
-  // },
-  // modalContent: {
-  //   padding: 20,
-  // },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+
+  // Content do Bottom Sheet
+  bottomSheetContent: {
+    flex: 1,
+    paddingTop: 16,
+  },
+
+  // Seções de filtros
   filterSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   filterSectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#6B7280',
     marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  filterOptionsRow: {
+
+  // Container dos chips de filtro
+  filterChipsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
-  modalFilterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#ddd',
+
+  // Chips de filtro (novo design)
+  filterChip: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
   },
-  modalFilterButtonActive: {
+  filterChipActive: {
     backgroundColor: '#4CAF50',
     borderColor: '#4CAF50',
   },
-  modalFilterButtonText: {
+  filterChipText: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    color: '#4B5563',
+    fontWeight: '600',
   },
-  modalFilterButtonTextActive: {
-    color: '#fff',
+  filterChipTextActive: {
+    color: '#FFFFFF',
   },
-  modalActions: {
+
+  // Footer do Bottom Sheet
+  bottomSheetFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#F3F4F6',
     gap: 12,
   },
-  modalCancelButton: {
+  bottomSheetCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
-  modalCancelButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+  bottomSheetCancelButtonText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '600',
   },
-  modalApplyButton: {
+  bottomSheetApplyButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: '#4CAF50',
     alignItems: 'center',
   },
-  modalApplyButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
+  bottomSheetApplyButtonText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 
   // ========== ESTILOS PARA MÚLTIPLOS VISITANTES ==========
