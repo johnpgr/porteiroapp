@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { Modal } from '~/components/Modal';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
@@ -967,6 +968,27 @@ export default function PorteiroDashboard() {
       );
     }
     
+    const menuItems: ProfileMenuItem[] = [
+      {
+        label: 'Perfil',
+        iconName: 'person',
+        onPress: () => {
+          setShowUserMenu(false);
+          router.push('/porteiro/profile');
+        },
+      },
+      {
+        label: 'Logout',
+        iconName: 'log-out',
+        iconColor: '#f44336',
+        destructive: true,
+        onPress: () => {
+          setShowUserMenu(false);
+          handleLogout();
+        },
+      },
+    ];
+
     return (
       <View style={styles.topMenu}>
         <View style={styles.topMenuLeft}>
@@ -1003,27 +1025,13 @@ export default function PorteiroDashboard() {
             <Text style={styles.avatarText}>{porteiroData.initials}</Text>
           </TouchableOpacity>
 
-          {/* Menu do Usuário */}
-          {showUserMenu && (
-            <View style={styles.userMenu}>
-              <TouchableOpacity
-                style={styles.userMenuItem}
-                onPress={() => {
-                  setShowUserMenu(false);
-                  router.push('/porteiro/profile');
-                }}>
-                <Text style={styles.userMenuIcon}>👤</Text>
-                <Text style={styles.userMenuText}>Perfil</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.userMenuItem} onPress={handleLogout}>
-                <Text style={styles.userMenuIcon}>🚪</Text>
-                <Text style={styles.userMenuText}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-           )}
-
-
-         </View>
+          <ProfileMenu
+            visible={showUserMenu}
+            onClose={() => setShowUserMenu(false)}
+            items={menuItems}
+            placement="top-right"
+          />
+        </View>
       </View>
     );
   };
@@ -3111,34 +3119,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  userMenu: {
-    position: 'absolute',
-    top: 50,
-    right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    minWidth: 180,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    paddingVertical: 8,
-    zIndex: 1000,
-  },
-  userMenuItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  userMenuItemText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  userMenuItemLast: {
-    borderBottomWidth: 0,
-  },
   // Estilos para consulta
   searchTypeContainer: {
     flexDirection: 'row',
@@ -3298,15 +3278,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  userMenuIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  userMenuText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
   // Novos estilos para autorizações
   authCardTitleRow: {
     flexDirection: 'row',
