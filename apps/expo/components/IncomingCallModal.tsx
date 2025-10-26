@@ -48,11 +48,10 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
     return false;
   }, [visible, incomingInvite, activeCall, callState]);
 
-  const apartmentNumber = useMemo(
-    () => incomingInvite?.callSummary?.apartmentNumber ?? null,
+  const doormanName = useMemo(
+    () => incomingInvite?.callSummary?.doormanName ?? null,
     [incomingInvite]
   );
-  const buildingId = useMemo(() => incomingInvite?.callSummary?.buildingId ?? null, [incomingInvite]);
 
   useEffect(() => {
     const run = async () => {
@@ -145,10 +144,7 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
           </View>
 
           <View style={styles.infoBox}>
-            {apartmentNumber ? (
-              <Text style={styles.infoText}>Apartamento {apartmentNumber}</Text>
-            ) : null}
-            {buildingId ? <Text style={styles.infoSubText}>Prédio {buildingId}</Text> : null}
+            <Text style={styles.infoText}>{doormanName ?? 'Porteiro'}</Text>
           </View>
 
           {showActiveCall ? (
