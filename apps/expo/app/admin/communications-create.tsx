@@ -7,9 +7,8 @@ import {
   ScrollView,
   Alert,
   StyleSheet,
-  SafeAreaView,
-  Modal,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import type { Database } from '~/types/database';
@@ -395,7 +394,7 @@ export default function CommunicationsCreate() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderHeader()}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {renderCommunicationForm()}
@@ -404,7 +403,7 @@ export default function CommunicationsCreate() {
       {renderCommunicationTypePicker()}
       {renderCommunicationPriorityPicker()}
       {renderCommunicationBuildingPicker()}
-    </SafeAreaView>
+    </View>
   );
 }
 

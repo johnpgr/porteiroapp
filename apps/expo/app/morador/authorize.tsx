@@ -7,10 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
-  Modal,
   TextInput,
-  SafeAreaView,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';
@@ -181,7 +180,7 @@ export default function AuthorizeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -288,7 +287,7 @@ export default function AuthorizeScreen() {
         </View>
       </Modal>
       <BottomNav />
-    </SafeAreaView>
+    </View>
   );
 }
 

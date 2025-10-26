@@ -1,20 +1,20 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as Device from 'expo-device';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
-import 'react-native-reanimated';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaView } from '~/components/SafeAreaView';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync().catch(error => {
+SplashScreen.preventAutoHideAsync().catch((error) => {
   console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
 });
 
@@ -87,7 +87,7 @@ export default function RootLayout() {
         console.log('🚀 Iniciando preparação do app...');
 
         // Aguarda um pouco para garantir que tudo está pronto
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         console.log('✅ App pronto, escondendo splash screen');
         setAppReady(true);
@@ -99,7 +99,7 @@ export default function RootLayout() {
         console.error('❌ Erro ao preparar app:', error);
         // Mesmo com erro, esconde a splash screen
         setAppReady(true);
-        SplashScreen.hideAsync().catch(e => console.error('❌ Erro ao esconder splash:', e));
+        SplashScreen.hideAsync().catch((e) => console.error('❌ Erro ao esconder splash:', e));
       }
     }
 
@@ -122,25 +122,27 @@ export default function RootLayout() {
     });
 
     // Listener para notificações recebidas enquanto app está em foreground
-    const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
       console.log('🔔 [Foreground] Notificação recebida:', notification);
       // A notificação será exibida automaticamente devido ao handler acima
     });
 
     // Listener para quando usuário clica na notificação
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('👆 [Click] Usuário clicou na notificação:', response);
-      const data = response.notification.request.content.data;
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        console.log('👆 [Click] Usuário clicou na notificação:', response);
+        const data = response.notification.request.content.data;
 
-      // Navegação baseada no tipo de notificação
-      if (data?.type === 'visitor_arrival') {
-        // Navegar para tela de autorizações do morador
-        router.push('/morador/authorize');
-      } else if (data?.type === 'visitor_approved' || data?.type === 'visitor_rejected') {
-        // Navegar para tela do porteiro
-        router.push('/porteiro');
+        // Navegação baseada no tipo de notificação
+        if (data?.type === 'visitor_arrival') {
+          // Navegar para tela de autorizações do morador
+          router.push('/morador/authorize');
+        } else if (data?.type === 'visitor_approved' || data?.type === 'visitor_rejected') {
+          // Navegar para tela do porteiro
+          router.push('/porteiro');
+        }
       }
-    });
+    );
 
     // Cleanup
     return () => {

@@ -6,9 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal,
   Alert,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
@@ -22,6 +20,7 @@ import { useFirstLogin } from '~/hooks/useFirstLogin';
 import { FirstLoginModal } from '~/components/FirstLoginModal';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
+import ProfileMenu from '~/components/ProfileMenu';
 
 
 // Interface para tipagem do histórico de visitantes
@@ -297,61 +296,55 @@ export default function MoradorDashboard() {
     ]);
   };
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
-        <Ionicons name="warning" size={24} color="#fff" />
-      </TouchableOpacity>
+  const renderHeader = () => {
+    const menuItems: ProfileMenuItem[] = [
+      {
+        label: 'Ver/Editar Perfil',
+        iconName: 'person',
+        onPress: () => {
+          setShowAvatarMenu(false);
+          router.push('/morador/profile');
+        },
+      },
+      {
+        label: 'Logout',
+        iconName: 'log-out',
+        iconColor: '#f44336',
+        destructive: true,
+        onPress: async () => {
+          setShowAvatarMenu(false);
+          await handleLogout();
+        },
+      },
+    ];
 
-      <View style={styles.headerCenter}>
-        <Text style={styles.title}>🏠 Morador</Text>
-        <Text style={styles.subtitle}>
-          {apartmentLoading ? 'Carregando...' : 
-           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
-        </Text>
-      </View>
-
-      <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
-        <Ionicons name="person-circle" size={32} color="#fff" />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderAvatarMenu = () => (
-    <Modal
-      visible={showAvatarMenu}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowAvatarMenu(false)}>
-      <SafeAreaView style={styles.modalOverlay}>
-        <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAvatarMenu(false)}>
-          <View style={styles.avatarMenu}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setShowAvatarMenu(false);
-              router.push('/morador/profile');
-            }}>
-            <Ionicons name="person" size={20} color="#333" />
-            <Text style={styles.menuText}>Ver/Editar Perfil</Text>
-          </TouchableOpacity>
-
-          <View style={styles.menuDivider} />
-
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setShowAvatarMenu(false);
-              handleLogout();
-            }}>
-            <Ionicons name="log-out" size={20} color="#f44336" />
-            <Text style={[styles.menuText, { color: '#f44336' }]}>Logout</Text>
-          </TouchableOpacity>
-          </View>
+    return (
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
+          <Ionicons name="warning" size={24} color="#fff" />
         </TouchableOpacity>
-      </SafeAreaView>
-    </Modal>
-  );
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>🏠 Morador</Text>
+          <Text style={styles.subtitle}>
+            {apartmentLoading ? 'Carregando...' : 
+             apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu((prev) => !prev)}>
+          <Ionicons name="person-circle" size={32} color="#fff" />
+        </TouchableOpacity>
+
+        <ProfileMenu
+          visible={showAvatarMenu}
+          onClose={() => setShowAvatarMenu(false)}
+          items={menuItems}
+          placement="top-right"
+        />
+      </View>
+    );
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -529,12 +522,11 @@ export default function MoradorDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           {renderHeader()}
           {renderContent()}
           {renderBottomNavigation()}
-          {renderAvatarMenu()}
         </View>
         
         <FirstLoginModal
@@ -544,7 +536,7 @@ export default function MoradorDashboard() {
             checkFirstLoginStatus();
           }}
         />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }
@@ -838,29 +830,6 @@ const styles = StyleSheet.create({
   },
   navIconActive: {
     // Emojis não precisam de cor diferente quando ativos
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 80,
-    paddingRight: 20,
-  },
-  avatarMenu: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
   },
   menuText: {
     fontSize: 16,

@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  SafeAreaView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { audioService } from '~/services/audioService';
@@ -432,7 +424,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       animationType="slide"
       presentationStyle="fullScreen"
       onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeButtonText}>✕</Text>
@@ -444,7 +436,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         <View style={styles.content}>
           {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }

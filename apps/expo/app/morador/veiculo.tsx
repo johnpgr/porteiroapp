@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -130,7 +129,7 @@ export default function VeiculoCadastro() {
 
   return (
     <ProtectedRoute>
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -299,7 +298,7 @@ export default function VeiculoCadastro() {
         </View>
 
         <BottomNav />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

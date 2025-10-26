@@ -8,7 +8,6 @@ import {
   TextInput,
   Alert,
   Image,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -657,16 +656,16 @@ export default function AdminProfilePage() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF9800" />
         <Text style={styles.loadingText}>Carregando perfil...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <SafeAreaView style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
@@ -983,7 +982,7 @@ export default function AdminProfilePage() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

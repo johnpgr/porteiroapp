@@ -7,7 +7,6 @@ import {
   Image,
   Alert,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -135,7 +134,7 @@ export default function FotoCadastro() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <ScrollView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
@@ -260,7 +259,7 @@ export default function FotoCadastro() {
           </TouchableOpacity>
         </View>
         <BottomNav activeTab="cadastro" />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

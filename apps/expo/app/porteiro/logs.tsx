@@ -66,7 +66,7 @@ type LogEntry = {
 
 export default function ActivityLogs() {
   const { user } = useAuth();
-  const { notifications, isConnected } = useNotifications();
+  const { realtimeNotifications, isRealtimeConnected } = useNotifications();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'visitor' | 'delivery' | 'historico'>('all');
@@ -259,10 +259,11 @@ export default function ActivityLogs() {
 
   // Atualizar logs quando as notificações mudarem (tempo real)
   useEffect(() => {
-    if (notifications.length > 0) {
+    if (realtimeNotifications.length > 0) {
       fetchLogs();
     }
-  }, [notifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtimeNotifications]);
 
   // Função transferida do index.tsx para carregar logs de visitantes do histórico
   const loadVisitorLogs = useCallback(async () => {

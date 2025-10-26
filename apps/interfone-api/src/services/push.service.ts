@@ -74,7 +74,8 @@ class PushNotificationService {
       body: params.fromName
         ? `${params.fromName} está chamando${params.apartmentNumber ? ` para o apartamento ${params.apartmentNumber}` : ''}`
         : `Chamada de interfone${params.apartmentNumber ? ` para o apartamento ${params.apartmentNumber}` : ''}`,
-      sound: 'default',
+      // Use dedicated intercom call channel configured in the app
+      sound: 'doorbell_push.mp3',
       priority: 'high',
       channelId: 'intercom-call',
       data: {
@@ -91,6 +92,19 @@ class PushNotificationService {
     };
 
     try {
+      // Log sanitized payload info before sending
+      const tokenPreview = `${params.pushToken?.slice(0, 12) ?? ''}...`;
+      console.log('📤 [push] Preparing Expo push', {
+        to: tokenPreview,
+        callId: params.callId,
+        from: params.from,
+        channelId: payload.channelId,
+        sound: payload.sound,
+        channelName: params.channelName,
+        apartmentNumber: params.apartmentNumber,
+        buildingName: params.buildingName,
+      });
+
       const response = await fetch(this.expoApiUrl, {
         method: 'POST',
         headers: {
@@ -100,6 +114,8 @@ class PushNotificationService {
         },
         body: JSON.stringify(payload)
       });
+
+      console.log('📡 [push] Expo POST status', response.status, response.statusText);
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
@@ -113,11 +129,17 @@ class PushNotificationService {
 
       const result = await response.json();
 
-      // Expo returns an array of results (even for single messages)
-      const firstResult = Array.isArray(result.data) ? result.data[0] : result;
+      // Expo returns an array of results when you send an array of messages,
+      // and an object when you send a single message. Normalize here.
+      const firstResult = Array.isArray(result?.data)
+        ? result.data[0]
+        : result?.data ?? result;
 
       if (firstResult?.status === 'error') {
-        console.error('❌ Expo push notification error:', firstResult.message);
+        console.error('❌ Expo push notification error:', firstResult.message, {
+          details: firstResult?.details,
+          token: tokenPreview,
+        });
         return {
           success: false,
           pushToken: params.pushToken,
@@ -125,7 +147,7 @@ class PushNotificationService {
         };
       }
 
-      console.log(`✅ Push notification sent to ${params.pushToken} (ticket: ${firstResult?.id})`);
+      console.log(`✅ Push notification sent to ${tokenPreview} (ticket: ${firstResult?.id})`);
 
       return {
         success: true,
@@ -150,6 +172,12 @@ class PushNotificationService {
     baseParams: Omit<CallInvitePushParams, 'pushToken'>,
     recipients: Array<{ pushToken: string; name?: string }>
   ): Promise<SendPushResult[]> {
+    console.log('📣 [push] Sending call invites to multiple recipients', {
+      recipients: recipients.length,
+      callId: baseParams.callId,
+      channelId: 'intercom-call',
+      sound: 'doorbell_push.mp3',
+    });
     const promises = recipients.map((recipient) =>
       this.sendCallInvite({
         ...baseParams,

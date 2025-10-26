@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -20,7 +19,7 @@ export default function ConfiguracoesScreen() {
 
   return (
     <ProtectedRoute requiredRole="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -143,7 +142,7 @@ export default function ConfiguracoesScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

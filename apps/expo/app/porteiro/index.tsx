@@ -1,34 +1,34 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { router } from 'expo-router';
+import { Phone } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  TextInput,
-  Alert,
-  Modal,
-  Image,
-  ActivityIndicator,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
+import { Modal } from '~/components/Modal';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
-import AutorizacoesTab from './AutorizacoesTab';
-import IntercomModal from './components/modals/IntercomModal';
-import { router } from 'expo-router';
-import { supabase } from '~/utils/supabase';
-import { flattenStyles } from '~/utils/styles';
+import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import { useAuth } from '~/hooks/useAuth';
 import { useShiftControl } from '~/hooks/useShiftControl';
-import ActivityLogs from './logs';
-import { Phone, PhoneCall, PhoneIcon } from 'lucide-react-native';
 import notificationService from '~/services/notificationService';
+import { flattenStyles } from '~/utils/styles';
+import { supabase } from '~/utils/supabase';
 import { notifyResidentOfVisitorArrival } from '../../services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import AutorizacoesTab from './AutorizacoesTab';
+import IntercomModal from './components/modals/IntercomModal';
+import ActivityLogs from './logs';
 
 // Interfaces para integração com logs
 interface VisitorLog {
@@ -78,7 +78,7 @@ type LogEntry = {
 type TabType = 'chegada' | 'autorizacoes' | 'consulta' | 'avisos' | 'logs';
 
 export default function PorteiroDashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   // Funções para controle de turno
   const handleStartShift = async () => {
@@ -923,7 +923,7 @@ export default function PorteiroDashboard() {
               setInitialShiftCheckDone(false);
               setIsInitializing(true);
               hasCompletedInitialLoadRef.current = false;
-            await supabase.auth.signOut();
+            await signOut();
             router.replace('/porteiro/login');
           } catch (error) {
             console.error('Erro ao fazer logout:', error);
@@ -968,6 +968,27 @@ export default function PorteiroDashboard() {
       );
     }
     
+    const menuItems: ProfileMenuItem[] = [
+      {
+        label: 'Perfil',
+        iconName: 'person',
+        onPress: () => {
+          setShowUserMenu(false);
+          router.push('/porteiro/profile');
+        },
+      },
+      {
+        label: 'Logout',
+        iconName: 'log-out',
+        iconColor: '#f44336',
+        destructive: true,
+        onPress: () => {
+          setShowUserMenu(false);
+          handleLogout();
+        },
+      },
+    ];
+
     return (
       <View style={styles.topMenu}>
         <View style={styles.topMenuLeft}>
@@ -1004,27 +1025,13 @@ export default function PorteiroDashboard() {
             <Text style={styles.avatarText}>{porteiroData.initials}</Text>
           </TouchableOpacity>
 
-          {/* Menu do Usuário */}
-          {showUserMenu && (
-            <View style={styles.userMenu}>
-              <TouchableOpacity
-                style={styles.userMenuItem}
-                onPress={() => {
-                  setShowUserMenu(false);
-                  router.push('/porteiro/profile');
-                }}>
-                <Text style={styles.userMenuIcon}>👤</Text>
-                <Text style={styles.userMenuText}>Perfil</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.userMenuItem} onPress={handleLogout}>
-                <Text style={styles.userMenuIcon}>🚪</Text>
-                <Text style={styles.userMenuText}>Logout</Text>
-              </TouchableOpacity>
-            </View>
-           )}
-
-
-         </View>
+          <ProfileMenu
+            visible={showUserMenu}
+            onClose={() => setShowUserMenu(false)}
+            items={menuItems}
+            placement="top-right"
+          />
+        </View>
       </View>
     );
   };
@@ -2012,7 +2019,7 @@ export default function PorteiroDashboard() {
       )}
 
       {!activeFlow && (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
           {!isInitializing && (
             <>
               {renderTopMenu()}
@@ -2120,7 +2127,7 @@ export default function PorteiroDashboard() {
               </View>
             </>
           )}
-        </SafeAreaView>
+        </View>
       )}
 
       {/* Modal de Confirmação */}
@@ -3112,34 +3119,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  userMenu: {
-    position: 'absolute',
-    top: 50,
-    right: 0,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    minWidth: 180,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    paddingVertical: 8,
-    zIndex: 1000,
-  },
-  userMenuItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  userMenuItemText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  userMenuItemLast: {
-    borderBottomWidth: 0,
-  },
   // Estilos para consulta
   searchTypeContainer: {
     flexDirection: 'row',
@@ -3299,15 +3278,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  userMenuIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  userMenuText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
   // Novos estilos para autorizações
   authCardTitleRow: {
     flexDirection: 'row',

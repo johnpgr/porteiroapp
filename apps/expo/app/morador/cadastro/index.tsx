@@ -5,12 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
-  Modal,
   TextInput,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -1345,14 +1344,14 @@ export default function CadastroTab() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           {renderHeader()}
           {renderCadastroTab()}
         </View>
         <BottomNav activeTab="cadastro" />
         {renderAvatarMenu()}
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

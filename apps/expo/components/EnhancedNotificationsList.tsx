@@ -8,8 +8,8 @@ import {
   Alert,
   StyleSheet,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Ionicons } from '@expo/vector-icons';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';

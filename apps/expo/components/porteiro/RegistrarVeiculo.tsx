@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -1111,7 +1110,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={onClose}>
           <Text style={styles.backButtonText}>← Voltar</Text>
@@ -1133,7 +1132,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       </View>
 
       {renderCurrentStep()}
-    </SafeAreaView>
+    </View>
   );
 }
 

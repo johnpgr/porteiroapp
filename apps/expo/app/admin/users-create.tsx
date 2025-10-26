@@ -8,9 +8,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
-  Modal,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -757,7 +756,7 @@ export default function UsersCreate() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -1088,7 +1087,7 @@ export default function UsersCreate() {
 
       {/* Modal de Seleção de Prédios */}
       <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowBuildingModal(false)}>
               <Text style={styles.closeButton}>Cancelar</Text>
@@ -1109,9 +1108,9 @@ export default function UsersCreate() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

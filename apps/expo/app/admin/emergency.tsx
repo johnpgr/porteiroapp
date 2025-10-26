@@ -7,7 +7,6 @@ import {
   Linking,
   Alert,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -35,7 +34,7 @@ export default function EmergencyPage() {
   };
 
   return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>🚨 Emergência</Text>
@@ -99,7 +98,7 @@ export default function EmergencyPage() {
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
-      </SafeAreaView>
+      </View>
   );
 }
 

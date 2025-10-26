@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +35,7 @@ export default function NovoCadastro() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
@@ -122,7 +121,7 @@ export default function NovoCadastro() {
           </View>
         </View>
         <BottomNav activeTab="cadastro" />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

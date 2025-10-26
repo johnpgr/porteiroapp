@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -316,18 +315,18 @@ export default function CompletarCadastro() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4CAF50" />
           <Text style={styles.loadingText}>Carregando...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!visitorData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="warning" size={64} color="#f44336" />
           <Text style={styles.errorTitle}>Link Inválido</Text>
@@ -338,7 +337,7 @@ export default function CompletarCadastro() {
             <Text style={styles.errorButtonText}>Voltar</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -348,7 +347,7 @@ export default function CompletarCadastro() {
   const canComplete = photoUri && isCPFComplete;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Completar Cadastro</Text>
       </View>
@@ -434,7 +433,7 @@ export default function CompletarCadastro() {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

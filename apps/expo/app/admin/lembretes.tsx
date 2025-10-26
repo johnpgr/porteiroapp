@@ -6,13 +6,12 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  SafeAreaView,
   TextInput,
   Platform,
-  Modal,
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { Modal } from '~/components/Modal';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
@@ -450,7 +449,7 @@ export default function LembretesAdmin() {
   const filteredLembretes = getFilteredLembretes();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -564,7 +563,7 @@ export default function LembretesAdmin() {
 
       {renderFiltersModal()}
       {renderEditModal()}
-    </SafeAreaView>
+    </View>
   );
 
   function renderEditModal() {

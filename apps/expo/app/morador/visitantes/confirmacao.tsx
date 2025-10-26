@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  SafeAreaView,
   Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -96,7 +95,7 @@ export default function ConfirmacaoVisitante() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
@@ -250,7 +249,7 @@ export default function ConfirmacaoVisitante() {
           </View>
         </View>
         <BottomNav activeTab="visitantes" />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

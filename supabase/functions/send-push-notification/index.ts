@@ -224,7 +224,7 @@ serve(async (req) => {
     // Preparar mensagens para Expo Push API
     const messages: ExpoPushMessage[] = tokens.map((token) => ({
       to: token,
-      sound: 'doorbell-push.mp3',
+      sound: 'doorbell_push.mp3',
       title: title,
       body: message,
       data: data || {},

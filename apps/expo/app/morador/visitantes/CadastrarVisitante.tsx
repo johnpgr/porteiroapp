@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -708,7 +707,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleClose}>
           <Text style={styles.backButtonText}>← Voltar</Text>
@@ -730,7 +729,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
       </View>
 
       {renderCurrentStep()}
-    </SafeAreaView>
+    </View>
   );
 }
 

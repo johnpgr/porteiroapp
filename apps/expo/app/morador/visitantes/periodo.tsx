@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  SafeAreaView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -130,7 +129,7 @@ export default function PeriodoVisitante() {
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -283,7 +282,7 @@ export default function PeriodoVisitante() {
           />
         )}
         <BottomNav activeTab="visitantes" />
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }

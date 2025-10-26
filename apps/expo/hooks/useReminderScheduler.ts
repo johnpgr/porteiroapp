@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { AppState } from 'react-native';
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
-// import { useNotifications } from './useNotifications';
+import { useNotifications } from './useNotifications';
 // import { useNotificationLogger } from './useNotificationLogger';
 
 interface ScheduledReminder {

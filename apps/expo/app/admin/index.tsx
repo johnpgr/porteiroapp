@@ -9,10 +9,10 @@ import {
   Alert,
   Image,
   Linking,
-  SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
+import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { supabase, adminAuth } from '~/utils/supabase';
 
 
@@ -82,46 +82,53 @@ export default function AdminDashboard() {
 
 
 
+  const menuItems: ProfileMenuItem[] = [
+    {
+      label: 'Meu Perfil',
+      iconName: 'person',
+      onPress: () => {
+        setShowAvatarMenu(false);
+        router.push('/admin/profile');
+      },
+    },
+    {
+      label: 'Sair',
+      iconName: 'log-out',
+      iconColor: '#f44336',
+      destructive: true,
+      onPress: async () => {
+        setShowAvatarMenu(false);
+        try {
+          await supabase.auth.signOut();
+          router.replace('/');
+        } catch (error) {
+          console.error('Erro ao fazer logout:', error);
+          Alert.alert('Erro', 'Não foi possível fazer logout');
+        }
+      },
+    },
+  ];
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
+        <TouchableOpacity style={styles.panicButton} onPress={handleEmergency}>
+          <Text style={styles.panicButtonText}>🚨</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Painel Admin</Text>
         <View style={styles.avatarContainer}>
-          <TouchableOpacity onPress={() => setShowAvatarMenu(!showAvatarMenu)}>
+          <TouchableOpacity onPress={() => setShowAvatarMenu((prev) => !prev)}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>👨‍💼</Text>
             </View>
           </TouchableOpacity>
-          {showAvatarMenu && (
-            <View style={styles.avatarMenu}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowAvatarMenu(false);
-                  router.push('/admin/profile');
-                }}>
-                <Text style={styles.menuItemText}>👤 Meu Perfil</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.menuItemLast}
-                onPress={async () => {
-                  setShowAvatarMenu(false);
-                  try {
-                    await supabase.auth.signOut();
-                    router.replace('/');
-                  } catch (error) {
-                    console.error('Erro ao fazer logout:', error);
-                    Alert.alert('Erro', 'Não foi possível fazer logout');
-                  }
-                }}>
-                <Text style={styles.menuItemText}>🚪 Sair</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <ProfileMenu
+            visible={showAvatarMenu}
+            onClose={() => setShowAvatarMenu(false)}
+            items={menuItems}
+            placement="top-right"
+          />
         </View>
-        <Text style={styles.title}>Painel Admin</Text>
-        <TouchableOpacity style={styles.panicButton} onPress={handleEmergency}>
-          <Text style={styles.panicButtonText}>🚨</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -157,11 +164,11 @@ export default function AdminDashboard() {
 
   return (
     <ProtectedRoute redirectTo="/admin/login" userType="admin">
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         {renderHeader()}
         {renderContent()}
         {/* BottomNav fixa é renderizada no layout global */}
-      </SafeAreaView>
+      </View>
     </ProtectedRoute>
   );
 }
@@ -481,36 +488,6 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: 'relative',
     zIndex: 1000,
-  },
-  avatarMenu: {
-    position: 'absolute',
-    top: 50,
-    left: -10,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    minWidth: 150,
-    zIndex: 10000,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  menuItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  menuItemLast: {
-    padding: 15,
-    borderBottomWidth: 0,
-  },
-  menuItemText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
   },
 
 });
