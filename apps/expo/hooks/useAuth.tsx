@@ -111,6 +111,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para refresh da sessão
   const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
+      // Verifica se há uma sessão com refresh token antes de tentar refresh
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!currentSession?.refresh_token) {
+        console.log('[AuthProvider] Não há refresh token disponível, ignorando refresh');
+        return false;
+      }
+
       const { data, error } = await supabase.auth.refreshSession();
 
       if (error) {
@@ -357,22 +367,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         scheduleTokenRefresh();
         startHeartbeat();
       } else if (hasStoredToken) {
-        console.log('[AuthProvider] Tentando refresh da sessão...');
-        // Tenta fazer refresh da sessão
-        const refreshSuccess = await refreshSession();
+        // Há token armazenado mas nenhuma sessão ativa
+        // Verifica se podemos fazer refresh
+        console.log('[AuthProvider] Token armazenado encontrado sem sessão ativa');
 
-        if (refreshSuccess) {
-          // Tenta novamente obter a sessão
-          const {
-            data: { session: newSession },
-          } = await supabase.auth.getSession();
+        // Tenta obter refresh token
+        const {
+          data: { session: storedSession },
+        } = await supabase.auth.getSession();
 
-          if (newSession?.user) {
-            await loadUserProfile(newSession.user);
-            scheduleTokenRefresh();
-            startHeartbeat();
+        if (storedSession?.refresh_token) {
+          console.log('[AuthProvider] Tentando refresh da sessão...');
+          const refreshSuccess = await refreshSession();
+
+          if (refreshSuccess) {
+            // Tenta novamente obter a sessão
+            const {
+              data: { session: newSession },
+            } = await supabase.auth.getSession();
+
+            if (newSession?.user) {
+              await loadUserProfile(newSession.user);
+              scheduleTokenRefresh();
+              startHeartbeat();
+            }
+          } else {
+            console.log('[AuthProvider] Refresh falhou, limpando tokens');
+            await TokenStorage.clearAll();
           }
         } else {
+          // Sem refresh token, limpa token armazenado inválido
+          console.log('[AuthProvider] Sem refresh token, limpando token armazenado');
           await TokenStorage.clearAll();
         }
       }
