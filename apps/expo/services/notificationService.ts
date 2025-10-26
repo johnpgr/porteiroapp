@@ -99,6 +99,17 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         vibrationPattern: [0, 500, 250, 500],
         sound: 'doorbell_push.mp3',
       });
+
+      // Dedicated channel for intercom call invites
+      await Notifications.setNotificationChannelAsync('intercom-call', {
+        name: 'Interfone (Chamada)',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'doorbell_push.mp3',
+        enableVibrate: true,
+        enableLights: true,
+        showBadge: true,
+      });
     }
 
     return token;
