@@ -413,7 +413,7 @@ class AgoraService {
     console.log(`🔐 [AgoraService] Iniciando login RTM para uid: ${bundle.uid}`);
 
     // Wait for ConnectionStateChanged event
-    const connectionPromise = new Promise<void>((resolve, reject) => {
+    const connectionPromise = new Promise<void>((resolve, _) => {
       const timeout = setTimeout(() => {
         cleanup();
         console.warn(`⚠️ [AgoraService] Timeout aguardando conexão RTM`);

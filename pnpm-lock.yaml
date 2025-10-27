@@ -81,8 +81,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       agora-react-native-rtm:
-        specifier: ^2.2.6
-        version: 2.2.6(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
+        specifier: ^1.5.1
+        version: 1.5.1(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
       date-fns:
         specifier: 'catalog:'
         version: 4.1.0
@@ -2135,9 +2135,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  agora-react-native-rtm@2.2.6:
-    resolution: {integrity: sha512-e+riAgw+ryFlqodIODxqnSA6pOTkF83Et9Teq3BCnltMdpZ2pegQZTl/xXL+oDavbrR4FMKXahAgs8bn8kj1cA==}
-    engines: {node: '>= 18.0.0'}
+  agora-react-native-rtm@1.5.1:
+    resolution: {integrity: sha512-docAyX6O5J0eX8RCRAjtn7wUcks/Fq1v3S0w40fR9zf9k3mm+GLCP5kYiCy16p4h2o6v9JUaDQgUsTP/wv/s4g==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -7735,10 +7734,8 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  agora-react-native-rtm@2.2.6(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0):
+  agora-react-native-rtm@1.5.1(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0):
     dependencies:
-      buffer: 6.0.3
-      eventemitter3: 5.0.1
       react: 19.1.0
       react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
 
