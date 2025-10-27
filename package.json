@@ -40,7 +40,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "react-native@0.81.5": "patches/react-native@0.81.5.patch"
+      "react-native@0.81.5": "patches/react-native@0.81.5.patch",
+      "agora-react-native-rtm@1.5.1": "patches/agora-react-native-rtm@1.5.1.patch"
     }
   },
   "devDependencies": {

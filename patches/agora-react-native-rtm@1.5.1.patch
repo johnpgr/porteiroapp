@@ -1,0 +1,13 @@
+diff --git a/agora-react-native-rtm.podspec b/agora-react-native-rtm.podspec
+index 875cfa31f47a2db174f7ab961ac381eedbbbd4c8..01800617de3a6fc75b5047c74b2d0a1902886491 100644
+--- a/agora-react-native-rtm.podspec
++++ b/agora-react-native-rtm.podspec
+@@ -28,7 +28,7 @@ Pod::Spec.new do |s|
+         "CLANG_CXX_LANGUAGE_STANDARD" => "c++17"
+     }
+     s.dependency "React-Codegen"
+-    s.dependency "RCT-Folly"
++    # s.dependency "RCT-Folly"
+     s.dependency "RCTRequired"
+     s.dependency "RCTTypeSafety"
+     s.dependency "ReactCommon/turbomodule/core"
