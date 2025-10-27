@@ -42,6 +42,9 @@ catalogs:
       version: 19.1.0
 
 patchedDependencies:
+  agora-react-native-rtm@1.5.1:
+    hash: ic7rysbk25hbz3lztdg7qnik4a
+    path: patches/agora-react-native-rtm@1.5.1.patch
   react-native@0.81.5:
     hash: 7tfqahyehwcwlxfa7vxfjmsqwy
     path: patches/react-native@0.81.5.patch
@@ -82,7 +85,7 @@ importers:
         version: 6.0.0
       agora-react-native-rtm:
         specifier: ^1.5.1
-        version: 1.5.1(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
+        version: 1.5.1(patch_hash=ic7rysbk25hbz3lztdg7qnik4a)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
       date-fns:
         specifier: 'catalog:'
         version: 4.1.0
@@ -7734,7 +7737,7 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  agora-react-native-rtm@1.5.1(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0):
+  agora-react-native-rtm@1.5.1(patch_hash=ic7rysbk25hbz3lztdg7qnik4a)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0):
     dependencies:
       react: 19.1.0
       react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
