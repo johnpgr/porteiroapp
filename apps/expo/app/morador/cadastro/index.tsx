@@ -14,9 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
-import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
-import BottomNav from '~/components/BottomNav';
 
 // Tipos e interfaces
 interface PersonForm {
@@ -137,9 +135,8 @@ const isValidLicensePlate = (plate: string): boolean => {
   return oldFormat || mercosulFormat;
 };
 
-export default function CadastroTab() {
+export function CadastroTabContent() {
   const { user } = useAuth();
-  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   
   // Estados do formulário
   const [showModal, setShowModal] = useState(false);
@@ -148,7 +145,6 @@ export default function CadastroTab() {
   const [people, setPeople] = useState<Person[]>([]);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [userIsOwner, setUserIsOwner] = useState(false);
-  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   
   // Estados para veículos
   const [showVehicleForm, setShowVehicleForm] = useState(false);
@@ -1279,79 +1275,17 @@ export default function CadastroTab() {
   );
   };
 
-  // Função para renderizar o cabeçalho
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
-        <Ionicons name="warning" size={24} color="#fff" />
-      </TouchableOpacity>
-
-      <View style={styles.headerCenter}>
-        <Text style={styles.title}>🏠 Morador</Text>
-        <Text style={styles.subtitle}>
-          {apartmentLoading ? 'Carregando...' : 
-           apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
-        </Text>
-      </View>
-
-      <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu(true)}>
-        <Ionicons name="person-circle" size={32} color="#fff" />
-      </TouchableOpacity>
+  return (
+    <View style={styles.container}>
+      {renderCadastroTab()}
     </View>
   );
+}
 
-  // Modal do menu do avatar
-  const renderAvatarMenu = () => (
-    <Modal
-      visible={showAvatarMenu}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => setShowAvatarMenu(false)}
-    >
-      <TouchableOpacity 
-        style={styles.avatarMenuOverlay} 
-        activeOpacity={1} 
-        onPress={() => setShowAvatarMenu(false)}
-      >
-        <View style={styles.avatarMenuContainer}>
-          <TouchableOpacity 
-            style={styles.avatarMenuItem}
-            onPress={() => {
-              setShowAvatarMenu(false);
-              router.push('/morador/profile');
-            }}
-          >
-            <Ionicons name="person" size={20} color="#333" />
-            <Text style={styles.avatarMenuText}>Perfil</Text>
-          </TouchableOpacity>
-          
-          <View style={styles.avatarMenuSeparator} />
-          
-          <TouchableOpacity 
-            style={styles.avatarMenuItem}
-            onPress={() => {
-              setShowAvatarMenu(false);
-              // Implementar logout
-            }}
-          >
-            <Ionicons name="log-out" size={20} color="#f44336" />
-            <Text style={[styles.avatarMenuText, { color: '#f44336' }]}>Sair</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-
+export default function CadastroScreen() {
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
-      <View style={styles.container}>
-        <View style={styles.container}>
-          {renderHeader()}
-          {renderCadastroTab()}
-        </View>
-        <BottomNav activeTab="cadastro" />
-        {renderAvatarMenu()}
-      </View>
+      <CadastroTabContent />
     </ProtectedRoute>
   );
 }
@@ -1360,78 +1294,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    borderBottomEndRadius: 20,
-    borderBottomStartRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    padding: 8,
-  },
-   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 1,
-  },
-  placeholder: {
-    width: 40,
-  },
-  alertButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 2,
-  },
-  avatarButton: {
-    padding: 4,
-  },
-  avatarMenuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingTop: 80,
-    paddingRight: 20,
-  },
-  avatarMenuContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  avatarMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  avatarMenuText: {
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 12,
-  },
-  avatarMenuSeparator: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: 4,
   },
   content: {
     flex: 1,

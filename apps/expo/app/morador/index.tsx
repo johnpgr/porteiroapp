@@ -6,22 +6,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
-import { useUserApartment } from '~/hooks/useUserApartment';
 import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
 import { FirstLoginModal } from '~/components/FirstLoginModal';
 import AvisosTab from './avisos';
 import VisitantesTab from './visitantes/VisitantesTab';
-import ProfileMenu from '~/components/ProfileMenu';
-
+import BottomNav, { BottomNavTab } from '~/components/BottomNav';
+import { CadastroTabContent } from './cadastro';
 
 // Interface para tipagem do histórico de visitantes
 interface VisitorHistory {
@@ -39,81 +37,90 @@ interface VisitorHistory {
   approved_by_name?: string;
 }
 
+const isBottomNavTab = (value: string): value is BottomNavTab => {
+  return value === 'inicio' || value === 'visitantes' || value === 'cadastro' || value === 'avisos';
+};
+
 export default function MoradorDashboard() {
-  const { user, signOut } = useAuth();
-  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
+  const { user } = useAuth();
   const { tab } = useLocalSearchParams();
-  const [activeTab, setActiveTab] = useState('inicio');
-  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState<BottomNavTab>('inicio');
+
   // Estados para o histórico de visitantes
   const [visitorsHistory, setVisitorsHistory] = useState<VisitorHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [userApartmentId, setUserApartmentId] = useState<string | null>(null);
-  
+
   // Estados para o modal de notificação
-  
+
   // Hook para notificações pendentes em tempo real
   const {
     notifications: pendingNotifications,
     loading: loadingNotifications,
     error: notificationsError,
-    respondToNotification
+    respondToNotification,
   } = usePendingNotifications();
 
   const { isFirstLogin, checkFirstLoginStatus } = useFirstLogin();
 
   useEffect(() => {
     if (tab && typeof tab === 'string') {
-      setActiveTab(tab);
+      const normalized = tab.toLowerCase();
+      if (isBottomNavTab(normalized)) {
+        setActiveTab(normalized);
+      }
     }
   }, [tab]);
 
-  // Handle navigation for cadastro tab
-  useEffect(() => {
-    if (activeTab === 'cadastro') {
-      router.push('/morador/cadastro');
-      setActiveTab('inicio'); // Reset to avoid infinite loop
+  const handleTabChange = (nextTab: BottomNavTab) => {
+    setActiveTab(nextTab);
+    if (nextTab === 'inicio') {
+      router.replace('/morador');
+    } else {
+      router.replace(`/morador?tab=${nextTab}`);
     }
-  }, [activeTab]);
+  };
 
   // Função para buscar o histórico de visitantes
   const fetchVisitorsHistory = useCallback(async () => {
     if (!user?.id) {
       return;
     }
-    
+
     try {
       setLoadingHistory(true);
       setHistoryError(null);
-      
+
       // Primeiro, buscar o apartment_id do usuário
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
         .eq('profile_id', user.id)
         .maybeSingle();
-      
+
       if (apartmentError) {
         console.error('Erro ao buscar apartamento do usuário:', apartmentError.message);
         throw new Error('Erro ao buscar apartamento do usuário: ' + apartmentError.message);
       }
-      
+
       if (!apartmentData?.apartment_id) {
         setVisitorsHistory([]);
-        setHistoryError('Nenhum apartamento vinculado à sua conta. Solicite ao síndico/administrador para vincular seu apartamento.');
+        setHistoryError(
+          'Nenhum apartamento vinculado à sua conta. Solicite ao síndico/administrador para vincular seu apartamento.'
+        );
         setUserApartmentId(null);
         return;
       }
 
       // Armazenar o apartment_id no estado para uso no subscription
       setUserApartmentId(apartmentData.apartment_id);
-      
+
       // Buscar histórico de visitantes (aprovadas e rejeitadas)
       const { data: visitorsData, error: visitorsError } = await supabase
         .from('visitor_logs')
-        .select(`
+        .select(
+          `
           id,
           log_time,
           resident_response_at,
@@ -135,29 +142,33 @@ export default function MoradorDashboard() {
               name
             )
           )
-        `)
+        `
+        )
         .eq('apartment_id', apartmentData.apartment_id)
         .in('notification_status', ['approved', 'rejected'])
         .order('resident_response_at', { ascending: false, nullsLast: true })
         .order('log_time', { ascending: false })
         .limit(20);
-      
+
       if (visitorsError) {
         console.error('Erro ao buscar histórico de visitantes:', visitorsError.message);
         throw new Error('Erro ao buscar histórico de visitantes: ' + visitorsError.message);
       }
-      
+
       // Buscar nomes dos aprovadores para os logs que têm resident_response_by
-      const approverIds = visitorsData?.filter(log => log.resident_response_by).map(log => log.resident_response_by) || [];
+      const approverIds =
+        visitorsData
+          ?.filter((log) => log.resident_response_by)
+          .map((log) => log.resident_response_by) || [];
       const uniqueApproverIds = [...new Set(approverIds)];
-      
+
       let approverNames = {};
       if (uniqueApproverIds.length > 0) {
         const { data: approversData } = await supabase
           .from('profiles')
           .select('id, full_name')
           .in('id', uniqueApproverIds);
-        
+
         if (approversData) {
           approverNames = approversData.reduce((acc, profile) => {
             acc[profile.id] = profile.full_name;
@@ -165,25 +176,28 @@ export default function MoradorDashboard() {
           }, {});
         }
       }
-      
+
       // Mapear dados para o formato esperado
-      const mappedVisitors = visitorsData?.map((log) => {
-        return {
-          id: log.id,
-          visitor_name: log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
-          purpose: log.purpose || 'Não informado',
-          log_time: log.log_time,
-          resident_response_at: log.resident_response_at,
-          notification_status: log.notification_status || 'pending',
-          delivery_destination: log.delivery_destination,
-          building_name: log.apartments?.buildings?.name,
-          apartment_number: log.apartments?.number,
-          approved_by_name: log.resident_response_by ? approverNames[log.resident_response_by] || 'Usuário não encontrado' : null
-        };
-      }) || [];
-      
+      const mappedVisitors =
+        visitorsData?.map((log) => {
+          return {
+            id: log.id,
+            visitor_name:
+              log.visitors?.name || (log.purpose?.includes('entrega') ? 'Entregador' : ''),
+            purpose: log.purpose || 'Não informado',
+            log_time: log.log_time,
+            resident_response_at: log.resident_response_at,
+            notification_status: log.notification_status || 'pending',
+            delivery_destination: log.delivery_destination,
+            building_name: log.apartments?.buildings?.name,
+            apartment_number: log.apartments?.number,
+            approved_by_name: log.resident_response_by
+              ? approverNames[log.resident_response_by] || 'Usuário não encontrado'
+              : null,
+          };
+        }) || [];
+
       setVisitorsHistory(mappedVisitors);
-      
     } catch (error) {
       console.error('Erro ao carregar histórico de visitantes:', error.message);
       setHistoryError('Erro ao carregar histórico de visitantes: ' + error.message);
@@ -213,7 +227,7 @@ export default function MoradorDashboard() {
           event: '*', // Escutar todos os eventos (INSERT, UPDATE, DELETE)
           schema: 'public',
           table: 'visitor_logs',
-          filter: `apartment_id=eq.${userApartmentId}` // Filtrar apenas logs do apartamento do usuário
+          filter: `apartment_id=eq.${userApartmentId}`, // Filtrar apenas logs do apartamento do usuário
         },
         (payload) => {
           console.log('Mudança detectada nos visitor_logs:', payload);
@@ -235,7 +249,7 @@ export default function MoradorDashboard() {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) {
       return `Hoje às ${date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
     } else if (diffDays === 2) {
@@ -246,7 +260,7 @@ export default function MoradorDashboard() {
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     }
   };
@@ -282,69 +296,7 @@ export default function MoradorDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: async () => {
-          await signOut();
-          router.replace('/');
-        },
-      },
-    ]);
-  };
-
-  const renderHeader = () => {
-    const menuItems: ProfileMenuItem[] = [
-      {
-        label: 'Ver/Editar Perfil',
-        iconName: 'person',
-        onPress: () => {
-          setShowAvatarMenu(false);
-          router.push('/morador/profile');
-        },
-      },
-      {
-        label: 'Logout',
-        iconName: 'log-out',
-        iconColor: '#f44336',
-        destructive: true,
-        onPress: async () => {
-          setShowAvatarMenu(false);
-          await handleLogout();
-        },
-      },
-    ];
-
-    return (
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.alertButton} onPress={() => router.push('/morador/emergency')}>
-          <Ionicons name="warning" size={24} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.title}>🏠 Morador</Text>
-          <Text style={styles.subtitle}>
-            {apartmentLoading ? 'Carregando...' : 
-             apartmentNumber ? `Apartamento ${apartmentNumber}` : 'Apartamento não encontrado'}
-          </Text>
-        </View>
-
-        <TouchableOpacity style={styles.avatarButton} onPress={() => setShowAvatarMenu((prev) => !prev)}>
-          <Ionicons name="person-circle" size={32} color="#fff" />
-        </TouchableOpacity>
-
-        <ProfileMenu
-          visible={showAvatarMenu}
-          onClose={() => setShowAvatarMenu(false)}
-          items={menuItems}
-          placement="top-right"
-        />
-      </View>
-    );
-  };
+  const renderCadastroTab = () => <CadastroTabContent />;
 
   const renderContent = () => {
     switch (activeTab) {
@@ -352,7 +304,8 @@ export default function MoradorDashboard() {
         return renderInicioTab();
       case 'visitantes':
         return <VisitantesTab />;
-
+      case 'cadastro':
+        return renderCadastroTab();
       case 'avisos':
         return <AvisosTab />;
       default:
@@ -384,30 +337,25 @@ export default function MoradorDashboard() {
           </View>
         )}
 
-        {!loadingNotifications && !notificationsError && pendingNotifications.map((notification) => (
-          <NotificationCard
-            key={notification.id}
-            notification={notification}
-            onRespond={respondToNotification}
-          />
-        ))}
+        {!loadingNotifications &&
+          !notificationsError &&
+          pendingNotifications.map((notification) => (
+            <NotificationCard
+              key={notification.id}
+              notification={notification}
+              onRespond={respondToNotification}
+            />
+          ))}
       </View>
-
-
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>📋 Histórico de Visitantes</Text>
-          <TouchableOpacity 
-            style={styles.refreshButton} 
+          <TouchableOpacity
+            style={styles.refreshButton}
             onPress={fetchVisitorsHistory}
-            disabled={loadingHistory}
-          >
-            <Ionicons 
-              name="refresh" 
-              size={20} 
-              color={loadingHistory ? '#ccc' : '#4CAF50'} 
-            />
+            disabled={loadingHistory}>
+            <Ionicons name="refresh" size={20} color={loadingHistory ? '#ccc' : '#4CAF50'} />
           </TouchableOpacity>
         </View>
 
@@ -421,10 +369,7 @@ export default function MoradorDashboard() {
         {historyError && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>❌ {historyError}</Text>
-            <TouchableOpacity 
-              style={styles.retryButton} 
-              onPress={fetchVisitorsHistory}
-            >
+            <TouchableOpacity style={styles.retryButton} onPress={fetchVisitorsHistory}>
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
             </TouchableOpacity>
           </View>
@@ -436,99 +381,58 @@ export default function MoradorDashboard() {
           </View>
         )}
 
-        {!loadingHistory && !historyError && visitorsHistory.map((visitor) => (
-          <View key={visitor.id} style={[
-            styles.historyCard,
-            visitor.purpose?.includes('entrega') && styles.deliveryHistoryCard
-          ]}>
-            <Text style={styles.historyTitle}>{visitor.visitor_name}</Text>
-            <Text style={styles.historyDetails}>
-              {visitor.purpose} • {formatDate(visitor.resident_response_at || visitor.log_time)}
-            </Text>
-            {(visitor.building_name || visitor.apartment_number) && (
-              <Text style={styles.buildingApartmentInfo}>
-                🏢 {visitor.building_name || 'Prédio'} - Apt {visitor.apartment_number || 'N/A'}
-              </Text>
-            )}
-            {visitor.approved_by_name && (
-              <Text style={styles.approvedByInfo}>
-                👤 Aprovado por: {visitor.approved_by_name}
-              </Text>
-            )}
-            {visitor.purpose?.includes('entrega') && visitor.delivery_destination && (
-              <Text style={[
-                styles.deliveryDestination,
-                visitor.delivery_destination === 'portaria' ? styles.porterDestination : styles.elevatorDestination
+        {!loadingHistory &&
+          !historyError &&
+          visitorsHistory.map((visitor) => (
+            <View
+              key={visitor.id}
+              style={[
+                styles.historyCard,
+                visitor.purpose?.includes('entrega') && styles.deliveryHistoryCard,
               ]}>
-                {visitor.delivery_destination === 'portaria' ? '📦 Deixada na portaria' : '📦 Enviada pelo elevador'}
+              <Text style={styles.historyTitle}>{visitor.visitor_name}</Text>
+              <Text style={styles.historyDetails}>
+                {visitor.purpose} • {formatDate(visitor.resident_response_at || visitor.log_time)}
               </Text>
-            )}
-            <Text style={styles.historyStatus}>
-              {getStatusIcon(visitor.notification_status)} {getStatusText(visitor.notification_status)}
-            </Text>
-          </View>
-        ))}
+              {(visitor.building_name || visitor.apartment_number) && (
+                <Text style={styles.buildingApartmentInfo}>
+                  🏢 {visitor.building_name || 'Prédio'} - Apt {visitor.apartment_number || 'N/A'}
+                </Text>
+              )}
+              {visitor.approved_by_name && (
+                <Text style={styles.approvedByInfo}>
+                  👤 Aprovado por: {visitor.approved_by_name}
+                </Text>
+              )}
+              {visitor.purpose?.includes('entrega') && visitor.delivery_destination && (
+                <Text
+                  style={[
+                    styles.deliveryDestination,
+                    visitor.delivery_destination === 'portaria'
+                      ? styles.porterDestination
+                      : styles.elevatorDestination,
+                  ]}>
+                  {visitor.delivery_destination === 'portaria'
+                    ? '📦 Deixada na portaria'
+                    : '📦 Enviada pelo elevador'}
+                </Text>
+              )}
+              <Text style={styles.historyStatus}>
+                {getStatusIcon(visitor.notification_status)}{' '}
+                {getStatusText(visitor.notification_status)}
+              </Text>
+            </View>
+          ))}
       </View>
     </ScrollView>
-  );
-
-  const renderBottomNavigation = () => (
-    <View style={styles.bottomNav}>
-      <TouchableOpacity
-        style={[styles.navItem, activeTab === 'inicio' && styles.navItemActive]}
-        onPress={() => setActiveTab('inicio')}>
-        <Text style={[styles.navIcon, activeTab === 'inicio' && styles.navIconActive]}>
-          🏠
-        </Text>
-        <Text style={[styles.navLabel, activeTab === 'inicio' && styles.navLabelActive]}>
-          Início
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.navItem, activeTab === 'visitantes' && styles.navItemActive]}
-        onPress={() => setActiveTab('visitantes')}>
-        <Text style={[styles.navIcon, activeTab === 'visitantes' && styles.navIconActive]}>
-          👥
-        </Text>
-        <Text style={[styles.navLabel, activeTab === 'visitantes' && styles.navLabelActive]}>
-          Visitantes
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.navItem, activeTab === 'cadastro' && styles.navItemActive]}
-        onPress={() => setActiveTab('cadastro')}>
-        <Text style={[styles.navIcon, activeTab === 'cadastro' && styles.navIconActive]}>
-          📝
-        </Text>
-        <Text style={[styles.navLabel, activeTab === 'cadastro' && styles.navLabelActive]}>
-          Cadastro
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.navItem, activeTab === 'avisos' && styles.navItemActive]}
-        onPress={() => setActiveTab('avisos')}>
-        <Text style={[styles.navIcon, activeTab === 'avisos' && styles.navIconActive]}>
-          🔔
-        </Text>
-        <Text style={[styles.navLabel, activeTab === 'avisos' && styles.navLabelActive]}>
-          Avisos
-        </Text>
-      </TouchableOpacity>
-    </View>
   );
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <View style={styles.container}>
-        <View style={styles.container}>
-          {renderHeader()}
-          {renderContent()}
-          {renderBottomNavigation()}
-        </View>
-        
+        <View style={styles.mainContent}>{renderContent()}</View>
+        <BottomNav activeTab={activeTab} onTabPress={handleTabChange} />
+
         <FirstLoginModal
           visible={isFirstLogin}
           onClose={() => {}}
@@ -546,39 +450,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingBottom: 20,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  alertButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  headerCenter: {
-    alignItems: 'center',
+  mainContent: {
     flex: 1,
-  },
-  avatarButton: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 3,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
   },
   content: {
     flex: 1,
@@ -795,42 +668,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-
-
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  navItemActive: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderRadius: 8,
-  },
-  navLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  navLabelActive: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 2,
-  },
-  navIconActive: {
-    // Emojis não precisam de cor diferente quando ativos
-  },
   menuText: {
     fontSize: 16,
     color: '#333',
@@ -841,7 +678,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e0e0',
     marginHorizontal: 16,
   },
-  
+
   // Estilos do modal de notificação
   notificationModalContent: {
     backgroundColor: '#fff',

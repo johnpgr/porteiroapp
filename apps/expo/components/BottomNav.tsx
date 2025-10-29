@@ -2,11 +2,14 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 
+export type BottomNavTab = 'inicio' | 'visitantes' | 'cadastro' | 'avisos';
+
 interface BottomNavProps {
-  activeTab?: string;
+  activeTab?: BottomNavTab;
+  onTabPress?: (tab: BottomNavTab) => void;
 }
 
-export default function BottomNav({ activeTab }: BottomNavProps) {
+export default function BottomNav({ activeTab, onTabPress }: BottomNavProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -24,7 +27,12 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
 
   const currentTab = getCurrentTab();
 
-  const navigateToTab = (tab: string) => {
+  const navigateToTab = (tab: BottomNavTab) => {
+    if (onTabPress) {
+      onTabPress(tab);
+      return;
+    }
+
     switch (tab) {
       case 'inicio':
         router.push('/morador');
@@ -34,7 +42,8 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
         router.push('/morador?tab=visitantes');
         break;
       case 'cadastro':
-        router.push('/morador/cadastro');
+        // Leva para a aba de cadastro dentro do dashboard principal
+        router.push('/morador?tab=cadastro');
         break;
       case 'avisos':
         // Navega para a página principal do morador com parâmetro para mostrar aba avisos
