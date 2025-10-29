@@ -12,7 +12,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
 
@@ -45,7 +44,7 @@ export default function FotoVisitante() {
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -200,7 +199,6 @@ export default function FotoVisitante() {
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-        <BottomNav activeTab="visitantes" />
       </View>
     </ProtectedRoute>
   );

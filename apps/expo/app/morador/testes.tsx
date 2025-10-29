@@ -14,7 +14,6 @@ import { useLembretes } from '../../hooks/useLembretes';
 import { format, addMinutes, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 interface TestScenario {
   id: string;
@@ -286,7 +285,7 @@ function TestesContent() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <BottomNav />
+      
     </View>
   );
 }

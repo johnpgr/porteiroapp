@@ -10,7 +10,6 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 export default function PlacaCadastro() {
   const { nome, relacionamento, telefone } = useLocalSearchParams<{
@@ -236,7 +235,6 @@ export default function PlacaCadastro() {
             </TouchableOpacity>
           </View>
         </View>
-        <BottomNav activeTab="cadastro" />
       </View>
     </ProtectedRoute>
   );

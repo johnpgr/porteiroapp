@@ -10,7 +10,6 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
 
@@ -227,7 +226,6 @@ export default function ObservacoesVisitante() {
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-        <BottomNav activeTab="visitantes" />
       </View>
     </ProtectedRoute>
   );

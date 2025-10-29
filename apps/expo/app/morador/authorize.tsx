@@ -17,7 +17,6 @@ import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { VisitorCard } from '~/components/VisitorCard';
 import { flattenStyles } from '~/utils/styles';
-import BottomNav from '~/components/BottomNav';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
 
 interface Visitor {
@@ -286,7 +285,6 @@ export default function AuthorizeScreen() {
           </View>
         </View>
       </Modal>
-      <BottomNav />
     </View>
   );
 }

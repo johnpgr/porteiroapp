@@ -314,7 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Verifica o tipo de usuário e redireciona para as páginas index corretas
       switch (user.user_type) {
         case 'admin':
-          router.replace('/admin');
+          router.replace('/admin/(tabs)' as any);
           break;
         case 'porteiro':
           router.replace('/porteiro');

@@ -12,7 +12,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 export default function FotoCadastro() {
   const { nome, relacionamento, telefone, placa, acesso } = useLocalSearchParams<{
@@ -44,7 +43,7 @@ export default function FotoCadastro() {
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -60,7 +59,7 @@ export default function FotoCadastro() {
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -258,7 +257,6 @@ export default function FotoCadastro() {
             <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
-        <BottomNav activeTab="cadastro" />
       </View>
     </ProtectedRoute>
   );

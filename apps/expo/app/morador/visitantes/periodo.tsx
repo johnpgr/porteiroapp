@@ -11,7 +11,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
 
@@ -281,7 +280,6 @@ export default function PeriodoVisitante() {
             onChange={handleEndTimeChange}
           />
         )}
-        <BottomNav activeTab="visitantes" />
       </View>
     </ProtectedRoute>
   );

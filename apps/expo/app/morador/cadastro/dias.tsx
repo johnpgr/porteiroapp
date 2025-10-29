@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 type DayOfWeek = {
   id: string;
@@ -259,7 +258,6 @@ export default function DiasCadastro() {
             />
           </TouchableOpacity>
         </View>
-        <BottomNav activeTab="cadastro" />
       </View>
     </ProtectedRoute>
   );

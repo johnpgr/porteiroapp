@@ -12,7 +12,6 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 
@@ -296,8 +295,6 @@ export default function VeiculoCadastro() {
             )}
           </TouchableOpacity>
         </View>
-
-        <BottomNav />
       </View>
     </ProtectedRoute>
   );

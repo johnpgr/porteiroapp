@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import BottomNav from '~/components/BottomNav';
 
 type TimeSlot = {
   id: string;
@@ -371,7 +370,6 @@ export default function HorariosCadastro() {
             )}
           </TouchableOpacity>
         </View>
-        <BottomNav activeTab="cadastro" />
       </View>
     </ProtectedRoute>
   );

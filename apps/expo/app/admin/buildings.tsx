@@ -190,7 +190,7 @@ export default function BuildingsManagement() {
     <ProtectedRoute requiredRole="admin">
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.push('/admin')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Gerenciar Prédios</Text>

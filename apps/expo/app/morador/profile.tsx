@@ -17,7 +17,6 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
-import BottomNav from '~/components/BottomNav';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
 import { FirstLoginModal } from '~/components/FirstLoginModal';
 
@@ -1026,8 +1025,6 @@ export default function MoradorProfile() {
             </View>
           </ScrollView>
         </View>
-        <BottomNav activeTab="profile" />
-        
         {/* Modal de Primeiro Login */}
         <FirstLoginModal 
           visible={isFirstLogin} 

@@ -6,7 +6,7 @@ import type { Subscription } from 'expo-notifications';
 import { useAuth } from '~/hooks/useAuth';
 import useAgoraHook from '~/hooks/useAgora';
 import IncomingCallModal from '~/components/IncomingCallModal';
-import { registerForPushNotificationsAsync, savePushToken } from '~/services/notificationService';
+ 
 import { Ionicons } from '@expo/vector-icons';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
@@ -51,7 +51,7 @@ export default function MoradorLayout() {
     {
       label: 'Cadastro',
       iconName: 'create',
-      onPress: () => router.push('/morador?tab=cadastro'),
+      onPress: () => router.push('/morador/cadastro'),
     },
     {
       label: 'Logout',
@@ -85,34 +85,7 @@ export default function MoradorLayout() {
     }
   }, [pathname]);
 
-  // 🔔 REGISTRAR PUSH TOKEN para notificações do morador
-  useEffect(() => {
-    const registerPushToken = async () => {
-      if (!user?.id) return;
-
-      try {
-        console.log('🔔 [MoradorLayout] Registrando push token para morador:', user.id);
-        const pushToken = await registerForPushNotificationsAsync();
-
-        if (pushToken) {
-          const saved = await savePushToken(user.id, pushToken);
-
-          if (saved) {
-            console.log('✅ [MoradorLayout] Push token registrado com sucesso');
-          } else {
-            console.warn('⚠️ [MoradorLayout] Falha ao salvar push token no banco');
-          }
-        } else {
-          console.warn('⚠️ [MoradorLayout] Push token não obtido (emulador ou permissão negada)');
-        }
-      } catch (pushError) {
-        console.error('❌ [MoradorLayout] Erro ao registrar push token:', pushError);
-        // Não bloquear o layout por erro de push token
-      }
-    };
-
-    registerPushToken();
-  }, [user?.id]);
+  
 
   // 📞 CONFIGURAR LISTENERS PARA CHAMADAS DE INTERFONE
   // Push notifications serve para alertar o usuário quando o app está em background.
@@ -207,7 +180,7 @@ export default function MoradorLayout() {
 
       <View style={styles.stackContainer}>
         <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="authorize" />
           <Stack.Screen name="preregister" />

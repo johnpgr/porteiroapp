@@ -25,7 +25,7 @@ export default function AdminLogin() {
   }, []);
 
   useEffect(() => {
-    // Redireciona diretamente para /admin se o usuário já estiver logado
+    // Redireciona diretamente para /admin tabs se o usuário já estiver logado
     if (!authLoading && user?.user_type === 'admin') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -33,7 +33,7 @@ export default function AdminLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/admin');
+        router.replace('/admin/(tabs)' as any);
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
