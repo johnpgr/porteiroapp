@@ -28,7 +28,7 @@ export default function Home() {
               router.replace('/porteiro');
               break;
             case 'morador':
-              router.replace('/morador');
+              router.replace('/morador/(tabs)' as any);
               break;
           }
         } else {

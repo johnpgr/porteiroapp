@@ -92,7 +92,7 @@ export default function EmergencyPage() {
 
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.push('/morador')}
+            onPress={() => router.push('/morador/(tabs)' as any)}
           >
             <Text style={styles.backButtonText}>🏠 Voltar para Home</Text>
           </TouchableOpacity>

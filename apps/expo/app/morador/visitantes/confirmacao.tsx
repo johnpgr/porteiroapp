@@ -70,7 +70,7 @@ export default function ConfirmacaoVisitante() {
             text: 'OK',
             onPress: () => {
               // Navigate back to the main visitors screen
-              router.replace('/morador');
+              router.replace('/morador/(tabs)/visitantes' as any);
             },
           },
         ]

@@ -606,7 +606,7 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           Alert.alert('✅ Visitante Cadastrado!', message, [
             { 
               text: 'OK', 
-              onPress: () => router.push('/morador')
+              onPress: () => router.push('/morador/(tabs)/visitantes' as any)
             }
           ]);
         }

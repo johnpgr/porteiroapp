@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 
 export default function MoradorIndexRedirect() {
   useEffect(() => {
-    router.replace('/morador/visitantes' as any);
+    router.replace('/morador/(tabs)' as any);
   }, []);
 
   return <View />;

@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { PorteiroDashboardProvider } from '~/providers/PorteiroDashboardProvider';
 
 const NOTIFIED_SIGNATURES_KEY = 'porteiro_notified_signatures';
 
@@ -403,14 +404,17 @@ export default function PorteiroLayout() {
   }, [user, isReady, signOut]); // Dependências: user e isReady
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="visitor" />
-      <Stack.Screen name="delivery" />
-      <Stack.Screen name="logs" />
-      <Stack.Screen name="profile" />
-      <Stack.Screen name="emergency" />
-    </Stack>
+    <PorteiroDashboardProvider>
+      <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="visitor" />
+        <Stack.Screen name="delivery" />
+        <Stack.Screen name="logs" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="emergency" />
+      </Stack>
+    </PorteiroDashboardProvider>
   );
 }

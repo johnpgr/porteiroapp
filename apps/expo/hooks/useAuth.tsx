@@ -320,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.replace('/porteiro');
           break;
         case 'morador':
-          router.replace('/morador');
+          router.replace('/morador/(tabs)' as any);
           break;
         default:
           logError('Tipo de usuário não reconhecido:', user.user_type);
