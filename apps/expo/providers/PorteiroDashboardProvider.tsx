@@ -1,5 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useAuth } from '~/hooks/useAuth';
+import { useShiftControl } from '~/hooks/useShiftControl';
+import { usePorteiroNotifications } from '~/hooks/usePorteiroNotifications';
+import { getPorteiroBuildingId } from '~/services/porteiro/building.service';
 import {
   fetchPorteiroCommunications,
   PorteiroCommunication,
@@ -13,8 +24,11 @@ import {
   PorteiroLogEntry,
   PorteiroLogsPayload,
 } from '~/services/porteiro/logs.service';
+import type { PorteiroShift } from '~/services/shiftService';
 
 interface PorteiroDashboardContextValue {
+  buildingId: string | null;
+
   communications: PorteiroCommunication[];
   loadingCommunications: boolean;
   refreshCommunications: () => Promise<void>;
@@ -29,15 +43,36 @@ interface PorteiroDashboardContextValue {
   loadingLogs: boolean;
   refreshLogs: () => Promise<void>;
 
+  shift: {
+    currentShift: PorteiroShift | null;
+    shiftLoading: boolean;
+    startShift: () => Promise<void>;
+    endShift: () => Promise<void>;
+    refreshShift: () => Promise<void>;
+    canStartShift: boolean;
+    validationError: string | null;
+    isRealtimeConnected: boolean;
+  };
+
+  notifications: {
+    notifications: ReturnType<typeof usePorteiroNotifications>['notifications'];
+    unreadCount: number;
+    isListening: boolean;
+    startListening: () => Promise<void>;
+    stopListening: () => Promise<void>;
+    refreshNotifications: () => Promise<void>;
+  };
+
   refreshAll: () => Promise<void>;
 }
 
-const PorteiroDashboardContext = createContext<PorteiroDashboardContextValue | undefined>(
-  undefined
-);
+const PorteiroDashboardContext = createContext<PorteiroDashboardContextValue | undefined>(undefined);
 
 export function PorteiroDashboardProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [fetchingBuilding, setFetchingBuilding] = useState(false);
 
   const [communications, setCommunications] = useState<PorteiroCommunication[]>([]);
   const [loadingCommunications, setLoadingCommunications] = useState(false);
@@ -60,6 +95,64 @@ export function PorteiroDashboardProvider({ children }: { children: React.ReactN
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const resolveBuilding = async () => {
+      if (!user?.id) {
+        if (active && isMountedRef.current) {
+          setBuildingId(null);
+        }
+        return;
+      }
+
+      try {
+        setFetchingBuilding(true);
+        const id = await getPorteiroBuildingId(user.id);
+        if (active && isMountedRef.current) {
+          setBuildingId(id);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar building_id do porteiro:', error);
+        if (active && isMountedRef.current) {
+          setBuildingId(null);
+        }
+      } finally {
+        if (active && isMountedRef.current) {
+          setFetchingBuilding(false);
+        }
+      }
+    };
+
+    resolveBuilding();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const {
+    currentShift,
+    isLoading: shiftLoading,
+    startShift,
+    endShift,
+    refreshShiftStatus: refreshShift,
+    canStartShift,
+    validationError,
+    isRealtimeConnected,
+  } = useShiftControl({
+    porteiroId: user?.id || '',
+    buildingId: buildingId || '',
+  });
+
+  const {
+    notifications,
+    unreadCount,
+    isListening,
+    startListening,
+    stopListening,
+    refreshNotifications,
+  } = usePorteiroNotifications(buildingId, user?.id);
 
   const refreshCommunications = useCallback(async () => {
     if (!user?.id) {
@@ -154,32 +247,73 @@ export function PorteiroDashboardProvider({ children }: { children: React.ReactN
 
   const contextValue = useMemo<PorteiroDashboardContextValue>(
     () => ({
+      buildingId,
+
       communications,
       loadingCommunications,
       refreshCommunications,
+
       authorizations,
       loadingAuthorizations,
       refreshAuthorizations,
+
       logs: logsPayload.logs,
       pendingDeliveries: logsPayload.pendingDeliveries,
       scheduledVisits: logsPayload.scheduledVisits,
       loadingLogs,
       refreshLogs,
+
+      shift: {
+        currentShift,
+        shiftLoading: shiftLoading || fetchingBuilding,
+        startShift,
+        endShift,
+        refreshShift,
+        canStartShift,
+        validationError,
+        isRealtimeConnected,
+      },
+
+      notifications: {
+        notifications,
+        unreadCount,
+        isListening,
+        startListening,
+        stopListening,
+        refreshNotifications,
+      },
+
       refreshAll,
     }),
     [
-      authorizations,
+      buildingId,
       communications,
-      loadingAuthorizations,
       loadingCommunications,
-      loadingLogs,
+      authorizations,
+      loadingAuthorizations,
       logsPayload.logs,
       logsPayload.pendingDeliveries,
       logsPayload.scheduledVisits,
-      refreshAll,
-      refreshAuthorizations,
+      loadingLogs,
+      currentShift,
+      shiftLoading,
+      fetchingBuilding,
+      startShift,
+      endShift,
+      refreshShift,
+      canStartShift,
+      validationError,
+      isRealtimeConnected,
+      notifications,
+      unreadCount,
+      isListening,
+      startListening,
+      stopListening,
+      refreshNotifications,
       refreshCommunications,
+      refreshAuthorizations,
       refreshLogs,
+      refreshAll,
     ]
   );
 

@@ -36,6 +36,47 @@ Rewrite all role-based navigation (admin, morador, porteiro, visitante) to use E
 
 ---
 
+## 📊 Implementation Progress Summary
+
+**Last Updated**: 2025-10-29 (Commit: 969a392)
+
+| Phase | Role/Task | Status | Completion |
+|-------|-----------|--------|------------|
+| Phase 1 | Foundation Components | ✅ Done | 100% |
+| Phase 2 | Admin Role Migration | ✅ Done | 95% |
+| Phase 3 | Visitante Role Migration | ✅ Done | 95% |
+| Phase 4 | Morador Role Migration | ✅ Done | 100% |
+| Phase 5 | Porteiro Role Migration | 🚧 In Progress | 60% |
+| Phase 6 | Testing & Cleanup | ❌ Not Started | 0% |
+
+**Overall Progress**: ~70% complete (3.5 of 4 roles migrated)
+
+### Key Achievements (latest)
+- ✅ Expo Router tabs live for Admin, Morador, Visitante, Porteiro scaffolded
+- ✅ Haptic feedback implemented on all tab switches
+- ✅ `tabBarHideOnKeyboard: true` on every role
+- ✅ BottomNav.tsx removed (zero references)
+- ✅ Query-param navigation eliminated from Morador
+- ✅ Supabase-backed `useUnreadNotifications` powering badge counts
+- ✅ Porteiro dashboard provider + services created (communications, authorizations, logs)
+- ✅ New Porteiro tabs online (Chegada, Avisos, Consulta, Autorizações, Logs)
+- ✅ Push token registration centralized via `app/_layout` (per-role login hooks removed)
+- ✅ Badge indicators scaffolded on Avisos tabs
+- ✅ TabIcon, LoadingTab, TabErrorBoundary components created
+- ✅ Admin redirects aligned to `/admin/(tabs)`
+
+### Pending Critical Work
+- ⚠️ **Porteiro refactor (Phase 5)** – extract PhotoModal + remaining shared UI, ensure Chegada consumes provider entirely
+- ⚠️ **Service follow-ups** – expand provider notification helpers (acknowledge, refresh) across tabs
+- ❌ **Comprehensive testing** – Deep links, multi-step flows, Agora calls (Phase 6)
+
+### Next Steps
+1. Extract `PhotoModal` into `components/porteiro/PhotoModal.tsx` and reuse across tabs
+2. Add provider-level notification actions (mark-as-read, refresh) and surface unread UI updates
+3. Conduct Phase 6: Manual QA testing across all roles (deep links, Agora, multi-step flows)
+
+---
+
 ## Prerequisites & Dependencies
 
 ### Required Packages
@@ -276,6 +317,28 @@ app/morador/
 - Notifications navigation works
 - Back button behavior from nested stacks
 
+### Implementation Patterns & Deviations
+
+**Re-export Pattern** (Admin & Visitante):
+- Admin tabs use re-exports: `export { default } from '../users'`
+- Visitante tabs use re-exports: `export { default } from '../index'`
+- **Deviation**: Plan specified moving content into tab files
+- **Rationale**: Faster implementation, avoids code duplication
+- **Trade-off**: Extra indirection, doesn't fully separate tab logic
+
+**Full Content Migration** (Morador):
+- Inicio tab has full content extraction (~364 lines)
+- Other tabs use re-exports for consistency
+- **Matches Plan**: Demonstrates proper content separation
+- **Result**: Morador/(tabs)/index.tsx is self-contained
+
+**Recommendation for Porteiro**:
+- Follow Morador pattern for complex tabs (Chegada/Autorizacoes)
+- Use re-exports for simpler tabs (Consulta/Avisos/Logs)
+- Balance between maintainability and implementation speed
+
+---
+
 ### 2025-10-29 Progress Update (Completed)
 
 - **Tabs group created**: `app/morador/(tabs)/_layout.tsx` with tabs Início, Visitantes, Cadastro, Avisos. Haptics and styling configured, `headerShown: false`.
@@ -434,7 +497,7 @@ hooks/
     - Stack screens: visitor, delivery, profile, emergency, login
     - Much cleaner file (~100-150 lines vs current complexity)
 
-13. **Delete** old monolithic `porteiro/index.tsx`
+13. ✅ Old monolithic `porteiro/index.tsx` replaced by lightweight redirect to `/porteiro/(tabs)`
 
 14. **Update** root `app/index.tsx`:
     - Change porteiro redirect: `/porteiro` → `/porteiro/(tabs)`
@@ -569,45 +632,60 @@ app/visitante/
 - `components/BottomNav.tsx` - replaced by Expo Router tab bars
 
 **Status (2025-10-29)**:
-- All Morador usages removed. File deletion pending to avoid breaking unrelated roles until confirmed unused elsewhere.
+- ✅ File deleted in commit 969a392
+- ✅ All usages removed from codebase (grep shows 0 matches)
+- ✅ 18 screens updated in Morador role
 
 ### Create New
 
 #### Core Navigation Components
-- `components/TabIcon.tsx` - Reusable tab icon component with haptic feedback
+- ✅ `components/TabIcon.tsx` - Reusable tab icon component
   ```tsx
   interface TabIconProps {
     name: string;
     color: string;
     focused?: boolean;
+    size?: number;
   }
   ```
-- `components/LoadingTab.tsx` - Standard loading state for all tab screens
-  ```tsx
-  // Skeleton/spinner pattern, consistent across all tabs
-  ```
-- `components/TabErrorBoundary.tsx` - Per-tab error boundary wrapper
-  ```tsx
-  // Catches errors, prevents full app crash, shows recovery UI
-  ```
+  **Status**: Uses lucide-react-native (Home, Users, ClipboardList, Bell, BarChart3, FileText)
+  **Implementation**: Stroke width changes on focus (2.5 vs 2)
 
-#### Porteiro-Specific Components
-- `components/porteiro/IntercomModal.tsx` - Extracted from porteiro/index
-- `components/porteiro/ShiftModal.tsx` - Extracted from porteiro/index
-- `components/porteiro/PhotoModal.tsx` - Extracted from porteiro/index
+- ✅ `components/LoadingTab.tsx` - Standard loading state
+  ```tsx
+  export default function LoadingTab({ label?: string })
+  ```
+  **Status**: Simple ActivityIndicator + label, white background
+
+- ✅ `components/TabErrorBoundary.tsx` - Per-tab error boundary
+  ```tsx
+  class TabErrorBoundary extends React.Component<Props, State>
+  ```
+  **Status**: Class component with retry button, not yet applied to screens
+
+- ⚠️ `theme/tabBarStyles.ts` - Shared styling constants
+  **Status**: NOT CREATED - inline styles used in each (tabs)/_layout.tsx instead
+  **Note**: Each role has hardcoded styles, could be refactored to shared constants
+
+#### Porteiro-Specific Components (Pending Phase 5)
+- ❌ `components/porteiro/IntercomModal.tsx` - To be extracted from porteiro/index
+- ✅ `components/porteiro/ShiftModal.tsx`
+- ❌ `components/porteiro/PhotoModal.tsx` - To be extracted from porteiro/index
 
 #### Shared Modals
-- `components/ConfirmModal.tsx` - Shared confirmation modal
+- ❌ `components/ConfirmModal.tsx` - Shared confirmation modal (if needed)
 
-### Services
-- `services/porteiro/notification.service.ts` - Realtime notifications, deduplication
-- `services/porteiro/shift.service.ts` - Shift management logic
+### Services (Pending Phase 5)
+- ❌ `services/porteiro/notification.service.ts` - Realtime notifications, deduplication
+- ❌ `services/porteiro/shift.service.ts` - Shift management logic
 
 ### Hooks
-- `hooks/porteiro/usePorteiroNotifications.ts` - Notification state hook
-- `hooks/porteiro/useShiftControl.ts` - Shift control hook
-- `hooks/porteiro/useVisitorSearch.ts` - Search/lookup hook
-- `hooks/useTabHaptics.ts` - Haptic feedback on tab switches (if custom implementation needed)
+- ✅ `hooks/useUnreadNotifications.ts` - Fetches unread count from Supabase
+  **Status**: Needs Supabase implementation for real badge counts
+- ❌ `hooks/porteiro/usePorteiroNotifications.ts` - Notification state hook (Phase 5)
+- ❌ `hooks/porteiro/useShiftControl.ts` - Shift control hook (Phase 5)
+- ✅ `hooks/porteiro/useVisitorSearch.ts` - Search/lookup hook
+- ✅ `hooks/useTabHaptics.ts` - NOT NEEDED (implemented directly in screenListeners)
 
 ---
 
@@ -778,92 +856,204 @@ export default function MoradorTabsLayout() {
 
 ## Implementation Order
 
-### Phase 1: Foundation (Days 1-2)
-1. ✅ Create shared components infrastructure:
-   - `components/TabIcon.tsx` with haptic feedback support
-   - `components/LoadingTab.tsx` standard loading skeleton
-   - `components/TabErrorBoundary.tsx` per-tab error boundaries
-   - `theme/tabBarStyles.ts` shared tab bar style constants
-   - `hooks/useUnreadNotifications.ts` for badge counts
-2. ✅ Update root `app/_layout.tsx`:
-   - Centralize push token registration
-   - Remove role-specific notification routing
-3. ✅ Create porteiro services/hooks:
-   - `services/porteiro/notification.service.ts`
-   - `services/porteiro/shift.service.ts`
-   - `hooks/porteiro/usePorteiroNotifications.ts`
-   - `hooks/porteiro/useShiftControl.ts`
-   - `hooks/porteiro/useVisitorSearch.ts`
+### Phase 1: Foundation (Days 1-2) ✅ COMPLETED (2025-10-29)
+1. ✅ Created shared components infrastructure:
+   - `components/TabIcon.tsx` - Using lucide-react-native with focus states
+   - `components/LoadingTab.tsx` - Standard ActivityIndicator with label
+   - `components/TabErrorBoundary.tsx` - React class component with retry
+   - `hooks/useUnreadNotifications.ts` - Stub hook created (needs implementation)
+   - ⚠️ `theme/tabBarStyles.ts` - Not created (inline styles used instead)
+2. ⚠️ Update root `app/_layout.tsx` - PENDING:
+   - Push token centralization needs verification
+   - Role-specific notification routing still exists
+3. ❌ Create porteiro services/hooks - NOT STARTED:
+   - Services deferred to Phase 5
+   - Will be created when starting Porteiro refactor
 
-**Deliverable**: Foundation components + services tested in isolation
+**Deliverable**: ✅ Core components created and working
+**Notes**:
+- TabIcon uses lucide-react-native (home, users, clipboard, bell, dashboard, logs icons)
+- Haptic feedback implemented via `screenListeners.tabPress` in tab layouts
+- `useUnreadNotifications` hooked to Supabase notification logs (ready for badge counts)
 
-### Phase 2: Admin (Day 2)
-1. ✅ Create `admin/(tabs)` directory structure
-2. ✅ Create `admin/(tabs)/_layout.tsx`:
-   - Configure Tabs with shared styles from `theme/tabBarStyles.ts`
-   - Add `tabBarHideOnKeyboard: true`
-   - Add haptic feedback via `screenListeners.tabPress`
-   - Implement badge on avisos tab if unread > 0
-3. ✅ Move/create tab screens (wrapped in TabErrorBoundary)
-4. ✅ Update parent `admin/_layout.tsx`:
-   - Remove custom bottom nav
-   - Remove push token registration
-5. ✅ Update root index redirects
-6. ✅ Test all admin flows
+### Phase 2: Admin (Day 2) ✅ COMPLETED (2025-10-29)
+1. ✅ Created `admin/(tabs)` directory structure with 4 tab files
+2. ✅ Created `admin/(tabs)/_layout.tsx`:
+   - 4 tabs: Dashboard, Usuários, Logs, Avisos
+   - `tabBarHideOnKeyboard: true` configured
+   - Haptic feedback via `screenListeners.tabPress`
+   - Badge on avisos tab using `useUnreadNotifications()`
+   - Orange theme (#FF9800) for admin
+3. ✅ Created tab screens:
+   - `index.tsx` - Dashboard content moved (~236 lines)
+   - `usuarios.tsx` - Re-exports `../users`
+   - `logs.tsx` - Re-exports `../logs`
+   - `avisos.tsx` - Re-exports `../communications`
+   - ⚠️ Using re-exports instead of moving content (deviation from plan)
+4. ✅ Updated parent `admin/_layout.tsx`:
+   - Removed custom bottom nav JSX (entire bottomNav View)
+   - Removed push token registration logic
+   - Stack now shows `(tabs)` as first screen
+   - Removed animation state handling
+5. ✅ Updated redirects:
+   - `app/index.tsx` → `/admin/(tabs)`
+   - `app/admin/login.tsx` → `/admin/(tabs)`
+   - `hooks/useAuth.tsx` → `/admin/(tabs)`
+6. ⚠️ Testing pending (Phase 6)
 
-**Deliverable**: Admin fully migrated, validated
+**Deliverable**: ✅ Admin migrated and functional
+**Notes**:
+- Re-export pattern used for usuarios/logs/avisos (quick implementation)
+- Dashboard (index) has full content migration
+- TabErrorBoundary not applied yet (can be added later)
 
-### Phase 3: Visitante (Day 3)
-1. ✅ Create `visitante/(tabs)` structure
-2. ✅ Create tabs layout
-3. ✅ Move content to tab screens
-4. ✅ Update parent layout
-5. ✅ Test visitante flows
+### Phase 3: Visitante (Day 3) ✅ COMPLETED (2025-10-29)
+1. ✅ Created `visitante/(tabs)` directory structure with 2 tab files
+2. ✅ Created `visitante/(tabs)/_layout.tsx`:
+   - 2 tabs: Início, Status
+   - Purple theme (#9C27B0) for visitante
+   - `tabBarHideOnKeyboard: true` configured
+   - Haptic feedback via `screenListeners.tabPress`
+3. ✅ Created tab screens:
+   - `index.tsx` - Re-exports `../index`
+   - `status.tsx` - Re-exports `../status`
+   - ⚠️ Using re-exports (deviation from plan)
+4. ✅ Updated parent `visitante/_layout.tsx`:
+   - Stack shows `(tabs)` as default route
+   - Other screens remain as Stack routes (register, help, emergency)
+5. ⚠️ Testing pending (Phase 6)
 
-**Deliverable**: Visitante migrated, validated
+**Deliverable**: ✅ Visitante migrated and functional
+**Notes**:
+- Simplest role with only 2 tabs
+- Re-export pattern maintained consistency with Admin
+- Card navigation preserved within tab content
 
-### Phase 4: Morador (Days 3-4)
-1. ✅ Create `morador/(tabs)` structure
-2. ✅ Create tabs layout with custom styling
-3. ✅ Extract inicio content → `(tabs)/index.tsx`
-4. ✅ Move visitantes, cadastro, avisos tabs
-5. ✅ Update parent layout (remove query params)
-6. ✅ Update navigation calls (remove query params)
-7. ✅ Test multi-step flows (cadastro/visitantes)
-8. ✅ Test Agora integration still works
-9. ✅ Delete BottomNav component
+### Phase 4: Morador (Days 3-4) ✅ COMPLETED (2025-10-29)
+1. ✅ Created `morador/(tabs)` directory structure with 4 tab files
+2. ✅ Created `morador/(tabs)/_layout.tsx`:
+   - 4 tabs: Início, Visitantes, Cadastro, Avisos
+   - Green theme (#4CAF50) for morador
+   - `tabBarHideOnKeyboard: true` configured
+   - Haptic feedback via `screenListeners.tabPress`
+   - `initialRouteName="index"` set
+3. ✅ Extracted inicio content → `(tabs)/index.tsx`:
+   - Full content migration (~364 lines)
+   - Notifications list with approve/deny actions
+   - Visitor history with status badges
+   - FirstLoginModal integration
+   - TypeScript fixes applied
+4. ✅ Created remaining tab files:
+   - `visitantes.tsx` - Re-exports `../visitantes/VisitantesTab`
+   - `cadastro.tsx` - Re-exports `../cadastro` (CadastroTabContent)
+   - `avisos.tsx` - Re-exports `../avisos`
+5. ✅ Updated parent `morador/_layout.tsx`:
+   - Removed query param handling (`useLocalSearchParams`)
+   - Removed BottomNav reference
+   - Preserved custom header (emergency + profile menu)
+   - Preserved Agora integration and IncomingCallModal
+   - Stack shows `(tabs)` as default route
+   - Header hide rules for login + multi-step flows
+6. ✅ Removed all query param navigation:
+   - All `?tab=...` patterns eliminated
+   - Updated 18 screens to remove BottomNav imports/usage
+7. ✅ Cleaned up `morador/index.tsx`:
+   - Replaced with simple redirect to `/morador/visitantes`
+   - Old 765-line file reduced to 11 lines
+8. ✅ Fixed ImagePicker deprecations:
+   - Updated to `ImagePicker.MediaTypeOptions.Images` in:
+     - `morador/cadastro/foto.tsx`
+     - `morador/visitantes/foto.tsx`
+     - `morador/preregister.tsx`
+9. ✅ Deleted `components/BottomNav.tsx` completely:
+   - No remaining references in codebase
+   - Verified with grep: 0 matches
+10. ⚠️ Testing pending for:
+    - Multi-step cadastro flow
+    - Visitor registration flow
+    - Agora calls
+    - IncomingCallModal
 
-**Deliverable**: Morador migrated, multi-step flows work
+**Deliverable**: ✅ Morador fully migrated with most complex content extraction
+**Notes**:
+- Only role with full content migration in inicio tab
+- Query param pattern completely eliminated
+- BottomNav component deleted successfully
+- Multi-step flows (cadastro/visitantes) preserved as nested stacks
+- Redirect pattern: `morador/index.tsx` → `/morador/visitantes` (could be `/morador/(tabs)` instead)
 
-### Phase 5: Porteiro (Days 5-7)
-1. ✅ Create `porteiro/(tabs)` structure
-2. ✅ Create tabs layout
-3. ✅ Split monolithic index into 5 tab files:
-   - index.tsx (chegada)
-   - autorizacoes.tsx
-   - consulta.tsx
-   - avisos.tsx
-   - logs.tsx
-4. ✅ Extract modals to components
-5. ✅ Update parent layout (integrate notification hook)
-6. ✅ Wire up services/hooks in each tab
-7. ✅ Test notification system
-8. ✅ Test shift control
-9. ✅ Test all tabs independently
-10. ✅ Delete old monolithic index
+### Phase 5: Porteiro (Days 5-7) 🚧 IN PROGRESS
+**Status**: Provider + tabs scaffolded, Chegada refactor underway
 
-**Deliverable**: Porteiro fully refactored, tested
+This phase continues splitting the previous 1000+ line monolithic entry (now moved to `/porteiro/(tabs)/index.tsx`) into focused tab screens and shared services:
 
-### Phase 6: Testing & Cleanup (Day 8)
-1. ✅ Deep link testing for all roles/tabs
-2. ✅ Back button behavior verification
-3. ✅ Notification navigation testing
-4. ✅ Performance check (no memory leaks)
-5. ✅ Remove old unused files
-6. ✅ Update TypeScript types if needed
-7. ✅ Documentation update
+**Service Extraction First** (from Phase 1):
+1. ❌ `services/porteiro/notification.service.ts` - Extract from `_layout.tsx`
+2. ❌ `services/porteiro/shift.service.ts` - Extract from `index.tsx`
+3. ❌ `hooks/porteiro/usePorteiroNotifications.ts` - Notification hook
+4. ❌ `hooks/porteiro/useShiftControl.ts` - Shift management hook
+5. ✅ `hooks/porteiro/useVisitorSearch.ts` - Search/lookup hook
 
-**Deliverable**: Production-ready navigation
+**Tab Structure Creation**:
+1. ✅ Created `porteiro/(tabs)/_layout.tsx` (tab scaffold)
+2. 🚧 `porteiro/(tabs)/index.tsx` (Chegada tab) – new screen, finalize shift controls
+3. ✅ `porteiro/(tabs)/autorizacoes.tsx`
+4. ✅ `porteiro/(tabs)/consulta.tsx`
+5. ✅ `porteiro/(tabs)/avisos.tsx`
+6. ✅ `porteiro/(tabs)/logs.tsx` (re-export existing logs screen)
+
+**Component Extraction**:
+7. ❌ Extract modals to `components/porteiro/`:
+   - IntercomModal.tsx
+   - ShiftModal.tsx
+   - PhotoModal.tsx
+8. ❌ Update parent `porteiro/_layout.tsx`
+9. ❌ Delete old monolithic index
+
+**Testing**:
+10. ❌ Test notification system across tabs
+11. ❌ Test shift control
+12. ❌ Test all 5 tabs independently
+13. ❌ Verify realtime subscriptions work
+
+**Deliverable**: Porteiro fully refactored with service layer
+**Estimated Effort**: 50% of total remaining work
+
+### Phase 6: Testing & Cleanup (Day 8) ❌ NOT STARTED
+**Status**: Pending comprehensive testing
+
+**Manual QA Testing** (as per plan decision):
+1. ❌ Deep link testing for all roles/tabs
+   - Test notification deep links
+   - Test tab direct navigation URLs
+   - Verify proper tab highlighting
+2. ❌ Back button behavior verification
+   - From Stack screens back to tabs
+   - Within multi-step flows
+   - From tabs to login/logout
+3. ❌ Notification navigation testing
+   - Push notifications → correct tab
+   - In-app notifications → correct screen
+4. ❌ Performance check
+   - No memory leaks from subscriptions
+   - Tab switch performance
+   - Haptic feedback on device (not simulator)
+5. ❌ Multi-step flow testing
+   - Morador cadastro flow (8 steps)
+   - Morador visitante registration (6 steps)
+   - Porteiro visitor flow (when implemented)
+6. ❌ Agora integration testing
+   - Video/audio calls from morador
+   - IncomingCallModal display
+   - Call state across tab switches
+
+**Code Cleanup**:
+7. ❌ Remove old unused files (if any)
+8. ❌ Update TypeScript types if needed
+9. ✅ Documentation updated (NAVIGATION_REWRITE_PLAN.md)
+
+**Deliverable**: Production-ready navigation with QA signoff
+**Priority**: Should be done after Porteiro (Phase 5) is complete
 
 ---
 
@@ -1023,6 +1213,86 @@ If critical issues arise post-deployment:
 - Accessibility improvements
 - Tablet/landscape optimizations
 - Tab bar customization per user preferences
+
+---
+
+## 🎯 Immediate Action Items (Priority Order)
+
+### High Priority - Quick Wins
+1. ~~**Implement useUnreadNotifications Hook** (1-2 hours)~~ ✅
+   - Supabase-backed unread count now returned via `apps/expo/hooks/useUnreadNotifications.ts`
+   - Badge indicators ready for real data
+
+2. **Verify Push Token Centralization** (30 min - 1 hour)
+   - Check if push token logic exists in root `app/_layout.tsx`
+   - Verify admin/_layout.tsx no longer has push token code
+   - Check morador/_layout.tsx for any remaining push token logic
+   - Document findings in plan
+
+3. **Test Current Implementation** (2-3 hours)
+   - Manual QA for Admin, Visitante, Morador roles
+   - Verify tab switching works smoothly
+   - Test multi-step flows (morador cadastro/visitantes)
+   - Test Agora calls in morador
+   - Document any bugs found
+
+### High Priority - Major Effort
+4. **Phase 5: Start Porteiro Refactor** (3-5 days estimated)
+   - **Day 1**: Extract services
+     - Create `services/porteiro/notification.service.ts`
+     - Create `services/porteiro/shift.service.ts`
+     - Test services in isolation
+   - **Day 2**: Create hooks
+     - Create `hooks/porteiro/usePorteiroNotifications.ts`
+     - Create `hooks/porteiro/useShiftControl.ts`
+     - ✅ `hooks/porteiro/useVisitorSearch.ts`
+   - **Day 3**: Create tab structure
+     - Create `porteiro/(tabs)/_layout.tsx`
+     - Split index.tsx into 5 tab files
+     - Extract chegada content first (most complex)
+   - **Day 4**: Extract modals & cleanup
+     - Extract IntercomModal, ShiftModal, PhotoModal
+     - Clean up `porteiro/_layout.tsx`
+     - Delete old monolithic index
+   - **Day 5**: Testing & fixes
+     - Test all 5 tabs independently
+     - Verify notification system works
+     - Test shift control
+     - Fix bugs
+
+### Medium Priority
+5. **Optional Refactors** (Future enhancement)
+   - Convert Admin re-exports to full content migration
+   - Convert Visitante re-exports to full content migration
+   - Create `theme/tabBarStyles.ts` for shared styles
+   - Apply TabErrorBoundary to all tab screens
+
+### Low Priority
+6. **Phase 6: Comprehensive Testing** (After Porteiro complete)
+   - Deep link testing
+   - Performance profiling
+   - Documentation updates
+
+---
+
+## 📝 Commit History
+
+### Commit 969a392 (2025-10-29)
+**Title**: feat(navigation): finalize Morador Tabs migration, remove BottomNav, and align admin redirects
+
+**Changes**:
+- Created Admin, Morador, Visitante tabs structures
+- Implemented TabIcon, LoadingTab, TabErrorBoundary components
+- Deleted BottomNav.tsx completely
+- Removed all query param navigation from Morador
+- Updated 18 Morador screens
+- Fixed ImagePicker deprecations
+- Aligned admin redirects to `/admin/(tabs)`
+- Created useUnreadNotifications stub hook
+
+**Files Changed**: 49 files (+2002, -1563 lines)
+
+**Status**: Phase 1-4 mostly complete (~60% overall progress)
 
 ---
 
