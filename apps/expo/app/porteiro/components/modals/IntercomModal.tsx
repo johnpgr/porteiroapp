@@ -142,12 +142,10 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       }
 
       // Start the call using the useAgora hook
-      const payload = await startIntercomCall({
+      await startIntercomCall({
         apartmentNumber: trimmedApartment,
         buildingId,
       });
-
-      console.log('✅ Chamada iniciada com sucesso:', payload);
     } catch (error) {
       const err = error as Error;
       const message = err?.message || 'Erro inesperado ao iniciar a chamada';

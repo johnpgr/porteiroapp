@@ -1,18 +1,9 @@
 import { useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Modal,
-  Image,
-  RefreshControl,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, RefreshControl } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { useVisitorSearch, formatCPFValue, formatPlateValue } from '~/hooks/porteiro/useVisitorSearch';
+import PhotoModal from '~/components/porteiro/PhotoModal';
 
 const searchTypeLabels: Record<'cpf' | 'placa', string> = {
   cpf: 'CPF',
@@ -235,102 +226,24 @@ export default function PorteiroConsultaTab() {
         )}
       </ScrollView>
 
-      <Modal
+      <PhotoModal
         visible={showPhotoModal}
-        transparent
-        animationType="fade"
         onRequestClose={() => setShowPhotoModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.photoModalContainer}>
-            <View style={styles.photoModalHeader}>
-              <Text style={styles.photoModalTitle}>
-                {profileResult?.full_name || 'Morador'}
-              </Text>
-              <TouchableOpacity
-                style={styles.photoModalCloseButton}
-                onPress={() => setShowPhotoModal(false)}
-              >
-                <Text style={styles.photoModalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+        title={profileResult?.full_name || 'Morador'}
+        imageUri={profileResult?.avatar_url}
+      />
 
-            <View style={styles.photoContainer}>
-              {profileResult?.avatar_url ? (
-                <Image
-                  source={{ uri: profileResult.avatar_url }}
-                  style={styles.photoModalImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoPlaceholderIcon}>👤</Text>
-                  <Text style={styles.photoPlaceholderText}>Foto não disponível</Text>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={styles.photoModalButton}
-              onPress={() => setShowPhotoModal(false)}
-            >
-              <Text style={styles.photoModalButtonText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
+      <PhotoModal
         visible={showImageModal}
-        transparent
-        animationType="fade"
         onRequestClose={() => {
           setShowImageModal(false);
           setSelectedImageUrl(null);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.photoModalContainer}>
-            <View style={styles.photoModalHeader}>
-              <Text style={styles.photoModalTitle}>Imagem</Text>
-              <TouchableOpacity
-                style={styles.photoModalCloseButton}
-                onPress={() => {
-                  setShowImageModal(false);
-                  setSelectedImageUrl(null);
-                }}
-              >
-                <Text style={styles.photoModalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.photoContainer}>
-              {selectedImageUrl ? (
-                <Image
-                  source={{ uri: selectedImageUrl }}
-                  style={styles.photoModalImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  <Text style={styles.photoPlaceholderIcon}>🖼️</Text>
-                  <Text style={styles.photoPlaceholderText}>Imagem não disponível</Text>
-                </View>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={styles.photoModalButton}
-              onPress={() => {
-                setShowImageModal(false);
-                setSelectedImageUrl(null);
-              }}
-            >
-              <Text style={styles.photoModalButtonText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        title="Imagem"
+        imageUri={selectedImageUrl}
+        placeholderIcon="🖼️"
+        placeholderText="Imagem não disponível"
+      />
     </>
   );
 }
@@ -529,78 +442,5 @@ const styles = StyleSheet.create({
   photoButtonText: {
     color: '#fff',
     fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  photoModalContainer: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  photoModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  photoModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
-  },
-  photoModalCloseButton: {
-    padding: 6,
-  },
-  photoModalCloseText: {
-    fontSize: 18,
-    color: '#666',
-  },
-  photoContainer: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 220,
-    marginBottom: 16,
-  },
-  photoModalImage: {
-    width: '100%',
-    height: 220,
-    borderRadius: 12,
-  },
-  photoPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  photoPlaceholderIcon: {
-    fontSize: 42,
-  },
-  photoPlaceholderText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  photoModalButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  photoModalButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
   },
 });
