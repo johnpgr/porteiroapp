@@ -1,8 +1,20 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, RefreshControl } from 'react-native';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  RefreshControl,
+} from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { useVisitorSearch, formatCPFValue, formatPlateValue } from '~/hooks/porteiro/useVisitorSearch';
+import {
+  useVisitorSearch,
+  formatCPFValue,
+  formatPlateValue,
+} from '~/hooks/porteiro/useVisitorSearch';
 import PhotoModal from '~/components/porteiro/PhotoModal';
 
 const searchTypeLabels: Record<'cpf' | 'placa', string> = {
@@ -48,183 +60,180 @@ export default function PorteiroConsultaTab() {
 
   return (
     <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={false}
-            onRefresh={() => {
-              setSearchQuery('');
-              resetResults();
-            }}
-          />
-        }
-        keyboardShouldPersistTaps="handled"
-      >
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>🔍 Consulta</Text>
           <Text style={styles.headerSubtitle}>Buscar moradores e veículos cadastrados</Text>
         </View>
-
-        <View style={styles.searchTypeContainer}>
-          {(['cpf', 'placa'] as const).map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[
-                styles.searchTypeButton,
-                searchType === type && styles.searchTypeButtonActive,
-              ]}
-              onPress={() => handleSearchTypeChange(type)}
-            >
-              <Text
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              onRefresh={() => {
+                setSearchQuery('');
+                resetResults();
+              }}
+            />
+          }
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.searchTypeContainer}>
+            {(['cpf', 'placa'] as const).map((type) => (
+              <TouchableOpacity
+                key={type}
                 style={[
-                  styles.searchTypeButtonText,
-                  searchType === type && styles.searchTypeButtonTextActive,
+                  styles.searchTypeButton,
+                  searchType === type && styles.searchTypeButtonActive,
                 ]}
-              >
-                {type === 'cpf' ? '👤 CPF' : '🚗 Placa'}
+                onPress={() => handleSearchTypeChange(type)}>
+                <Text
+                  style={[
+                    styles.searchTypeButtonText,
+                    searchType === type && styles.searchTypeButtonTextActive,
+                  ]}>
+                  {type === 'cpf' ? '👤 CPF' : '🚗 Placa'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={
+                  searchType === 'cpf'
+                    ? 'Digite o CPF (000.000.000-00)'
+                    : 'Digite a placa (ABC-1234)'
+                }
+                value={searchQuery}
+                onChangeText={handleInputChange}
+                keyboardType={searchType === 'cpf' ? 'numeric' : 'default'}
+                maxLength={searchType === 'cpf' ? 14 : 8}
+                editable={!isSearching}
+                autoCapitalize={searchType === 'placa' ? 'characters' : 'none'}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.searchButton, isSearching && styles.searchButtonDisabled]}
+              onPress={performSearch}
+              disabled={isSearching}>
+              <Text style={styles.searchButtonText}>
+                {isSearching ? '⏳ Consultando...' : '🔍 Consultar'}
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder={
-              searchType === 'cpf'
-                ? 'Digite o CPF (000.000.000-00)'
-                : 'Digite a placa (ABC-1234)'
-            }
-            value={searchQuery}
-            onChangeText={handleInputChange}
-            keyboardType={searchType === 'cpf' ? 'numeric' : 'default'}
-            maxLength={searchType === 'cpf' ? 14 : 8}
-            editable={!isSearching}
-            autoCapitalize={searchType === 'placa' ? 'characters' : 'none'}
-          />
-          <TouchableOpacity
-            style={[styles.searchButton, isSearching && styles.searchButtonDisabled]}
-            onPress={performSearch}
-            disabled={isSearching}
-          >
-            <Text style={styles.searchButtonText}>
-              {isSearching ? '⏳ Consultando...' : '🔍 Consultar'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {searchError && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>❌ {searchError}</Text>
           </View>
-        )}
 
-        {profileResult && (
-          <View style={styles.resultCard}>
-            <View style={styles.resultHeader}>
-              <Text style={styles.resultIcon}>
-                {profileResult.type === 'visitante_aprovado' ? '👥' : '👤'}
-              </Text>
-              <View style={styles.resultHeaderInfo}>
-                <Text style={styles.resultTitle}>
-                  {profileResult.type === 'visitante_aprovado'
-                    ? 'Visitante Pré-Aprovado'
-                    : 'Morador Encontrado'}
+          {searchError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>❌ {searchError}</Text>
+            </View>
+          )}
+
+          {profileResult && (
+            <View style={styles.resultCard}>
+              <View style={styles.resultHeader}>
+                <Text style={styles.resultIcon}>
+                  {profileResult.type === 'visitante_aprovado' ? '👥' : '👤'}
                 </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    profileResult.type === 'visitante_aprovado' && styles.visitanteStatusBadge,
-                  ]}
-                >
-                  <Text
+                <View style={styles.resultHeaderInfo}>
+                  <Text style={styles.resultTitle}>
+                    {profileResult.type === 'visitante_aprovado'
+                      ? 'Visitante Pré-Aprovado'
+                      : 'Morador Encontrado'}
+                  </Text>
+                  <View
                     style={[
-                      styles.statusBadgeText,
-                      profileResult.type === 'visitante_aprovado' && styles.visitanteStatusText,
-                    ]}
-                  >
-                    ✓ {profileResult.type === 'visitante_aprovado' ? 'Aprovado' : 'Ativo'}
+                      styles.statusBadge,
+                      profileResult.type === 'visitante_aprovado' && styles.visitanteStatusBadge,
+                    ]}>
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        profileResult.type === 'visitante_aprovado' && styles.visitanteStatusText,
+                      ]}>
+                      ✓ {profileResult.type === 'visitante_aprovado' ? 'Aprovado' : 'Ativo'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={styles.resultName}>{profileResult.full_name || profileResult.name}</Text>
+              <Text style={styles.resultLocation}>
+                🏠 Apartamento {profileResult.apartment?.number || 'N/A'} -{' '}
+                {profileResult.building?.name || 'N/A'}
+              </Text>
+
+              <View style={styles.infoGrid}>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>CPF</Text>
+                  <Text style={styles.infoValue}>
+                    {profileResult.cpf ? formatCPFValue(profileResult.cpf) : 'Não informado'}
                   </Text>
                 </View>
+                {profileResult.phone && (
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Telefone</Text>
+                    <Text style={styles.infoValue}>{profileResult.phone}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={styles.photoButton}
+                  onPress={() => setShowPhotoModal(true)}>
+                  <Text style={styles.photoButtonIcon}>📷</Text>
+                  <Text style={styles.photoButtonText}>Ver Foto</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          )}
 
-            <Text style={styles.resultName}>{profileResult.full_name || profileResult.name}</Text>
-            <Text style={styles.resultLocation}>
-              🏠 Apartamento {profileResult.apartment?.number || 'N/A'} -{' '}
-              {profileResult.building?.name || 'N/A'}
-            </Text>
-
-            <View style={styles.infoGrid}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>CPF</Text>
-                <Text style={styles.infoValue}>
-                  {profileResult.cpf ? formatCPFValue(profileResult.cpf) : 'Não informado'}
-                </Text>
+          {vehicleResult && (
+            <View style={styles.resultCard}>
+              <View style={styles.resultHeader}>
+                <Text style={styles.resultIcon}>🚗</Text>
+                <View style={styles.resultHeaderInfo}>
+                  <Text style={styles.resultTitle}>Veículo Encontrado</Text>
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeText}>✓ Ativo</Text>
+                  </View>
+                </View>
               </View>
-              {profileResult.phone && (
+
+              <Text style={styles.resultName}>
+                {vehicleResult.brand} {vehicleResult.model}
+              </Text>
+              <Text style={styles.resultLocation}>
+                🏠 Apartamento {vehicleResult.apartment?.number || 'N/A'} -{' '}
+                {vehicleResult.building?.name || 'N/A'}
+              </Text>
+
+              <View style={styles.infoGrid}>
                 <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Telefone</Text>
-                  <Text style={styles.infoValue}>{profileResult.phone}</Text>
+                  <Text style={styles.infoLabel}>Placa</Text>
+                  <Text style={styles.infoValue}>
+                    {vehicleResult.license_plate
+                      ? formatPlateValue(vehicleResult.license_plate)
+                      : 'Não informado'}
+                  </Text>
                 </View>
-              )}
-            </View>
-
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={styles.photoButton}
-                onPress={() => setShowPhotoModal(true)}
-              >
-                <Text style={styles.photoButtonIcon}>📷</Text>
-                <Text style={styles.photoButtonText}>Ver Foto</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {vehicleResult && (
-          <View style={styles.resultCard}>
-            <View style={styles.resultHeader}>
-              <Text style={styles.resultIcon}>🚗</Text>
-              <View style={styles.resultHeaderInfo}>
-                <Text style={styles.resultTitle}>Veículo Encontrado</Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>✓ Ativo</Text>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Cor</Text>
+                  <Text style={styles.infoValue}>{vehicleResult.color || 'Não informada'}</Text>
+                </View>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Tipo</Text>
+                  <Text style={styles.infoValue}>{vehicleResult.type || 'Carro'}</Text>
                 </View>
               </View>
             </View>
-
-            <Text style={styles.resultName}>
-              {vehicleResult.brand} {vehicleResult.model}
-            </Text>
-            <Text style={styles.resultLocation}>
-              🏠 Apartamento {vehicleResult.apartment?.number || 'N/A'} -{' '}
-              {vehicleResult.building?.name || 'N/A'}
-            </Text>
-
-            <View style={styles.infoGrid}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Placa</Text>
-                <Text style={styles.infoValue}>
-                  {vehicleResult.license_plate
-                    ? formatPlateValue(vehicleResult.license_plate)
-                    : 'Não informado'}
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Cor</Text>
-                <Text style={styles.infoValue}>{vehicleResult.color || 'Não informada'}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Tipo</Text>
-                <Text style={styles.infoValue}>{vehicleResult.type || 'Carro'}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      </View>
 
       <PhotoModal
         visible={showPhotoModal}
@@ -253,22 +262,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollView: {
+    flex: 1,
+  },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 32,
   },
   header: {
-    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#2196F3',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginBottom: 20,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    color: '#fff',
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#fff',
+    textAlign: 'center',
+    marginVertical: 5,
   },
   searchTypeContainer: {
     flexDirection: 'row',
@@ -306,6 +325,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#eee',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   searchInput: {
     flex: 1,
@@ -319,6 +343,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchButtonDisabled: {
     backgroundColor: '#90CAF9',
@@ -327,11 +353,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+    textAlign: 'center',
   },
   errorContainer: {
     backgroundColor: '#FFEBEE',
     borderRadius: 12,
     padding: 12,
+    marginTop: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#FFCDD2',

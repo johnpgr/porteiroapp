@@ -4,8 +4,8 @@ import { router } from 'expo-router';
 
 export default function AdminIndexRedirect() {
   useEffect(() => {
-    // Redirect into the Admin tabs (Usuarios tab) to ensure tabs are active
-    router.replace('/admin/usuarios' as any);
+    // Redirect into the Admin tabs layout so the tab navigator initializes
+    router.replace('/admin/(tabs)' as any);
   }, []);
 
   return <View />;

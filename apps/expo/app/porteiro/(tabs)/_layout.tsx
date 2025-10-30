@@ -1,13 +1,24 @@
+import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import TabIcon from '~/components/TabIcon';
+import IntercomModal from '../components/modals/IntercomModal';
 
 export default function PorteiroTabsLayout() {
+  const [isIntercomModalVisible, setIsIntercomModalVisible] = useState(false);
+
   const handleTabPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleIntercomPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsIntercomModalVisible(true);
+  };
+
   return (
+    <>
     <Tabs
       initialRouteName="index"
       screenOptions={{
@@ -17,7 +28,6 @@ export default function PorteiroTabsLayout() {
           backgroundColor: '#fff',
           borderTopColor: '#e0e0e0',
           borderTopWidth: 1,
-          height: 60,
           paddingBottom: 8,
           paddingTop: 8,
         },
@@ -49,6 +59,33 @@ export default function PorteiroTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="intercom"
+        options={{
+          title: '',
+          tabBarIcon: () => null,
+          tabBarButton: (props) => {
+            const { delayLongPress, ...restProps } = props as any;
+            return (
+              <TouchableOpacity
+                {...restProps}
+                style={styles.centralButton}
+                onPress={handleIntercomPress}
+                activeOpacity={1}
+              >
+                <View style={styles.centralButtonInner}>
+                  <TabIcon name="phone" color="#fff" focused={false} size={28} />
+                </View>
+              </TouchableOpacity>
+            );
+          },
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+          },
+        }}
+      />
+      <Tabs.Screen
         name="consulta"
         options={{
           title: 'Consulta',
@@ -58,23 +95,36 @@ export default function PorteiroTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="avisos"
-        options={{
-          title: 'Avisos',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="bell" color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="logs"
         options={{
           title: 'Logs',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="list" color={color} focused={focused} />
+            <TabIcon name="scroll-text" color={color} focused={focused} />
           ),
         }}
       />
     </Tabs>
+    <IntercomModal
+      visible={isIntercomModalVisible}
+      onClose={() => setIsIntercomModalVisible(false)}
+    />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  centralButton: {
+    top: -15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+  },
+  centralButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: '#1E88E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

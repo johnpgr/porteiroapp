@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { PorteiroDashboardProvider } from '~/providers/PorteiroDashboardProvider';
+import PorteiroTabsHeader from '~/components/porteiro/PorteiroTabsHeader';
 
 const NOTIFIED_SIGNATURES_KEY = 'porteiro_notified_signatures';
 
@@ -36,6 +37,7 @@ export default function PorteiroLayout() {
   const previousPathRef = useRef<string | null>(null);
   const [shouldAnimate, setShouldAnimate] = useState(true);
   const { user, signOut } = useAuth();
+  const renderTabsHeader = useCallback(() => <PorteiroTabsHeader />, []);
 
   // Ref para timestamp da última verificação
   const lastCheckTimeRef = useRef<Date>(new Date());
@@ -406,7 +408,13 @@ export default function PorteiroLayout() {
   return (
     <PorteiroDashboardProvider>
       <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: true,
+            header: renderTabsHeader,
+          }}
+        />
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="visitor" />

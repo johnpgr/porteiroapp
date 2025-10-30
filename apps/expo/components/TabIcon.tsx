@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Bell, ClipboardList, FileText, Home, Users } from 'lucide-react-native';
+import { BarChart3, Bell, ClipboardList, FileText, Home, Users, LogIn, BadgeCheck, Search, List, ScrollText, Phone } from 'lucide-react-native';
 
 export interface TabIconProps {
   name: string;
@@ -16,6 +16,12 @@ const iconMap: Record<string, any> = {
   dashboard: BarChart3,
   logs: FileText,
   file: FileText,
+  'log-in': LogIn,
+  'badge-check': BadgeCheck,
+  search: Search,
+  list: List,
+  'scroll-text': ScrollText,
+  phone: Phone,
 };
 
 export default function TabIcon({ name, color, focused, size = 24 }: TabIconProps) {
