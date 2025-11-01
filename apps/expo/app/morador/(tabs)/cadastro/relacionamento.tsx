@@ -74,7 +74,7 @@ const relationships: RelationshipType[] = [
   },
 ];
 
-export default function RelacionamentoCadastro() {
+export function RelacionamentoCadastro() {
   const { nome } = useLocalSearchParams<{ nome: string }>();
   const [selectedRelationship, setSelectedRelationship] = useState<string>('');
 

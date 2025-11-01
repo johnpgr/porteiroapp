@@ -64,7 +64,7 @@ const timeSlots: TimeSlot[] = [
   },
 ];
 
-export default function HorariosCadastro() {
+export function HorariosCadastro() {
   const { nome, relacionamento, telefone, placa, acesso, foto, dias } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;

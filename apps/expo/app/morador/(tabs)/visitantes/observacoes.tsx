@@ -4,13 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   ScrollView,
-  Image,
-  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
@@ -22,81 +20,86 @@ const visitTypeLabels = {
   car: '🚗 Carro',
 };
 
-export default function FotoVisitante() {
-  const { tipo, nome, cpf } = useLocalSearchParams<{
+const quickObservations = [
+  '🔧 Manutenção do ar condicionado',
+  '📦 Entrega de encomenda',
+  '🏠 Visita familiar',
+  '👨‍💼 Reunião de trabalho',
+  '🎂 Festa de aniversário',
+  '🍕 Entrega de comida',
+  '🚗 Lavagem do carro',
+  '📺 Instalação de TV',
+];
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function formatTime(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function ObservacoesVisitante() {
+  const { tipo, nome, cpf, foto, data, horaInicio, horaFim } = useLocalSearchParams<{
     tipo: VisitType;
     nome: string;
     cpf: string;
+    foto: string;
+    data: string;
+    horaInicio: string;
+    horaFim: string;
   }>();
-  const [imageUri, setImageUri] = useState<string | null>(null);
 
-  const requestPermissions = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
-      return false;
+  const [observacoes, setObservacoes] = useState('');
+  const [autoAuthorize, setAutoAuthorize] = useState(false);
+
+  const addQuickObservation = (observation: string) => {
+    if (observacoes.trim()) {
+      setObservacoes((prev) => prev + '\n' + observation);
+    } else {
+      setObservacoes(observation);
     }
-    return true;
-  };
-
-  const pickImage = async () => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de permissão para usar a câmera.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
-
-  const removeImage = () => {
-    setImageUri(null);
   };
 
   const handleNext = () => {
     router.push({
-      pathname: '/morador/visitantes/periodo',
+      pathname: '/morador/visitantes/confirmacao',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
-        foto: imageUri || '',
+        foto: foto || '',
+        data: data || '',
+        horaInicio: horaInicio || '',
+        horaFim: horaFim || '',
+        observacoes: observacoes.trim(),
+        autoAuthorize: autoAuthorize.toString(),
       },
     });
   };
 
   const handleSkip = () => {
     router.push({
-      pathname: '/morador/visitantes/periodo',
+      pathname: '/morador/visitantes/confirmacao',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
         cpf: cpf || '',
-        foto: '',
+        foto: foto || '',
+        data: data || '',
+        horaInicio: horaInicio || '',
+        horaFim: horaFim || '',
+        observacoes: '',
+        autoAuthorize: autoAuthorize.toString(),
       },
     });
   };
@@ -122,11 +125,11 @@ export default function FotoVisitante() {
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
-            <View style={styles.progressStep} />
-            <View style={styles.progressStep} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={styles.progressStep} />
           </View>
-          <Text style={styles.progressText}>Passo 4 de 7</Text>
+          <Text style={styles.progressText}>Passo 6 de 7</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -139,46 +142,70 @@ export default function FotoVisitante() {
           <View style={styles.visitorInfo}>
             <Text style={styles.visitorName}>👤 {nome}</Text>
             {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
+            {data && (
+              <Text style={styles.visitorDate}>
+                📅 {formatDate(data)} • 🕐 {formatTime(horaInicio || '')} -{' '}
+                {formatTime(horaFim || '')}
+              </Text>
+            )}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Foto do Visitante</Text>
+            <Text style={styles.sectionTitle}>Observações</Text>
             <Text style={styles.sectionDescription}>
-              Adicione uma foto para facilitar a identificação (opcional)
+              Adicione informações extras sobre a visita (opcional)
             </Text>
 
-            <View style={styles.photoContainer}>
-              {imageUri ? (
-                <View style={styles.imageContainer}>
-                  <Image source={{ uri: imageUri }} style={styles.image} />
-                  <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
-                    <Ionicons name="close-circle" size={24} color="#f44336" />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.placeholderContainer}>
-                  <Ionicons name="person" size={60} color="#ccc" />
-                  <Text style={styles.placeholderText}>Nenhuma foto selecionada</Text>
-                </View>
-              )}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Observações</Text>
+              <TextInput
+                style={styles.textArea}
+                value={observacoes}
+                onChangeText={setObservacoes}
+                placeholder="Ex: Visitante irá trazer equipamentos para manutenção..."
+                placeholderTextColor="#999"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+              <Text style={styles.inputHelper}>{observacoes.length}/500 caracteres</Text>
             </View>
 
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-                <Ionicons name="camera" size={24} color="#fff" />
-                <Text style={styles.photoButtonText}>Tirar Foto</Text>
-              </TouchableOpacity>
+            <View style={styles.quickObservationsContainer}>
+              <Text style={styles.quickObservationsTitle}>💡 Sugestões Rápidas</Text>
+              <View style={styles.quickObservationsGrid}>
+                {quickObservations.map((observation, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.quickObservationButton}
+                    onPress={() => addQuickObservation(observation)}>
+                    <Text style={styles.quickObservationText}>{observation}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
-              <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-                <Ionicons name="images" size={24} color="#fff" />
-                <Text style={styles.photoButtonText}>Galeria</Text>
+            <View style={styles.autoAuthorizeContainer}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setAutoAuthorize(!autoAuthorize)}>
+                <View style={[styles.checkbox, autoAuthorize && styles.checkboxChecked]}>
+                  {autoAuthorize && <Ionicons name="checkmark" size={16} color="#fff" />}
+                </View>
+                <View style={styles.checkboxTextContainer}>
+                  <Text style={styles.checkboxTitle}>🚪 Autorizar entrada automaticamente</Text>
+                  <Text style={styles.checkboxDescription}>
+                    O visitante poderá entrar sem aprovação manual no período definido
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
 
             <View style={styles.tipContainer}>
               <Ionicons name="information-circle" size={20} color="#2196F3" />
               <Text style={styles.tipText}>
-                A foto ajuda o porteiro a identificar o visitante com mais facilidade
+                As observações ajudam o porteiro a identificar o motivo da visita
               </Text>
             </View>
           </View>
@@ -284,6 +311,11 @@ const styles = StyleSheet.create({
   visitorCpf: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 4,
+  },
+  visitorDate: {
+    fontSize: 14,
+    color: '#666',
   },
   section: {
     backgroundColor: '#fff',
@@ -294,6 +326,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 24,
@@ -309,63 +342,96 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     lineHeight: 22,
   },
-  photoContainer: {
-    alignItems: 'center',
+  inputContainer: {
     marginBottom: 30,
   },
-  imageContainer: {
-    position: 'relative',
-  },
-  image: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    borderWidth: 3,
-    borderColor: '#4CAF50',
-  },
-  removeButton: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-  },
-  placeholderContainer: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  photoButton: {
-    flex: 1,
-    backgroundColor: '#2196F3',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoButtonText: {
-    color: '#fff',
+  inputLabel: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 8,
+    color: '#333',
+    marginBottom: 8,
+  },
+  textArea: {
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#333',
+    minHeight: 100,
+  },
+  inputHelper: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  quickObservationsContainer: {
+    marginBottom: 30,
+  },
+  quickObservationsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  quickObservationsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickObservationButton: {
+    backgroundColor: '#f0f8ff',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  quickObservationText: {
+    fontSize: 14,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
+  autoAuthorizeContainer: {
+    marginBottom: 20,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fff3e0',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#FF9800',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#FF9800',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#FF9800',
+  },
+  checkboxTextContainer: {
+    flex: 1,
+  },
+  checkboxTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  checkboxDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 18,
   },
   tipContainer: {
     flexDirection: 'row',

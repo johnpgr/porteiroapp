@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Alert,
   ScrollView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -20,86 +21,87 @@ const visitTypeLabels = {
   car: '🚗 Carro',
 };
 
-const quickObservations = [
-  '🔧 Manutenção do ar condicionado',
-  '📦 Entrega de encomenda',
-  '🏠 Visita familiar',
-  '👨‍💼 Reunião de trabalho',
-  '🎂 Festa de aniversário',
-  '🍕 Entrega de comida',
-  '🚗 Lavagem do carro',
-  '📺 Instalação de TV',
-];
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-  });
+function formatCPF(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  return numbers
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+    .replace(/(-\d{2})\d+?$/, '$1');
 }
 
-function formatTime(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function validateCPF(cpf: string): boolean {
+  const numbers = cpf.replace(/\D/g, '');
+
+  if (numbers.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(numbers)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(numbers.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numbers.charAt(9))) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(numbers.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10 || remainder === 11) remainder = 0;
+  if (remainder !== parseInt(numbers.charAt(10))) return false;
+
+  return true;
 }
 
-export default function ObservacoesVisitante() {
-  const { tipo, nome, cpf, foto, data, horaInicio, horaFim } = useLocalSearchParams<{
-    tipo: VisitType;
-    nome: string;
-    cpf: string;
-    foto: string;
-    data: string;
-    horaInicio: string;
-    horaFim: string;
-  }>();
+export function CPFVisitante() {
+  const { tipo, nome } = useLocalSearchParams<{ tipo: VisitType; nome: string }>();
+  const [cpf, setCpf] = useState('');
+  const [isValid, setIsValid] = useState(true);
 
-  const [observacoes, setObservacoes] = useState('');
-  const [autoAuthorize, setAutoAuthorize] = useState(false);
+  const handleCPFChange = (value: string) => {
+    const formatted = formatCPF(value);
+    setCpf(formatted);
 
-  const addQuickObservation = (observation: string) => {
-    if (observacoes.trim()) {
-      setObservacoes((prev) => prev + '\n' + observation);
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length === 11) {
+      setIsValid(validateCPF(formatted));
     } else {
-      setObservacoes(observation);
+      setIsValid(true);
     }
   };
 
   const handleNext = () => {
+    const numbers = cpf.replace(/\D/g, '');
+
+    if (numbers.length !== 11) {
+      Alert.alert('CPF incompleto', 'Por favor, digite um CPF válido com 11 dígitos');
+      return;
+    }
+
+    if (!validateCPF(cpf)) {
+      Alert.alert('CPF inválido', 'Por favor, digite um CPF válido');
+      return;
+    }
+
     router.push({
-      pathname: '/morador/visitantes/confirmacao',
+      pathname: '/morador/visitantes/foto',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: cpf || '',
-        foto: foto || '',
-        data: data || '',
-        horaInicio: horaInicio || '',
-        horaFim: horaFim || '',
-        observacoes: observacoes.trim(),
-        autoAuthorize: autoAuthorize.toString(),
+        cpf: cpf,
       },
     });
   };
 
   const handleSkip = () => {
     router.push({
-      pathname: '/morador/visitantes/confirmacao',
+      pathname: '/morador/visitantes/foto',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: cpf || '',
-        foto: foto || '',
-        data: data || '',
-        horaInicio: horaInicio || '',
-        horaFim: horaFim || '',
-        observacoes: '',
-        autoAuthorize: autoAuthorize.toString(),
+        cpf: '',
       },
     });
   };
@@ -107,6 +109,9 @@ export default function ObservacoesVisitante() {
   const handleBack = () => {
     router.back();
   };
+
+  const numbers = cpf.replace(/\D/g, '');
+  const isComplete = numbers.length === 11 && isValid;
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
@@ -124,12 +129,12 @@ export default function ObservacoesVisitante() {
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
-            <View style={[styles.progressStep, styles.progressStepActive]} />
-            <View style={[styles.progressStep, styles.progressStepActive]} />
-            <View style={[styles.progressStep, styles.progressStepActive]} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
+            <View style={styles.progressStep} />
             <View style={styles.progressStep} />
           </View>
-          <Text style={styles.progressText}>Passo 6 de 7</Text>
+          <Text style={styles.progressText}>Passo 3 de 7</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -141,71 +146,33 @@ export default function ObservacoesVisitante() {
 
           <View style={styles.visitorInfo}>
             <Text style={styles.visitorName}>👤 {nome}</Text>
-            {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
-            {data && (
-              <Text style={styles.visitorDate}>
-                📅 {formatDate(data)} • 🕐 {formatTime(horaInicio || '')} -{' '}
-                {formatTime(horaFim || '')}
-              </Text>
-            )}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Observações</Text>
+            <Text style={styles.sectionTitle}>CPF do Visitante</Text>
             <Text style={styles.sectionDescription}>
-              Adicione informações extras sobre a visita (opcional)
+              Digite o CPF para identificação (opcional)
             </Text>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Observações</Text>
+              <Text style={styles.inputLabel}>CPF</Text>
               <TextInput
-                style={styles.textArea}
-                value={observacoes}
-                onChangeText={setObservacoes}
-                placeholder="Ex: Visitante irá trazer equipamentos para manutenção..."
+                style={[styles.input, !isValid && styles.inputError]}
+                value={cpf}
+                onChangeText={handleCPFChange}
+                placeholder="000.000.000-00"
                 placeholderTextColor="#999"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                maxLength={500}
+                keyboardType="numeric"
+                maxLength={14}
               />
-              <Text style={styles.inputHelper}>{observacoes.length}/500 caracteres</Text>
-            </View>
-
-            <View style={styles.quickObservationsContainer}>
-              <Text style={styles.quickObservationsTitle}>💡 Sugestões Rápidas</Text>
-              <View style={styles.quickObservationsGrid}>
-                {quickObservations.map((observation, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.quickObservationButton}
-                    onPress={() => addQuickObservation(observation)}>
-                    <Text style={styles.quickObservationText}>{observation}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.autoAuthorizeContainer}>
-              <TouchableOpacity
-                style={styles.checkboxContainer}
-                onPress={() => setAutoAuthorize(!autoAuthorize)}>
-                <View style={[styles.checkbox, autoAuthorize && styles.checkboxChecked]}>
-                  {autoAuthorize && <Ionicons name="checkmark" size={16} color="#fff" />}
-                </View>
-                <View style={styles.checkboxTextContainer}>
-                  <Text style={styles.checkboxTitle}>🚪 Autorizar entrada automaticamente</Text>
-                  <Text style={styles.checkboxDescription}>
-                    O visitante poderá entrar sem aprovação manual no período definido
-                  </Text>
-                </View>
-              </TouchableOpacity>
+              {!isValid && <Text style={styles.errorText}>❌ CPF inválido</Text>}
+              {isComplete && <Text style={styles.successText}>✅ CPF válido</Text>}
             </View>
 
             <View style={styles.tipContainer}>
               <Ionicons name="information-circle" size={20} color="#2196F3" />
               <Text style={styles.tipText}>
-                As observações ajudam o porteiro a identificar o motivo da visita
+                O CPF é opcional, mas ajuda na identificação e segurança
               </Text>
             </View>
           </View>
@@ -221,9 +188,14 @@ export default function ObservacoesVisitante() {
             <Text style={styles.skipButtonText}>Pular</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextButtonText}>Continuar</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          <TouchableOpacity
+            style={[styles.nextButton, !isComplete && styles.nextButtonDisabled]}
+            onPress={handleNext}
+            disabled={!isComplete}>
+            <Text style={[styles.nextButtonText, !isComplete && styles.nextButtonTextDisabled]}>
+              Continuar
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color={isComplete ? '#fff' : '#ccc'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -306,16 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
-  },
-  visitorCpf: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  visitorDate: {
-    fontSize: 14,
-    color: '#666',
   },
   section: {
     backgroundColor: '#fff',
@@ -326,7 +288,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
-    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 24,
@@ -343,7 +304,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   inputContainer: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 16,
@@ -351,87 +312,31 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 8,
   },
-  textArea: {
+  input: {
     borderWidth: 2,
     borderColor: '#e0e0e0',
     borderRadius: 12,
     padding: 16,
-    fontSize: 16,
+    fontSize: 18,
     backgroundColor: '#fff',
     color: '#333',
-    minHeight: 100,
+    textAlign: 'center',
+    letterSpacing: 1,
   },
-  inputHelper: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'right',
-    marginTop: 4,
+  inputError: {
+    borderColor: '#f44336',
   },
-  quickObservationsContainer: {
-    marginBottom: 30,
-  },
-  quickObservationsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  quickObservationsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  quickObservationButton: {
-    backgroundColor: '#f0f8ff',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  quickObservationText: {
+  errorText: {
     fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '500',
+    color: '#f44336',
+    textAlign: 'center',
+    marginTop: 8,
   },
-  autoAuthorizeContainer: {
-    marginBottom: 20,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#fff3e0',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#FF9800',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: '#FF9800',
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    backgroundColor: '#fff',
-  },
-  checkboxChecked: {
-    backgroundColor: '#FF9800',
-  },
-  checkboxTextContainer: {
-    flex: 1,
-  },
-  checkboxTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  checkboxDescription: {
+  successText: {
     fontSize: 14,
-    color: '#666',
-    lineHeight: 18,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginTop: 8,
   },
   tipContainer: {
     flexDirection: 'row',
@@ -494,10 +399,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nextButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+  },
   nextButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     marginRight: 8,
+  },
+  nextButtonTextDisabled: {
+    color: '#ccc',
   },
 });

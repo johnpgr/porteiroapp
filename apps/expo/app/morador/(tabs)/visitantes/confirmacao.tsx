@@ -39,7 +39,7 @@ function formatTime(dateString: string): string {
   });
 }
 
-export default function ConfirmacaoVisitante() {
+export function ConfirmacaoVisitante() {
   const { tipo, nome, cpf, foto, data, horaInicio, horaFim, observacoes, autoAuthorize } =
     useLocalSearchParams<{
       tipo: VisitType;
@@ -70,7 +70,7 @@ export default function ConfirmacaoVisitante() {
             text: 'OK',
             onPress: () => {
               // Navigate back to the main visitors screen
-              router.replace('/morador/(tabs)/visitantes' as any);
+              router.replace('/morador/visitantes');
             },
           },
         ]

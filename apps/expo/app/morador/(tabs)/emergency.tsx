@@ -8,7 +8,6 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { flattenStyles } from '~/utils/styles';
 
@@ -37,6 +36,8 @@ export default function EmergencyPage() {
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <View style={styles.container}>
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.title}>⚠️ Emergências</Text>
+
           <Text style={styles.warningText}>⚠️ Use apenas em situações de emergência real</Text>
 
           <View style={styles.emergencyButtons}>
@@ -90,13 +91,6 @@ export default function EmergencyPage() {
             <Text style={styles.instructionText}>• Não desligue até ser orientado</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.push('/morador/(tabs)' as any)}
-          >
-            <Text style={styles.backButtonText}>🏠 Voltar para Home</Text>
-          </TouchableOpacity>
-
           <View style={styles.bottomSpacing} />
         </ScrollView>
       </View>
@@ -113,6 +107,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
   },
   warningText: {
     fontSize: 16,
@@ -196,24 +196,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 30,
-  },
-  backButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });

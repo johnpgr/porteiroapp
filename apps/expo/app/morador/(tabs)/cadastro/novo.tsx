@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
-export default function NovoCadastro() {
+export function NovoCadastro() {
   const [nome, setNome] = useState('');
 
   const handleNext = () => {

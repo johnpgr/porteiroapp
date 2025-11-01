@@ -21,7 +21,7 @@ const daysOfWeek: DayOfWeek[] = [
   { id: 'sunday', label: 'Domingo', shortLabel: 'DOM', icon: '🎉' },
 ];
 
-export default function DiasCadastro() {
+export function DiasCadastro() {
   const { nome, relacionamento, telefone, placa, acesso, foto } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;

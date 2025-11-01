@@ -55,7 +55,7 @@ const accessTypes: AccessType[] = [
   },
 ];
 
-export default function AcessoCadastro() {
+export function AcessoCadastro() {
   const { nome, relacionamento, telefone, placa } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;

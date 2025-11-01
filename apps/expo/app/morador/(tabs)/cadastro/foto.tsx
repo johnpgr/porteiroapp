@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
-export default function FotoCadastro() {
+export function FotoCadastro() {
   const { nome, relacionamento, telefone, placa, acesso } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;

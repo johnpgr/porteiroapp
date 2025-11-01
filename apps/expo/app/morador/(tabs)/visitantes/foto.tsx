@@ -4,12 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
-  Alert,
   ScrollView,
+  Image,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
 type VisitType = 'social' | 'service' | 'delivery' | 'car';
@@ -21,87 +22,81 @@ const visitTypeLabels = {
   car: '🚗 Carro',
 };
 
-function formatCPF(value: string): string {
-  const numbers = value.replace(/\D/g, '');
-  return numbers
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1,2})/, '$1-$2')
-    .replace(/(-\d{2})\d+?$/, '$1');
-}
+export function FotoVisitante() {
+  const { tipo, nome, cpf } = useLocalSearchParams<{
+    tipo: VisitType;
+    nome: string;
+    cpf: string;
+  }>();
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
-function validateCPF(cpf: string): boolean {
-  const numbers = cpf.replace(/\D/g, '');
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar suas fotos.');
+      return false;
+    }
+    return true;
+  };
 
-  if (numbers.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(numbers)) return false;
+  const pickImage = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
-  let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(numbers.charAt(i)) * (10 - i);
-  }
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numbers.charAt(9))) return false;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
 
-  sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(numbers.charAt(i)) * (11 - i);
-  }
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(numbers.charAt(10))) return false;
-
-  return true;
-}
-
-export default function CPFVisitante() {
-  const { tipo, nome } = useLocalSearchParams<{ tipo: VisitType; nome: string }>();
-  const [cpf, setCpf] = useState('');
-  const [isValid, setIsValid] = useState(true);
-
-  const handleCPFChange = (value: string) => {
-    const formatted = formatCPF(value);
-    setCpf(formatted);
-
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length === 11) {
-      setIsValid(validateCPF(formatted));
-    } else {
-      setIsValid(true);
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
     }
   };
 
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Precisamos de permissão para usar a câmera.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
+  const removeImage = () => {
+    setImageUri(null);
+  };
+
   const handleNext = () => {
-    const numbers = cpf.replace(/\D/g, '');
-
-    if (numbers.length !== 11) {
-      Alert.alert('CPF incompleto', 'Por favor, digite um CPF válido com 11 dígitos');
-      return;
-    }
-
-    if (!validateCPF(cpf)) {
-      Alert.alert('CPF inválido', 'Por favor, digite um CPF válido');
-      return;
-    }
-
     router.push({
-      pathname: '/morador/visitantes/foto',
+      pathname: '/morador/visitantes/periodo',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: cpf,
+        cpf: cpf || '',
+        foto: imageUri || '',
       },
     });
   };
 
   const handleSkip = () => {
     router.push({
-      pathname: '/morador/visitantes/foto',
+      pathname: '/morador/visitantes/periodo',
       params: {
         tipo: tipo || 'social',
         nome: nome || '',
-        cpf: '',
+        cpf: cpf || '',
+        foto: '',
       },
     });
   };
@@ -109,9 +104,6 @@ export default function CPFVisitante() {
   const handleBack = () => {
     router.back();
   };
-
-  const numbers = cpf.replace(/\D/g, '');
-  const isComplete = numbers.length === 11 && isValid;
 
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
@@ -129,12 +121,12 @@ export default function CPFVisitante() {
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={[styles.progressStep, styles.progressStepActive]} />
-            <View style={styles.progressStep} />
+            <View style={[styles.progressStep, styles.progressStepActive]} />
             <View style={styles.progressStep} />
             <View style={styles.progressStep} />
             <View style={styles.progressStep} />
           </View>
-          <Text style={styles.progressText}>Passo 3 de 7</Text>
+          <Text style={styles.progressText}>Passo 4 de 7</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -146,33 +138,47 @@ export default function CPFVisitante() {
 
           <View style={styles.visitorInfo}>
             <Text style={styles.visitorName}>👤 {nome}</Text>
+            {cpf && <Text style={styles.visitorCpf}>📄 {cpf}</Text>}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CPF do Visitante</Text>
+            <Text style={styles.sectionTitle}>Foto do Visitante</Text>
             <Text style={styles.sectionDescription}>
-              Digite o CPF para identificação (opcional)
+              Adicione uma foto para facilitar a identificação (opcional)
             </Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>CPF</Text>
-              <TextInput
-                style={[styles.input, !isValid && styles.inputError]}
-                value={cpf}
-                onChangeText={handleCPFChange}
-                placeholder="000.000.000-00"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-                maxLength={14}
-              />
-              {!isValid && <Text style={styles.errorText}>❌ CPF inválido</Text>}
-              {isComplete && <Text style={styles.successText}>✅ CPF válido</Text>}
+            <View style={styles.photoContainer}>
+              {imageUri ? (
+                <View style={styles.imageContainer}>
+                  <Image source={{ uri: imageUri }} style={styles.image} />
+                  <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
+                    <Ionicons name="close-circle" size={24} color="#f44336" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.placeholderContainer}>
+                  <Ionicons name="person" size={60} color="#ccc" />
+                  <Text style={styles.placeholderText}>Nenhuma foto selecionada</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
+                <Ionicons name="camera" size={24} color="#fff" />
+                <Text style={styles.photoButtonText}>Tirar Foto</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+                <Ionicons name="images" size={24} color="#fff" />
+                <Text style={styles.photoButtonText}>Galeria</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.tipContainer}>
               <Ionicons name="information-circle" size={20} color="#2196F3" />
               <Text style={styles.tipText}>
-                O CPF é opcional, mas ajuda na identificação e segurança
+                A foto ajuda o porteiro a identificar o visitante com mais facilidade
               </Text>
             </View>
           </View>
@@ -188,14 +194,9 @@ export default function CPFVisitante() {
             <Text style={styles.skipButtonText}>Pular</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.nextButton, !isComplete && styles.nextButtonDisabled]}
-            onPress={handleNext}
-            disabled={!isComplete}>
-            <Text style={[styles.nextButtonText, !isComplete && styles.nextButtonTextDisabled]}>
-              Continuar
-            </Text>
-            <Ionicons name="arrow-forward" size={20} color={isComplete ? '#fff' : '#ccc'} />
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>Continuar</Text>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -278,6 +279,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 4,
+  },
+  visitorCpf: {
+    fontSize: 14,
+    color: '#666',
   },
   section: {
     backgroundColor: '#fff',
@@ -303,40 +309,63 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     lineHeight: 22,
   },
-  inputContainer: {
-    marginBottom: 20,
+  photoContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+  imageContainer: {
+    position: 'relative',
   },
-  input: {
+  image: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 3,
+    borderColor: '#4CAF50',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  placeholderContainer: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#f5f5f5',
     borderWidth: 2,
     borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  photoButton: {
+    flex: 1,
+    backgroundColor: '#2196F3',
     borderRadius: 12,
     padding: 16,
-    fontSize: 18,
-    backgroundColor: '#fff',
-    color: '#333',
-    textAlign: 'center',
-    letterSpacing: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  inputError: {
-    borderColor: '#f44336',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#f44336',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  successText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'center',
-    marginTop: 8,
+  photoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   tipContainer: {
     flexDirection: 'row',
@@ -399,16 +428,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nextButtonDisabled: {
-    backgroundColor: '#f5f5f5',
-  },
   nextButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
     marginRight: 8,
-  },
-  nextButtonTextDisabled: {
-    color: '#ccc',
   },
 });

@@ -39,7 +39,7 @@ export default function MoradorTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="visitantes"
+        name="visitantes/index"
         options={{
           title: 'Visitantes',
           tabBarIcon: ({ color, focused }) => (
@@ -48,11 +48,11 @@ export default function MoradorTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="cadastro"
+        name="calls"
         options={{
-          title: 'Cadastro',
+          title: 'Chamadas',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="clipboard" color={color} focused={focused} />
+            <TabIcon name="phone" color={color} focused={focused} />
           ),
         }}
       />
@@ -63,6 +63,24 @@ export default function MoradorTabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="bell" color={color} focused={focused} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="emergency"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/index"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

@@ -757,19 +757,18 @@ export default function MoradorProfile() {
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <View style={styles.container}>
         <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <Text style={styles.title}>👤 Meu Perfil</Text>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
-              <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
           <ScrollView style={styles.content}>
+            <View style={styles.topSection}>
+              <View style={styles.headerRow}>
+                <Text style={styles.title}>👤 Meu Perfil</Text>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
+                  <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#4CAF50" />
+                  <Text style={styles.editButtonText}>{isEditing ? 'Salvar' : 'Editar'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={styles.photoSection}>
               <TouchableOpacity
                 style={styles.photoContainer}
@@ -1056,30 +1055,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  header: {
-    backgroundColor: '#4CAF50',
-    padding: 20,
-    borderBottomEndRadius: 20,
-    borderBottomStartRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  content: {
+    flex: 1,
   },
-  backButton: {
-    padding: 8,
+  topSection: {
+    backgroundColor: '#fff',
+    padding: 20,
+    paddingTop: 20,
+    marginBottom: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'center',
+    color: '#333',
   },
   editButton: {
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
   },
-  content: {
-    flex: 1,
+  editButtonText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginLeft: 6,
+    fontWeight: '600',
   },
   photoSection: {
     alignItems: 'center',

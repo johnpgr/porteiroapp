@@ -20,7 +20,7 @@ const visitTypeLabels = {
   car: '🚗 Carro',
 };
 
-export default function NomeVisitante() {
+export function NomeVisitante() {
   const { tipo } = useLocalSearchParams<{ tipo: VisitType }>();
   const [nome, setNome] = useState('');
 

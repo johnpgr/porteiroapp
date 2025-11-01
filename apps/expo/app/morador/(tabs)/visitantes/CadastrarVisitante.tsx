@@ -10,9 +10,9 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { router } from 'expo-router';
-import { flattenStyles } from '../../../utils/styles';
-import { supabase } from '../../../utils/supabase';
-import { useAuth } from '../../../hooks/useAuth';
+import { flattenStyles } from '~/utils/styles';
+import { supabase } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {
@@ -56,7 +56,7 @@ interface CadastrarVisitanteProps {
   onConfirm?: (message: string) => void;
 }
 
-export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitanteProps) {
+export function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitanteProps) {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<FlowStep>('tipo');
   const [tipoVisita, setTipoVisita] = useState<TipoVisita | null>(null);
@@ -604,11 +604,11 @@ export default function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisi
           onConfirm(message);
         } else {
           Alert.alert('✅ Visitante Cadastrado!', message, [
-            { 
-              text: 'OK', 
-              onPress: () => router.push('/morador/(tabs)/visitantes' as any)
-            }
-          ]);
+              {
+                text: 'OK',
+                onPress: () => router.push('/morador/visitantes')
+              }
+            ]);
         }
       } catch (error) {
         console.error('❌ DEBUG: Erro geral ao cadastrar visitante:', {

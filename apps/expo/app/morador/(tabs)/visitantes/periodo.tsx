@@ -37,7 +37,7 @@ function formatTime(date: Date): string {
   });
 }
 
-export default function PeriodoVisitante() {
+export function PeriodoVisitante() {
   const { tipo, nome, cpf, foto } = useLocalSearchParams<{
     tipo: VisitType;
     nome: string;

@@ -5,59 +5,65 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
+  ScrollView,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 
-export default function TelefoneCadastro() {
-  const { nome, relacionamento } = useLocalSearchParams<{
+export function PlacaCadastro() {
+  const { nome, relacionamento, telefone } = useLocalSearchParams<{
     nome: string;
     relacionamento: string;
+    telefone: string;
   }>();
-  const [phone, setPhone] = useState('');
+  const [plate, setPlate] = useState('');
 
-  const formatPhone = (text: string) => {
-    // Remove todos os caracteres não numéricos
-    const numbers = text.replace(/\D/g, '');
+  const formatPlate = (text: string) => {
+    // Remove caracteres especiais e converte para maiúsculo
+    const cleaned = text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-    // Aplica a máscara (XX) XXXXX-XXXX
-    if (numbers.length <= 2) {
-      return numbers;
-    } else if (numbers.length <= 7) {
-      return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    // Formato brasileiro: ABC1234 ou ABC1D23 (Mercosul)
+    if (cleaned.length <= 3) {
+      return cleaned;
+    } else if (cleaned.length <= 7) {
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
     } else {
-      return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}`;
     }
   };
 
-  const handlePhoneChange = (text: string) => {
-    const formatted = formatPhone(text);
-    setPhone(formatted);
+  const handlePlateChange = (text: string) => {
+    const formatted = formatPlate(text);
+    setPlate(formatted);
   };
 
-  const isValidPhone = () => {
-    const numbers = phone.replace(/\D/g, '');
-    return numbers.length === 11; // (XX) XXXXX-XXXX
+  const isValidPlate = () => {
+    const cleaned = plate.replace(/[^A-Za-z0-9]/g, '');
+    // Formato antigo: ABC1234 (7 caracteres) ou Mercosul: ABC1D23 (7 caracteres)
+    return cleaned.length === 7;
   };
 
   const handleNext = () => {
-    if (!isValidPhone()) {
-      Alert.alert(
-        'Telefone Inválido',
-        'Por favor, insira um número de telefone válido com 11 dígitos.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     router.push({
-      pathname: '/morador/cadastro/placa',
+      pathname: '/morador/cadastro/acesso',
       params: {
         nome: nome || '',
         relacionamento: relacionamento || '',
-        telefone: phone,
+        telefone: telefone || '',
+        placa: plate || '',
+      },
+    });
+  };
+
+  const handleSkip = () => {
+    router.push({
+      pathname: '/morador/cadastro/acesso',
+      params: {
+        nome: nome || '',
+        relacionamento: relacionamento || '',
+        telefone: telefone || '',
+        placa: '',
       },
     });
   };
@@ -90,7 +96,7 @@ export default function TelefoneCadastro() {
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.title}>📱 Novo Cadastro</Text>
+            <Text style={styles.title}>🚗 Novo Cadastro</Text>
             <View style={styles.placeholder} />
           </View>
 
@@ -99,13 +105,13 @@ export default function TelefoneCadastro() {
               <View style={[styles.progressStep, styles.progressStepActive]} />
               <View style={[styles.progressStep, styles.progressStepActive]} />
               <View style={[styles.progressStep, styles.progressStepActive]} />
-              <View style={styles.progressStep} />
+              <View style={[styles.progressStep, styles.progressStepActive]} />
               <View style={styles.progressStep} />
               <View style={styles.progressStep} />
               <View style={styles.progressStep} />
               <View style={styles.progressStep} />
             </View>
-            <Text style={styles.progressText}>Passo 3 de 8</Text>
+            <Text style={styles.progressText}>Passo 4 de 8</Text>
           </View>
 
           <View style={styles.content}>
@@ -114,27 +120,26 @@ export default function TelefoneCadastro() {
               <Text style={styles.personRelationship}>
                 {getRelationshipLabel(relacionamento || '')}
               </Text>
+              <Text style={styles.personPhone}>📱 {telefone}</Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Número de Celular</Text>
-              <Text style={styles.sectionDescription}>
-                Informe o número de celular para contato
-              </Text>
+              <Text style={styles.sectionTitle}>Placa do Veículo</Text>
+              <Text style={styles.sectionDescription}>Informe a placa do carro (opcional)</Text>
 
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
-                  <Ionicons name="call" size={24} color="#2196F3" style={styles.inputIcon} />
+                  <Ionicons name="car" size={24} color="#2196F3" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="(11) 99999-9999"
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    keyboardType="numeric"
-                    maxLength={15}
+                    placeholder="ABC-1234"
+                    value={plate}
+                    onChangeText={handlePlateChange}
+                    maxLength={8}
+                    autoCapitalize="characters"
                     autoFocus
                   />
-                  {isValidPhone() && (
+                  {isValidPlate() && (
                     <Ionicons
                       name="checkmark-circle"
                       size={24}
@@ -146,17 +151,30 @@ export default function TelefoneCadastro() {
               </View>
 
               <View style={styles.examplesContainer}>
-                <Text style={styles.examplesTitle}>📋 Exemplos:</Text>
+                <Text style={styles.examplesTitle}>📋 Exemplos de formatos:</Text>
                 <View style={styles.examplesList}>
-                  <TouchableOpacity
-                    style={styles.exampleItem}
-                    onPress={() => setPhone('(11) 99999-9999')}>
-                    <Text style={styles.exampleText}>(11) 99999-9999</Text>
+                  <View style={styles.exampleItem}>
+                    <Text style={styles.exampleLabel}>Formato Antigo:</Text>
+                    <Text style={styles.exampleText}>ABC-1234</Text>
+                  </View>
+                  <View style={styles.exampleItem}>
+                    <Text style={styles.exampleLabel}>Mercosul:</Text>
+                    <Text style={styles.exampleText}>ABC-1D23</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.quickButtons}>
+                <Text style={styles.quickButtonsTitle}>🚀 Ações rápidas:</Text>
+                <View style={styles.quickButtonsList}>
+                  <TouchableOpacity style={styles.quickButton} onPress={() => setPlate('ABC-1234')}>
+                    <Text style={styles.quickButtonText}>Exemplo 1</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.exampleItem}
-                    onPress={() => setPhone('(21) 98888-7777')}>
-                    <Text style={styles.exampleText}>(21) 98888-7777</Text>
+                  <TouchableOpacity style={styles.quickButton} onPress={() => setPlate('XYZ-5A67')}>
+                    <Text style={styles.quickButtonText}>Exemplo 2</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.clearButton} onPress={() => setPlate('')}>
+                    <Text style={styles.clearButtonText}>Limpar</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -164,23 +182,21 @@ export default function TelefoneCadastro() {
               <View style={styles.tipContainer}>
                 <Ionicons name="information-circle" size={20} color="#2196F3" />
                 <Text style={styles.tipText}>
-                  O telefone será usado para notificações e contato em caso de emergência
+                  A placa é opcional e será usada para controle de acesso de veículos
                 </Text>
               </View>
 
-              {phone.length > 0 && !isValidPhone() && (
+              {plate.length > 0 && !isValidPlate() && (
                 <View style={styles.warningContainer}>
                   <Ionicons name="warning" size={20} color="#FF9800" />
-                  <Text style={styles.warningText}>
-                    Número incompleto. Digite todos os 11 dígitos.
-                  </Text>
+                  <Text style={styles.warningText}>Formato inválido. Use ABC-1234 ou ABC-1D23</Text>
                 </View>
               )}
 
-              {isValidPhone() && (
+              {isValidPlate() && (
                 <View style={styles.successContainer}>
                   <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                  <Text style={styles.successText}>✅ Número válido: {phone}</Text>
+                  <Text style={styles.successText}>✅ Placa válida: {plate}</Text>
                 </View>
               )}
             </View>
@@ -192,15 +208,30 @@ export default function TelefoneCadastro() {
               <Text style={styles.backFooterButtonText}>Voltar</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+              <Text style={styles.skipButtonText}>Pular</Text>
+              <Ionicons name="arrow-forward" size={20} color="#666" />
+            </TouchableOpacity>
+
             <TouchableOpacity
-              style={[styles.nextButton, !isValidPhone() && styles.nextButtonDisabled]}
+              style={[
+                styles.nextButton,
+                plate.length > 0 && !isValidPlate() && styles.nextButtonDisabled,
+              ]}
               onPress={handleNext}
-              disabled={!isValidPhone()}>
+              disabled={plate.length > 0 && !isValidPlate()}>
               <Text
-                style={[styles.nextButtonText, !isValidPhone() && styles.nextButtonTextDisabled]}>
+                style={[
+                  styles.nextButtonText,
+                  plate.length > 0 && !isValidPlate() && styles.nextButtonTextDisabled,
+                ]}>
                 Continuar
               </Text>
-              <Ionicons name="arrow-forward" size={20} color={isValidPhone() ? '#fff' : '#ccc'} />
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={plate.length > 0 && !isValidPlate() ? '#ccc' : '#fff'}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -277,6 +308,11 @@ const styles = StyleSheet.create({
   personRelationship: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 2,
+  },
+  personPhone: {
+    fontSize: 14,
+    color: '#666',
   },
   section: {
     backgroundColor: '#fff',
@@ -325,6 +361,7 @@ const styles = StyleSheet.create({
     color: '#333',
     paddingVertical: 16,
     fontWeight: '500',
+    textAlign: 'center',
   },
   validIcon: {
     marginLeft: 12,
@@ -340,19 +377,64 @@ const styles = StyleSheet.create({
   },
   examplesList: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   exampleItem: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  exampleLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  exampleText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  quickButtons: {
+    marginBottom: 20,
+  },
+  quickButtonsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  quickButtonsList: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickButton: {
     backgroundColor: '#e3f2fd',
     borderRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#2196F3',
   },
-  exampleText: {
+  quickButtonText: {
     fontSize: 14,
     color: '#2196F3',
+    fontWeight: '500',
+  },
+  clearButton: {
+    backgroundColor: '#ffebee',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: '#f44336',
     fontWeight: '500',
   },
   tipContainer: {
@@ -407,7 +489,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   backFooterButton: {
     flex: 1,
@@ -425,8 +507,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 8,
   },
+  skipButton: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#FF9800',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipButtonText: {
+    color: '#FF9800',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
   nextButton: {
-    flex: 2,
+    flex: 1.5,
     backgroundColor: '#2196F3',
     borderRadius: 12,
     padding: 16,
