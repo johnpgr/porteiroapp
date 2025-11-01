@@ -22,13 +22,13 @@ export default function Home() {
           // Redireciona para a página correta
           switch (user.user_type) {
             case 'admin':
-              router.replace('/admin');
+              router.replace('/admin/(tabs)' as any);
               break;
             case 'porteiro':
               router.replace('/porteiro');
               break;
             case 'morador':
-              router.replace('/morador');
+              router.replace('/morador/(tabs)' as any);
               break;
           }
         } else {

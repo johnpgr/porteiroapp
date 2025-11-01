@@ -18,14 +18,14 @@ interface PorteiroNotification {
 
 export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?: string | null) => {
   console.log('🎯 [usePorteiroNotifications] Hook EXECUTANDO com buildingId:', buildingId, 'porteiroId:', porteiroId);
-  
+
   const [notifications, setNotifications] = useState<PorteiroNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const channelsRef = useRef<RealtimeChannel[]>([]);
-  
+
   // Configurar notificações push e listeners de foreground
   useEffect(() => {
     const configurePushNotifications = async () => {
@@ -84,11 +84,11 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
     });
 
     return () => {
-      Notifications.removeNotificationSubscription(notificationListener);
-      Notifications.removeNotificationSubscription(responseListener);
+      notificationListener.remove();
+      responseListener.remove();
     };
   }, []);
-  
+
   // Função para criar notificação local
   const createLocalNotification = async (notification: PorteiroNotification) => {
     try {
@@ -109,14 +109,14 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   // Função para exibir popup de aprovação/rejeição
   const showApprovalPopup = async (status: string, visitorData: any) => {
     console.log('🎯 [showApprovalPopup] Dados recebidos:', JSON.stringify(visitorData, null, 2));
-    
+
     const isApproved = status === 'approved';
     let apartmentNumber = 'N/A';
-    
+
     try {
       console.log('🔍 [showApprovalPopup] Tentando buscar apartamento com visitor_id:', visitorData?.visitor_id);
       console.log('🔍 [showApprovalPopup] Tentando buscar apartamento com apartment_id:', visitorData?.apartment_id);
-      
+
       // Primeiro tentar pelo apartment_id diretamente (mais provável de estar no payload)
       if (visitorData?.apartment_id) {
         console.log('🏠 [showApprovalPopup] Buscando via apartment_id...');
@@ -125,9 +125,9 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           .select('number')
           .eq('id', visitorData.apartment_id)
           .single();
-        
+
         console.log('🏠 [showApprovalPopup] Resultado busca apartment:', { apartmentInfo, error });
-        
+
         if (!error && apartmentInfo?.number) {
           apartmentNumber = apartmentInfo.number;
           console.log('✅ [showApprovalPopup] Apartamento encontrado via apartment_id:', apartmentNumber);
@@ -146,9 +146,9 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           `)
           .eq('id', visitorData.visitor_id)
           .single();
-        
+
         console.log('📋 [showApprovalPopup] Resultado busca visitor:', { visitorInfo, error });
-        
+
         if (!error && visitorInfo?.apartments?.number) {
           apartmentNumber = visitorInfo.apartments.number;
           console.log('✅ [showApprovalPopup] Apartamento encontrado via visitor_id:', apartmentNumber);
@@ -157,17 +157,17 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
     } catch (error) {
       console.error('❌ [showApprovalPopup] Erro ao buscar número do apartamento:', error);
     }
-    
+
     // Verificar se é uma entrega
     if (visitorData?.entry_type === 'delivery') {
       console.log('📦 [showApprovalPopup] Detectada entrega, exibindo alerta específico');
-      
+
       const deliveryDestination = visitorData?.delivery_destination;
       const destinationText = deliveryDestination === 'elevador' ? 'no elevador' : 'na portaria';
-      
+
       const title = 'Instrução de Entrega';
       const message = `O morador do apartamento ${apartmentNumber} solicitou para deixar ${destinationText}.`;
-      
+
       Alert.alert(
         title,
         message,
@@ -176,14 +176,14 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       );
       return;
     }
-    
+
     // Comportamento padrão para visitantes
     const visitorName = visitorData?.guest_name || 'Visitante';
     const title = isApproved ? 'Visitante Aprovado' : 'Visitante Rejeitado';
     const message = isApproved 
       ? `O visitante ${visitorName} foi aprovado para o apartamento ${apartmentNumber}.`
       : `A entrada do visitante ${visitorName} foi rejeitada pelo apartamento ${apartmentNumber}.`;
-    
+
     Alert.alert(
       title,
       message,
@@ -191,14 +191,14 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       { cancelable: true }
     );
   };
-  
+
   // Verificar se o porteiro está em turno ativo
   const isPorteiroOnDuty = async (): Promise<boolean> => {
     if (!porteiroId) {
       console.log('⚠️ [usePorteiroNotifications] PorteiroId não disponível para verificação de turno');
       return false;
     }
-    
+
     try {
       const { shift } = await shiftService.getActiveShift(porteiroId);
       const onDuty = shift?.status === 'active';
@@ -209,57 +209,57 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       return false;
     }
   };
-  
+
   // Função para adicionar nova notificação (apenas se porteiro estiver em turno)
   const addNotification = async (notification: PorteiroNotification) => {
     console.log('➕ [usePorteiroNotifications] Tentando adicionar notificação:', notification.title);
-    
+
     // Verificar se o porteiro está em turno ativo
     const onDuty = await isPorteiroOnDuty();
-    
+
     if (!onDuty) {
       console.log('⏸️ [usePorteiroNotifications] Notificação ignorada - porteiro não está em turno ativo');
       return;
     }
-    
+
     console.log('✅ [usePorteiroNotifications] Adicionando notificação - porteiro em turno ativo');
-    
+
     setNotifications(prev => [notification, ...prev]);
     setUnreadCount(prev => prev + 1);
-    
+
     // Criar notificação push local
     await createLocalNotification(notification);
   };
-  
+
   // Iniciar listeners do Supabase
   const startListening = async () => {
     if (!buildingId) {
       console.log('⚠️ [usePorteiroNotifications] Não pode iniciar listeners - buildingId não disponível');
       return;
     }
-    
+
     if (!porteiroId) {
       console.log('⚠️ [usePorteiroNotifications] Não pode iniciar listeners - porteiroId não disponível');
       return;
     }
-    
+
     if (isListening) {
       console.log('⚠️ [usePorteiroNotifications] Listeners já estão ativos, ignorando chamada');
       return;
     }
-    
+
     console.log('🚀 [usePorteiroNotifications] Iniciando listeners para buildingId:', buildingId, 'porteiroId:', porteiroId);
-    
+
     // Marcar como listening imediatamente para prevenir chamadas simultâneas
     setIsListening(true);
-    
+
     try {
       // Limpar listeners existentes
       channelsRef.current.forEach(channel => {
         supabase.removeChannel(channel);
       });
       channelsRef.current = [];
-      
+
       // Listener para visitor_logs (principal para a aba Autorizações)
       const visitorLogsChannel = supabase
         .channel('visitor_logs_changes')
@@ -273,7 +273,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           },
           async (payload) => {
             console.log('🔄 [usePorteiroNotifications] Mudança em visitor_logs:', payload);
-            
+
             // Verificar se é uma atualização de status para approved ou rejected
             if (payload.eventType === 'UPDATE' && payload.new?.notification_status) {
               const status = payload.new.notification_status;
@@ -282,7 +282,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
                 await showApprovalPopup(status, payload.new);
               }
             }
-            
+
             const notification: PorteiroNotification = {
               id: `visitor_log_${Date.now()}`,
               type: 'visitor_log',
@@ -292,14 +292,14 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
               timestamp: new Date().toISOString(),
               read: false
             };
-            
+
             await addNotification(notification);
           }
         )
         .subscribe();
-      
+
       channelsRef.current.push(visitorLogsChannel);
-      
+
       // Listener para visitors
       const visitorsChannel = supabase
         .channel('visitors_changes')
@@ -313,7 +313,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           },
           async (payload) => {
             console.log('🔄 [usePorteiroNotifications] Mudança em visitors:', payload);
-            
+
             const notification: PorteiroNotification = {
               id: `visitor_${Date.now()}`,
               type: 'visitor',
@@ -323,14 +323,14 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
               timestamp: new Date().toISOString(),
               read: false
             };
-            
+
             await addNotification(notification);
           }
         )
         .subscribe();
-      
+
       channelsRef.current.push(visitorsChannel);
-      
+
       // Listener para deliveries
       const deliveriesChannel = supabase
         .channel('deliveries_changes')
@@ -344,7 +344,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
           },
           async (payload) => {
             console.log('🔄 [usePorteiroNotifications] Mudança em deliveries:', payload);
-            
+
             const notification: PorteiroNotification = {
               id: `delivery_${Date.now()}`,
               type: 'delivery',
@@ -354,41 +354,41 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
               timestamp: new Date().toISOString(),
               read: false
             };
-            
+
             await addNotification(notification);
           }
         )
         .subscribe();
-      
+
       channelsRef.current.push(deliveriesChannel);
-      
+
       setError(null);
       console.log('✅ [usePorteiroNotifications] Listeners iniciados com sucesso');
-      
+
     } catch (err) {
       console.error('❌ [usePorteiroNotifications] Erro ao iniciar listeners:', err);
       setError('Erro ao iniciar listeners de notificação');
       setIsListening(false); // Reverter estado em caso de erro
     }
   };
-  
+
   // Parar listeners
   const stopListening = () => {
     console.log('🛑 [usePorteiroNotifications] Parando listeners');
-    
+
     channelsRef.current.forEach(channel => {
       supabase.removeChannel(channel);
     });
     channelsRef.current = [];
     setIsListening(false);
   };
-  
+
   // Atualizar notificações
   const refreshNotifications = async () => {
     console.log('🔄 [usePorteiroNotifications] Atualizando notificações');
     // Aqui poderia buscar notificações do banco se necessário
   };
-  
+
   // Iniciar listeners automaticamente quando buildingId e porteiroId estiverem disponíveis
   useEffect(() => {
     if (buildingId && porteiroId && !isListening) {
@@ -398,7 +398,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       console.log('🛑 [usePorteiroNotifications] BuildingId ou PorteiroId removido, parando listeners');
       stopListening();
     }
-    
+
     // Cleanup apenas quando o componente for desmontado
     return () => {
       if (isListening) {
@@ -407,7 +407,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       }
     };
   }, [buildingId, porteiroId]); // Adicionado porteiroId às dependências
-  
+
   return {
     notifications,
     unreadCount,

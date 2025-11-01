@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AuthForm from '../../components/AuthForm';
 import { useAuth } from '../../hooks/useAuth';
-import { registerPushTokenAfterLogin } from '~/utils/pushNotifications';
 
 export default function MoradorLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +22,7 @@ export default function MoradorLogin() {
   }, []);
 
   useEffect(() => {
-    // Redireciona diretamente para /morador se o usuário já estiver logado
+    // Redireciona diretamente para /morador/(tabs) se o usuário já estiver logado
     if (!authLoading && user?.user_type === 'morador') {
       if (!hasNavigatedRef.current) {
         hasNavigatedRef.current = true;
@@ -31,7 +30,7 @@ export default function MoradorLogin() {
           clearTimeout(loginTimeoutRef.current);
           loginTimeoutRef.current = null;
         }
-        router.replace('/morador');
+        router.replace('/morador/(tabs)' as any);
       }
     } else if (!authLoading && !user) {
       hasNavigatedRef.current = false;
@@ -61,12 +60,6 @@ export default function MoradorLogin() {
       if (!result.success) {
         Alert.alert('Erro de Login', result.error || 'Erro desconhecido');
         return { success: false, error: result.error };
-      }
-
-      // Registrar push token imediatamente após login bem-sucedido
-      if (result.user?.id) {
-        console.log('🔔 [MoradorLogin] Registrando push token após login...');
-        await registerPushTokenAfterLogin(result.user.id, 'morador');
       }
 
       // O redirecionamento será feito automaticamente pelo useEffect

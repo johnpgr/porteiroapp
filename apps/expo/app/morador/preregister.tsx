@@ -15,7 +15,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
-import BottomNav from '~/components/BottomNav';
 
 export default function PreregisterScreen() {
   const { user } = useAuth();
@@ -43,7 +42,7 @@ export default function PreregisterScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -269,7 +268,6 @@ export default function PreregisterScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      <BottomNav activeTab="preregister" />
     </View>
   );
 }

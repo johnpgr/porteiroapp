@@ -20,7 +20,7 @@ class CallController {
         doormanId,
         buildingId,
         fromUserId,
-        toUserId,
+        // toUserId,
         context,
         clientVersion,
         schemaVersion
@@ -469,7 +469,7 @@ class CallController {
 
       if (allDeclined) {
         // Se todos recusaram, encerrar a chamada
-        await DatabaseService.updateCallStatus(callId, 'declined');
+        await DatabaseService.updateCallStatus(callId, 'ended');
         console.log(`📵 Chamada ${callId} encerrada - todos os moradores recusaram`);
       }
 
@@ -682,6 +682,62 @@ class CallController {
 
     } catch (error) {
       console.error('🔥 Erro ao buscar chamadas ativas:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Busca chamadas pendentes para um usuário específico
+   * GET /api/calls/pending?userId=xxx
+   * Usado para polling quando push notifications estão desabilitadas
+   */
+  static async getPendingCalls(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.query;
+
+      if (!userId || typeof userId !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: 'userId é obrigatório'
+        });
+        return;
+      }
+
+      console.log(`🔍 Buscando chamadas pendentes para userId (profileId): ${userId}`);
+
+      // userId is actually the profile ID, not auth.user_id
+      // Get apartment_id from apartment_residents table
+      const apartmentId = await DatabaseService.getApartmentIdByProfileId(userId);
+
+      console.log(`🏠 Apartment resident lookup:`, {
+        found: !!apartmentId,
+        apartmentId: apartmentId
+      });
+
+      if (!apartmentId) {
+        console.log(`⚠️ No apartment found for userId ${userId}, returning empty calls array`);
+        res.json({
+          success: true,
+          calls: []
+        });
+        return;
+      }
+
+      // Get pending calls for the apartment
+      const calls = await DatabaseService.getPendingCallsForApartment(apartmentId);
+
+      console.log(`📞 Encontradas ${calls?.length || 0} chamadas pendentes para usuário ${userId}`);
+
+      res.json({
+        success: true,
+        calls: calls || []
+      });
+
+    } catch (error) {
+      console.error('🔥 Erro ao buscar chamadas pendentes:', error);
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'

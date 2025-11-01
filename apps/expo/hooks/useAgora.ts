@@ -105,6 +105,7 @@ export interface UseAgoraReturn {
   toggleMute: () => Promise<void>;
   toggleSpeaker: () => Promise<void>;
   cleanup: () => Promise<void>;
+  checkForActiveCall: (callId: string) => Promise<void>;
 }
 
 const DEFAULT_LOCAL_URL = 'http://localhost:3001';
@@ -344,6 +345,10 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   const rtmEngineRef = useRef<RtmEngine | null>(null);
   const rtmSessionRef = useRef<{ uid: string; token: string; expiresAt?: string } | null>(null);
   const prevUserIdRef = useRef<string | undefined>(undefined);
+  const isRecoveringCallRef = useRef(false);
+  const recoveryCallIdRef = useRef<string | null>(null);
+  const hasEverConnectedRtmRef = useRef(false);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const agoraAppId = useMemo(() => {
     const resolved = options?.appId ?? process.env.EXPO_PUBLIC_AGORA_APP_ID ?? '';
@@ -502,6 +507,150 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       await agoraService.sendPeerMessage(targets, signal);
     },
     []
+  );
+
+  const checkForActiveCall = useCallback(
+    async (callId: string): Promise<void> => {
+      // Guard: prevent duplicate recovery attempts
+      if (isRecoveringCallRef.current && recoveryCallIdRef.current === callId) {
+        console.log(`🔄 [checkForActiveCall] Already recovering call ${callId}`);
+        return;
+      }
+
+      // Guard: don't recover if we already have an incoming invite or active call
+      if (incomingInvite?.signal.callId === callId || activeCallRef.current?.callId === callId) {
+        console.log(`✅ [checkForActiveCall] Call ${callId} already handled`);
+        return;
+      }
+
+      console.log(`🔍 [checkForActiveCall] Checking status for call ${callId}`);
+      isRecoveringCallRef.current = true;
+      recoveryCallIdRef.current = callId;
+
+      try {
+        const statusResponse = await fetchCallStatus(apiBaseUrlRef.current, callId);
+
+        // If RTM already handled this call, abort
+        if (incomingInvite?.signal.callId === callId || activeCallRef.current?.callId === callId) {
+          console.log(`✅ [checkForActiveCall] RTM handled call ${callId} first`);
+          return;
+        }
+
+        if (!statusResponse?.call) {
+          console.log(`⚠️ [checkForActiveCall] No call data for ${callId}`);
+          return;
+        }
+
+        const callStatus = statusResponse.call.status?.toLowerCase();
+        console.log(`📊 [checkForActiveCall] Call ${callId} status: ${callStatus}`);
+
+        // Handle different call states
+        switch (callStatus) {
+          case 'calling': {
+            // Call still ringing - show modal
+            console.log(`📞 [checkForActiveCall] Recovering ringing call ${callId}`);
+
+            // Play ringtone
+            try {
+              await agoraAudioService.playRingtone();
+            } catch (ringtoneError) {
+              console.warn('⚠️ Failed to play ringtone on recovery:', ringtoneError);
+            }
+
+            // Construct invite signal from call data
+            const inviteSignal: RtmInviteSignal = {
+              t: 'INVITE',
+              v: 1,
+              callId: callId,
+              from: statusResponse.call.doormanId ?? statusResponse.call.doorman_id ?? '',
+              channel: statusResponse.call.channelName ?? statusResponse.call.channel_name ?? '',
+              context: statusResponse.call.context ?? null,
+              ts: Date.now(),
+            };
+
+            // Set incoming invite state to trigger modal
+            setIncomingInvite({
+              signal: inviteSignal,
+              from: inviteSignal.from,
+              participants: toParticipantList(statusResponse.participants),
+              callSummary: {
+                callId: callId,
+                apartmentNumber: statusResponse.call.apartmentNumber ?? statusResponse.call.apartment_number ?? null,
+                buildingId: statusResponse.call.buildingId ?? statusResponse.call.building_id ?? null,
+                doormanName: statusResponse.call.doormanName ?? statusResponse.call.doorman_name ?? null,
+              },
+            });
+
+            setCallState('ringing');
+            console.log(`✅ [checkForActiveCall] Modal triggered for call ${callId}`);
+            break;
+          }
+
+          case 'connecting': {
+            // Call already being answered - auto-answer
+            console.log(`🔄 [checkForActiveCall] Auto-answering connecting call ${callId}`);
+
+            if (!currentUserRef.current || currentUserRef.current.userType !== 'morador') {
+              console.warn('⚠️ Cannot auto-answer: invalid user context');
+              return;
+            }
+
+            // Fetch tokens and join
+            const bundle = await fetchTokenForCall(apiBaseUrlRef.current, {
+              callId: callId,
+              uid: currentUserRef.current.id,
+              role: 'publisher',
+            });
+
+            await ensureRtmLoggedIn(bundle);
+
+            const participants = toParticipantList(statusResponse.participants);
+            const channelName = statusResponse.call.channelName ?? statusResponse.call.channel_name ?? '';
+
+            const nextActive: ActiveCallContext = {
+              callId: callId,
+              channelName: channelName,
+              participants: participants,
+              localBundle: bundle,
+              isOutgoing: false,
+            };
+
+            setCallState('connecting');
+            setActiveCall(nextActive);
+            activeCallRef.current = nextActive;
+
+            await joinChannel({
+              channelName: channelName,
+              uid: bundle.uid,
+              token: bundle.rtcToken,
+            });
+
+            console.log(`✅ [checkForActiveCall] Auto-answered call ${callId}`);
+            break;
+          }
+
+          case 'connected':
+            console.log(`⚠️ [checkForActiveCall] Call ${callId} already connected`);
+            break;
+
+          case 'ended':
+          case 'declined':
+          case 'missed':
+          case 'failed':
+            console.log(`⚠️ [checkForActiveCall] Call ${callId} already ${callStatus}`);
+            break;
+
+          default:
+            console.log(`⚠️ [checkForActiveCall] Unknown status: ${callStatus}`);
+        }
+      } catch (error) {
+        console.error(`❌ [checkForActiveCall] Error recovering call ${callId}:`, error);
+      } finally {
+        isRecoveringCallRef.current = false;
+        recoveryCallIdRef.current = null;
+      }
+    },
+    [incomingInvite, ensureRtmLoggedIn, joinChannel]
   );
 
   const startIntercomCall = useCallback(
@@ -885,6 +1034,16 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         return;
       }
 
+      // If we're recovering this call via API, let recovery handle it (first response wins)
+      if (
+        isRecoveringCallRef.current &&
+        recoveryCallIdRef.current === parsed.callId &&
+        parsed.t === 'INVITE'
+      ) {
+        console.log(`⏭️ [RTM] Skipping INVITE for ${parsed.callId} - recovery in progress`);
+        return;
+      }
+
       if (activeCall && parsed.callId === activeCall.callId) {
         const nextState = deriveNextStateFromSignal(callState, parsed.t as RtmSignalType);
         setCallState(nextState);
@@ -962,6 +1121,21 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       offMsg();
     };
   }, [rtmMessageCallback]);
+
+  // Track if RTM has ever connected (to prevent polling restart on reconnection)
+  useEffect(() => {
+    if (rtmStatus === 'connected' && !hasEverConnectedRtmRef.current) {
+      hasEverConnectedRtmRef.current = true;
+      console.log('✅ [useAgora] RTM connected for first time, disabling future polling');
+
+      // Clear the polling interval if it's still running
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        console.log('🛑 [useAgora] Cleared polling interval on RTM connection');
+      }
+    }
+  }, [rtmStatus]);
 
   useEffect(() => {
     if (!incomingInvite || currentUser?.userType !== 'morador') {
@@ -1285,6 +1459,97 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     void agoraService.initializeStandby();
   }, [userId, userType, activeCall, agoraAppId]);
 
+  // Proactive polling for incoming calls (works without push notifications)
+  // Only polls BEFORE RTM connects - stops when RTM is connected
+  useEffect(() => {
+    const user = currentUserRef.current;
+    if (!user || user.userType !== 'morador') {
+      return;
+    }
+
+    // Don't poll if RTM has ever connected - RTM handles it from then on
+    if (hasEverConnectedRtmRef.current) {
+      console.log('⏭️ [useAgora] Skipping polling - RTM has connected');
+      return;
+    }
+
+    const userIdStable = user.id;
+    console.log(`🔄 [useAgora] Starting call polling for morador user ${userIdStable} (RTM not connected yet)`);
+
+    const checkForIncomingCalls = async () => {
+      // Stop polling if RTM has connected (even if interval still running)
+      if (hasEverConnectedRtmRef.current) {
+        console.log('⏹️ [useAgora] Stopping poll - RTM connected');
+        return;
+      }
+
+      // Don't poll if already in a call
+      if (activeCallRef.current || incomingInvite) {
+        return;
+      }
+
+      try {
+        console.log('🔍 [useAgora] Polling for pending calls...');
+
+        // Use current user from ref to avoid stale closure
+        const currentUserInPoll = currentUserRef.current;
+        if (!currentUserInPoll) {
+          console.log('⚠️ [useAgora] User logged out, stopping poll');
+          return;
+        }
+
+        // Query backend for any active calls for this user
+        const { data } = await supabase.auth.getSession();
+        const accessToken = data?.session?.access_token;
+
+        const response = await apiRequest<{ calls: any[] }>(
+          apiBaseUrlRef.current,
+          `/api/calls/pending?userId=${currentUserInPoll.id}`,
+          {
+            method: 'GET',
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          }
+        );
+
+        console.log(`🔍 [useAgora] Polling response:`, {
+          success: response.success,
+          callCount: (response as any).calls?.length ?? 0,
+          error: response.error
+        });
+
+        if (!response.success || !(response as any).calls || (response as any).calls.length === 0) {
+          return;
+        }
+
+        // Found pending call(s) - take the first one
+        const pendingCall = (response as any).calls[0];
+        const callId = pendingCall.id ?? pendingCall.call_id;
+
+        if (callId && !incomingInvite && !activeCallRef.current) {
+          console.log(`📞 [useAgora] Polling discovered incoming call ${callId}`);
+          await checkForActiveCall(callId);
+        }
+      } catch (error) {
+        console.error('❌ [useAgora] Error polling for calls:', error);
+      }
+    };
+
+    // Poll every 3 seconds
+    const pollInterval = setInterval(checkForIncomingCalls, 3000);
+    pollingIntervalRef.current = pollInterval;
+
+    // Initial check immediately
+    void checkForIncomingCalls();
+
+    return () => {
+      console.log(`🛑 [useAgora] Stopping call polling for user ${userIdStable}`);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [currentUser?.id, currentUser?.userType]);
+
 
   return {
     engine,
@@ -1309,6 +1574,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     toggleMute,
     toggleSpeaker,
     cleanup,
+    checkForActiveCall,
   };
 };
 

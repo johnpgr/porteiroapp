@@ -314,13 +314,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Verifica o tipo de usuário e redireciona para as páginas index corretas
       switch (user.user_type) {
         case 'admin':
-          router.replace('/admin');
+          router.replace('/admin/(tabs)' as any);
           break;
         case 'porteiro':
           router.replace('/porteiro');
           break;
         case 'morador':
-          router.replace('/morador');
+          router.replace('/morador/(tabs)' as any);
           break;
         default:
           logError('Tipo de usuário não reconhecido:', user.user_type);

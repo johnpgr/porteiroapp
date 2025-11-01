@@ -14,7 +14,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotificationService } from '../../hooks/useNotificationService';
 import { NotificationCard } from '../../components/NotificationCard';
-import BottomNav from '../../components/BottomNav';
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
@@ -140,7 +139,6 @@ export default function NotificationsScreen() {
           </View>
         )}
       </ScrollView>
-      <BottomNav activeTab="notifications" />
     </View>
   );
 }

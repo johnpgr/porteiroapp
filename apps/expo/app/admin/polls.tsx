@@ -466,7 +466,7 @@ export default function Polls() {
       <Text style={styles.headerTitle}>Criar Enquete</Text>
       <View style={styles.headerButtons}>
         <TouchableOpacity 
-          onPress={() => router.push('/admin/communications')}
+          onPress={() => router.push('/admin/avisos' as any)}
           style={[styles.viewButton, { marginRight: 8 }]}
         >
           <Text style={styles.viewButtonText}>Comunicações</Text>
