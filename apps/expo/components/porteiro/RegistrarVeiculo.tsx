@@ -9,6 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Modal } from '~/components/Modal';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
@@ -36,7 +38,8 @@ interface VehicleInfo {
   license_plate: string;
   model?: string;
   color?: string;
-  apartment_id?: string;
+  brand?: string;
+  apartment_id?: string | null;
   existing?: boolean;
   apartment_info?: ApartmentInfo;
 }
@@ -113,8 +116,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   const [duplicatePlateError, setDuplicatePlateError] = useState(false);
   const [duplicatePlateMessage, setDuplicatePlateMessage] = useState('');
   const [doormanBuildingId, setDoormanBuildingId] = useState<string | null>(null);
-  const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
-  const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: string }[]>([]);
+  const [availableApartments, setAvailableApartments] = useState<{ id: string; number: string; floor?: number | null }[]>([]);
   const [selectedApartment, setSelectedApartment] = useState<{id: string, number: string, floor: number | null} | null>(null);
   const [isLoadingApartments, setIsLoadingApartments] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -288,23 +290,6 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   // Carregar prédios quando necessário
 
 
-  // Função para agrupar apartamentos por andar
-  const groupApartmentsByFloor = () => {
-    const grouped = availableApartments.reduce((acc, apartment) => {
-      const floor = apartment.floor || 0;
-      if (!acc[floor]) {
-        acc[floor] = [];
-      }
-      acc[floor].push(apartment);
-      return acc;
-    }, {} as Record<number, typeof availableApartments>);
-
-    return Object.keys(grouped)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .map(floor => ({ floor, apartments: grouped[floor] }));
-  };
-
   const renderNumericKeypad = (
     value: string,
     setValue: (val: string) => void,
@@ -422,7 +407,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🏠 Apartamento</Text>
+        <Text style={styles.stepTitle}>Apartamento</Text>
         <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
         {isLoadingApartments ? (
@@ -446,7 +431,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderEmpresaStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🏢 Empresa/Serviço</Text>
+      <Text style={styles.stepTitle}>Empresa/Serviço</Text>
       <Text style={styles.stepSubtitle}>Selecione a empresa ou tipo de serviço</Text>
 
       <ScrollView style={styles.empresasContainer} showsVerticalScrollIndicator={false}>
@@ -474,7 +459,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderPlacaStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🚗 Placa do Veículo</Text>
+      <Text style={styles.stepTitle}>Placa do Veículo</Text>
       <Text style={styles.stepSubtitle}>Digite a placa do veículo para verificar se já existe</Text>
 
       <View style={styles.inputContainer}>
@@ -572,7 +557,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderMarcaStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🏭 Marca do Veículo</Text>
+      <Text style={styles.stepTitle}>Marca do Veículo</Text>
       <Text style={styles.stepSubtitle}>Selecione a marca do veículo (novo registro)</Text>
 
       <ScrollView style={styles.marcasContainer} showsVerticalScrollIndicator={false}>
@@ -599,7 +584,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderModeloStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🚙 Modelo do Veículo</Text>
+      <Text style={styles.stepTitle}>Modelo do Veículo</Text>
       <Text style={styles.stepSubtitle}>Digite o modelo do veículo</Text>
 
       <View style={styles.inputContainer}>
@@ -628,7 +613,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderCorStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🎨 Cor do Veículo</Text>
+      <Text style={styles.stepTitle}>Cor do Veículo</Text>
       <Text style={styles.stepSubtitle}>Selecione a cor do veículo</Text>
 
       <ScrollView style={styles.coresContainer} showsVerticalScrollIndicator={false}>
@@ -658,7 +643,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
   const renderConvidadoStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>👤 Nome do Convidado</Text>
+      <Text style={styles.stepTitle}>Nome do Convidado</Text>
       <Text style={styles.stepSubtitle}>Digite o nome da pessoa associada ao veículo</Text>
 
       <View style={styles.inputContainer}>
@@ -818,6 +803,12 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         return;
       }
 
+      if (!doormanBuildingId) {
+        Alert.alert('Erro', 'Não foi possível identificar o prédio do porteiro.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const apartmentData = {
         id: selectedApartment.id,
         building_id: doormanBuildingId,
@@ -922,7 +913,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
           console.log('🆔 [RegistrarVeiculo] Visitor log ID:', visitorLogData.id);
 
           // Buscar dados do morador para notificação
-          const { data: residentData, error: residentError } = await supabase
+          const { data: residentData } = await supabase
             .from('apartments')
             .select(`
               number,
@@ -947,7 +938,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             const resident = residentData.apartment_residents[0];
             const building = residentData.buildings;
 
-            if (resident.profiles.phone && building) {
+            if (resident.profiles.phone && building && resident.profiles.full_name) {
               console.log('📱 [RegistrarVeiculo] Enviando WhatsApp para:', resident.profiles.full_name);
 
               await notificationApi.sendVisitorAuthorization({
@@ -999,7 +990,9 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       );
     } catch (error) {
       console.error('❌ [RegistrarVeiculo] Erro geral no handleConfirm:', error);
-      console.error('📋 [RegistrarVeiculo] Stack trace:', error.stack);
+      if (error instanceof Error) {
+        console.error('📋 [RegistrarVeiculo] Stack trace:', error.stack);
+      }
       Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
     } finally {
       setIsSubmitting(false);
@@ -1011,7 +1004,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>✅ Confirmação</Text>
+        <Text style={styles.stepTitle}>Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados do veículo</Text>
 
         <View style={styles.summaryContainer}>
@@ -1110,13 +1103,14 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onClose}>
-          <Text style={styles.backButtonText}>← Voltar</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Veículo</Text>
-      </View>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Registrar Veículo</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -1124,42 +1118,48 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ placa, apartamento, marca: marcaSelecionada || vehicleInfo?.model, cor: corSelecionada || vehicleInfo?.color, convidado: nomeConvidado, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 6) * 100}%`,
+                width: `${(
+                  (['placa', 'apartamento', 'marca', 'modelo', 'cor', 'convidado', 'confirmacao'].indexOf(currentStep) + 1) /
+                  7
+                ) * 100}%`,
               },
             ]}
           />
         </View>
+        <Text style={styles.progressText}>
+          {['placa', 'apartamento', 'marca', 'modelo', 'cor', 'convidado', 'confirmacao'].indexOf(currentStep) + 1} de 7
+        </Text>
       </View>
 
       {renderCurrentStep()}
-    </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#2196F3',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
   },
   headerTitle: {
-    color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
   },
   progressContainer: {
     padding: 20,
@@ -1171,8 +1171,14 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     borderRadius: 2,
+  },
+  progressText: {
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
   },
   stepContainer: {
     flex: 1,
@@ -1217,7 +1223,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 240,
     alignSelf: 'center',
-    gap: 10,
   },
   keypadButton: {
     width: 70,
@@ -1231,6 +1236,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    margin: 5,
   },
   keypadButtonText: {
     fontSize: 20,
@@ -1238,7 +1244,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   confirmButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
   },
   confirmButtonText: {
     color: '#fff',
@@ -1246,7 +1252,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   inputContainer: {
-    gap: 20,
+    marginBottom: 20,
   },
   placaContainer: {
     backgroundColor: '#fff',
@@ -1283,6 +1289,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 20,
   },
   nextButtonDisabled: {
     backgroundColor: '#ccc',
@@ -1294,13 +1301,11 @@ const styles = StyleSheet.create({
   },
   marcasContainer: {
     flex: 1,
-    paddingHorizontal: 5,
   },
   marcasGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 5,
   },
   marcaButton: {
     width: '47%',
@@ -1334,13 +1339,11 @@ const styles = StyleSheet.create({
   },
   coresContainer: {
     flex: 1,
-    paddingHorizontal: 5,
   },
   coresGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 5,
   },
   corButton: {
     width: '47%',
@@ -1354,6 +1357,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     borderWidth: 2,
+    borderColor: '#e0e0e0',
     marginBottom: 12,
     minHeight: 100,
   },
@@ -1375,16 +1379,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   summaryContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f9f9f9',
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    gap: 15,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   summaryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   summaryLabel: {
     fontSize: 16,
@@ -1399,16 +1405,16 @@ const styles = StyleSheet.create({
   summaryCorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   summaryCorCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 1,
+    marginRight: 8,
   },
   confirmFinalButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
@@ -1427,11 +1433,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 15,
-    gap: 10,
   },
   loadingText: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 10,
   },
   vehicleFoundContainer: {
     backgroundColor: '#e8f5e8',
@@ -1439,6 +1445,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#4caf50',
+    marginTop: 10,
   },
   vehicleFoundTitle: {
     fontSize: 16,
@@ -1457,16 +1464,14 @@ const styles = StyleSheet.create({
   },
   empresasContainer: {
     flex: 1,
-    marginTop: 20,
   },
   empresasGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 15,
   },
   empresaButton: {
-    width: '48%',
+    width: '47%',
     padding: 20,
     borderRadius: 12,
     borderWidth: 2,
@@ -1511,11 +1516,12 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
   },
   apartmentsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 15,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   apartmentButton: {
+    width: '47%',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 12,

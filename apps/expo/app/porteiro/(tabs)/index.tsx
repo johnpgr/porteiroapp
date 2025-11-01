@@ -4,16 +4,14 @@ import ProtectedRoute from '~/components/ProtectedRoute';
 import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
-import IntercomModal from '../components/modals/IntercomModal';
 import { usePorteiroDashboard } from '~/providers/PorteiroDashboardProvider';
-import ConfirmActionModal from '~/components/porteiro/ConfirmActionModal';
+import {ConfirmActionModal} from '~/components/porteiro/ConfirmActionModal';
 import { flattenStyles } from '~/utils/styles';
 
 type ActiveFlow = 'visitante' | 'encomenda' | 'veiculo' | null;
 
 export default function PorteiroChegadaScreen() {
   const [activeFlow, setActiveFlow] = useState<ActiveFlow>(null);
-  const [showIntercomModal, setShowIntercomModal] = useState(false);
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -54,12 +52,6 @@ export default function PorteiroChegadaScreen() {
   const closeConfirmModal = () => {
     setShowConfirmModal(false);
     setCountdown(5);
-  };
-
-  const handleIntercomCall = () => {
-    checkShiftBeforeAction(() => {
-      setShowIntercomModal(true);
-    }, 'realizar chamadas de interfone');
   };
 
   const renderChegadaContent = () => (
@@ -143,8 +135,6 @@ export default function PorteiroChegadaScreen() {
         countdownSeconds={countdown}
         onClose={closeConfirmModal}
       />
-
-      <IntercomModal visible={showIntercomModal} onClose={() => setShowIntercomModal(false)} />
     </ProtectedRoute>
   );
 }

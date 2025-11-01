@@ -46,8 +46,8 @@ export async function fetchPorteiroAuthorizations(
         apartment_id,
         created_at,
         status,
-        delivery_destination,
-        apartments!inner(number, building_id)
+        apartments!inner(number, building_id),
+        visitor_logs(delivery_destination)
       `
     )
     .eq('apartments.building_id', buildingId)
@@ -74,6 +74,11 @@ export async function fetchPorteiroAuthorizations(
 
     const isDelivery = visitor.visitor_type === 'delivery';
 
+    // Get delivery_destination from first visitor_log if available
+    const deliveryDest = Array.isArray(visitor.visitor_logs) && visitor.visitor_logs.length > 0
+      ? visitor.visitor_logs[0]?.delivery_destination || 'PENDENTE'
+      : 'PENDENTE';
+
     return {
       id: visitor.id,
       tipo: isDelivery ? 'Encomenda' : 'Visitante',
@@ -87,7 +92,7 @@ export async function fetchPorteiroAuthorizations(
       cpf: visitor.document || '',
       phone: visitor.phone || '',
       visitor_type: visitor.visitor_type || 'comum',
-      delivery_destination: visitor.delivery_destination || 'PENDENTE',
+      delivery_destination: deliveryDest,
       ...APPROVED_LABEL,
     };
   });
