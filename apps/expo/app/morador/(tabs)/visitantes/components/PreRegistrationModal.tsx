@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,40 +19,121 @@ type RegistrationMode = 'individual' | 'multiple';
 interface PreRegistrationModalProps {
   visible: boolean;
   insets: EdgeInsets;
-  registrationMode: RegistrationMode;
-  onSelectMode: (mode: RegistrationMode) => void;
-  preRegistrationData: PreRegistrationData;
-  setPreRegistrationData: React.Dispatch<React.SetStateAction<PreRegistrationData>>;
-  multipleVisitors: MultipleVisitor[];
-  addMultipleVisitor: () => void;
-  removeMultipleVisitor: (index: number) => void;
-  updateMultipleVisitor: (index: number, field: keyof MultipleVisitor, value: string) => void;
-  isProcessingMultiple: boolean;
-  processingStatus: string;
-  isSubmitting: boolean;
-  onSubmitIndividual: () => void;
-  onSubmitMultiple: () => void;
+  onSubmitIndividual: (data: PreRegistrationData) => Promise<void>;
+  onSubmitMultiple: (data: PreRegistrationData, visitors: MultipleVisitor[]) => Promise<void>;
   onClose: () => void;
 }
 
 export const PreRegistrationModal: React.FC<PreRegistrationModalProps> = ({
   visible,
   insets,
-  registrationMode,
-  onSelectMode,
-  preRegistrationData,
-  setPreRegistrationData,
-  multipleVisitors,
-  addMultipleVisitor,
-  removeMultipleVisitor,
-  updateMultipleVisitor,
-  isProcessingMultiple,
-  processingStatus,
-  isSubmitting,
   onSubmitIndividual,
   onSubmitMultiple,
   onClose,
 }) => {
+  // State management moved from parent
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('individual');
+  const [preRegistrationData, setPreRegistrationData] = useState<PreRegistrationData>({
+    name: '',
+    phone: '',
+    visit_type: 'pontual',
+    access_type: 'com_aprovacao',
+    visit_date: '',
+    visit_start_time: '',
+    visit_end_time: '',
+    allowed_days: [],
+    max_simultaneous_visits: 1,
+    validity_start: '',
+    validity_end: '',
+  });
+  const [multipleVisitors, setMultipleVisitors] = useState<MultipleVisitor[]>([
+    { name: '', phone: '' },
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Handler functions moved from parent
+  const handleSelectRegistrationMode = useCallback((mode: RegistrationMode) => {
+    setRegistrationMode(mode);
+    if (mode === 'individual') {
+      setMultipleVisitors([{ name: '', phone: '' }]);
+    } else if (mode === 'multiple' && multipleVisitors.length === 0) {
+      setMultipleVisitors([{ name: '', phone: '' }]);
+    }
+  }, [multipleVisitors.length]);
+
+  const addMultipleVisitor = useCallback(() => {
+    setMultipleVisitors((prev) => [...prev, { name: '', phone: '' }]);
+  }, []);
+
+  const removeMultipleVisitor = useCallback((index: number) => {
+    setMultipleVisitors((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateMultipleVisitor = useCallback(
+    (index: number, field: keyof MultipleVisitor, value: string) => {
+      setMultipleVisitors((prev) => {
+        const newVisitors = [...prev];
+        newVisitors[index] = { ...newVisitors[index], [field]: value };
+        return newVisitors;
+      });
+    },
+    []
+  );
+
+  const handleSubmitIndividual = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmitIndividual(preRegistrationData);
+      // Reset form on success
+      setPreRegistrationData({
+        name: '',
+        phone: '',
+        visit_type: 'pontual',
+        access_type: 'com_aprovacao',
+        visit_date: '',
+        visit_start_time: '',
+        visit_end_time: '',
+        allowed_days: [],
+        max_simultaneous_visits: 1,
+        validity_start: '',
+        validity_end: '',
+      });
+      setRegistrationMode('individual');
+    } catch (error) {
+      console.error('Erro ao submeter cadastro individual:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [preRegistrationData, onSubmitIndividual, isSubmitting]);
+
+  const handleSubmitMultiple = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmitMultiple(preRegistrationData, multipleVisitors);
+      // Reset form on success
+      setPreRegistrationData({
+        name: '',
+        phone: '',
+        visit_type: 'pontual',
+        access_type: 'com_aprovacao',
+        visit_date: '',
+        visit_start_time: '',
+        visit_end_time: '',
+        allowed_days: [],
+        max_simultaneous_visits: 1,
+        validity_start: '',
+        validity_end: '',
+      });
+      setMultipleVisitors([{ name: '', phone: '' }]);
+      setRegistrationMode('individual');
+    } catch (error) {
+      console.error('Erro ao submeter cadastro múltiplo:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [preRegistrationData, multipleVisitors, onSubmitMultiple, isSubmitting]);
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -75,7 +156,7 @@ export const PreRegistrationModal: React.FC<PreRegistrationModalProps> = ({
                     styles.registrationModeButton,
                     registrationMode === 'individual' && styles.registrationModeButtonActive,
                   ]}
-                  onPress={() => onSelectMode('individual')}>
+                  onPress={() => handleSelectRegistrationMode('individual')}>
                   <Ionicons
                     name="person"
                     size={20}
@@ -95,7 +176,7 @@ export const PreRegistrationModal: React.FC<PreRegistrationModalProps> = ({
                     styles.registrationModeButton,
                     registrationMode === 'multiple' && styles.registrationModeButtonActive,
                   ]}
-                  onPress={() => onSelectMode('multiple')}>
+                  onPress={() => handleSelectRegistrationMode('multiple')}>
                   <Ionicons
                     name="people"
                     size={20}
@@ -226,10 +307,10 @@ export const PreRegistrationModal: React.FC<PreRegistrationModalProps> = ({
                 ))}
 
                 {/* Indicador de processamento para múltiplos visitantes */}
-                {isProcessingMultiple && (
+                {isSubmitting && registrationMode === 'multiple' && (
                   <View style={styles.processingIndicator}>
                     <ActivityIndicator size="small" color="#4CAF50" />
-                    <Text style={styles.processingText}>{processingStatus}</Text>
+                    <Text style={styles.processingText}>Processando visitantes...</Text>
                   </View>
                 )}
               </View>
@@ -602,12 +683,16 @@ export const PreRegistrationModal: React.FC<PreRegistrationModalProps> = ({
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (isSubmitting || isProcessingMultiple) && styles.submitButtonDisabled,
+                isSubmitting && styles.submitButtonDisabled,
               ]}
-              onPress={registrationMode === 'individual' ? onSubmitIndividual : onSubmitMultiple}
-              disabled={isSubmitting || isProcessingMultiple}>
+              onPress={() =>
+                registrationMode === 'individual'
+                  ? handleSubmitIndividual()
+                  : handleSubmitMultiple()
+              }
+              disabled={isSubmitting}>
               <Text style={styles.submitButtonText}>
-                {isSubmitting || isProcessingMultiple
+                {isSubmitting
                   ? registrationMode === 'multiple'
                     ? 'Processando...'
                     : 'Enviando...'

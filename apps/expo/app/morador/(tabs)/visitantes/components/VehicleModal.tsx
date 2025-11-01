@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal } from '~/components/Modal';
@@ -74,25 +75,78 @@ const getVehicleTypeLabel = (type: VehicleFormState['type']) => {
 
 interface VehicleModalProps {
   visible: boolean;
-  form: VehicleFormState;
-  loading: boolean;
   onClose: () => void;
-  onChangeField: (field: keyof VehicleFormState, value: string) => void;
-  onSelectType: () => void;
-  onSubmit: () => void;
-  isSubmitDisabled: boolean;
+  onSubmit: (form: VehicleFormState) => Promise<void>;
 }
 
-export function VehicleModal({
-  visible,
-  form,
-  loading,
-  onClose,
-  onChangeField,
-  onSelectType,
-  onSubmit,
-  isSubmitDisabled,
-}: VehicleModalProps) {
+export function VehicleModal({ visible, onClose, onSubmit }: VehicleModalProps) {
+  const [form, setForm] = useState<VehicleFormState>({
+    license_plate: '',
+    brand: '',
+    model: '',
+    color: '',
+    type: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const resetForm = useCallback(() => {
+    setForm({
+      license_plate: '',
+      brand: '',
+      model: '',
+      color: '',
+      type: '',
+    });
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetForm();
+    onClose();
+  }, [resetForm, onClose]);
+
+  const handleChangeField = useCallback((field: keyof VehicleFormState, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSelectType = useCallback(() => {
+    Alert.alert('Selecionar Tipo', 'Escolha o tipo do veículo:', [
+      { text: 'Carro', onPress: () => setForm((prev) => ({ ...prev, type: 'car' })) },
+      {
+        text: 'Moto',
+        onPress: () => setForm((prev) => ({ ...prev, type: 'motorcycle' })),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (loading) return;
+
+    const sanitizedPlate = form.license_plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+    if (!sanitizedPlate || sanitizedPlate.length !== 7) {
+      Alert.alert('Erro', 'Informe uma placa válida com 7 caracteres.');
+      return;
+    }
+
+    if (!form.type) {
+      Alert.alert('Erro', 'Selecione o tipo do veículo.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSubmit(form);
+      handleClose();
+    } catch (error) {
+      console.error('Erro ao cadastrar veículo:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [form, loading, onSubmit, handleClose]);
+
+  const sanitizedVehiclePlate = form.license_plate.replace(/[^A-Za-z0-9]/g, '');
+  const isSubmitDisabled = sanitizedVehiclePlate.length !== 7 || !Boolean(form.type) || loading;
   return (
     <Modal
       visible={visible}
@@ -119,7 +173,7 @@ export function VehicleModal({
               style={styles.input}
               value={form.license_plate}
               onChangeText={(text) =>
-                onChangeField('license_plate', formatVehicleLicensePlate(text))
+                handleChangeField('license_plate', formatVehicleLicensePlate(text))
               }
               placeholder="ABC-1234 ou ABC-1A23"
               placeholderTextColor="#999"
@@ -134,7 +188,7 @@ export function VehicleModal({
             <TextInput
               style={styles.input}
               value={form.brand}
-              onChangeText={(text) => onChangeField('brand', text)}
+              onChangeText={(text) => handleChangeField('brand', text)}
               placeholder="Ex: Toyota, Honda, Ford"
               placeholderTextColor="#999"
               editable={!loading}
@@ -146,7 +200,7 @@ export function VehicleModal({
             <TextInput
               style={styles.input}
               value={form.model}
-              onChangeText={(text) => onChangeField('model', text)}
+              onChangeText={(text) => handleChangeField('model', text)}
               placeholder="Ex: Corolla, Civic, Focus"
               placeholderTextColor="#999"
               editable={!loading}
@@ -158,7 +212,7 @@ export function VehicleModal({
             <TextInput
               style={styles.input}
               value={form.color}
-              onChangeText={(text) => onChangeField('color', text)}
+              onChangeText={(text) => handleChangeField('color', text)}
               placeholder="Ex: Branco, Preto, Prata"
               placeholderTextColor="#999"
               editable={!loading}
@@ -169,7 +223,7 @@ export function VehicleModal({
             <Text style={styles.label}>Tipo do Veículo *</Text>
             <TouchableOpacity
               style={styles.dropdownButton}
-              onPress={onSelectType}
+              onPress={handleSelectType}
               disabled={loading}
             >
               <Text style={form.type ? styles.dropdownText : styles.placeholderText}>
@@ -190,7 +244,7 @@ export function VehicleModal({
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.submitButton, isSubmitDisabled && styles.disabledButton]}
-            onPress={onSubmit}
+            onPress={() => handleSubmit()}
             disabled={isSubmitDisabled}
           >
             <Text style={styles.submitButtonText}>

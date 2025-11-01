@@ -16,7 +16,6 @@ import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { validateBrazilianPhone, formatBrazilianPhone } from '~/utils/whatsapp';
 // Removed old notification service - using Edge Functions for push notifications
-import * as Crypto from 'expo-crypto';
 import { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { PreRegistrationModal } from './components/PreRegistrationModal';
 import { EditVisitorModal } from './components/EditVisitorModal';
@@ -24,190 +23,49 @@ import { VehicleModal } from './components/VehicleModal';
 import { FiltersBottomSheet } from './components/FiltersBottomSheet';
 import type {
   MultipleVisitor,
-  PreRegistrationData,
   Vehicle,
-  VehicleFormState,
+  VehicleType,
   Visitor,
 } from './types';
 
-// Funções de validação
-const validateDate = (dateString: string): boolean => {
-  if (!dateString || dateString.length !== 10) return false;
-
+// Função auxiliar para converter data DD/MM/AAAA em Date
+const parseDate = (dateString: string): Date => {
   const [day, month, year] = dateString.split('/').map(Number);
-
-  if (!day || !month || !year) return false;
-  if (day < 1 || day > 31) return false;
-  if (month < 1 || month > 12) return false;
-
-  // Verifica se a data é válida
-  const date = new Date(year, month - 1, day);
-  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== year) {
-    return false;
-  }
-
-  // Permite datas a partir de hoje (data atual) - incluindo hoje
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Remove horas para comparar apenas a data
-  date.setHours(0, 0, 0, 0);
-
-  return date >= today;
-};
-
-const validateTime = (timeString: string): boolean => {
-  if (!timeString || timeString.length !== 5) return false;
-
-  const [hours, minutes] = timeString.split(':').map(Number);
-
-  if (isNaN(hours) || isNaN(minutes)) return false;
-  if (hours < 0 || hours > 23) return false;
-  if (minutes < 0 || minutes > 59) return false;
-
-  return true;
-};
-
-const validateTimeRange = (startTime: string, endTime: string): boolean => {
-  if (!validateTime(startTime) || !validateTime(endTime)) return false;
-
-  const [startHours, startMinutes] = startTime.split(':').map(Number);
-  const [endHours, endMinutes] = endTime.split(':').map(Number);
-
-  const startTotalMinutes = startHours * 60 + startMinutes;
-  const endTotalMinutes = endHours * 60 + endMinutes;
-
-  return endTotalMinutes > startTotalMinutes;
-};
-
-// Função para gerar senha temporária aleatória de 6 dígitos numéricos
-const generateTemporaryPassword = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-// Função para criar hash da senha usando expo-crypto
-const hashPassword = async (password: string): Promise<string> => {
-  // Usar SHA-256 para criar hash da senha
-  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password, {
-    encoding: Crypto.CryptoEncoding.HEX,
-  });
-  return hash;
-};
-
-// Função para gerar senha temporária (removida a funcionalidade de armazenamento)
-const generateTemporaryPasswordForVisitor = async (
-  visitorName: string,
-  visitorPhone: string,
-  visitorId: string
-): Promise<string> => {
-  try {
-    const plainPassword = generateTemporaryPassword();
-    console.log('🔑 Senha temporária gerada para visitante:', visitorName, visitorPhone);
-    return plainPassword;
-  } catch (error) {
-    console.error('❌ Erro ao gerar senha temporária:', error);
-    throw error;
-  }
+  return new Date(year, month - 1, day);
 };
 
 export default function VisitantesTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const filterModalRef = useRef<BottomSheetModalRef>(null);
+  
+  // Main screen state - only data and UI state
   const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pagination and UI expansion
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  
+  // Modal visibility state
   const [showPreRegistrationModal, setShowPreRegistrationModal] = useState(false);
-  const [preRegistrationData, setPreRegistrationData] = useState<PreRegistrationData>({
-    name: '',
-    phone: '',
-    visit_type: 'pontual',
-    access_type: 'com_aprovacao',
-    visit_date: '',
-    visit_start_time: '',
-    visit_end_time: '',
-    allowed_days: [],
-    max_simultaneous_visits: 1,
-    validity_start: '',
-    validity_end: '',
-  });
-
   const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [vehicleFormLoading, setVehicleFormLoading] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState<VehicleFormState>({
-    license_plate: '',
-    brand: '',
-    model: '',
-    color: '',
-    type: '',
-  });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  
+  // Edit modal specific state
+  const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
 
   // Estado para armazenar apartment_id e evitar múltiplas consultas
   const [apartmentId, setApartmentId] = useState<string | null>(null);
   const [apartmentIdLoading, setApartmentIdLoading] = useState(false);
 
-  // Rate limiting para pré-cadastros
-  const [lastRegistrationTime, setLastRegistrationTime] = useState<number>(0);
-  const REGISTRATION_COOLDOWN = 30000; // 30 segundos entre registros
-  const [isSubmittingPreRegistration, setIsSubmittingPreRegistration] = useState(false);
-
-  // Rate limiting para múltiplos visitantes
-  const [lastSubmissionTime, setLastSubmissionTime] = useState<number>(0);
-  const RATE_LIMIT_MS = 30000; // 30 segundos entre submissões múltiplas
-
-  // Estados para modal de edição
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
-  const [editData, setEditData] = useState<PreRegistrationData>({
-    name: '',
-    phone: '',
-    visit_type: 'pontual',
-    visit_date: '',
-    visit_start_time: '',
-    visit_end_time: '',
-    allowed_days: [],
-    max_simultaneous_visits: 1,
-  });
-
-  const handleCloseEditModal = () => {
-    setShowEditModal(false);
-  };
-
-  // Estado para controlar expansão dos cards
-  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
-
-  // Estado para armazenar veículos
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-
-  // Estados para paginação e filtros
-  const [currentPage, setCurrentPage] = useState(1);
+  // Filtros state
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
   const ITEMS_PER_PAGE = 10;
-
-  // Estados para o modal de filtros
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [tempStatusFilter, setTempStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>(
-    'pendente'
-  );
-  const [tempTypeFilter, setTempTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>(
-    'todos'
-  );
-
-  // Estados para múltiplos visitantes
-  const [registrationMode, setRegistrationMode] = useState<'individual' | 'multiple'>('individual');
-  const [multipleVisitors, setMultipleVisitors] = useState<MultipleVisitor[]>([
-    { name: '', phone: '' },
-  ]);
-  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState('');
-
-  const handleClosePreRegistrationModal = () => {
-    setShowPreRegistrationModal(false);
-  };
-
-  // Função para alternar expansão do card
-  const toggleCardExpansion = (visitorId: string) => {
-    setExpandedCardId(expandedCardId === visitorId ? null : visitorId);
-  };
 
   // Função para carregar apartment_id uma única vez
   const loadApartmentId = useCallback(async (): Promise<string | null> => {
@@ -393,17 +251,19 @@ export default function VisitantesTab() {
       }));
 
       // Mapear os dados dos veículos
-      const mappedVehicles: Vehicle[] = (vehiclesData || []).map((vehicle) => ({
-        id: vehicle.id,
-        license_plate: vehicle.license_plate,
-        brand: vehicle.brand,
-        model: vehicle.model,
-        color: vehicle.color,
-        type: vehicle.type,
-        apartment_id: vehicle.apartment_id,
-        ownership_type: vehicle.ownership_type || 'proprietario',
-        created_at: vehicle.created_at,
-      }));
+      const mappedVehicles: Vehicle[] = (vehiclesData || [])
+        .filter((vehicle) => vehicle.apartment_id) // Filter out vehicles without apartment_id
+        .map((vehicle) => ({
+          id: vehicle.id,
+          license_plate: vehicle.license_plate,
+          brand: vehicle.brand,
+          model: vehicle.model,
+          color: vehicle.color,
+          type: vehicle.type as VehicleType | null,
+          apartment_id: vehicle.apartment_id!,
+          ownership_type: (vehicle.ownership_type || 'proprietario') as 'visita' | 'proprietario',
+          created_at: vehicle.created_at,
+        }));
 
       setVisitors(mappedVisitors);
       setVehicles(mappedVehicles);
@@ -413,7 +273,7 @@ export default function VisitantesTab() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [loadApartmentId, user?.id]);
 
   useEffect(() => {
     fetchVisitors();
@@ -428,24 +288,20 @@ export default function VisitantesTab() {
   };
 
   // Função para aplicar filtros do modal
-  const applyFilters = () => {
-    setStatusFilter(tempStatusFilter);
-    setTypeFilter(tempTypeFilter);
-    setCurrentPage(1); // Reset pagination
-    filterModalRef.current?.close();
-  };
-
-  // Função para cancelar filtros do modal
-  const cancelFilters = () => {
-    setTempStatusFilter(statusFilter);
-    setTempTypeFilter(typeFilter);
-    filterModalRef.current?.close();
-  };
+  const handleApplyFilters = useCallback(
+    (status: 'todos' | 'pendente' | 'expirado', type: 'todos' | 'visitantes' | 'veiculos') => {
+      setStatusFilter(status);
+      setTypeFilter(type);
+      setCurrentPage(1); // Reset pagination
+      setFilterModalVisible(false);
+    },
+    []
+  );
 
   // Função chamada quando o modal fecha (após animação)
-  const handleFilterModalClose = () => {
+  const handleFilterModalClose = useCallback(() => {
     setFilterModalVisible(false);
-  };
+  }, []);
 
   // Função para filtrar e paginar visitantes
   const getFilteredAndPaginatedVisitors = () => {
@@ -611,9 +467,9 @@ export default function VisitantesTab() {
     date.setHours(0, 0, 0, 0);
 
     return (
-      date.getDate() == parseInt(day) &&
-      date.getMonth() == parseInt(month) - 1 &&
-      date.getFullYear() == parseInt(year) &&
+      date.getDate() === parseInt(day) &&
+      date.getMonth() === parseInt(month) - 1 &&
+      date.getFullYear() === parseInt(year) &&
       date >= today
     ); // Data deve ser atual ou futura
   };
@@ -714,7 +570,7 @@ export default function VisitantesTab() {
           for (const conflict of conflicts) {
             // Verificar se há dias em comum
             const commonDays = visitData.allowed_days.filter((day: string) =>
-              conflict.allowed_days.includes(day)
+              conflict.allowed_days?.includes(day)
             );
 
             if (commonDays.length > 0) {
@@ -776,108 +632,9 @@ export default function VisitantesTab() {
     }
   };
 
-  const resetVehicleForm = () => {
-    setVehicleForm({
-      license_plate: '',
-      brand: '',
-      model: '',
-      color: '',
-      type: '',
-    });
-    setVehicleFormLoading(false);
-  };
-
-  const handleOpenVehicleModal = () => {
-    resetVehicleForm();
-    setShowVehicleModal(true);
-  };
-
-  const handleCloseVehicleModal = () => {
-    resetVehicleForm();
-    setShowVehicleModal(false);
-  };
-
-  const handleVehicleFieldChange = (field: keyof VehicleFormState, value: string) => {
-    setVehicleForm((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleVehicleSubmit = async () => {
-    if (vehicleFormLoading) return;
-
-    const sanitizedPlate = vehicleForm.license_plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
-    if (!sanitizedPlate || sanitizedPlate.length !== 7) {
-      Alert.alert('Erro', 'Informe uma placa válida com 7 caracteres.');
-      return;
-    }
-
-    if (!vehicleForm.type) {
-      Alert.alert('Erro', 'Selecione o tipo do veículo.');
-      return;
-    }
-
-    setVehicleFormLoading(true);
-
-    try {
-      const currentApartmentId = await loadApartmentId();
-      if (!currentApartmentId) {
-        Alert.alert('Erro', 'Não foi possível encontrar o apartamento do usuário.');
-        return;
-      }
-
-      const { error } = await supabase.from('vehicles').insert({
-        license_plate: sanitizedPlate,
-        brand: vehicleForm.brand.trim() || null,
-        model: vehicleForm.model.trim() || null,
-        color: vehicleForm.color.trim() || null,
-        type: vehicleForm.type,
-        apartment_id: currentApartmentId,
-        ownership_type: 'visita',
-      });
-
-      if (error) {
-        console.error('Erro ao cadastrar veículo:', error);
-        if (error.code === '23505') {
-          Alert.alert('Erro', 'Esta placa já está cadastrada no sistema.');
-        } else {
-          Alert.alert('Erro', 'Não foi possível cadastrar o veículo. Tente novamente.');
-        }
-        return;
-      }
-
-      Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            handleCloseVehicleModal();
-            fetchVisitors();
-          },
-        },
-      ]);
-    } catch (error) {
-      console.error('Erro ao cadastrar veículo:', error);
-      Alert.alert('Erro', 'Erro interno. Tente novamente.');
-    } finally {
-      setVehicleFormLoading(false);
-    }
-  };
-
-  const handleVehicleTypeSelect = () => {
-    Alert.alert('Selecionar Tipo', 'Escolha o tipo do veículo:', [
-      { text: 'Carro', onPress: () => setVehicleForm((prev) => ({ ...prev, type: 'car' })) },
-      {
-        text: 'Moto',
-        onPress: () => setVehicleForm((prev) => ({ ...prev, type: 'motorcycle' })),
-      },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
-  };
-
-  const sanitizedVehiclePlate = vehicleForm.license_plate.replace(/[^A-Za-z0-9]/g, '');
-  const isVehicleFormValid = sanitizedVehiclePlate.length === 7 && Boolean(vehicleForm.type);
-
   // Função auxiliar para converter horário em minutos
-  const timeToMinutes = (timeString: string): number => {
+  const timeToMinutes = (timeString: string | null): number => {
+    if (!timeString) return 0;
     const [hours, minutes] = timeString.split(':').map(Number);
     return hours * 60 + minutes;
   };
@@ -958,7 +715,7 @@ export default function VisitantesTab() {
 
             for (const visit of frequentVisits) {
               // Verificar se o visitante tem o mesmo dia permitido
-              if (visit.allowed_days.includes(day)) {
+              if (visit.allowed_days && visit.allowed_days.includes(day)) {
                 const existingStartMinutes = timeToMinutes(visit.visit_start_time);
                 const existingEndMinutes = timeToMinutes(visit.visit_end_time);
 
@@ -987,22 +744,7 @@ export default function VisitantesTab() {
   };
 
   // Função para processar pré-cadastro
-  const handlePreRegistration = async () => {
-    if (isSubmittingPreRegistration) return;
-
-    // Rate limiting - verificar cooldown
-    const now = Date.now();
-    if (now - lastRegistrationTime < REGISTRATION_COOLDOWN) {
-      const remainingTime = Math.ceil(
-        (REGISTRATION_COOLDOWN - (now - lastRegistrationTime)) / 1000
-      );
-      Alert.alert(
-        'Aguarde',
-        `Aguarde ${remainingTime} segundos antes de fazer outro pré-cadastro.`
-      );
-      return;
-    }
-
+  const handlePreRegistration = async (preRegistrationData: any) => {
     // Sanitizar dados de entrada
     const sanitizedName = sanitizeInput(preRegistrationData.name);
     const sanitizedPhone = sanitizeInput(preRegistrationData.phone);
@@ -1152,11 +894,6 @@ export default function VisitantesTab() {
         }
       }
 
-      // Atualizar timestamp do último registro
-      setLastRegistrationTime(now);
-
-      setIsSubmittingPreRegistration(true);
-
       // Gerar token e data de expiração
       const registrationToken = generateRegistrationToken();
       const tokenExpiresAt = getTokenExpirationDate();
@@ -1199,7 +936,7 @@ export default function VisitantesTab() {
             max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
             is_recurring: preRegistrationData.visit_type === 'frequente',
             updated_at: new Date().toISOString(),
-          };
+          } as any;
 
           // Adicionar campos específicos baseados no tipo de visita
           if (preRegistrationData.visit_type === 'pontual') {
@@ -1236,7 +973,7 @@ export default function VisitantesTab() {
           console.log('✅ Visitante expirado recadastrado com sucesso:', existingVisitor.id);
 
           // Buscar dados do apartamento e prédio para o WhatsApp
-          const { data: apartmentDataRecadastro, error: apartmentErrorRecadastro } = await supabase
+          const { data: apartmentDataRecadastro } = await supabase
             .from('apartments')
             .select(
               `
@@ -1402,18 +1139,6 @@ export default function VisitantesTab() {
 
       console.log('Visitante inserido com sucesso:', insertedVisitor);
 
-      // Gerar senha temporária usando a função auxiliar
-      const temporaryPassword = generateTemporaryPassword();
-      const hashedPassword = await hashPassword(temporaryPassword);
-      console.log('Senha temporária gerada para visitante:', sanitizedPhone.replace(/\D/g, ''));
-
-      // Gerar senha temporária (removida funcionalidade de armazenamento)
-      const temporaryPasswordGenerated = await generateTemporaryPasswordForVisitor(
-        sanitizedName, // nome do visitante
-        sanitizedPhone.replace(/\D/g, ''), // telefone do visitante
-        insertedVisitor.id // visitor_id do visitante inserido
-      );
-
       // Buscar dados do apartamento e prédio para o WhatsApp
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartments')
@@ -1491,19 +1216,6 @@ export default function VisitantesTab() {
           text: 'OK',
           onPress: () => {
             setShowPreRegistrationModal(false);
-            setPreRegistrationData({
-              name: '',
-              phone: '',
-              visit_type: 'pontual',
-              access_type: 'com_aprovacao',
-              visit_date: '',
-              visit_start_time: '',
-              visit_end_time: '',
-              allowed_days: [],
-              max_simultaneous_visits: 1,
-              validity_start: '',
-              validity_end: '',
-            });
             fetchVisitors(); // Atualizar lista
           },
         },
@@ -1511,14 +1223,7 @@ export default function VisitantesTab() {
     } catch (error) {
       console.error('Erro no pré-cadastro:', error);
       Alert.alert('Erro', 'Erro ao realizar pré-cadastro. Tente novamente.');
-    } finally {
-      setIsSubmittingPreRegistration(false);
     }
-  };
-
-  // Função para verificar se o visitante está aprovado (não existe mais)
-  const isVisitorApproved = (visitor: Visitor): boolean => {
-    return false; // Não existem mais visitantes aprovados
   };
 
   // Função para verificar se o visitante está desaprovado (agora é expirado)
@@ -1536,6 +1241,11 @@ export default function VisitantesTab() {
     return !hasVisitorFinalStatus(visitor);
   };
 
+  // Função para expandir/colapsar card de visitante
+  const toggleCardExpansion = (visitorId: string) => {
+    setExpandedCardId(expandedCardId === visitorId ? null : visitorId);
+  };
+
   // Função para abrir modal de edição com dados do visitante
   const handleEditVisitor = (visitor: Visitor) => {
     if (!canEditVisitor(visitor)) {
@@ -1547,103 +1257,7 @@ export default function VisitantesTab() {
       return;
     }
     setEditingVisitor(visitor);
-    setEditData({
-      name: visitor.name,
-      phone: visitor.phone || '',
-      visit_type: 'pontual', // Valor padrão, pode ser ajustado conforme necessário
-      visit_date: '',
-      visit_start_time: '',
-      visit_end_time: '',
-      allowed_days: [],
-      max_simultaneous_visits: 1,
-    });
     setShowEditModal(true);
-  };
-
-  // Função para salvar alterações do visitante editado
-  const handleSaveEditedVisitor = async () => {
-    if (!editingVisitor) return;
-
-    try {
-      const sanitizedName = sanitizeInput(editData.name);
-      const sanitizedPhone = sanitizeInput(editData.phone);
-
-      // Validar campos obrigatórios
-      if (!sanitizedName || !sanitizedPhone) {
-        Alert.alert('Erro', 'Nome completo e telefone são obrigatórios.');
-        return;
-      }
-
-      // Validar nome
-      if (!validateName(sanitizedName)) {
-        Alert.alert('Erro', 'Nome deve conter apenas letras e espaços (2-50 caracteres).');
-        return;
-      }
-
-      // Validar telefone
-      if (!validatePhoneNumber(sanitizedPhone)) {
-        Alert.alert('Erro', 'Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX');
-        return;
-      }
-
-      // Atualizar visitante no banco de dados
-      const { error: updateError } = await supabase
-        .from('visitors')
-        .update({
-          name: sanitizedName,
-          phone: sanitizedPhone.replace(/\D/g, ''),
-          visitor_type: editData.visitor_type,
-          access_type: editData.access_type,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingVisitor.id);
-
-      if (updateError) {
-        console.error('Erro ao atualizar visitante:', updateError);
-
-        // Tratamento específico para erros de coluna inexistente
-        if (updateError.code === '42703') {
-          Alert.alert(
-            'Erro de Banco',
-            'Erro de estrutura do banco de dados. Verifique as colunas da tabela visitors.'
-          );
-        } else if (updateError.code === 'PGRST204') {
-          Alert.alert(
-            'Erro de Coluna',
-            'Coluna não encontrada na tabela visitors. Verifique a estrutura do banco.'
-          );
-        } else {
-          Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
-        }
-        return;
-      }
-
-      Alert.alert('Sucesso!', 'Visitante atualizado com sucesso!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setShowEditModal(false);
-            setEditingVisitor(null);
-            setEditData({
-              name: '',
-              phone: '',
-              visitor_type: 'comum',
-              visit_type: 'pontual',
-              access_type: 'com_aprovacao',
-              visit_date: '',
-              visit_start_time: '',
-              visit_end_time: '',
-              allowed_days: [],
-              max_simultaneous_visits: 1,
-            });
-            fetchVisitors(); // Atualizar lista
-          },
-        },
-      ]);
-    } catch (error) {
-      console.error('Erro ao salvar alterações:', error);
-      Alert.alert('Erro', 'Erro ao salvar alterações. Tente novamente.');
-    }
   };
 
   // Função para excluir visitante com confirmação
@@ -1728,118 +1342,14 @@ export default function VisitantesTab() {
 
   // ========== FUNÇÕES PARA MÚLTIPLOS VISITANTES ==========
 
-  // Função para adicionar um novo visitante à lista múltipla
-  const addMultipleVisitor = () => {
-    setMultipleVisitors([...multipleVisitors, { name: '', phone: '' }]);
-  };
-
-  // Função para remover um visitante da lista múltipla
-  const removeMultipleVisitor = (index: number) => {
-    const newVisitors = multipleVisitors.filter((_, i) => i !== index);
-    setMultipleVisitors(newVisitors);
-  };
-
-  // Função para atualizar dados de um visitante específico na lista múltipla
-  const updateMultipleVisitor = (index: number, field: keyof MultipleVisitor, value: string) => {
-    const newVisitors = [...multipleVisitors];
-    newVisitors[index] = { ...newVisitors[index], [field]: value };
-    setMultipleVisitors(newVisitors);
-  };
-
-  const handleSelectRegistrationMode = (mode: 'individual' | 'multiple') => {
-    setRegistrationMode(mode);
-    if (mode === 'individual') {
-      setMultipleVisitors([{ name: '', phone: '' }]);
-    } else if (mode === 'multiple' && multipleVisitors.length === 0) {
-      setMultipleVisitors([{ name: '', phone: '' }]);
-    }
-  };
-
-  // Função para validar múltiplos visitantes
-  const validateMultipleVisitors = (): { isValid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-    const phoneNumbers = new Set<string>();
-
-    // Validar campos obrigatórios do formulário principal
-    if (preRegistrationData.visit_type === 'pontual') {
-      if (!preRegistrationData.visit_date) {
-        errors.push('Data da visita é obrigatória para visitas pontuais');
-      }
-      if (!preRegistrationData.visit_start_time) {
-        errors.push('Horário de início é obrigatório para visitas pontuais');
-      }
-      if (!preRegistrationData.visit_end_time) {
-        errors.push('Horário de fim é obrigatório para visitas pontuais');
-      }
-    }
-
-    // Validar cada visitante
-    multipleVisitors.forEach((visitor, index) => {
-      const sanitizedName = sanitizeInput(visitor.name);
-      const sanitizedPhone = sanitizeInput(visitor.phone);
-
-      // Validar nome
-      if (!sanitizedName) {
-        errors.push(`Visitante ${index + 1}: Nome é obrigatório`);
-      } else if (!validateName(sanitizedName)) {
-        errors.push(
-          `Visitante ${index + 1}: Nome deve conter apenas letras e espaços (2-50 caracteres)`
-        );
-      }
-
-      // Validar telefone
-      if (!sanitizedPhone) {
-        errors.push(`Visitante ${index + 1}: Telefone é obrigatório`);
-      } else if (!validatePhoneNumber(sanitizedPhone)) {
-        errors.push(
-          `Visitante ${index + 1}: Número de telefone inválido. Use o formato (XX) 9XXXX-XXXX`
-        );
-      } else {
-        const cleanPhone = sanitizedPhone.replace(/\D/g, '');
-        if (phoneNumbers.has(cleanPhone)) {
-          errors.push(`Visitante ${index + 1}: Telefone duplicado na lista`);
-        } else {
-          phoneNumbers.add(cleanPhone);
-        }
-      }
-    });
-
-    // Verificar se há pelo menos um visitante
-    if (multipleVisitors.length === 0) {
-      errors.push('Adicione pelo menos um visitante');
-    }
-
-    return { isValid: errors.length === 0, errors };
-  };
-
   // Função para processar múltiplos visitantes
-  const handleMultiplePreRegistration = async () => {
-    if (isProcessingMultiple) return;
-
-    // Validar dados
-    const validation = validateMultipleVisitors();
-    if (!validation.isValid) {
-      Alert.alert('Erro de Validação', validation.errors.join('\n'));
-      return;
-    }
-
-    setIsProcessingMultiple(true);
-    setProcessingStatus('Iniciando processamento...');
-
+  const handleMultiplePreRegistration = async (preRegistrationData: any, multipleVisitors: MultipleVisitor[]) => {
     const results = {
       success: 0,
       errors: [] as string[],
     };
 
     try {
-      // Verificar rate limiting
-      const now = Date.now();
-      if (now - lastSubmissionTime < RATE_LIMIT_MS) {
-        const remainingTime = Math.ceil((RATE_LIMIT_MS - (now - lastSubmissionTime)) / 1000);
-        Alert.alert('Aguarde', `Aguarde ${remainingTime} segundos antes de fazer outro cadastro.`);
-        return;
-      }
-
       // Obter apartment ID
       const currentApartmentId = await loadApartmentId();
       if (!currentApartmentId) {
@@ -1850,7 +1360,6 @@ export default function VisitantesTab() {
       // Processar cada visitante
       for (let i = 0; i < multipleVisitors.length; i++) {
         const visitor = multipleVisitors[i];
-        setProcessingStatus(`Processando visitante ${i + 1} de ${multipleVisitors.length}...`);
 
         try {
           const sanitizedName = sanitizeInput(visitor.name);
@@ -1922,7 +1431,7 @@ export default function VisitantesTab() {
               visit_end_time: preRegistrationData.visit_end_time || '23:59',
               max_simultaneous_visits: preRegistrationData.max_simultaneous_visits || 1,
               is_recurring: preRegistrationData.visit_type === 'frequente',
-            };
+            } as any;
 
             // Adicionar período de validade se fornecido
             if (preRegistrationData.validity_start) {
@@ -1949,12 +1458,9 @@ export default function VisitantesTab() {
           results.success++;
         } catch (error) {
           console.error(`Erro ao processar visitante ${visitor.name}:`, error);
-          results.errors.push(`${visitor.name}: ${error.message || 'Erro desconhecido'}`);
+          results.errors.push(`${visitor.name}: ${(error as Error).message || 'Erro desconhecido'}`);
         }
       }
-
-      // Atualizar rate limiting
-      setLastSubmissionTime(now);
 
       // Mostrar resultado
       let message = `✅ ${results.success} visitante(s) cadastrado(s) com sucesso!`;
@@ -1968,21 +1474,6 @@ export default function VisitantesTab() {
           text: 'OK',
           onPress: () => {
             setShowPreRegistrationModal(false);
-            setRegistrationMode('individual');
-            setMultipleVisitors([{ name: '', phone: '' }]);
-            setPreRegistrationData({
-              name: '',
-              phone: '',
-              visit_type: 'pontual',
-              access_type: 'com_aprovacao',
-              visit_date: '',
-              visit_start_time: '',
-              visit_end_time: '',
-              allowed_days: [],
-              max_simultaneous_visits: 1,
-              validity_start: '',
-              validity_end: '',
-            });
             fetchVisitors();
           },
         },
@@ -1990,9 +1481,6 @@ export default function VisitantesTab() {
     } catch (error) {
       console.error('Erro no processamento múltiplo:', error);
       Alert.alert('Erro', 'Erro durante o processamento. Tente novamente.');
-    } finally {
-      setIsProcessingMultiple(false);
-      setProcessingStatus('');
     }
   };
 
@@ -2012,7 +1500,7 @@ export default function VisitantesTab() {
             <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.vehicleButton} onPress={handleOpenVehicleModal}>
+          <TouchableOpacity style={styles.vehicleButton} onPress={() => setShowVehicleModal(true)}>
             <Text style={styles.buttonEmoji}>🚗</Text>
             <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
@@ -2036,8 +1524,6 @@ export default function VisitantesTab() {
             <TouchableOpacity
               style={styles.filterModalButton}
               onPress={() => {
-                setTempStatusFilter(statusFilter);
-                setTempTypeFilter(typeFilter);
                 setFilterModalVisible(true);
               }}>
               <Ionicons name="filter" size={20} color="#4CAF50" />
@@ -2274,55 +1760,114 @@ export default function VisitantesTab() {
 
         <VehicleModal
           visible={showVehicleModal}
-          form={vehicleForm}
-          loading={vehicleFormLoading}
-          onClose={handleCloseVehicleModal}
-          onChangeField={handleVehicleFieldChange}
-          onSelectType={handleVehicleTypeSelect}
-          onSubmit={handleVehicleSubmit}
-          isSubmitDisabled={!isVehicleFormValid || vehicleFormLoading}
+          onClose={() => setShowVehicleModal(false)}
+          onSubmit={async (form) => {
+            // Vehicle submission logic - will be moved to modal
+            try {
+              const currentApartmentId = await loadApartmentId();
+              if (!currentApartmentId) {
+                Alert.alert('Erro', 'Não foi possível encontrar o apartamento do usuário.');
+                return;
+              }
+
+              const { error } = await supabase.from('vehicles').insert({
+                license_plate: form.license_plate,
+                brand: form.brand.trim() || null,
+                model: form.model.trim() || null,
+                color: form.color.trim() || null,
+                type: form.type,
+                apartment_id: currentApartmentId,
+                ownership_type: 'visita',
+              });
+
+              if (error) {
+                console.error('Erro ao cadastrar veículo:', error);
+                if (error.code === '23505') {
+                  Alert.alert('Erro', 'Esta placa já está cadastrada no sistema.');
+                } else {
+                  Alert.alert('Erro', 'Não foi possível cadastrar o veículo. Tente novamente.');
+                }
+                return;
+              }
+
+              Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    setShowVehicleModal(false);
+                    fetchVisitors();
+                  },
+                },
+              ]);
+            } catch (error) {
+              console.error('Erro ao cadastrar veículo:', error);
+              Alert.alert('Erro', 'Erro interno. Tente novamente.');
+            }
+          }}
         />
 
         <PreRegistrationModal
           visible={showPreRegistrationModal}
           insets={insets}
-          registrationMode={registrationMode}
-          onSelectMode={handleSelectRegistrationMode}
-          preRegistrationData={preRegistrationData}
-          setPreRegistrationData={setPreRegistrationData}
-          multipleVisitors={multipleVisitors}
-          addMultipleVisitor={addMultipleVisitor}
-          removeMultipleVisitor={removeMultipleVisitor}
-          updateMultipleVisitor={updateMultipleVisitor}
-          isProcessingMultiple={isProcessingMultiple}
-          processingStatus={processingStatus}
-          isSubmitting={isSubmittingPreRegistration}
-          onSubmitIndividual={handlePreRegistration}
-          onSubmitMultiple={handleMultiplePreRegistration}
-          onClose={handleClosePreRegistrationModal}
+          onSubmitIndividual={async (preRegistrationData) => {
+            // Individual registration logic
+            await handlePreRegistration(preRegistrationData);
+          }}
+          onSubmitMultiple={async (preRegistrationData, multipleVisitors) => {
+            // Multiple registration logic
+            await handleMultiplePreRegistration(preRegistrationData, multipleVisitors);
+          }}
+          onClose={() => setShowPreRegistrationModal(false)}
         />
 
         <EditVisitorModal
           visible={showEditModal}
-          insets={insets}
-          editData={editData}
-          setEditData={setEditData}
-          isSubmitting={isSubmittingPreRegistration}
-          onSubmit={handleSaveEditedVisitor}
-          onClose={handleCloseEditModal}
+          visitor={editingVisitor}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={async (editData) => {
+            // Edit visitor logic - will delegate the submit logic to EditVisitorModal
+            if (!editingVisitor) return;
+            
+            try {
+              // Update logic
+              const { error: updateError } = await supabase
+                .from('visitors')
+                .update({
+                  name: editData.name,
+                  phone: editData.phone.replace(/\D/g, ''),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', editingVisitor.id);
+
+              if (updateError) {
+                console.error('Erro ao atualizar visitante:', updateError);
+                Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
+                return;
+              }
+
+              Alert.alert('Sucesso!', 'Visitante atualizado com sucesso!', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    setShowEditModal(false);
+                    setEditingVisitor(null);
+                    fetchVisitors();
+                  },
+                },
+              ]);
+            } catch (error) {
+              console.error('Erro ao salvar alterações:', error);
+              Alert.alert('Erro', 'Erro ao salvar alterações. Tente novamente.');
+            }
+          }}
         />
       </ScrollView>
 
       <FiltersBottomSheet
-        bottomSheetRef={filterModalRef}
+        bottomSheetRef={filterModalRef as React.RefObject<BottomSheetModalRef>}
         visible={filterModalVisible}
         onClose={handleFilterModalClose}
-        tempStatusFilter={tempStatusFilter}
-        tempTypeFilter={tempTypeFilter}
-        onSelectStatus={setTempStatusFilter}
-        onSelectType={setTempTypeFilter}
-        onCancel={cancelFilters}
-        onApply={applyFilters}
+        onApplyFilters={handleApplyFilters}
       />
     </>
   );

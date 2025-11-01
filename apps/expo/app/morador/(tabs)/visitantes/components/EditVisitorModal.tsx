@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,31 +6,80 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Modal,
 } from 'react-native';
-import { Modal } from '~/components/Modal';
-import type { EdgeInsets } from 'react-native-safe-area-context';
-import type { PreRegistrationData } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { Visitor, PreRegistrationData } from '../types';
 import { formatDate, formatTime } from '../utils';
 
 interface EditVisitorModalProps {
   visible: boolean;
-  insets: EdgeInsets;
-  editData: PreRegistrationData;
-  setEditData: React.Dispatch<React.SetStateAction<PreRegistrationData>>;
-  isSubmitting: boolean;
-  onSubmit: () => void;
+  visitor: Visitor | null;
   onClose: () => void;
+  onSubmit: (editData: PreRegistrationData) => Promise<void>;
 }
 
 export const EditVisitorModal: React.FC<EditVisitorModalProps> = ({
   visible,
-  insets,
-  editData,
-  setEditData,
-  isSubmitting,
-  onSubmit,
+  visitor,
   onClose,
+  onSubmit,
 }) => {
+  const insets = useSafeAreaInsets();
+  const [editData, setEditData] = useState<PreRegistrationData>({
+    name: '',
+    phone: '',
+    visit_type: 'pontual',
+    visit_date: '',
+    visit_start_time: '',
+    visit_end_time: '',
+    allowed_days: [],
+    max_simultaneous_visits: 1,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize form when visitor changes
+  useEffect(() => {
+    if (visitor) {
+      setEditData({
+        name: visitor.name || '',
+        phone: visitor.phone || '',
+        visit_type: 'pontual',
+        visit_date: '',
+        visit_start_time: '',
+        visit_end_time: '',
+        allowed_days: [],
+        max_simultaneous_visits: 1,
+      });
+    }
+  }, [visitor, visible]);
+
+  const handleClose = useCallback(() => {
+    setEditData({
+      name: '',
+      phone: '',
+      visit_type: 'pontual',
+      visit_date: '',
+      visit_start_time: '',
+      visit_end_time: '',
+      allowed_days: [],
+      max_simultaneous_visits: 1,
+    });
+    onClose();
+  }, [onClose]);
+
+  const handleSubmit = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(editData);
+      handleClose();
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [editData, onSubmit, isSubmitting, handleClose]);
   return (
       <Modal
       visible={visible}
@@ -370,7 +419,7 @@ export const EditVisitorModal: React.FC<EditVisitorModalProps> = ({
                 styles.submitButton,
                 isSubmitting && styles.submitButtonDisabled,
               ]}
-              onPress={onSubmit}
+              onPress={() => handleSubmit()}
               disabled={isSubmitting}>
               <Text style={styles.submitButtonText}>
                 {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}

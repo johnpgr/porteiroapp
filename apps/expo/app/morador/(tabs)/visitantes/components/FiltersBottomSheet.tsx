@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,25 +15,29 @@ interface FiltersBottomSheetProps {
   bottomSheetRef: React.RefObject<BottomSheetModalRef>;
   visible: boolean;
   onClose: () => void;
-  tempStatusFilter: StatusFilter;
-  tempTypeFilter: TypeFilter;
-  onSelectStatus: (status: StatusFilter) => void;
-  onSelectType: (type: TypeFilter) => void;
-  onCancel: () => void;
-  onApply: () => void;
+  onApplyFilters: (status: StatusFilter, type: TypeFilter) => void;
 }
 
 export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
   bottomSheetRef,
   visible,
   onClose,
-  tempStatusFilter,
-  tempTypeFilter,
-  onSelectStatus,
-  onSelectType,
-  onCancel,
-  onApply,
+  onApplyFilters,
 }) => {
+  const [tempStatusFilter, setTempStatusFilter] = useState<StatusFilter>('pendente');
+  const [tempTypeFilter, setTempTypeFilter] = useState<TypeFilter>('todos');
+
+  const handleCancel = useCallback(() => {
+    // Reset to default filters
+    setTempStatusFilter('pendente');
+    setTempTypeFilter('todos');
+    onClose();
+  }, [onClose]);
+
+  const handleApply = useCallback(() => {
+    onApplyFilters(tempStatusFilter, tempTypeFilter);
+    onClose();
+  }, [tempStatusFilter, tempTypeFilter, onApplyFilters, onClose]);
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
@@ -51,7 +55,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
           <View style={styles.chipsContainer}>
             <TouchableOpacity
               style={[styles.chip, tempStatusFilter === 'todos' && styles.chipActive]}
-              onPress={() => onSelectStatus('todos')}
+              onPress={() => setTempStatusFilter('todos')}
             >
               <Text style={[styles.chipText, tempStatusFilter === 'todos' && styles.chipTextActive]}>
                 Todos
@@ -60,7 +64,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
 
             <TouchableOpacity
               style={[styles.chip, tempStatusFilter === 'pendente' && styles.chipActive]}
-              onPress={() => onSelectStatus('pendente')}
+              onPress={() => setTempStatusFilter('pendente')}
             >
               <Text
                 style={[
@@ -74,7 +78,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
 
             <TouchableOpacity
               style={[styles.chip, tempStatusFilter === 'expirado' && styles.chipActive]}
-              onPress={() => onSelectStatus('expirado')}
+              onPress={() => setTempStatusFilter('expirado')}
             >
               <Text
                 style={[
@@ -93,7 +97,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
           <View style={styles.chipsContainer}>
             <TouchableOpacity
               style={[styles.chip, tempTypeFilter === 'todos' && styles.chipActive]}
-              onPress={() => onSelectType('todos')}
+              onPress={() => setTempTypeFilter('todos')}
             >
               <Text style={[styles.chipText, tempTypeFilter === 'todos' && styles.chipTextActive]}>
                 Todos
@@ -102,7 +106,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
 
             <TouchableOpacity
               style={[styles.chip, tempTypeFilter === 'visitantes' && styles.chipActive]}
-              onPress={() => onSelectType('visitantes')}
+              onPress={() => setTempTypeFilter('visitantes')}
             >
               <Text
                 style={[
@@ -116,7 +120,7 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
 
             <TouchableOpacity
               style={[styles.chip, tempTypeFilter === 'veiculos' && styles.chipActive]}
-              onPress={() => onSelectType('veiculos')}
+              onPress={() => setTempTypeFilter('veiculos')}
             >
               <Text
                 style={[
@@ -132,10 +136,10 @@ export const FiltersBottomSheet: React.FC<FiltersBottomSheetProps> = ({
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.applyButton} onPress={onApply}>
+        <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
           <Text style={styles.applyButtonText}>Aplicar</Text>
         </TouchableOpacity>
       </View>
