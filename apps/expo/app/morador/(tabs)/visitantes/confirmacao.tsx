@@ -531,3 +531,5 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
 });
+
+export default ConfirmacaoVisitante;

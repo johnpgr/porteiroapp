@@ -83,6 +83,90 @@ export default function MoradorTabsLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="cadastro/novo"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/relacionamento"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/telefone"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/placa"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/acesso"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/foto"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/dias"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="cadastro/horarios"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/nome"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/cpf"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/foto"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/periodo"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/observacoes"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="visitantes/confirmacao"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
