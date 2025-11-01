@@ -58,6 +58,14 @@ router.get('/history', CallController.getCallHistory);
 router.get('/active', CallController.getActiveCalls);
 
 /**
+ * GET /api/calls/pending
+ * Busca chamadas pendentes para um usuário
+ * Query params: userId
+ * Usado para polling quando push notifications estão desabilitadas
+ */
+router.get('/pending', CallController.getPendingCalls);
+
+/**
  * GET /api/calls/test
  * Endpoint de teste para verificar se a API está funcionando
  */

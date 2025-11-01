@@ -792,6 +792,65 @@ class DatabaseService {
   }
 
   /**
+   * Busca o apartment_id de um perfil através da tabela apartment_residents
+   * @param profileId - ID do perfil do usuário
+   * @returns apartment_id ou null
+   */
+  async getApartmentIdByProfileId(profileId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from("apartment_residents")
+        .select("apartment_id")
+        .eq("profile_id", profileId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("🔥 Erro ao buscar apartment_id:", error);
+        return null;
+      }
+
+      return data?.apartment_id || null;
+    } catch (error) {
+      console.error("🔥 Erro ao buscar apartment_id:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Busca chamadas pendentes para um apartamento
+   * @param apartmentId - ID do apartamento
+   * @returns Array de chamadas pendentes
+   */
+  async getPendingCallsForApartment(apartmentId: string): Promise<any[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from("intercom_calls")
+        .select(`
+          id,
+          status,
+          started_at,
+          apartment_id,
+          doorman_id
+        `)
+        .eq("apartment_id", apartmentId)
+        .in("status", ["calling", "connecting"])
+        .order("started_at", { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error("🔥 Erro ao buscar chamadas pendentes:", error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error("🔥 Erro ao buscar chamadas pendentes:", error);
+      return [];
+    }
+  }
+
+  /**
    * Fecha conexão (não necessário com Supabase client)
    */
   async close(): Promise<void> {

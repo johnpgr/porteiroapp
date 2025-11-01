@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View, AppState } from 'react-native';
 import { Stack, usePathname, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import type { Subscription } from 'expo-notifications';
 import { useAuth } from '~/hooks/useAuth';
 import useAgoraHook from '~/hooks/useAgora';
 import IncomingCallModal from '~/components/IncomingCallModal';
- 
+
 import { Ionicons } from '@expo/vector-icons';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
@@ -75,6 +75,7 @@ export default function MoradorLayout() {
   // Refs para listeners
   const notificationListener = useRef<Subscription | null>(null);
   const responseListener = useRef<Subscription | null>(null);
+  const lastNotificationCallIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (previousPathRef.current === pathname) {
@@ -103,6 +104,40 @@ export default function MoradorLayout() {
       return;
     }
 
+    // 🔍 CHECK FOR INITIAL NOTIFICATION: Handle notification that launched the app
+    const checkInitialNotification = async () => {
+      try {
+        const response = await Notifications.getLastNotificationResponseAsync();
+        if (!response) {
+          console.log('📞 [MoradorLayout] No initial notification found');
+          return;
+        }
+
+        const payload = response.notification.request.content.data as Record<string, unknown>;
+        if (payload?.type !== 'intercom_call') {
+          console.log('📞 [MoradorLayout] Initial notification is not intercom call');
+          return;
+        }
+
+        const callId = payload?.callId as string | undefined;
+        if (callId && typeof callId === 'string') {
+          console.log(`📞 [MoradorLayout] App launched by notification for call ${callId}`);
+          lastNotificationCallIdRef.current = callId;
+
+          // Small delay to ensure Agora context is ready
+          setTimeout(() => {
+            void agoraContext.checkForActiveCall(callId).catch((error) => {
+              console.error('❌ [MoradorLayout] Error checking initial notification call:', error);
+            });
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('❌ [MoradorLayout] Error checking initial notification:', error);
+      }
+    };
+
+    void checkInitialNotification();
+
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       const payload = notification.request.content.data as Record<string, unknown>;
       if (payload?.type !== 'intercom_call') {
@@ -110,7 +145,18 @@ export default function MoradorLayout() {
       }
 
       console.log('📞 [MoradorLayout] Push notification de interfone recebida (foreground)');
-      // useAgora will handle the call via RTM
+
+      // Extract callId and attempt recovery
+      const callId = payload?.callId as string | undefined;
+      if (callId && typeof callId === 'string') {
+        console.log(`📞 [MoradorLayout] Foreground notification for call ${callId}`);
+        lastNotificationCallIdRef.current = callId;
+
+        // Attempt to recover call state (RTM might be delayed)
+        void agoraContext.checkForActiveCall(callId).catch((error) => {
+          console.error('❌ [MoradorLayout] Error checking active call:', error);
+        });
+      }
     });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -123,7 +169,17 @@ export default function MoradorLayout() {
         '📞 [MoradorLayout] Usuário interagiu com notificação de chamada:',
         response.actionIdentifier
       );
-      // When user taps notification, the app comes to foreground and useAgora/RTM will sync state
+
+      // Extract callId and recover call state
+      const callId = payload?.callId as string | undefined;
+      if (callId && typeof callId === 'string') {
+        console.log(`📞 [MoradorLayout] User tapped notification for call ${callId}`);
+        lastNotificationCallIdRef.current = callId;
+
+        void agoraContext.checkForActiveCall(callId).catch((error) => {
+          console.error('❌ [MoradorLayout] Error recovering call from notification:', error);
+        });
+      }
     });
 
     return () => {
@@ -135,8 +191,44 @@ export default function MoradorLayout() {
         responseListener.current.remove();
         responseListener.current = null;
       }
+      lastNotificationCallIdRef.current = null;
     };
-  }, [user?.id]);
+  }, [user?.id, agoraContext.checkForActiveCall]);
+
+  // 📞 APP STATE LISTENER: Check for pending calls when app comes to foreground
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        console.log('🔄 [MoradorLayout] App became active');
+
+        // If we have a pending notification callId, check for active call
+        const pendingCallId = lastNotificationCallIdRef.current;
+        if (pendingCallId) {
+          console.log(`📞 [MoradorLayout] Checking pending call ${pendingCallId}`);
+
+          void agoraContext.checkForActiveCall(pendingCallId).catch((error) => {
+            console.error('❌ [MoradorLayout] Error checking pending call:', error);
+          });
+
+          // Clear the ref after attempting recovery
+          // Don't clear immediately to allow for retry if needed
+          setTimeout(() => {
+            if (lastNotificationCallIdRef.current === pendingCallId) {
+              lastNotificationCallIdRef.current = null;
+            }
+          }, 5000);
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [user?.id, agoraContext.checkForActiveCall]);
 
   return (
     <View style={styles.container}>
