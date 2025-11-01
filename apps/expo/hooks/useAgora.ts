@@ -1122,6 +1122,15 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
   }, [rtmMessageCallback]);
 
+  // Initialize hasEverConnectedRtmRef based on current RTM status on mount
+  useEffect(() => {
+    const currentStatus = agoraService.getStatus();
+    if (currentStatus === 'connected') {
+      hasEverConnectedRtmRef.current = true;
+      console.log('✅ [useAgora] RTM already connected on mount, polling disabled');
+    }
+  }, []); // Run once on mount
+
   // Track if RTM has ever connected (to prevent polling restart on reconnection)
   useEffect(() => {
     if (rtmStatus === 'connected' && !hasEverConnectedRtmRef.current) {
@@ -1451,13 +1460,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   // Standby renewal handled by AgoraService
 
-  // Proactive RTM initialization via service
-  const userId = currentUser?.id;
-  const userType = currentUser?.userType;
-  useEffect(() => {
-    if (!userId || userType !== 'morador') return;
-    void agoraService.initializeStandby();
-  }, [userId, userType, activeCall, agoraAppId]);
+  // RTM initialization is now handled by AuthProvider when user authenticates
+  // This ensures proper initialization timing and avoids race conditions
 
   // Proactive polling for incoming calls (works without push notifications)
   // Only polls BEFORE RTM connects - stops when RTM is connected
