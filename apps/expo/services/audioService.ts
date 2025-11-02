@@ -20,6 +20,7 @@ class AudioService {
   private isPlaying: boolean = false;
   private audioInitialized: boolean = false;
   private ringtone: Audio.Sound | null = null;
+  private intercomRingtone: Audio.Sound | null = null;
 
   constructor() {
     // Evitar inicialização de áudio em ambiente web/SSR
@@ -325,6 +326,14 @@ class AudioService {
         await this.ringtone.unloadAsync();
         this.ringtone = null;
       }
+      if (this.intercomRingtone) {
+        const status = await this.intercomRingtone.getStatusAsync();
+        if (status.isLoaded) {
+          await this.intercomRingtone.stopAsync();
+        }
+        await this.intercomRingtone.unloadAsync();
+        this.intercomRingtone = null;
+      }
     } catch (error) {
       console.error('Erro ao limpar recursos de áudio:', error);
     } finally {
@@ -402,6 +411,79 @@ class AudioService {
       }
     } catch (error) {
       console.error('Erro ao parar ringtone:', error);
+    }
+  }
+
+  // Intercom-specific ringtone methods
+  async loadIntercomRingtone(): Promise<void> {
+    if (Platform.OS === 'web' || this.intercomRingtone) {
+      return;
+    }
+
+    await this.initializeAudio();
+
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/audio/telephone-toque-interfone.mp3'),
+        {
+          shouldPlay: false,
+          isLooping: true,
+          volume: 1.0,
+        }
+      );
+      this.intercomRingtone = sound;
+    } catch (error) {
+      console.error('Erro ao carregar ringtone de interfone:', error);
+    }
+  }
+
+  async playIntercomRingtone(): Promise<void> {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    if (!this.intercomRingtone) {
+      await this.loadIntercomRingtone();
+    }
+
+    if (!this.intercomRingtone) {
+      return;
+    }
+
+    try {
+      const status = await this.intercomRingtone.getStatusAsync();
+      if (!status.isLoaded) {
+        await this.intercomRingtone.unloadAsync();
+        this.intercomRingtone = null;
+        await this.loadIntercomRingtone();
+      }
+
+      if (!this.intercomRingtone) {
+        return;
+      }
+
+      await this.intercomRingtone.setPositionAsync(0);
+      await this.intercomRingtone.playAsync();
+    } catch (error) {
+      console.error('Erro ao reproduzir ringtone de interfone:', error);
+    }
+  }
+
+  async stopIntercomRingtone(): Promise<void> {
+    if (Platform.OS === 'web' || !this.intercomRingtone) {
+      return;
+    }
+
+    try {
+      const status = await this.intercomRingtone.getStatusAsync();
+      if (status.isLoaded && status.isPlaying) {
+        await this.intercomRingtone.stopAsync();
+      }
+      if (status.isLoaded) {
+        await this.intercomRingtone.setPositionAsync(0);
+      }
+    } catch (error) {
+      console.error('Erro ao parar ringtone de interfone:', error);
     }
   }
 }

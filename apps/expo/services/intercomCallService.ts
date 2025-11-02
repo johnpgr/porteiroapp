@@ -91,7 +91,7 @@ class IntercomCallService {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 1000, 500, 1000],
         lightColor: '#FF0000',
-        sound: 'default',
+        sound: 'telephone-toque-interfone.mp3', // Custom intercom ringtone from assets
         enableVibrate: true,
         showBadge: true,
         bypassDnd: true,
@@ -241,7 +241,7 @@ class IntercomCallService {
           buildingId: callData.buildingId,
           action: 'incoming_call'
         },
-        sound: 'default',
+        sound: 'telephone-toque-interfone.mp3', // Custom intercom ringtone from assets
         priority: 'max',
         categoryIdentifier: 'CALL_CATEGORY',
       },
@@ -259,6 +259,7 @@ class IntercomCallService {
         autoCancel: false,
         fullScreenIntent: true,
         category: 'call',
+        sound: 'telephone-toque-interfone.mp3', // Custom intercom ringtone from assets
         actions: [
           {
             identifier: 'ANSWER_CALL',
@@ -281,7 +282,7 @@ class IntercomCallService {
     // Configurações específicas para iOS
     if (Device.isDevice && Platform.OS === 'ios') {
       notificationConfig.content.ios = {
-        sound: 'default',
+        sound: 'telephone-toque-interfone.mp3', // Custom intercom ringtone from assets
         badge: 1,
         critical: true,
         interruptionLevel: 'critical',
