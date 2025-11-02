@@ -550,12 +550,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
             // Call still ringing - show modal
             console.log(`📞 [checkForActiveCall] Recovering ringing call ${callId}`);
 
-            // Play ringtone
-            try {
-              await agoraAudioService.playRingtone();
-            } catch (ringtoneError) {
-              console.warn('⚠️ Failed to play ringtone on recovery:', ringtoneError);
-            }
+            // Note: Ringtone is handled by IncomingCallModal to avoid duplicate sounds
 
             // Construct invite signal from call data
             const inviteSignal: RtmInviteSignal = {
