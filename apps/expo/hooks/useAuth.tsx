@@ -13,6 +13,7 @@ import { Alert } from 'react-native';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
+import { agoraService } from '../services/agora/AgoraService';
 
 export type SignInReturn =
   | {
@@ -258,6 +259,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('✅ [AuthProvider] TokenStorage cleared');
       } catch (clearError) {
         console.error('❌ [AuthProvider] TokenStorage.clearAll error:', clearError);
+      }
+
+      // Clear RTM standby state before clearing user
+      if (user) {
+        agoraService.clearStandbyForUser(user.id);
       }
 
       setUser(null);
@@ -723,6 +729,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('🔔 Erro ao atualizar push token:', error);
     }
   };
+
+  // Hook RTM initialization when morador user authenticates
+  useEffect(() => {
+    if (!user) {
+      // User logged out - cleanup RTM standby state
+      console.log('👤 [AuthProvider] User logged out, clearing RTM standby state');
+      return;
+    }
+
+    if (user.user_type === 'morador') {
+      console.log('👤 [AuthProvider] Morador user authenticated, initializing RTM standby');
+
+      // Set current user context in AgoraService
+      agoraService.setCurrentUser({
+        id: user.id,
+        userType: 'morador',
+        displayName: user.email // Could be expanded with actual display name
+      });
+
+      // Initialize RTM connection for incoming calls
+      void agoraService.initializeStandby();
+    }
+  }, [user?.id, user?.user_type]);
+
+  // Cleanup RTM on user logout
+  useEffect(() => {
+    return () => {
+      if (user) {
+        agoraService.clearStandbyForUser(user.id);
+      }
+    };
+  }, [user?.id]);
 
   const value = {
     user,

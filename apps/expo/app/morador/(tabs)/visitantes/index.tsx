@@ -17,16 +17,16 @@ import { useAuth } from '~/hooks/useAuth';
 import { validateBrazilianPhone, formatBrazilianPhone } from '~/utils/whatsapp';
 // Removed old notification service - using Edge Functions for push notifications
 import { BottomSheetModalRef } from '~/components/BottomSheetModal';
-import { PreRegistrationModal } from './components/PreRegistrationModal';
-import { EditVisitorModal } from './components/EditVisitorModal';
-import { VehicleModal } from './components/VehicleModal';
-import { FiltersBottomSheet } from './components/FiltersBottomSheet';
+import { PreRegistrationModal } from '~/components/morador/visitantes/components/PreRegistrationModal';
+import { EditVisitorModal } from '~/components/morador/visitantes/components/EditVisitorModal';
+import { VehicleModal } from '~/components/morador/visitantes/components/VehicleModal';
+import { FiltersBottomSheet } from '~/components/morador/visitantes/components/FiltersBottomSheet';
 import type {
   MultipleVisitor,
   Vehicle,
   VehicleType,
   Visitor,
-} from './types';
+} from '~/components/morador/visitantes/types';
 
 // Função auxiliar para converter data DD/MM/AAAA em Date
 const parseDate = (dateString: string): Date => {

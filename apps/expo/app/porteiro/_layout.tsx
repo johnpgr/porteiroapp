@@ -415,13 +415,14 @@ export default function PorteiroLayout() {
             header: renderTabsHeader,
           }}
         />
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="visitor" />
+        <Stack.Screen name="AutorizacoesTab" />
+        <Stack.Screen name="avisos" />
         <Stack.Screen name="delivery" />
+        <Stack.Screen name="emergency" />
+        <Stack.Screen name="login" />
         <Stack.Screen name="logs" />
         <Stack.Screen name="profile" />
-        <Stack.Screen name="emergency" />
+        <Stack.Screen name="visitor" />
       </Stack>
     </PorteiroDashboardProvider>
   );

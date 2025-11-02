@@ -41,8 +41,8 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Listener para mudanças de estado da chamada para controlar áudio
   useEffect(() => {
     const handleCallStateChange = async () => {
-      if (callState === 'connected' || callState === 'ended') {
-        // Parar som de chamada quando conectar ou encerrar
+      // Parar som de chamada quando conectar, encerrar ou for recusada
+      if (callState === 'connected' || callState === 'ended' || callState === 'declined') {
         await audioService.stopRingtone();
 
         if (callState === 'connected') {
@@ -132,7 +132,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     }
 
     try {
-      // Initialize and play ringtone
+      // Initialize and play ringtone (calling tone for doorman)
       try {
         await audioService.initialize();
         await audioService.loadRingtone();
@@ -153,6 +153,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       console.warn('❌ Falha ao iniciar chamada:', message);
       Alert.alert('Erro', message);
 
+      // Stop ringtone on error
       try {
         await audioService.stopRingtone();
       } catch (audioError) {
@@ -409,6 +410,11 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     if (!visible) {
       // Limpar timers
       stopCallTimer();
+
+      // Parar som de chamada
+      audioService.stopRingtone().catch((error) => {
+        console.error('Erro ao parar ringtone durante cleanup:', error);
+      });
 
       // Reset apartment number
       setApartmentNumber('');

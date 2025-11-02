@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
+import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
@@ -19,6 +20,8 @@ import { uploadVisitorPhoto } from '~/services/photoUploadService';
 import { notificationApi } from '~/services/notificationApi';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
 import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
+import { Modal } from '~/components/Modal';
+import { CameraModal } from '~/components/shared/CameraModal';
 
 type FlowStep =
   | 'apartamento'
@@ -141,14 +144,15 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [cpfVisitante, setCpfVisitante] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [fotoTirada, setFotoTirada] = useState(false);
-  const [photoUri, setPhotoUri] = useState(null);
-  const [photoUrl, setPhotoUrl] = useState(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cameraPermission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
   const [isCheckingPreAuthorized, setIsCheckingPreAuthorized] = useState(false);
   const [hasPreAuthorizedGuests, setHasPreAuthorizedGuests] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   // Função para solicitar permissão da câmera
   const requestCameraPermission = async () => {
@@ -360,7 +364,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🏠 Apartamento</Text>
+        <Text style={styles.stepTitle}>Apartamento</Text>
         <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
         {isLoadingApartments ? (
@@ -396,7 +400,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🔧 Empresa Prestadora</Text>
+        <Text style={styles.stepTitle}>Empresa Prestadora</Text>
         <Text style={styles.stepSubtitle}>Qual empresa o prestador representa?</Text>
 
         <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
@@ -432,7 +436,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>📦 Empresa de Entrega</Text>
+        <Text style={styles.stepTitle}>Empresa de Entrega</Text>
         <Text style={styles.stepSubtitle}>Qual empresa de entrega?</Text>
 
         <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
@@ -457,7 +461,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderTipoStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>👥 Tipo de Visita</Text>
+      <Text style={styles.stepTitle}>Tipo de Visita</Text>
       <Text style={styles.stepSubtitle}>Selecione o tipo de visita</Text>
 
       <ScrollView style={styles.optionsScrollContainer} showsVerticalScrollIndicator={false}>
@@ -501,7 +505,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderNomeStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>✏️ Nome Completo</Text>
+      <Text style={styles.stepTitle}>Nome Completo</Text>
       <Text style={styles.stepSubtitle}>Digite o nome do visitante</Text>
 
       <View style={styles.inputContainer}>
@@ -530,7 +534,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderCpfStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🆔 CPF</Text>
+      <Text style={styles.stepTitle}>CPF</Text>
       <Text style={styles.stepSubtitle}>Digite o CPF do visitante (opcional)</Text>
 
       <View style={styles.inputContainer}>
@@ -562,7 +566,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   const renderObservacoesStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>📝 Observações</Text>
+      <Text style={styles.stepTitle}>Observações</Text>
       <Text style={styles.stepSubtitle}>Adicione observações (opcional)</Text>
 
       <View style={styles.inputContainer}>
@@ -584,114 +588,23 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   );
 
   const renderFotoStep = () => {
-    if (!cameraPermission) {
-      return <Text>Solicitando permissão da câmera...</Text>;
-    }
-
-    if (!cameraPermission.granted) {
-      return (
-        <View style={styles.stepContainer}>
-          <Text style={styles.stepTitle}>📸 Foto do Visitante</Text>
-          <Text style={styles.stepSubtitle}>Foto opcional - você pode pular esta etapa</Text>
-          <TouchableOpacity style={styles.nextButton} onPress={requestCameraPermission}>
-            <Text style={styles.nextButtonText}>Permitir Câmera</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
-            <Text style={styles.skipButtonText}>Pular Foto →</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>📸 Foto do Visitante</Text>
+        <Text style={styles.stepTitle}>Foto do Visitante</Text>
         <Text style={styles.stepSubtitle}>Tire uma foto do visitante (opcional)</Text>
 
-        {!fotoTirada ? (
-          <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} facing="back" ref={cameraRef}>
-              <View style={styles.cameraOverlay}>
-                <TouchableOpacity
-                  style={styles.captureButton}
-                  onPress={async () => {
-                    if (cameraRef.current) {
-                      try {
-                        setIsUploadingPhoto(true);
-                        console.log('🎯 TESTE VISITANTE: Iniciando captura de foto...');
-                        const photo = await cameraRef.current.takePictureAsync({
-                          quality: 0.8
-                        });
-                        
-                        if (photo?.uri) {
-                          console.log('🎯 TESTE VISITANTE: Foto capturada:', {
-                            uri: photo.uri,
-                            width: photo.width,
-                            height: photo.height
-                          });
-                          setPhotoUri(photo.uri);
-                          setFotoTirada(true);
-
-                          // Pequena espera para garantir que o arquivo foi totalmente gravado antes de validar/upload
-                          await new Promise(resolve => setTimeout(resolve, 200));
-                          
-                          // Teste simples primeiro
-                          console.log('🎯 TESTE VISITANTE: Verificando se a função uploadVisitorPhoto existe:', typeof uploadVisitorPhoto);
-                          
-                          // Upload photo immediately after capture
-                          console.log('🎯 TESTE VISITANTE: Iniciando upload da foto do visitante...');
-                          console.log('🎯 TESTE VISITANTE: URI da foto:', photo.uri);
-                          console.log('🎯 TESTE VISITANTE: Tamanho da foto:', photo.width, 'x', photo.height);
-                          
-                          try {
-                            const uploadResult = await uploadVisitorPhoto(photo.uri);
-                            console.log('🎯 TESTE VISITANTE: Resultado completo do upload:', JSON.stringify(uploadResult, null, 2));
-                            
-                            if (uploadResult.success && uploadResult.url) {
-                              setPhotoUrl(uploadResult.url);
-                              console.log('🎯 TESTE VISITANTE: Upload realizado com sucesso! URL:', uploadResult.url);
-                              console.log('🎯 TESTE VISITANTE: PhotoUrl state atualizado para:', uploadResult.url);
-                              Alert.alert('Sucesso', 'Foto enviada com sucesso!');
-                            } else {
-                              console.error('🎯 TESTE VISITANTE: Erro no upload:', uploadResult.error);
-                              Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
-                              setFotoTirada(false);
-                              setPhotoUri(null);
-                            }
-                          } catch (uploadError) {
-                            console.error('🎯 TESTE VISITANTE: Exceção durante upload:', uploadError);
-                            Alert.alert('Erro', 'Exceção durante upload da foto');
-                            setFotoTirada(false);
-                            setPhotoUri(null);
-                          }
-                        }
-                      } catch (error) {
-                        console.error('Erro ao capturar foto:', error);
-                        Alert.alert('Erro', 'Falha ao capturar foto.');
-                      } finally {
-                        setIsUploadingPhoto(false);
-                      }
-                    }
-                  }}
-                  disabled={isUploadingPhoto}>
-                  <Text style={styles.captureButtonText}>
-                    {isUploadingPhoto ? '⏳' : '📸'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </CameraView>
-          </View>
-        ) : (
-          <View style={styles.photoTakenContainer}>
-            {photoUri && (
-              <View style={styles.photoPreviewContainer}>
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              </View>
-            )}
-            <Text style={styles.photoTakenText}>
-              {isUploadingPhoto ? '⏳ Enviando foto...' : '✅ Foto capturada com sucesso!'}
+        {fotoTirada && photoUri ? (
+          <View style={styles.photoSuccessContainer}>
+            <View style={styles.photoPreviewContainer}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+            </View>
+            <View style={styles.photoSuccessIcon}>
+              <Text style={styles.photoSuccessEmoji}>✅</Text>
+            </View>
+            <Text style={styles.photoSuccessTitle}>Foto capturada com sucesso!</Text>
+            <Text style={styles.photoSuccessText}>
+              {photoUrl ? 'A foto foi enviada com sucesso.' : 'A foto foi registrada.'}
             </Text>
-            {isUploadingPhoto && <ActivityIndicator size="small" color="#4CAF50" />}
             <View style={styles.photoButtonsContainer}>
               <TouchableOpacity
                 style={styles.retakeButton}
@@ -699,29 +612,34 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                   setFotoTirada(false);
                   setPhotoUri(null);
                   setPhotoUrl(null);
-                  setIsUploadingPhoto(false);
+                  setShowCameraModal(true);
                 }}>
-                <Text style={styles.retakeButtonText}>📸 Tirar Nova Foto</Text>
+                <Text style={styles.retakeButtonText}>Tirar Nova Foto</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.nextButton,
-                  isUploadingPhoto && styles.nextButtonDisabled
-                ]}
-                onPress={() => setCurrentStep('confirmacao')}
-                disabled={isUploadingPhoto}>
-                <Text style={styles.nextButtonText}>
-                  {isUploadingPhoto ? 'Enviando...' : 'Continuar →'}
-                </Text>
+                style={styles.nextButton}
+                onPress={() => setCurrentStep('confirmacao')}>
+                <Text style={styles.nextButtonText}>Continuar →</Text>
               </TouchableOpacity>
             </View>
           </View>
-        )}
-        
-        {!fotoTirada && (
-          <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
-            <Text style={styles.skipButtonText}>Pular Foto →</Text>
-          </TouchableOpacity>
+        ) : (
+          <View style={styles.cameraPromptContainer}>
+            <Text style={styles.cameraPromptIcon}>📸</Text>
+            <Text style={styles.cameraPromptText}>
+              A foto do visitante é opcional, mas ajuda na identificação.
+            </Text>
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={() => setShowCameraModal(true)}>
+              <Text style={styles.nextButtonText}>Abrir Câmera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={() => setCurrentStep('confirmacao')}>
+              <Text style={styles.skipButtonText}>Pular Foto</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     );
@@ -1005,7 +923,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>✅ Confirmação</Text>
+        <Text style={styles.stepTitle}>Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados do visitante</Text>
 
         <View style={styles.summaryContainer}>
@@ -1180,13 +1098,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onClose}>
-          <Text style={styles.backButtonText}>← Voltar</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Visitante</Text>
-      </View>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Registrar Visitante</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -1194,15 +1113,62 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             style={[
               styles.progressFill,
               {
-                width: `${(Object.keys({ apartamento, tipo: tipoVisita, nome: nomeVisitante, cpf: cpfVisitante, observacoes: true, foto: fotoTirada, confirmacao: currentStep === 'confirmacao' }).filter(Boolean).length / 7) * 100}%`,
+                width: `${(() => {
+                  const mainSteps = ['apartamento', 'tipo', 'nome', 'cpf', 'observacoes', 'foto', 'confirmacao'];
+                  let stepIndex = mainSteps.indexOf(currentStep);
+                  
+                  // Handle intermediate steps that aren't in the main flow
+                  if (stepIndex === -1) {
+                    if (currentStep === 'preauthorized') {
+                      stepIndex = 0; // Same as 'apartamento'
+                    } else if (currentStep === 'empresa_prestador' || currentStep === 'empresa_entrega') {
+                      stepIndex = 1; // Same as 'tipo'
+                    }
+                  }
+                  
+                  return ((stepIndex + 1) / mainSteps.length) * 100;
+                })()}%`,
               },
             ]}
           />
         </View>
+        <Text style={styles.progressText}>
+          {(() => {
+            const mainSteps = ['apartamento', 'tipo', 'nome', 'cpf', 'observacoes', 'foto', 'confirmacao'];
+            let stepIndex = mainSteps.indexOf(currentStep);
+            
+            // Handle intermediate steps that aren't in the main flow
+            if (stepIndex === -1) {
+              if (currentStep === 'preauthorized') {
+                stepIndex = 0; // Same as 'apartamento'
+              } else if (currentStep === 'empresa_prestador' || currentStep === 'empresa_entrega') {
+                stepIndex = 1; // Same as 'tipo'
+              }
+            }
+            
+            return `${stepIndex + 1} de ${mainSteps.length}`;
+          })()}
+        </Text>
       </View>
 
       {renderCurrentStep()}
+
+      <CameraModal
+        visible={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onPhotoCapture={(uri, url) => {
+          if (uri) {
+            setPhotoUri(uri);
+            setPhotoUrl(url);
+            setFotoTirada(true);
+          }
+          setCurrentStep('confirmacao');
+        }}
+        uploadFunction={uploadVisitorPhoto}
+        title="Foto do Visitante"
+      />
     </View>
+    </Modal>
   );
 }
 
@@ -1213,21 +1179,20 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#4CAF50',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
   },
-  backButton: {
-    marginRight: 15,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
   },
   headerTitle: {
-    color: '#fff',
+    color: '#333',
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -1244,6 +1209,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     borderRadius: 2,
   },
+  progressText: {
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+  },
   stepContainer: {
     flex: 1,
     padding: 20,
@@ -1259,11 +1230,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   keypadContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    marginTop: 20,
   },
   displayContainer: {
     alignItems: 'center',
@@ -1363,11 +1333,11 @@ const styles = StyleSheet.create({
   },
   textInput: {
     backgroundColor: '#fff',
-    padding: 15,
+    padding: 12,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#ddd',
   },
   textArea: {
     height: 100,
@@ -1442,15 +1412,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   retakeButton: {
-    backgroundColor: '#ff9800',
+    backgroundColor: '#f5f5f5',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retakeButtonText: {
-    color: '#fff',
+    color: '#666',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   summaryContainer: {
     backgroundColor: '#fff',
@@ -1484,7 +1454,7 @@ const styles = StyleSheet.create({
   },
   confirmFinalButtonDisabled: {
     backgroundColor: '#ccc',
-    opacity: 0.7,
+    opacity: 0.6,
   },
   confirmFinalButtonText: {
     color: '#fff',
@@ -1525,11 +1495,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   apartmentsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 15,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   apartmentButton: {
+    width: '47%',
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 12,
@@ -1598,16 +1569,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   skipButton: {
-    backgroundColor: '#9E9E9E',
+    backgroundColor: '#f5f5f5',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
   skipButtonText: {
-    color: '#fff',
+    color: '#666',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   validationWarning: {
     color: '#FF9800',
@@ -1615,5 +1588,59 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  cameraPromptContainer: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginVertical: 20,
+  },
+  cameraPromptIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  cameraPromptText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  photoSuccessContainer: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#f8fff8',
+    borderRadius: 20,
+    marginVertical: 20,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  photoSuccessIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  photoSuccessEmoji: {
+    fontSize: 40,
+    color: '#fff',
+  },
+  photoSuccessTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  photoSuccessText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
   },
 });

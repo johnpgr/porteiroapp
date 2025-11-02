@@ -11,11 +11,14 @@ import {
   Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
 import { notificationApi } from '../../services/notificationApi';
 import { uploadDeliveryPhoto } from '../../services/photoUploadService';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import { Modal } from '~/components/Modal';
+import { CameraModal } from '~/components/shared/CameraModal';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
 
@@ -64,6 +67,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   const [isLoading, setIsLoading] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   // Obter building_id do porteiro
   useEffect(() => {
@@ -246,12 +250,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>🏠 Apartamento</Text>
+        <Text style={styles.stepTitle}>Apartamento</Text>
         <Text style={styles.stepSubtitle}>Digite o número do apartamento</Text>
 
         {isLoadingApartments ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2196F3" />
+            <ActivityIndicator size="large" color="#4CAF50" />
             <Text style={styles.loadingText}>Carregando apartamentos...</Text>
           </View>
         ) : availableApartments.length === 0 ? (
@@ -270,7 +274,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
   const renderEmpresaStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>🚚 Empresa de Entrega</Text>
+      <Text style={styles.stepTitle}>Empresa de Entrega</Text>
       <Text style={styles.stepSubtitle}>Selecione a empresa ou serviço</Text>
 
       <ScrollView style={styles.empresasContainer} showsVerticalScrollIndicator={false}>
@@ -299,7 +303,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
   const renderDestinatarioStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>👤 Destinatário</Text>
+      <Text style={styles.stepTitle}>Destinatário</Text>
       <Text style={styles.stepSubtitle}>Digite o nome do destinatário</Text>
 
       <View style={styles.inputContainer}>
@@ -328,7 +332,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
   const renderDescricaoStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>📦 Descrição da Encomenda</Text>
+      <Text style={styles.stepTitle}>Descrição da Encomenda</Text>
       <Text style={styles.stepSubtitle}>Descreva o conteúdo da encomenda</Text>
 
       <View style={styles.inputContainer}>
@@ -358,7 +362,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
   const renderObservacoesStep = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>📝 Observações</Text>
+      <Text style={styles.stepTitle}>Observações</Text>
       <Text style={styles.stepSubtitle}>Adicione observações (opcional)</Text>
 
       <View style={styles.inputContainer}>
@@ -386,145 +390,23 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   const renderFotoStep = () => {
-    if (!permission) {
-      return (
-        <View style={styles.stepContainer}>
-          <Text style={styles.stepTitle}>📸 Carregando Câmera</Text>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2196F3" />
-            <Text style={styles.loadingText}>Preparando câmera...</Text>
-          </View>
-        </View>
-      );
-    }
-
-    if (!permission.granted) {
-      return (
-        <View style={styles.stepContainer}>
-          <Text style={styles.stepTitle}>📸 Permissão da Câmera</Text>
-          <Text style={styles.stepSubtitle}>Tire uma foto da encomenda como comprovante (opcional)</Text>
-          
-          <View style={styles.permissionContainer}>
-            <Text style={styles.permissionIcon}>🔒</Text>
-            <Text style={styles.permissionText}>A foto da encomenda é opcional, mas recomendada como comprovante.</Text>
-            
-            <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
-              <Text style={styles.permissionButtonText}>📸 Permitir Acesso à Câmera</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
-              <Text style={styles.skipButtonText}>Pular Foto</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>📸 Foto da Encomenda</Text>
-        <Text style={styles.stepSubtitle}>Tire uma foto da encomenda ou do entregador como comprovante (opcional)</Text>
+        <Text style={styles.stepTitle}>Foto da Encomenda</Text>
+        <Text style={styles.stepSubtitle}>Tire uma foto da encomenda ou do entregador (opcional)</Text>
 
-        {!fotoTirada ? (
-          <View style={styles.cameraContainer}>
-            <CameraView ref={cameraRef} style={styles.camera} facing="back">
-              <View style={styles.cameraOverlay}>
-                <View style={styles.cameraFrame}>
-                  <Text style={styles.cameraInstructions}>Posicione a encomenda dentro do quadro</Text>
-                </View>
-                
-                <View style={styles.cameraControls}>
-                  <TouchableOpacity style={styles.skipButton} onPress={() => setCurrentStep('confirmacao')}>
-                    <Text style={styles.skipButtonText}>Pular Foto</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.captureButton}
-                    onPress={async () => {
-                      try {
-                        if (cameraRef.current) {
-                          setIsUploadingPhoto(true);
-                          console.log('🎯 TESTE: Iniciando captura de foto...');
-                          const photo = await cameraRef.current.takePictureAsync({
-                            quality: 0.8
-                          });
-                          
-                          if (photo?.uri) {
-                            console.log('🎯 TESTE: Foto capturada:', {
-                              uri: photo.uri,
-                              width: photo.width,
-                              height: photo.height
-                            });
-                            setPhotoUri(photo.uri);
-                            setFotoTirada(true);
-
-                            // Pequena espera para garantir que o arquivo foi totalmente gravado antes do upload
-                            await new Promise(resolve => setTimeout(resolve, 200));
-                            
-                            // Teste simples primeiro
-                            console.log('🎯 TESTE: Verificando se a função uploadDeliveryPhoto existe:', typeof uploadDeliveryPhoto);
-                            
-                            // Upload photo immediately after capture
-                            console.log('🎯 TESTE: Iniciando upload da foto da encomenda...');
-                            console.log('🎯 TESTE: URI da foto:', photo.uri);
-                            console.log('🎯 TESTE: Tamanho da foto:', photo.width, 'x', photo.height);
-                            
-                            try {
-                              const uploadResult = await uploadDeliveryPhoto(photo.uri);
-                              console.log('🎯 TESTE: Resultado completo do upload:', JSON.stringify(uploadResult, null, 2));
-                              
-                              if (uploadResult.success && uploadResult.url) {
-                                setPhotoUrl(uploadResult.url);
-                                console.log('🎯 TESTE: Upload realizado com sucesso! URL:', uploadResult.url);
-                                console.log('🎯 TESTE: PhotoUrl state atualizado para:', uploadResult.url);
-                              } else {
-                                console.error('🎯 TESTE: Erro no upload:', uploadResult.error);
-                                Alert.alert('Erro', `Falha no upload da foto: ${uploadResult.error ?? 'Erro desconhecido'}`);
-                                setFotoTirada(false);
-                                setPhotoUri(null);
-                              }
-                            } catch (uploadError) {
-                              console.error('🎯 TESTE: Exceção durante upload:', uploadError);
-                              Alert.alert('Erro', 'Exceção durante upload da foto');
-                              setFotoTirada(false);
-                              setPhotoUri(null);
-                            }
-                          }
-                        }
-                      } catch (error) {
-                        console.error('🎯 TESTE: Erro ao tirar foto:', error);
-                        Alert.alert('Erro', 'Falha ao capturar foto');
-                      } finally {
-                        setIsUploadingPhoto(false);
-                      }
-                    }}
-                    disabled={isUploadingPhoto}>
-                    {isUploadingPhoto ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <View style={styles.captureButtonInner} />
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </CameraView>
-          </View>
-        ) : (
+        {fotoTirada && photoUri ? (
           <View style={styles.photoSuccessContainer}>
-            {photoUri && (
-              <View style={styles.photoPreviewContainer}>
-                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              </View>
-            )}
-            
+            <View style={styles.photoPreviewContainer}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+            </View>
             <View style={styles.photoSuccessIcon}>
               <Text style={styles.photoSuccessEmoji}>✅</Text>
             </View>
-            <Text style={styles.photoSuccessTitle}>Foto Capturada!</Text>
+            <Text style={styles.photoSuccessTitle}>Foto capturada com sucesso!</Text>
             <Text style={styles.photoSuccessText}>
-              {photoUrl ? 'A foto foi enviada com sucesso.' : 'A foto da encomenda foi registrada com sucesso.'}
+              {photoUrl ? 'A foto foi enviada com sucesso.' : 'A foto da encomenda foi registrada.'}
             </Text>
-            
             <View style={styles.photoActionsContainer}>
               <TouchableOpacity
                 style={styles.retakePhotoButton}
@@ -532,16 +414,33 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                   setFotoTirada(false);
                   setPhotoUri(null);
                   setPhotoUrl(null);
+                  setShowCameraModal(true);
                 }}>
-                <Text style={styles.retakePhotoButtonText}>📸 Tirar Nova Foto</Text>
+                <Text style={styles.retakePhotoButtonText}>Tirar Nova Foto</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={styles.continueButton}
                 onPress={() => setCurrentStep('confirmacao')}>
-                <Text style={styles.continueButtonText}>Continuar →</Text>
+                <Text style={styles.continueButtonText}>Continuar</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        ) : (
+          <View style={styles.cameraPromptContainer}>
+            <Text style={styles.cameraPromptIcon}>📸</Text>
+            <Text style={styles.cameraPromptText}>
+              A foto da encomenda é opcional, mas recomendada como comprovante.
+            </Text>
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={() => setShowCameraModal(true)}>
+              <Text style={styles.nextButtonText}>Abrir Câmera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={() => setCurrentStep('confirmacao')}>
+              <Text style={styles.skipButtonText}>Pular Foto</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -823,7 +722,7 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
 
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepTitle}>✅ Confirmação</Text>
+        <Text style={styles.stepTitle}>Confirmação</Text>
         <Text style={styles.stepSubtitle}>Revise os dados da encomenda</Text>
 
         <View style={styles.confirmationContainer}>
@@ -899,14 +798,14 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Encomenda</Text>
-        <View style={styles.placeholder} />
-      </View>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Registrar Encomenda</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={24} color="#666" />
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -936,7 +835,23 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         {currentStep === 'foto' && renderFotoStep()}
         {currentStep === 'confirmacao' && renderConfirmacaoStep()}
       </ScrollView>
+
+      <CameraModal
+        visible={showCameraModal}
+        onClose={() => setShowCameraModal(false)}
+        onPhotoCapture={(uri, url) => {
+          if (uri) {
+            setPhotoUri(uri);
+            setPhotoUrl(url);
+            setFotoTirada(true);
+          }
+          setCurrentStep('confirmacao');
+        }}
+        uploadFunction={uploadDeliveryPhoto}
+        title="Foto da Encomenda"
+      />
     </View>
+    </Modal>
   );
 }
 
@@ -947,21 +862,20 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#2196F3',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f8f9fa',
   },
-  backButton: {
-    marginRight: 15,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
   },
   headerTitle: {
-    color: '#fff',
+    color: '#333',
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -975,7 +889,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     borderRadius: 2,
   },
   progressText: {
@@ -983,17 +897,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: '#666',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  placeholder: {
-    width: 32,
   },
   content: {
     flex: 1,
@@ -1051,8 +954,8 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   apartmentButtonSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#e3f2fd',
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
   },
   apartmentNumber: {
     fontSize: 18,
@@ -1093,7 +996,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   confirmButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
@@ -1199,8 +1102,8 @@ const styles = StyleSheet.create({
     minHeight: 100,
   },
   empresaButtonSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#e3f2fd',
+    borderColor: '#4CAF50',
+    backgroundColor: '#e8f5e8',
   },
   empresaIcon: {
     fontSize: 32,
@@ -1217,18 +1120,18 @@ const styles = StyleSheet.create({
   },
   textInput: {
     backgroundColor: '#fff',
-    padding: 15,
+    padding: 12,
     borderRadius: 8,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#ddd',
   },
   textArea: {
     height: 100,
     textAlignVertical: 'top',
   },
   nextButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
@@ -1295,7 +1198,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: '#2196F3',
+    borderColor: '#4CAF50',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1306,7 +1209,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
   },
   captureButtonText: {
     fontSize: 32,
@@ -1359,28 +1262,28 @@ const styles = StyleSheet.create({
   },
   retakePhotoButton: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#2196F3',
+    borderWidth: 1,
+    borderColor: '#ddd',
     alignItems: 'center',
   },
   retakePhotoButtonText: {
-    color: '#2196F3',
+    color: '#666',
     fontSize: 16,
     fontWeight: '600',
   },
   continueButton: {
     flex: 1,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
     elevation: 3,
-    shadowColor: '#2196F3',
+    shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1477,12 +1380,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   permissionButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: '#4CAF50',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
     elevation: 3,
-    shadowColor: '#2196F3',
+    shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -1564,6 +1467,24 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
+  },
+  cameraPromptContainer: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginVertical: 20,
+  },
+  cameraPromptIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  cameraPromptText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
   },
   floorSection: {
     marginBottom: 20,

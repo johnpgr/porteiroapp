@@ -95,6 +95,9 @@ interface AgoraEvents {
   audioRoutingChanged: { routing: number };
   rtcTokenPrivilegeWillExpire: null;
   rtcRequestToken: null;
+  rtmConnectionAttempt: { uid: string; timestamp: number };
+  rtmConnectionSuccess: { uid: string; duration: number; timestamp: number };
+  rtmConnectionFailure: { uid: string; error: string; duration: number; timestamp: number };
 }
 
 // Track per-app-session users initialized in standby to avoid reinit churn
@@ -110,7 +113,7 @@ class AgoraService {
     return AgoraService.instance;
   }
 
-  private appId: string = '';
+  private appId: string = process.env.EXPO_PUBLIC_AGORA_APP_ID || '';
   private apiBaseUrl: string = resolveApiBaseUrl();
 
   private rtmEngine: RtmEngine | null = null;
@@ -403,6 +406,9 @@ class AgoraService {
   }
 
   async loginRtm(bundle: { uid: string; rtmToken: string; expiresAt?: string }) {
+    const startTime = Date.now();
+    this.emitter.emit('rtmConnectionAttempt', { uid: bundle.uid, timestamp: startTime });
+
     const engine = await this.ensureRtmEngine();
     this.setRtmStatus('connecting');
 
@@ -456,20 +462,63 @@ class AgoraService {
 
     this.setRtmStatus('connected');
     console.log(`✅ [AgoraService] RTM login completo e pronto para envio`);
+
+    const duration = Date.now() - startTime;
+    this.emitter.emit('rtmConnectionSuccess', { uid: bundle.uid, duration, timestamp: Date.now() });
+    console.log(`⏱️ [AgoraService] RTM login duration: ${duration}ms`);
+
     this.scheduleStandbyRenewal(bundle.expiresAt);
   }
 
+  clearStandbyForUser(userId: string): void {
+    if (standbyInitializedUsers.has(userId)) {
+      standbyInitializedUsers.delete(userId);
+      console.log(`🧹 [AgoraService] Cleared standby state for user ${userId}`);
+    }
+  }
+
   async initializeStandby(): Promise<void> {
-    if (!this.currentUser || this.currentUser.userType !== 'morador') return;
-    if (this.rtmStatus === 'connected' || this.rtmStatus === 'connecting') return;
-    if (this.rtmSession) return;
-    if (standbyInitializedUsers.has(this.currentUser.id)) return;
-    if (this.standbyInitInProgress) return;
+    console.log('🔧 [AgoraService] initializeStandby called');
+    console.log(`  - currentUser: ${this.currentUser ? `${this.currentUser.id} (${this.currentUser.userType})` : 'null'}`);
+    console.log(`  - rtmStatus: ${this.rtmStatus}`);
+    console.log(`  - rtmSession: ${this.rtmSession ? 'exists' : 'null'}`);
+    console.log(`  - alreadyInitialized: ${this.currentUser ? standbyInitializedUsers.has(this.currentUser.id) : 'N/A'}`);
+    console.log(`  - initInProgress: ${this.standbyInitInProgress}`);
+
+    if (!this.currentUser || this.currentUser.userType !== 'morador') {
+      console.log('⏭️ [AgoraService] Skipping standby - no morador user');
+      return;
+    }
+    if (this.rtmStatus === 'connected' || this.rtmStatus === 'connecting') {
+      console.log('⏭️ [AgoraService] Skipping standby - RTM already connected/connecting');
+      return;
+    }
+    if (this.rtmSession) {
+      console.log('⏭️ [AgoraService] Skipping standby - RTM session exists');
+      return;
+    }
+    if (standbyInitializedUsers.has(this.currentUser.id)) {
+      console.log('⏭️ [AgoraService] Skipping standby - user already initialized');
+      return;
+    }
+    if (this.standbyInitInProgress) {
+      console.log('⏭️ [AgoraService] Skipping standby - init already in progress');
+      return;
+    }
 
     this.standbyInitInProgress = true;
+    console.log('🚀 [AgoraService] Starting standby initialization...');
+    console.log(`  - API Base URL: ${this.apiBaseUrl}`);
+    console.log(`  - App ID configured: ${!!this.appId}`);
+
+    const initStartTime = Date.now();
     try {
+      console.log('🔑 [AgoraService] Fetching Supabase session...');
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
+      console.log(`🔑 [AgoraService] Access token available: ${!!accessToken}`);
+
+      console.log('📡 [AgoraService] Requesting standby token from API...');
       const response = await apiRequest<{ appId: string | null; rtmToken: string; uid: string; expiresAt: string; ttlSeconds: number }>(
         this.apiBaseUrl,
         '/api/tokens/standby',
@@ -479,16 +528,43 @@ class AgoraService {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } as any : {},
         }
       );
+      console.log(`📡 [AgoraService] Token API response: success=${response.success}, hasData=${!!response.data}`);
       if (!response.success || !response.data) {
+        const duration = Date.now() - initStartTime;
+        const errorMsg = response.error || 'Unknown error';
+        console.error('❌ [AgoraService] Failed to fetch standby token:', errorMsg);
+        this.emitter.emit('error', {
+          message: 'Failed to fetch RTM standby token',
+          cause: new Error(errorMsg)
+        });
+        this.emitter.emit('rtmConnectionFailure', {
+          uid: this.currentUser!.id,
+          error: errorMsg,
+          duration,
+          timestamp: Date.now()
+        });
         this.standbyInitInProgress = false;
         return;
       }
       const { rtmToken, uid, expiresAt } = response.data;
+      console.log('🔐 [AgoraService] Standby token received, logging into RTM...');
       await this.loginRtm({ uid, rtmToken, expiresAt });
       standbyInitializedUsers.add(this.currentUser.id);
+      console.log('✅ [AgoraService] Standby initialization complete');
     } catch (err) {
+      const duration = Date.now() - initStartTime;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('❌ [AgoraService] Exception during standby init:', errorMsg);
+      console.error('   Full error:', err);
       this.emitter.emit('error', { message: 'Failed to initialize RTM standby', cause: err });
+      this.emitter.emit('rtmConnectionFailure', {
+        uid: this.currentUser?.id || 'unknown',
+        error: errorMsg,
+        duration,
+        timestamp: Date.now()
+      });
     } finally {
+      console.log('🏁 [AgoraService] Standby init finally block reached');
       this.standbyInitInProgress = false;
     }
   }
@@ -539,6 +615,11 @@ class AgoraService {
   async cleanup(): Promise<void> {
     this.clearRenewalTimer();
     this.clearReconnectTimer();
+
+    // Clear standby state for current user
+    if (this.currentUser) {
+      this.clearStandbyForUser(this.currentUser.id);
+    }
 
     if (this.rtmEngine) {
       try {

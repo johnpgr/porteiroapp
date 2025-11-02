@@ -302,3 +302,5 @@ const styles = StyleSheet.create({
     color: '#ccc',
   },
 });
+
+export default NovoCadastro;

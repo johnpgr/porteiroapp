@@ -56,15 +56,16 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
   useEffect(() => {
     const run = async () => {
       if (isVisible) {
-        await agoraAudioService.playRingtone();
+        // Use intercom-specific ringtone for intercom calls
+        await agoraAudioService.playIntercomRingtone();
       } else {
-        await agoraAudioService.stopRingtone();
+        await agoraAudioService.stopIntercomRingtone();
       }
     };
     run().catch(() => undefined);
 
     return () => {
-      void agoraAudioService.stopRingtone();
+      void agoraAudioService.stopIntercomRingtone();
     };
   }, [isVisible]);
 
@@ -74,7 +75,7 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
 
   const handleAccept = async () => {
     try {
-      await agoraAudioService.stopRingtone();
+      await agoraAudioService.stopIntercomRingtone();
       await answerIncomingCall?.();
       // Don't close modal - it will transition to active call UI
     } catch {
@@ -84,7 +85,7 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
 
   const handleDecline = async () => {
     try {
-      await agoraAudioService.stopRingtone();
+      await agoraAudioService.stopIntercomRingtone();
       await declineIncomingCall?.('declined');
       onClose?.();
     } catch {
@@ -94,7 +95,7 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
 
   const handleEndCall = async () => {
     try {
-      await agoraAudioService.stopRingtone();
+      await agoraAudioService.stopIntercomRingtone();
       await endActiveCall?.('hangup');
       // Modal will auto-hide when activeCall becomes null
     } catch {
