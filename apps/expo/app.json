@@ -21,7 +21,7 @@
           "mode": "production",
           "sounds": [
             "./assets/audio/doorbell_push.mp3",
-            "./assets/audio/telephone-toque-interfone.mp3"
+            "./assets/audio/telephone_toque_interfone.mp3"
           ]
         }
       ]

@@ -424,7 +424,7 @@ class AudioService {
 
     try {
       const { sound } = await Audio.Sound.createAsync(
-        require('../assets/audio/telephone-toque-interfone.mp3'),
+        require('../assets/audio/telephone_toque_interfone.mp3'),
         {
           shouldPlay: false,
           isLooping: true,
