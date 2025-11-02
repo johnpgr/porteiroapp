@@ -41,14 +41,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Listener para mudanças de estado da chamada para controlar áudio
   useEffect(() => {
     const handleCallStateChange = async () => {
-      if (callState === 'connected' || callState === 'ended') {
-        // Parar som de chamada quando conectar ou encerrar
+      if (callState !== 'ringing') {
         await audioService.stopRingtone();
+      }
 
-        if (callState === 'connected') {
-          // Iniciar timer quando conectar
-          startCallTimer();
-        }
+      if (callState === 'connected') {
+        startCallTimer();
       }
     };
 
@@ -409,6 +407,11 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     if (!visible) {
       // Limpar timers
       stopCallTimer();
+
+      // Parar som de chamada
+      audioService.stopRingtone().catch((error) => {
+        console.error('Erro ao parar ringtone durante cleanup:', error);
+      });
 
       // Reset apartment number
       setApartmentNumber('');
