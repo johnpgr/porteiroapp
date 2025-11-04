@@ -17,7 +17,6 @@ export default function VisitanteTabsLayout() {
           backgroundColor: '#fff',
           borderTopColor: '#e0e0e0',
           borderTopWidth: 1,
-          height: 60,
           paddingBottom: 8,
           paddingTop: 8,
         },
