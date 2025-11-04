@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { sendVisitorWhatsApp } from '~/services/whatsappService';
 import { supabase } from '~/utils/supabase';
@@ -66,6 +67,9 @@ export default function VisitantesTab() {
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pendente' | 'expirado'>('pendente');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'visitantes' | 'veiculos'>('todos');
   const ITEMS_PER_PAGE = 10;
+
+  // Ref para prevenir fetches duplicados
+  const isFetchingRef = useRef(false);
 
   // Função para carregar apartment_id uma única vez
   const loadApartmentId = useCallback(async (): Promise<string | null> => {
@@ -133,7 +137,14 @@ export default function VisitantesTab() {
   }, [apartmentId, apartmentIdLoading]);
 
   const fetchVisitors = useCallback(async () => {
+    // Prevenir fetches duplicados simultâneos
+    if (isFetchingRef.current) {
+      console.log('⏭️ Fetch já em andamento, ignorando requisição duplicada');
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -272,12 +283,16 @@ export default function VisitantesTab() {
       setError('Erro ao carregar visitantes');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [loadApartmentId, user?.id]);
 
-  useEffect(() => {
-    fetchVisitors();
-  }, [fetchVisitors]);
+  // Buscar visitantes quando a tela ganhar foco
+  useFocusEffect(
+    useCallback(() => {
+      fetchVisitors();
+    }, [fetchVisitors])
+  );
 
   // Função para contar filtros ativos
   const getActiveFiltersCount = () => {
