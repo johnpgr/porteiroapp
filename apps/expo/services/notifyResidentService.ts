@@ -1,5 +1,8 @@
 import { supabase } from '../utils/supabase';
 import { notifyResidentsVisitorArrival } from './pushNotificationService';
+import type {Database} from '@porteiroapp/common/supabase'
+
+type LogEntry = Database['public']['Tables']['notification_logs']['Insert'];
 
 interface VisitorArrivalData {
   visitorName: string;
@@ -121,14 +124,18 @@ export class NotifyResidentService {
     success: boolean
   ) {
     try {
-      const logData = {
-        notification_type: 'visitor_arrival',
-        visitor_name: visitorData.visitorName,
-        apartment_number: visitorData.apartmentNumber,
-        building_id: visitorData.buildingId,
-        success: success,
-        timestamp: new Date().toISOString(),
-        metadata: {
+      const logData: LogEntry = {
+        notification_id: `visitor_arrival_${Date.now()}`,
+        platform: 'expo',
+        status: success ? 'delivered' : 'failed',
+        attempted_at: new Date().toISOString(),
+        delivered_at: success ? new Date().toISOString() : null,
+        error_message: success ? null : 'Falha ao enviar notificação',
+        response_data: {
+          notification_type: 'visitor_arrival',
+          visitor_name: visitorData.visitorName,
+          apartment_number: visitorData.apartmentNumber,
+          building_id: visitorData.buildingId,
           visitor_id: visitorData.visitorId,
           purpose: visitorData.purpose,
           entry_type: visitorData.entry_type,

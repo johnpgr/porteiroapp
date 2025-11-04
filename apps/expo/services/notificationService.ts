@@ -18,6 +18,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     priority: Notifications.AndroidNotificationPriority.HIGH,
   }),
 });
@@ -222,7 +224,7 @@ export async function getUserPushTokens(profileIds: string[]): Promise<string[]>
       return [];
     }
 
-    const tokens = data?.map(p => p.push_token).filter(Boolean) || [];
+    const tokens = (data?.map(p => p.push_token).filter(Boolean) || []) as string[];
     console.log(`📱 [NotificationService] Encontrados ${tokens.length} tokens ativos`);
     return tokens;
   } catch (error) {
@@ -240,7 +242,7 @@ export async function getPorteiroTokensByBuilding(buildingId: string): Promise<s
     console.log('🔍 [getPorteiroTokensByBuilding] BuildingId:', buildingId);
 
     // Primeiro, vamos verificar quantos porteiros existem neste prédio
-    const { data: allPorteiros, error: countError } = await supabase
+    const { data: allPorteiros } = await supabase
       .from('profiles')
       .select('id, full_name, user_type, building_id, push_token, notification_enabled')
       .eq('building_id', buildingId)
@@ -272,7 +274,7 @@ export async function getPorteiroTokensByBuilding(buildingId: string): Promise<s
 
     console.log('🔍 [getPorteiroTokensByBuilding] Dados retornados pela query:', data);
 
-    const tokens = data?.map(p => p.push_token).filter(Boolean) || [];
+    const tokens = (data?.map(p => p.push_token).filter(Boolean) || []) as string[];
     console.log(`📱 [getPorteiroTokensByBuilding] Encontrados ${tokens.length} tokens válidos de porteiros`);
     console.log(`📱 [getPorteiroTokensByBuilding] Tokens:`, tokens);
 
@@ -431,7 +433,12 @@ export async function scheduleLocalNotification(
         sound: 'doorbell_push.mp3',
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
-      trigger: delaySeconds > 0 ? { seconds: delaySeconds } : null,
+      trigger: delaySeconds > 0 
+        ? { 
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: delaySeconds 
+          } 
+        : null,
     });
 
     console.log('✅ [NotificationService] Notificação local agendada:', notificationId);

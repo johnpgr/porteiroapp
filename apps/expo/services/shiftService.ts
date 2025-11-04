@@ -1,16 +1,8 @@
 import { supabase } from '../utils/supabase';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { RealtimeChannel, Database } from '@porteiroapp/common/supabase'
 
-export interface PorteiroShift {
-  id: string;
-  porteiro_id: string;
-  building_id: string;
-  shift_start: string;
-  shift_end: string | null;
-  status: 'active' | 'ended' | 'finished' | 'completed' | 'inactive' | 'closed';
-  created_at: string;
-  updated_at: string;
-}
+export type PorteiroShiftStatus = 'active' | 'ended' | 'finished' | 'completed' | 'inactive' | 'closed';
+export type PorteiroShift = Database['public']['Tables']['porteiro_shifts']['Row'];
 
 export interface ShiftValidationResult {
   isValid: boolean;

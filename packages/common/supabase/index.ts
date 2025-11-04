@@ -6,3 +6,5 @@ export * from './utils/platform.ts';
 export * from './config/platformConfig.ts';
 export * from './utils/logger.ts';
 export * from '@supabase/supabase-js';
+export * from '@supabase/storage-js';
+
