@@ -236,18 +236,36 @@ export async function registerPushTokenAfterLogin(userId: string, userType: 'adm
     // Determinar tabela baseada no tipo de usuário
     const table = userType === 'admin' ? 'admin_profiles' : 'profiles';
 
+    // Verificar se o perfil existe primeiro
+    const { data: existingProfile, error: checkError } = await supabase
+      .from(table)
+      .select('user_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (checkError || !existingProfile) {
+      console.error('❌ [registerPushToken] Perfil não encontrado para userId:', userId, checkError);
+      return false;
+    }
+
     // Atualizar push token no banco
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from(table)
       .update({ push_token: token })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select();
 
     if (error) {
       console.error('❌ [registerPushToken] Erro ao salvar push token no banco:', error);
       return false;
     }
 
-    console.log('✅ [registerPushToken] Push token registrado com sucesso no banco de dados');
+    if (!count || count === 0) {
+      console.error('❌ [registerPushToken] Nenhuma linha foi atualizada. userId:', userId, 'table:', table);
+      return false;
+    }
+
+    console.log('✅ [registerPushToken] Push token registrado com sucesso no banco de dados. Linhas afetadas:', count);
     return true;
   } catch (error) {
     console.error('❌ [registerPushToken] Erro ao registrar push token:', error);

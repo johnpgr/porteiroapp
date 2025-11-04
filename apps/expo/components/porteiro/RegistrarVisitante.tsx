@@ -178,7 +178,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         const { data: profile, error } = await (supabase as any)
           .from('profiles')
           .select('building_id, buildings(name)')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .single();
 
         if (error || !profile || !profile.building_id) {

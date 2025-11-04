@@ -226,16 +226,16 @@ export class AuthManager {
       const { data: adminProfile } = await supabase
         .from('admin_profiles')
         .select('id')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single();
-      
+
       if (adminProfile) return 'admin';
 
       // Verificar se é porteiro
       const { data: porteiroProfile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .eq('role', 'porteiro')
         .single();
       

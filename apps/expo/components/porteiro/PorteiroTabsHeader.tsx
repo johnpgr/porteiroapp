@@ -113,7 +113,7 @@ export default function PorteiroTabsHeader() {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('full_name, email, work_schedule, building_id')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .eq('user_type', 'porteiro')
         .single();
 

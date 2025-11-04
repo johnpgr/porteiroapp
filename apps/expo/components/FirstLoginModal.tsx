@@ -337,7 +337,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           .from('profiles')
           .select('id, cpf')
           .eq('cpf', cleanCpf)
-          .neq('id', user.id) // Excluir o próprio usuário
+          .neq('user_id', user.id) // Excluir o próprio usuário
           .maybeSingle();
 
         if (checkError) {

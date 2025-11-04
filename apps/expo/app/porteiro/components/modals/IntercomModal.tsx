@@ -84,7 +84,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
           )
         `
         )
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .eq('user_type', 'porteiro')
         .single();
 

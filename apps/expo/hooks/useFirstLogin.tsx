@@ -47,7 +47,7 @@ export const useFirstLogin = () => {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
@@ -77,12 +77,12 @@ export const useFirstLogin = () => {
         try {
           await supabase
             .from('profiles')
-            .update({ 
+            .update({
               first_login_completed: true,
               profile_complete: true,
               profile_completion_date: new Date().toISOString()
             } as any)
-            .eq('id', user.id as any);
+            .eq('user_id', user.id as any);
           
           console.log('✅ DEBUG useFirstLogin - Campo first_login_completed corrigido');
           
@@ -153,7 +153,7 @@ export const useFirstLogin = () => {
           profile_completion_date: new Date().toISOString(),
           photo_verification_status: data.photoUri ? 'pending' : null
         } as any)
-        .eq('id', user.id as any);
+        .eq('user_id', user.id as any);
 
       if (updateError) {
         console.error('❌ Erro ao atualizar perfil:', updateError);

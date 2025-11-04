@@ -155,7 +155,7 @@ export default function MoradorProfile() {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
@@ -390,7 +390,7 @@ export default function MoradorProfile() {
       const { data: currentProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
       
       console.log('📊 LOG - Estado do banco ANTES da atualização:', {
@@ -421,7 +421,7 @@ export default function MoradorProfile() {
       const { data: updateResult, error } = await supabase
         .from('profiles')
         .update(updateData)
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .select();
 
       console.log('📊 LOG - Resultado da tentativa de atualização:', {
@@ -459,7 +459,7 @@ export default function MoradorProfile() {
       const { data: updatedProfile, error: postUpdateError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
       
       console.log('📊 LOG - Estado do banco APÓS a atualização:', {
@@ -545,7 +545,7 @@ export default function MoradorProfile() {
         const { error } = await supabase
           .from('profiles')
           .update({ avatar_url: uploadedUrl } as any)
-          .eq('id', user.id as any);
+          .eq('user_id', user.id as any);
 
         if (error) {
           console.error('Erro ao atualizar avatar_url:', error);
@@ -587,7 +587,7 @@ export default function MoradorProfile() {
               const { error } = await supabase
                 .from('profiles')
                 .update({ avatar_url: null } as any)
-                .eq('id', user.id as any);
+                .eq('user_id', user.id as any);
 
               if (error) {
                 console.error('Erro ao remover avatar_url:', error);
@@ -696,7 +696,7 @@ export default function MoradorProfile() {
               const { error } = await supabase
                 .from('profiles')
                 .delete()
-                .eq('id', user.id);
+                .eq('user_id', user.id);
 
               if (error) {
                 console.error('Erro ao excluir perfil:', error);

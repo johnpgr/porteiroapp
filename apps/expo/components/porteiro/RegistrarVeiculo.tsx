@@ -128,7 +128,7 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('building_id')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .single();
 
         if (profile && profile.building_id) {

@@ -458,7 +458,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         userData = {
-          id: profile.id,
+          id: authUser.id,
           email: profile.email ?? '',
           user_type: (profile.user_type ?? profile.role ?? 'morador') as AuthUserRole,
           condominium_id: undefined, // profiles table doesn't have this field

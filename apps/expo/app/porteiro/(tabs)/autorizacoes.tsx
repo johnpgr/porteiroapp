@@ -27,7 +27,7 @@ export default function PorteiroAutorizacoesScreen() {
         const { data, error } = await supabase
           .from('profiles')
           .select('building_id')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .eq('user_type', 'porteiro')
           .maybeSingle();
 
