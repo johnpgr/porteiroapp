@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { registerPushTokenAfterLogin } from './pushNotifications';
 
 // Importação condicional do AsyncStorage
 let AsyncStorage: any = null;
@@ -86,6 +87,12 @@ export const adminAuth = {
           role: adminProfile.role,
           platform: Platform.OS,
         });
+
+        // Register push token immediately after successful admin login
+        registerPushTokenAfterLogin(data.user.id, 'admin').catch((error) => {
+          console.error('🔔 Failed to register push token after admin login:', error);
+        });
+
         return { user: data.user, adminProfile };
       }
 

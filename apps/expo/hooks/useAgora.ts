@@ -16,7 +16,7 @@ import { deriveNextStateFromSignal } from '~/services/calling';
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
 import { agoraService } from '~/services/agora/AgoraService';
-import callKeepService from '~/services/CallKeepService';
+import { callKeepService } from '~/services/CallKeepService';
 
 type UserType = 'porteiro' | 'morador';
 
@@ -731,15 +731,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       return payload;
     },
-    [
-      apiBaseUrl,
-      currentUser,
-      ensureRtmLoggedIn,
-      joinChannel,
-      options?.clientVersion,
-      schemaVersion,
-      sendPeerSignal,
-    ]
+    [apiBaseUrl, currentUser, ensureRtmLoggedIn, joinChannel, options?.clientVersion, rtmStatus, schemaVersion, sendPeerSignal]
   );
 
   const answerIncomingCall = useCallback(async (): Promise<void> => {
@@ -1134,11 +1126,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
             // Create an incoming invite context to trigger the UI
             const inviteSignal: RtmInviteSignal = {
-              type: 'INVITE',
+              t: 'INVITE',
+              v: schemaVersion,
               callId: callData.callId,
-              channelName: callData.channelName,
+              channel: callData.channel,
               from: callData.from,
-              timestamp: callData.timestamp,
+              ts: callData.timestamp,
             };
 
             setIncomingInvite({
@@ -1166,13 +1159,13 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
 
     checkPendingIncomingCall();
-  }, []); // Run once on mount
+  }, [schemaVersion]); // Run once on mount
 
   // Wire CallKeep events to Agora call actions
   useEffect(() => {
     // Initialize CallKeep for residents
     if (currentUser?.userType === 'morador') {
-      callKeepService.initialize().catch((error) => {
+      callKeepService.initialize().catch((error: unknown) => {
         console.error('[useAgora] Failed to initialize CallKeep:', error);
       });
     }
@@ -1194,11 +1187,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
           // Restore the incoming invite state
           const inviteSignal: RtmInviteSignal = {
-            type: 'INVITE',
+            t: 'INVITE',
+            v: schemaVersion,
             callId: callData.callId,
-            channelName: callData.channelName,
+            channel: callData.channel ?? callData.channelName,
             from: callData.from,
-            timestamp: callData.timestamp,
+            ts: callData.timestamp,
           };
 
           setIncomingInvite({
@@ -1241,7 +1235,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     return () => {
       // Cleanup is handled by CallKeepService
     };
-  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall]);
+  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall, schemaVersion]);
 
   useEffect(() => {
     if (!incomingInvite || currentUser?.userType !== 'morador') {
