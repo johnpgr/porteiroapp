@@ -23,9 +23,11 @@
           "sounds": [
             "./assets/audio/doorbell_push.mp3",
             "./assets/audio/telephone_toque_interfone.mp3"
-          ]
+          ],
+          "enableBackgroundRemoteNotifications": true
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -48,7 +50,7 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
-          "remote-notification"
+          "voip"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera for video calls",

@@ -18,6 +18,7 @@ import { useAuth } from '~/hooks/useAuth';
 import { VisitorCard } from '~/components/VisitorCard';
 import { flattenStyles } from '~/utils/styles';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
+import { sendPushNotification } from '~/utils/pushNotifications';
 
 interface Visitor {
   id: string;
@@ -41,10 +42,6 @@ export default function AuthorizeScreen() {
   const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
   const [actionType, setActionType] = useState<'approve' | 'deny'>('approve');
   const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    fetchPendingVisitors();
-  }, [user, fetchPendingVisitors]);
 
   const fetchPendingVisitors = async () => {
     if (!user?.apartment_number) return;
@@ -114,10 +111,11 @@ export default function AuthorizeScreen() {
           log_time: new Date().toISOString(),
           tipo_log: 'IN',
           visit_session_id: Crypto.randomUUID(),
-          purpose: notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
+          purpose:
+            notes || `Visitante ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador`,
           authorized_by: user.id,
           status: newStatus,
-          notification_status: actionType === 'approve' ? 'approved' : 'rejected'
+          notification_status: actionType === 'approve' ? 'approved' : 'rejected',
         });
 
         // Criar notificação para o porteiro na tabela communications
@@ -132,8 +130,6 @@ export default function AuthorizeScreen() {
 
         // Enviar notificação push para o porteiro via Edge Function
         try {
-          const { sendPushNotification } = await import('../../utils/pushNotifications');
-
           const isApproved = actionType === 'approve';
           const title = isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Rejeitado';
           const message = isApproved
@@ -177,6 +173,10 @@ export default function AuthorizeScreen() {
       Alert.alert('Erro', 'Não foi possível processar a solicitação');
     }
   };
+
+  useEffect(() => {
+    fetchPendingVisitors();
+  }, [user, fetchPendingVisitors]);
 
   return (
     <View style={styles.container}>

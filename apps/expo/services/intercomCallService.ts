@@ -2,6 +2,7 @@ import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import { getCurrentUser } from '~/hooks/useAuth';
 
 // Interfaces para tipagem
 export interface IntercomCallData {
@@ -340,6 +341,12 @@ class IntercomCallService {
 
     // Notificar backend que chamada foi atendida
     try {
+      const currentUser = getCurrentUser();
+      if (!currentUser?.id) {
+        console.error('[IntercomCall] Unable to answer call without authenticated user');
+        return;
+      }
+
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/intercom/answer`, {
         method: 'POST',
         headers: {
@@ -347,7 +354,7 @@ class IntercomCallService {
         },
         body: JSON.stringify({
           call_id: callId,
-          resident_id: 'current_user_id' // TODO: Pegar ID do usuário atual
+          resident_id: currentUser.id
         }),
       });
 

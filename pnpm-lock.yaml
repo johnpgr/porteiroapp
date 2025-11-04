@@ -45,6 +45,9 @@ patchedDependencies:
   agora-react-native-rtm@1.5.1:
     hash: ic7rysbk25hbz3lztdg7qnik4a
     path: patches/agora-react-native-rtm@1.5.1.patch
+  react-native-callkeep@4.3.16:
+    hash: 3hfddyx7vo47kdnakdsabju4cq
+    path: patches/react-native-callkeep@4.3.16.patch
   react-native@0.81.5:
     hash: 7tfqahyehwcwlxfa7vxfjmsqwy
     path: patches/react-native@0.81.5.patch
@@ -134,6 +137,9 @@ importers:
       expo-router:
         specifier: ~6.0.1
         version: 6.0.13(hzvqobn7gdkhp5do7r4g4lvbwm)
+      expo-secure-store:
+        specifier: ~14.0.0
+        version: 14.0.1(expo@54.0.19)
       expo-splash-screen:
         specifier: ~31.0.9
         version: 31.0.10(expo@54.0.19)
@@ -143,6 +149,9 @@ importers:
       expo-system-ui:
         specifier: ~6.0.7
         version: 6.0.8(expo@54.0.19)(react-native-web@0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
+      expo-task-manager:
+        specifier: ~14.0.8
+        version: 14.0.8(expo@54.0.19)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
       expo-web-browser:
         specifier: ~15.0.7
         version: 15.0.8(expo@54.0.19)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
@@ -163,7 +172,7 @@ importers:
         version: 4.5.3(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
       react-native-callkeep:
         specifier: ^4.3.16
-        version: 4.3.16(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
+        version: 4.3.16(patch_hash=3hfddyx7vo47kdnakdsabju4cq)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
@@ -3173,6 +3182,11 @@ packages:
       react-server-dom-webpack:
         optional: true
 
+  expo-secure-store@14.0.1:
+    resolution: {integrity: sha512-QUS+j4+UG4jRQalgnpmTvvrFnMVLqPiUZRzYPnG3+JrZ5kwVW2w6YS3WWerPoR7C6g3y/a2htRxRSylsDs+TaQ==}
+    peerDependencies:
+      expo: '*'
+
   expo-server@1.0.2:
     resolution: {integrity: sha512-QlQLjFuwgCiBc+Qq0IyBBHiZK1RS0NJSsKVB5iECMJrR04q7PhkaF7dON0fhvo00COy4fT9rJ5brrJDpFro/gA==}
     engines: {node: '>=20.16.0'}
@@ -3197,6 +3211,12 @@ packages:
     peerDependenciesMeta:
       react-native-web:
         optional: true
+
+  expo-task-manager@14.0.8:
+    resolution: {integrity: sha512-HxhyvmulM8px+LQvqIKS85KVx2UodZf5RO+FE2ltpC4mQ5IFkX/ESqiK0grzDa4pVFLyxvs8LjuUKsfB5c39PQ==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
 
   expo-updates-interface@2.0.0:
     resolution: {integrity: sha512-pTzAIufEZdVPKql6iMi5ylVSPqV1qbEopz9G6TSECQmnNde2nwq42PxdFBaUEd8IZJ/fdJLQnOT3m6+XJ5s7jg==}
@@ -5366,6 +5386,9 @@ packages:
   unicode-property-aliases-ecmascript@2.2.0:
     resolution: {integrity: sha512-hpbDzxUY9BFwX+UeBnxv3Sh1q7HFxj48DTmXchNgRa46lO8uj3/1iEn3MiNUYTg1g9ctIqXCCERn8gYZhHC5lQ==}
     engines: {node: '>=4'}
+
+  unimodules-app-loader@6.0.7:
+    resolution: {integrity: sha512-23iwxmh6/y54PRGJt/xjsOpPK8vlfusBisi3yaVSK22pxg5DmiL/+IHCtbb/crHC+gqdItcy1OoRsZQHfNSBaw==}
 
   unique-string@2.0.0:
     resolution: {integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==}
@@ -9023,6 +9046,10 @@ snapshots:
       - '@types/react-dom'
       - supports-color
 
+  expo-secure-store@14.0.1(expo@54.0.19):
+    dependencies:
+      expo: 54.0.19(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.13)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
+
   expo-server@1.0.2: {}
 
   expo-splash-screen@31.0.10(expo@54.0.19):
@@ -9048,6 +9075,12 @@ snapshots:
       react-native-web: 0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     transitivePeerDependencies:
       - supports-color
+
+  expo-task-manager@14.0.8(expo@54.0.19)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)):
+    dependencies:
+      expo: 54.0.19(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.13)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
+      react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
+      unimodules-app-loader: 6.0.7
 
   expo-updates-interface@2.0.0(expo@54.0.19):
     dependencies:
@@ -10783,7 +10816,7 @@ snapshots:
       react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
       ts-interface-checker: 1.0.2
 
-  react-native-callkeep@4.3.16(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)):
+  react-native-callkeep@4.3.16(patch_hash=3hfddyx7vo47kdnakdsabju4cq)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)):
     dependencies:
       react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
 
@@ -11619,6 +11652,8 @@ snapshots:
   unicode-match-property-value-ecmascript@2.2.1: {}
 
   unicode-property-aliases-ecmascript@2.2.0: {}
+
+  unimodules-app-loader@6.0.7: {}
 
   unique-string@2.0.0:
     dependencies:

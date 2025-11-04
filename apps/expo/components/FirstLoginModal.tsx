@@ -19,6 +19,7 @@ import { useAuth } from '../hooks/useAuth';
 import { CPFValidationService } from '../services/CPFValidationService';
 import { PhotoUpload } from './PhotoUpload';
 import { supabase } from '../utils/supabase';
+import { TokenStorage } from '../services/TokenStorage';
 
 interface FirstLoginModalProps {
   visible: boolean;
@@ -42,7 +43,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const [step, setStep] = useState<'personal' | 'contact' | 'emergency' | 'photo'>('personal');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<FormData>>({});
-  
+
   const [formData, setFormData] = useState<FormData>({
     full_name: '',
     cpf: '',
@@ -50,15 +51,20 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     phone: '',
     photoUri: null,
   });
-  
-  const { completeFirstLogin, profileData, isLoading: hookLoading, error: hookError } = useFirstLogin();
+
+  const {
+    completeFirstLogin,
+    profileData,
+    isLoading: hookLoading,
+    error: hookError,
+  } = useFirstLogin();
   const { user, signOut } = useAuth();
 
   // Verificação de segurança para dados nulos
   useEffect(() => {
     if (visible && profileData && typeof profileData === 'object' && profileData !== null) {
       console.log('🔍 DEBUG FirstLoginModal - Profile data recebido:', profileData);
-      
+
       // Verificar se profileData tem as propriedades esperadas
       const safeProfileData = {
         full_name: (profileData as any)?.full_name || '',
@@ -68,13 +74,13 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         emergency_contact_name: (profileData as any)?.emergency_contact_name || '',
         emergency_contact_phone: (profileData as any)?.emergency_contact_phone || '',
       };
-      
+
       console.log('🔍 DEBUG FirstLoginModal - Safe profile data:', safeProfileData);
-      
+
       // Se já existe dados do perfil, pré-preencher o formulário
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        ...safeProfileData
+        ...safeProfileData,
       }));
     }
   }, [visible, profileData]);
@@ -95,14 +101,12 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     }
   }, [visible]);
 
-
-
   // Update form data
   const updateFormData = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors && errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
@@ -117,8 +121,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     const formattedPhone = text.replace(/\D/g, '').replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     updateFormData('phone', formattedPhone);
   };
-
-
 
   // Format birth date as user types
   const handleBirthDateChange = (text: string) => {
@@ -161,8 +163,6 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         }
         break;
 
-
-
       case 'photo':
         if (!formData.photoUri) {
           Alert.alert('Erro', 'Por favor, tire uma foto para continuar.');
@@ -179,9 +179,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const handleNext = () => {
     if (!validateCurrentStep()) return;
 
-    const steps: ('personal' | 'contact' | 'photo')[] = [
-      'personal', 'contact', 'photo'
-    ];
+    const steps: ('personal' | 'contact' | 'photo')[] = ['personal', 'contact', 'photo'];
     const currentIndex = steps.indexOf(step);
     if (currentIndex < steps.length - 1) {
       setStep(steps[currentIndex + 1]);
@@ -190,9 +188,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
   // Navigate to previous step
   const handleBack = () => {
-    const steps: ('personal' | 'contact' | 'photo')[] = [
-      'personal', 'contact', 'photo'
-    ];
+    const steps: ('personal' | 'contact' | 'photo')[] = ['personal', 'contact', 'photo'];
     const currentIndex = steps.indexOf(step);
     if (currentIndex > 0) {
       setStep(steps[currentIndex - 1]);
@@ -217,60 +213,61 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           onPress: async () => {
             // Mostrar loading durante logout
             setIsLoading(true);
-            
+
             try {
               console.log('🚪 [FirstLoginModal] Iniciando logout...');
-              
+
               // Timeout para evitar travamento em caso de problemas de rede
               const logoutPromise = signOut();
-              const timeoutPromise = new Promise((_, reject) => 
+              const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Timeout')), 10000)
               );
-              
+
               await Promise.race([logoutPromise, timeoutPromise]);
-              
+
               console.log('✅ [FirstLoginModal] Logout realizado com sucesso');
               onClose();
-              
             } catch (error: any) {
               console.error('❌ [FirstLoginModal] Erro durante logout:', error);
-              
+
               // Verificar se é erro de rede ou timeout
-              const isNetworkError = error?.message?.includes('Network request failed') || 
-                                   error?.message?.includes('Timeout') ||
-                                   error?.name?.includes('AuthRetryableFetchError');
-              
+              const isNetworkError =
+                error?.message?.includes('Network request failed') ||
+                error?.message?.includes('Timeout') ||
+                error?.name?.includes('AuthRetryableFetchError');
+
               if (isNetworkError) {
-                console.log('🌐 [FirstLoginModal] Erro de rede detectado, executando logout local...');
-                
+                console.log(
+                  '🌐 [FirstLoginModal] Erro de rede detectado, executando logout local...'
+                );
+
                 // Fallback: logout local mesmo com erro de rede
                 try {
                   // Limpar dados locais diretamente
-                  await import('../services/TokenStorage').then(({ TokenStorage }) => 
-                    TokenStorage.clearAll()
-                  );
-                  
+                  TokenStorage.clearAll();
+
                   console.log('🧹 [FirstLoginModal] Dados locais limpos com sucesso');
-                  
+
                   Alert.alert(
                     'Logout Realizado',
                     'Você foi desconectado com sucesso. Devido a problemas de conectividade, alguns dados podem não ter sido sincronizados com o servidor.',
-                    [{ 
-                      text: 'OK', 
-                      onPress: () => onClose()
-                    }]
+                    [
+                      {
+                        text: 'OK',
+                        onPress: () => onClose(),
+                      },
+                    ]
                   );
-                  
                 } catch (fallbackError) {
                   console.error('❌ [FirstLoginModal] Erro no fallback de logout:', fallbackError);
-                  
+
                   Alert.alert(
                     'Forçar Saída',
                     'Houve um problema ao fazer logout. Deseja forçar a saída? Isso pode deixar alguns dados não sincronizados.',
                     [
                       {
                         text: 'Cancelar',
-                        style: 'cancel'
+                        style: 'cancel',
                       },
                       {
                         text: 'Forçar Saída',
@@ -278,8 +275,8 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
                         onPress: () => {
                           console.log('🔄 [FirstLoginModal] Forçando logout...');
                           onClose();
-                        }
-                      }
+                        },
+                      },
                     ]
                   );
                 }
@@ -291,13 +288,13 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
                   [
                     {
                       text: 'Tentar Novamente',
-                      onPress: () => handleLogout()
+                      onPress: () => handleLogout(),
                     },
                     {
                       text: 'Forçar Saída',
                       style: 'destructive',
-                      onPress: () => onClose()
-                    }
+                      onPress: () => onClose(),
+                    },
                   ]
                 );
               }
@@ -314,11 +311,11 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   const handleComplete = async () => {
     console.log('🚀 DEBUG FirstLoginModal - Iniciando handleComplete');
     console.log('📋 DEBUG FirstLoginModal - Form data:', formData);
-    
+
     if (!validateCurrentStep()) return;
 
     const cleanCpf = CPFValidationService.clean(formData.cpf);
-    
+
     console.log('📋 DEBUG FirstLoginModal - Dados que serão enviados:', {
       cpf: cleanCpf,
       photoUri: formData.photoUri,
@@ -328,13 +325,13 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       emergency_contact_name: formData.emergency_contact_name,
       emergency_contact_phone: formData.emergency_contact_phone,
     });
-    
+
     setIsLoading(true);
-    
+
     try {
       // Verificar se o CPF já existe no sistema antes de tentar salvar
       console.log('🔍 DEBUG FirstLoginModal - Verificando se CPF já existe:', cleanCpf);
-      
+
       if (user?.id) {
         const { data: existingProfile, error: checkError } = await supabase
           .from('profiles')
@@ -342,11 +339,11 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           .eq('cpf', cleanCpf)
           .neq('id', user.id) // Excluir o próprio usuário
           .maybeSingle();
-        
+
         if (checkError) {
           console.warn('⚠️ DEBUG FirstLoginModal - Erro ao verificar CPF:', checkError);
         }
-        
+
         if (existingProfile) {
           console.log('❌ DEBUG FirstLoginModal - CPF já existe:', existingProfile);
           Alert.alert(
@@ -358,7 +355,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           return;
         }
       }
-      
+
       console.log('🔄 DEBUG FirstLoginModal - CPF disponível, chamando completeFirstLogin...');
       const result = await completeFirstLogin({
         cpf: cleanCpf,
@@ -374,23 +371,15 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
 
       if (result.success) {
         console.log('✅ DEBUG FirstLoginModal - Sucesso!');
-        Alert.alert(
-          'Sucesso!',
-          'Seu perfil foi completado com sucesso.',
-          [{ text: 'OK', onPress: onComplete }]
-        );
+        Alert.alert('Sucesso!', 'Seu perfil foi completado com sucesso.', [
+          { text: 'OK', onPress: onComplete },
+        ]);
       } else {
         console.log('❌ DEBUG FirstLoginModal - Erro:', result.error);
-        
+
         // Verificar se é erro específico de CPF duplicado
         if (result.error && result.error.includes('CPF já está cadastrado')) {
-          Alert.alert(
-            'CPF Já Cadastrado', 
-            result.error,
-            [
-              { text: 'OK', style: 'default' }
-            ]
-          );
+          Alert.alert('CPF Já Cadastrado', result.error, [{ text: 'OK', style: 'default' }]);
         } else {
           Alert.alert('Erro', result.error || 'Erro ao completar perfil');
         }
@@ -445,9 +434,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       <View style={styles.header}>
         <Ionicons name="person-outline" size={48} color="#007AFF" />
         <Text style={styles.title}>Dados Pessoais</Text>
-        <Text style={styles.subtitle}>
-          Vamos começar com suas informações básicas
-        </Text>
+        <Text style={styles.subtitle}>Vamos começar com suas informações básicas</Text>
       </View>
 
       {renderInput(
@@ -481,10 +468,14 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       )}
 
       <TouchableOpacity
-        style={[styles.button, (!formData.full_name || !formData.cpf || !formData.birth_date) ? styles.buttonDisabled : null]}
+        style={[
+          styles.button,
+          !formData.full_name || !formData.cpf || !formData.birth_date
+            ? styles.buttonDisabled
+            : null,
+        ]}
         onPress={handleNext}
-        disabled={!formData.full_name || !formData.cpf || !formData.birth_date}
-      >
+        disabled={!formData.full_name || !formData.cpf || !formData.birth_date}>
         <Text style={styles.buttonText}>Continuar</Text>
         <Ionicons name="arrow-forward" size={20} color="white" />
       </TouchableOpacity>
@@ -497,9 +488,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       <View style={styles.header}>
         <Ionicons name="call-outline" size={48} color="#007AFF" />
         <Text style={styles.title}>Informações de Contato</Text>
-        <Text style={styles.subtitle}>
-          Como podemos entrar em contato com você?
-        </Text>
+        <Text style={styles.subtitle}>Como podemos entrar em contato com você?</Text>
       </View>
 
       {renderInput(
@@ -515,17 +504,12 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       <TouchableOpacity
         style={[styles.button, !formData.phone ? styles.buttonDisabled : null]}
         onPress={handleNext}
-        disabled={!formData.phone}
-      >
+        disabled={!formData.phone}>
         <Text style={styles.buttonText}>Continuar</Text>
         <Ionicons name="arrow-forward" size={20} color="white" />
       </TouchableOpacity>
     </View>
   );
-
-
-
-
 
   // Render photo step
   const renderPhotoStep = () => (
@@ -534,10 +518,12 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         <Ionicons name="camera-outline" size={48} color="#007AFF" />
         <Text style={styles.title}>Foto do Perfil</Text>
         <Text style={styles.subtitle}>
-          Adicione uma foto para completar seu perfil. Ela será usada para sua identificação no condomínio.
+          Adicione uma foto para completar seu perfil. Ela será usada para sua identificação no
+          condomínio.
         </Text>
         <Text style={styles.photoHint}>
-          📱 Você pode tirar uma nova foto ou escolher uma da sua galeria. As permissões serão solicitadas quando necessário.
+          📱 Você pode tirar uma nova foto ou escolher uma da sua galeria. As permissões serão
+          solicitadas quando necessário.
         </Text>
       </View>
 
@@ -550,8 +536,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       <TouchableOpacity
         style={[styles.button, !formData.photoUri ? styles.buttonDisabled : null]}
         onPress={handleComplete}
-        disabled={!formData.photoUri || isLoading}
-      >
+        disabled={!formData.photoUri || isLoading}>
         {isLoading ? (
           <ActivityIndicator color="white" />
         ) : (
@@ -569,10 +554,10 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     const steps = [
       { key: 'personal', title: 'Dados Pessoais', icon: 'person-outline' },
       { key: 'contact', title: 'Contato', icon: 'call-outline' },
-      { key: 'photo', title: 'Foto', icon: 'camera-outline' }
+      { key: 'photo', title: 'Foto', icon: 'camera-outline' },
     ];
-    
-    const currentIndex = steps.findIndex(s => s.key === step);
+
+    const currentIndex = steps.findIndex((s) => s.key === step);
     return { steps, currentIndex, total: steps.length };
   };
 
@@ -599,8 +584,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
-      >
+        onRequestClose={onClose}>
         <View style={[styles.container, styles.centerContent]}>
           <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.loadingText}>Carregando dados do perfil...</Text>
@@ -615,8 +599,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         visible={visible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={onClose}
-      >
+        onRequestClose={onClose}>
         <View style={[styles.container, styles.centerContent]}>
           <Ionicons name="alert-circle" size={48} color="#FF3B30" />
           <Text style={styles.errorTitle}>Erro ao carregar dados</Text>
@@ -634,18 +617,16 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={handleBack}
-    >
+      onRequestClose={handleBack}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={handleLogout} style={styles.backButton}>
             <Ionicons name="log-out" size={24} color="#007AFF" />
           </TouchableOpacity>
-          
+
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
               <View
@@ -669,8 +650,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
                 style={[
                   styles.stepCircle,
                   index <= currentIndex ? styles.stepCircleActive : styles.stepCircleInactive,
-                ]}
-              >
+                ]}>
                 <Ionicons
                   name={stepInfo.icon as any}
                   size={16}
@@ -681,8 +661,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
                 style={[
                   styles.stepLabel,
                   index <= currentIndex ? styles.stepLabelActive : styles.stepLabelInactive,
-                ]}
-              >
+                ]}>
                 {stepInfo.title}
               </Text>
             </View>
@@ -696,12 +675,9 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
           showsVerticalScrollIndicator={false}
           bounces={false}
           nestedScrollEnabled={true}
-          scrollEnabled={true}
-        >
+          scrollEnabled={true}>
           {renderCurrentStep()}
         </ScrollView>
-
-
       </KeyboardAvoidingView>
     </Modal>
   );

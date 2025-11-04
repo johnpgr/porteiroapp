@@ -6,12 +6,13 @@
 
 interface PushNotificationPayload {
   to: string; // Expo push token
-  title: string;
-  body: string;
+  title?: string; // Optional for headless notifications
+  body?: string; // Optional for headless notifications
   data?: Record<string, any>;
   sound?: string;
   priority?: 'default' | 'normal' | 'high';
   channelId?: string;
+  _contentAvailable?: boolean; // iOS: deliver as background notification
 }
 
 interface SendPushResult {
@@ -47,7 +48,8 @@ class PushNotificationService {
   }
 
   /**
-   * Send a call invite push notification
+   * Send a call invite push notification (HEADLESS/DATA-ONLY)
+   * This allows the app to handle calls in background via TaskManager
    */
   async sendCallInvite(params: CallInvitePushParams): Promise<SendPushResult> {
     if (!this.enabled) {
@@ -68,13 +70,14 @@ class PushNotificationService {
       };
     }
 
+    // CRITICAL: Send data-only notification (no title/body)
+    // This makes it a "headless" background notification that wakes the app
     const payload: PushNotificationPayload = {
       to: params.pushToken,
-      title: 'Chamada do Interfone',
-      body: params.fromName
-        ? `${params.fromName} está chamando${params.apartmentNumber ? ` para o apartamento ${params.apartmentNumber}` : ''}`
-        : `Chamada de interfone${params.apartmentNumber ? ` para o apartamento ${params.apartmentNumber}` : ''}`,
-      // Use dedicated intercom call channel configured in the app
+      // NO title or body - this triggers TaskManager background handler
+      // title: 'Chamada do Interfone',  // REMOVED
+      // body: '...',                     // REMOVED
+      _contentAvailable: true, // iOS: deliver as background notification
       sound: 'doorbell_push.mp3',
       priority: 'high',
       channelId: 'intercom-call',
@@ -82,11 +85,12 @@ class PushNotificationService {
         type: 'intercom_call',
         callId: params.callId,
         from: params.from,
-        fromName: params.fromName,
-        apartmentNumber: params.apartmentNumber,
-        buildingName: params.buildingName,
+        fromName: params.fromName || 'Doorman',
+        apartmentNumber: params.apartmentNumber || '',
+        buildingName: params.buildingName || '',
         channelName: params.channelName,
         action: 'incoming_call',
+        timestamp: Date.now().toString(),
         ...params.metadata
       }
     };
@@ -94,10 +98,11 @@ class PushNotificationService {
     try {
       // Log sanitized payload info before sending
       const tokenPreview = `${params.pushToken?.slice(0, 12) ?? ''}...`;
-      console.log('📤 [push] Preparing Expo push', {
+      console.log('📤 [push] Preparing HEADLESS Expo push (data-only)', {
         to: tokenPreview,
         callId: params.callId,
         from: params.from,
+        _contentAvailable: true,
         channelId: payload.channelId,
         sound: payload.sound,
         channelName: params.channelName,

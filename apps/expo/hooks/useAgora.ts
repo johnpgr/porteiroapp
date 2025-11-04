@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IRtcEngine } from 'react-native-agora';
 import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
 import type {
@@ -15,6 +16,7 @@ import { deriveNextStateFromSignal } from '~/services/calling';
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
 import { agoraService } from '~/services/agora/AgoraService';
+import callKeepService from '~/services/CallKeepService';
 
 type UserType = 'porteiro' | 'morador';
 
@@ -347,8 +349,6 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   const prevUserIdRef = useRef<string | undefined>(undefined);
   const isRecoveringCallRef = useRef(false);
   const recoveryCallIdRef = useRef<string | null>(null);
-  const hasEverConnectedRtmRef = useRef(false);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const agoraAppId = useMemo(() => {
     const resolved = options?.appId ?? process.env.EXPO_PUBLIC_AGORA_APP_ID ?? '';
@@ -1117,29 +1117,131 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
   }, [rtmMessageCallback]);
 
-  // Initialize hasEverConnectedRtmRef based on current RTM status on mount
+  // Check for pending incoming calls stored by background task
   useEffect(() => {
-    const currentStatus = agoraService.getStatus();
-    if (currentStatus === 'connected') {
-      hasEverConnectedRtmRef.current = true;
-      console.log('✅ [useAgora] RTM already connected on mount, polling disabled');
-    }
+    const checkPendingIncomingCall = async () => {
+      try {
+        const pendingCallData = await AsyncStorage.getItem('@pending_intercom_call');
+
+        if (pendingCallData) {
+          console.log('[useAgora] Found pending call from background task');
+          const callData = JSON.parse(pendingCallData);
+
+          // Check if call is still recent (not expired)
+          const age = Date.now() - (callData.timestamp || 0);
+          if (age < 60000) { // 60 seconds
+            console.log('[useAgora] Displaying pending call:', callData);
+
+            // Create an incoming invite context to trigger the UI
+            const inviteSignal: RtmInviteSignal = {
+              type: 'INVITE',
+              callId: callData.callId,
+              channelName: callData.channelName,
+              from: callData.from,
+              timestamp: callData.timestamp,
+            };
+
+            setIncomingInvite({
+              signal: inviteSignal,
+              from: callData.from,
+              callSummary: {
+                callId: callData.callId,
+                apartmentNumber: callData.apartmentNumber,
+                doormanName: callData.callerName,
+                buildingId: null,
+              },
+            });
+
+            console.log('[useAgora] ✅ Pending call restored from storage');
+          } else {
+            console.log('[useAgora] ⚠️ Pending call expired (age:', age, 'ms)');
+          }
+
+          // Clear stored data
+          await AsyncStorage.removeItem('@pending_intercom_call');
+        }
+      } catch (error) {
+        console.error('[useAgora] Error checking pending call:', error);
+      }
+    };
+
+    checkPendingIncomingCall();
   }, []); // Run once on mount
 
-  // Track if RTM has ever connected (to prevent polling restart on reconnection)
+  // Wire CallKeep events to Agora call actions
   useEffect(() => {
-    if (rtmStatus === 'connected' && !hasEverConnectedRtmRef.current) {
-      hasEverConnectedRtmRef.current = true;
-      console.log('✅ [useAgora] RTM connected for first time, disabling future polling');
-
-      // Clear the polling interval if it's still running
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        console.log('🛑 [useAgora] Cleared polling interval on RTM connection');
-      }
+    // Initialize CallKeep for residents
+    if (currentUser?.userType === 'morador') {
+      callKeepService.initialize().catch((error) => {
+        console.error('[useAgora] Failed to initialize CallKeep:', error);
+      });
     }
-  }, [rtmStatus]);
+
+    // Override CallKeep answer handler
+    callKeepService['onAnswerCall'] = async ({ callUUID }: { callUUID: string }) => {
+      console.log('[useAgora] CallKeep: User answered call', callUUID);
+
+      // Check if we have an incoming invite
+      if (incomingInvite) {
+        console.log('[useAgora] Answering current incoming call');
+        await answerIncomingCall();
+      } else {
+        // Try to get call data from AsyncStorage
+        const pendingCallData = await AsyncStorage.getItem('@pending_intercom_call');
+        if (pendingCallData) {
+          const callData = JSON.parse(pendingCallData);
+          console.log('[useAgora] Answering call from storage:', callData.callId);
+
+          // Restore the incoming invite state
+          const inviteSignal: RtmInviteSignal = {
+            type: 'INVITE',
+            callId: callData.callId,
+            channelName: callData.channelName,
+            from: callData.from,
+            timestamp: callData.timestamp,
+          };
+
+          setIncomingInvite({
+            signal: inviteSignal,
+            from: callData.from,
+            callSummary: {
+              callId: callData.callId,
+              apartmentNumber: callData.apartmentNumber,
+              doormanName: callData.callerName,
+              buildingId: null,
+            },
+          });
+
+          // Answer after a brief delay to ensure state is set
+          setTimeout(() => {
+            answerIncomingCall().catch((error) => {
+              console.error('[useAgora] Failed to answer call:', error);
+            });
+          }, 100);
+        }
+      }
+    };
+
+    // Override CallKeep end handler
+    callKeepService['onEndCall'] = async ({ callUUID }: { callUUID: string }) => {
+      console.log('[useAgora] CallKeep: User ended call', callUUID);
+
+      if (incomingInvite) {
+        console.log('[useAgora] Declining incoming call');
+        await declineIncomingCall('User declined');
+      } else if (activeCall) {
+        console.log('[useAgora] Ending active call');
+        await endActiveCall();
+      }
+
+      // Clear any pending call data
+      await AsyncStorage.removeItem('@pending_intercom_call');
+    };
+
+    return () => {
+      // Cleanup is handled by CallKeepService
+    };
+  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall]);
 
   useEffect(() => {
     if (!incomingInvite || currentUser?.userType !== 'morador') {
@@ -1457,135 +1559,6 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   // RTM initialization is now handled by AuthProvider when user authenticates
   // This ensures proper initialization timing and avoids race conditions
-
-  // Proactive polling for incoming calls (works without push notifications)
-  // Only polls BEFORE RTM connects - stops when RTM is connected
-  // This effect runs once on mount and uses refs to track state changes
-  useEffect(() => {
-    // Don't poll if RTM has ever connected - RTM handles it from then on
-    // Check this FIRST before any other logic to prevent re-polling after RTM connects
-    if (hasEverConnectedRtmRef.current) {
-      console.log('⏭️ [useAgora] Skipping polling setup - RTM has already connected');
-      return;
-    }
-
-    // Wait for user to be available (checked via ref in polling function)
-    const checkUser = () => {
-      const user = currentUserRef.current;
-      return user && user.userType === 'morador';
-    };
-
-    if (!checkUser()) {
-      // Set up a check interval to wait for user to load
-      const userCheckInterval = setInterval(() => {
-        if (checkUser()) {
-          clearInterval(userCheckInterval);
-          startPolling();
-        }
-      }, 500);
-
-      // Cleanup if component unmounts before user loads
-      return () => clearInterval(userCheckInterval);
-    }
-
-    // User already available, start immediately
-    startPolling();
-
-    function startPolling() {
-      const user = currentUserRef.current;
-      if (!user) return;
-
-      const userIdStable = user.id;
-      console.log(`🔄 [useAgora] Starting call polling for morador user ${userIdStable} (RTM not connected yet)`);
-
-      const checkForIncomingCalls = async () => {
-        // Stop polling if RTM has connected (even if interval still running)
-        if (hasEverConnectedRtmRef.current) {
-          console.log('⏹️ [useAgora] Stopping poll - RTM connected');
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-          return;
-        }
-
-        // Don't poll if already in a call
-        if (activeCallRef.current) {
-          return;
-        }
-
-        try {
-          console.log('🔍 [useAgora] Polling for pending calls...');
-
-          // Use current user from ref to avoid stale closure
-          const currentUserInPoll = currentUserRef.current;
-          if (!currentUserInPoll) {
-            console.log('⚠️ [useAgora] User logged out, stopping poll');
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            return;
-          }
-
-          // Query backend for any active calls for this user
-          const { data } = await supabase.auth.getSession();
-          const accessToken = data?.session?.access_token;
-
-          const response = await apiRequest<{ calls: any[] }>(
-            apiBaseUrlRef.current,
-            `/api/calls/pending?userId=${currentUserInPoll.id}`,
-            {
-              method: 'GET',
-              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-            }
-          );
-
-          console.log(`🔍 [useAgora] Polling response:`, {
-            success: response.success,
-            callCount: (response as any).calls?.length ?? 0,
-            error: response.error
-          });
-
-          if (!response.success || !(response as any).calls || (response as any).calls.length === 0) {
-            return;
-          }
-
-          // Found pending call(s) - take the first one
-          const pendingCall = (response as any).calls[0];
-          const callId = pendingCall.id ?? pendingCall.call_id;
-
-          if (callId && !activeCallRef.current) {
-            console.log(`📞 [useAgora] Polling discovered incoming call ${callId}`);
-            await checkForActiveCall(callId);
-          }
-        } catch (error) {
-          console.error('❌ [useAgora] Error polling for calls:', error);
-        }
-      };
-
-      // Poll every 3 seconds
-      const pollInterval = setInterval(checkForIncomingCalls, 3000);
-      pollingIntervalRef.current = pollInterval;
-
-      // Initial check immediately
-      void checkForIncomingCalls();
-    }
-
-    return () => {
-      const user = currentUserRef.current;
-      if (user) {
-        console.log(`🛑 [useAgora] Stopping call polling for user ${user.id}`);
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-    // Empty deps - only run once on mount, use refs for all runtime checks
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
 
   return {
     engine,

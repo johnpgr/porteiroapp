@@ -7,39 +7,34 @@ import { Container } from '~/components/Container';
 import { flattenStyles } from '~/utils/styles';
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { user, loading, initialized } = useAuth();
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    const handleAutoRedirect = async () => {
-      // Aguarda o loading do AuthProvider terminar
-      if (!loading) {
-        // Se há usuário logado, redireciona diretamente
-        if (user) {
-          // Mantém splash screen visível por mais tempo
-          await new Promise(resolve => setTimeout(resolve, 2500));
+    if (!initialized) {
+      setIsCheckingSession(true);
+      return;
+    }
 
-          // Redireciona para a página correta
-          switch (user.user_type) {
-            case 'admin':
-              router.replace('/admin/(tabs)' as any);
-              break;
-            case 'porteiro':
-              router.replace('/porteiro');
-              break;
-            case 'morador':
-              router.replace('/morador/(tabs)' as any);
-              break;
-          }
-        } else {
-          // Sem usuário logado - mostra a tela de seleção
-          setIsCheckingSession(false);
-        }
+    if (user) {
+      switch (user.user_type) {
+        case 'admin':
+          router.replace('/admin/(tabs)' as any);
+          break;
+        case 'porteiro':
+          router.replace('/porteiro');
+          break;
+        case 'morador':
+          router.replace('/morador/(tabs)' as any);
+          break;
+        default:
+          break;
       }
-    };
+      return;
+    }
 
-    handleAutoRedirect();
-  }, [user, loading]);
+    setIsCheckingSession(false);
+  }, [initialized, user]);
 
   // Mostra loading enquanto:
   // 1. AuthProvider está carregando (loading = true)
