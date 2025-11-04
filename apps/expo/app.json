@@ -26,7 +26,23 @@
           "enableBackgroundRemoteNotifications": true
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@config-plugins/react-native-callkeep",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "manifest": {
+              "service": {
+                "$": {
+                  "android:foregroundServiceType": "camera|microphone"
+                },
+                "rule": "..."
+              }
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
