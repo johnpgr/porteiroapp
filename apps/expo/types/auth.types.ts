@@ -1,7 +1,8 @@
 export type AuthUserRole = 'morador' | 'porteiro' | 'admin' | 'visitante';
 
 export interface AuthUser {
-  id: string;
+  id: string; // Auth user ID (from auth.users)
+  profile_id?: string; // Profile primary key (from profiles.id or admin_profiles.id)
   email: string;
   user_type: AuthUserRole;
   role?: AuthUserRole;

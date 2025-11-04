@@ -26,8 +26,16 @@ export const useUserApartment = (): UseUserApartmentReturn => {
         setError(null);
 
         // Buscar o apartamento do usuário através da tabela apartment_residents
-        console.log('Buscando apartamento para user.id:', user.id);
-        
+        console.log('Buscando apartamento para user.profile_id:', user.profile_id);
+
+        if (!user.profile_id) {
+          console.error('user.profile_id não está definido');
+          setError('Perfil incompleto');
+          setApartmentNumber(null);
+          setLoading(false);
+          return;
+        }
+
         const { data, error: queryError } = await supabase
           .from('apartment_residents')
           .select(`
@@ -35,7 +43,7 @@ export const useUserApartment = (): UseUserApartmentReturn => {
               number
             )
           `)
-          .eq('profile_id', user.id)
+          .eq('profile_id', user.profile_id)
           .eq('is_active', true)
           .single();
 

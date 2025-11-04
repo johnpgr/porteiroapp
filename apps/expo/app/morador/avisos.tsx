@@ -106,7 +106,7 @@ const AvisosTab = () => {
       const { data, error } = await supabase
         .from('apartment_residents')
         .select('apartment_id, apartments!inner(building_id)')
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
 
       if (error) {

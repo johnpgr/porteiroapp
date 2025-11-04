@@ -47,7 +47,7 @@ export const useAvisosNotifications = () => {
       const { data, error } = await supabase
         .from('apartment_residents')
         .select('apartment_id, apartments!inner(building_id)')
-        .eq('profile_id', user.id as any)
+        .eq('profile_id', user.profile_id as any)
         .maybeSingle();
       
       if (error) throw error;

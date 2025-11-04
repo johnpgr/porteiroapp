@@ -40,7 +40,7 @@ export const useTokenNotifications = () => {
       const { data, error } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
       
       if (error) throw error;

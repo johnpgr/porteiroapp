@@ -432,6 +432,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           userData = {
             id: authUser.id,
+            profile_id: adminProfile.id,
             email: adminProfile.email,
             user_type: 'admin',
             condominium_id: undefined,
@@ -459,6 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         userData = {
           id: authUser.id,
+          profile_id: profile.id,
           email: profile.email ?? '',
           user_type: (profile.user_type ?? profile.role ?? 'morador') as AuthUserRole,
           condominium_id: undefined, // profiles table doesn't have this field

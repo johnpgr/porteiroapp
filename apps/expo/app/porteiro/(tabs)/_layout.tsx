@@ -28,8 +28,7 @@ export default function PorteiroTabsLayout() {
           backgroundColor: '#fff',
           borderTopColor: '#e0e0e0',
           borderTopWidth: 1,
-          paddingBottom: 8,
-          paddingTop: 8,
+          paddingTop: 4,
         },
         tabBarLabelStyle: {
           fontSize: 12,

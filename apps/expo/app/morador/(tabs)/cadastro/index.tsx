@@ -199,7 +199,7 @@ export function CadastroTabContent() {
             building_id
           )
         `)
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id do usuário:', {
@@ -272,7 +272,7 @@ export function CadastroTabContent() {
       const { data: userResident } = await supabase
         .from('apartment_residents')
         .select('apartment_id, is_owner')
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
       
       if (userResident) {
@@ -309,7 +309,7 @@ export function CadastroTabContent() {
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
 
       if (residentError || !userResident?.apartment_id) {
@@ -360,7 +360,7 @@ export function CadastroTabContent() {
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
 
       if (residentError || !userResident?.apartment_id) {
@@ -566,7 +566,7 @@ export function CadastroTabContent() {
             building_id
           )
         `)
-        .eq('profile_id', user.id)
+        .eq('profile_id', user.profile_id)
         .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id para cadastro:', {
@@ -667,7 +667,7 @@ export function CadastroTabContent() {
         const { data: userResident, error: residentError } = await supabase
           .from('apartment_residents')
           .select('apartment_id')
-          .eq('profile_id', user.id)
+          .eq('profile_id', user.profile_id)
           .maybeSingle();
         
         console.log('🔍 DEBUG: Resultado da busca apartment_id:', { userResident, residentError });
