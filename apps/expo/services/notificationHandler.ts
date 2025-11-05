@@ -126,9 +126,19 @@ function setupTokenChangeListener(): void {
   }
 
   tokenListener = Notifications.addPushTokenListener(async (token) => {
-    console.log('🔄 [NotificationHandler] Push token changed:', token.data);
-
     try {
+      // Silently ignore non-Expo tokens (FCM/APNs device tokens)
+      // Only save valid Expo push tokens to database
+      if (
+        !token.data ||
+        (!token.data.startsWith('ExponentPushToken[') &&
+         !token.data.startsWith('ExpoPushToken['))
+      ) {
+        return; // Silently ignore invalid tokens
+      }
+
+      console.log('🔄 [NotificationHandler] Push token changed:', token.data);
+
       // Get current user from Supabase session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {

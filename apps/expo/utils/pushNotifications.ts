@@ -250,6 +250,18 @@ export async function registerPushTokenAfterLogin(
       return false;
     }
 
+    // Validate token format before saving
+    if (
+      !token.startsWith('ExponentPushToken[') &&
+      !token.startsWith('ExpoPushToken[')
+    ) {
+      console.error('❌ [registerPushToken] Invalid token format received');
+      console.error('   Expected: ExponentPushToken[...] or ExpoPushToken[...]');
+      console.error('   Received:', token.substring(0, 50) + '...');
+      console.error('   This should not happen - please report this issue');
+      return false;
+    }
+
     console.log('🔔 [registerPushToken] Push token obtido:', token);
 
     // Determinar tabela baseada no tipo de usuário

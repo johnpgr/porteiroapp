@@ -364,13 +364,29 @@ class PushNotificationService {
       return false;
     }
 
+    // Detect raw FCM tokens (contain colon, e.g., "xxx:APA91b...")
+    if (token.includes(':')) {
+      console.error(`❌ [push] Invalid token format: This appears to be a raw FCM token, not an Expo push token.`);
+      console.error(`   Token preview: ${token.substring(0, 30)}...`);
+      console.error(`   Solution: User needs to re-login or update app to register proper Expo push token`);
+      console.error(`   Expected format: ExponentPushToken[...] or ExpoPushToken[...]`);
+      return false;
+    }
+
     // Accept both old and new formats
-    return (
+    const isValid = (
       token.startsWith('ExponentPushToken[') ||
       token.startsWith('ExpoPushToken[') ||
-      // Also accept bare tokens (legacy format)
+      // Also accept bare tokens (legacy format without colons)
       /^[a-zA-Z0-9_-]{22,}$/.test(token)
     );
+
+    if (!isValid) {
+      console.warn(`⚠️ [push] Invalid Expo push token format: ${token.substring(0, 30)}...`);
+      console.warn(`   Expected: ExponentPushToken[...] or ExpoPushToken[...]`);
+    }
+
+    return isValid;
   }
 
   /**
