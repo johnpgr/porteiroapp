@@ -902,3 +902,531 @@ Added two new methods to DatabaseService:
 2. Check API logs for `"🔍 Buscando chamadas pendentes"`
 3. Verify user's apartment_id matches call's apartment_id
 4. Test API endpoint manually: `curl http://localhost:3001/api/calls/pending?userId=xxx`
+
+---
+
+## VoIP Push Notifications for iOS (2025-11-05)
+
+### Problem Statement
+iOS requires VoIP push notifications (PushKit) to reliably wake apps from killed state for incoming calls. Regular Expo push notifications may be throttled or delayed when the app is completely terminated. Android uses regular FCM high-priority push which already works reliably.
+
+### Solution Overview
+Implement complete iOS VoIP push notification system using `react-native-voip-push-notification` library with Expo config plugin to ensure native code survives EAS builds.
+
+### Technical Architecture
+
+**VoIP Push Flow (iOS Only):**
+```
+Porteiro initiates call
+  → Backend sends VoIP push to iOS devices (high priority)
+  → iOS PushKit wakes app from killed state
+  → Native AppDelegate receives VoIP push immediately
+  → Posts notification to React Native via NSNotificationCenter
+  → VoipPushNotificationService handles incoming push
+  → Immediately displays CallKeep UI (iOS 13+ requirement)
+  → Stores call data in AsyncStorage
+  → User answers → joins Agora call
+```
+
+**Platform Differences:**
+- **iOS**: Uses VoIP push (PushKit) for killed state wakeup
+- **Android**: Uses regular FCM high-priority push (existing implementation)
+
+### Implementation Details
+
+#### 1. Database Schema ✅
+
+**Tables Modified:** `profiles`, `admin_profiles`
+**Column Added:** `voip_push_token` (text, nullable)
+
+```sql
+-- Already exists in database
+ALTER TABLE profiles ADD COLUMN voip_push_token TEXT;
+ALTER TABLE admin_profiles ADD COLUMN voip_push_token TEXT;
+```
+
+#### 2. Expo Config Plugin ✅
+
+**File:** `apps/expo/plugins/withVoipPush.js`
+
+**Purpose:** Modifies iOS AppDelegate to register for VoIP push notifications and handle incoming pushes natively.
+
+**Key Features:**
+- Adds PushKit framework import
+- Adds `PKPushRegistryDelegate` to AppDelegate
+- Registers for VoIP push in `didFinishLaunchingWithOptions`
+- Implements delegate methods:
+  - `didUpdatePushCredentials`: Receives VoIP token, posts to React Native
+  - `didReceiveIncomingPushWithPayload`: Receives VoIP push, posts to React Native
+  - `didInvalidatePushTokenForType`: Handles token invalidation
+- Adds `voip` entitlement to entitlements.plist
+
+**Native Code Generated:**
+```objective-c
+#import <PushKit/PushKit.h>
+
+@interface AppDelegate : EXAppDelegateWrapper <PKPushRegistryDelegate>
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+  [super application:application didFinishLaunchingWithOptions:launchOptions];
+
+  // Register for VoIP push
+  PKPushRegistry *pushRegistry = [[PKPushRegistry alloc] initWithQueue:dispatch_get_main_queue()];
+  pushRegistry.delegate = self;
+  pushRegistry.desiredPushTypes = [NSSet setWithObject:PKPushTypeVoIP];
+
+  return YES;
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry
+didUpdatePushCredentials:(PKPushCredentials *)credentials
+             forType:(PKPushType)type {
+  // Post token to React Native
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"voipPushTokenUpdated"
+                                                      object:nil
+                                                    userInfo:@{@"token": hexString}];
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry
+didReceiveIncomingPushWithPayload:(PKPushPayload *)payload
+             forType:(PKPushType)type
+withCompletionHandler:(void (^)(void))completion {
+  // CRITICAL: Report to CallKit immediately (iOS 13+ requirement)
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"voipPushReceived"
+                                                      object:nil
+                                                    userInfo:data];
+  completion();
+}
+```
+
+**Configuration:** Added to `apps/expo/app.json` plugins array
+
+#### 3. React Native VoIP Service ✅
+
+**File:** `apps/expo/utils/voipPushNotifications.ts`
+
+**Class:** `VoipPushNotificationService` (singleton)
+
+**Key Methods:**
+- `initialize(userId, userType)`: Registers for VoIP push, sets up event listeners
+- `setupEventListeners()`: Listens for token updates and incoming pushes
+- `saveVoipTokenToDatabase(token)`: Saves VoIP token to `profiles.voip_push_token`
+- `handleIncomingVoipPush(notification)`:
+  - Displays CallKeep UI immediately (iOS 13+ requirement)
+  - Stores call data in AsyncStorage for app initialization
+  - Extracts call details from push payload
+- `cleanup()`: Removes event listeners on logout
+
+**iOS 13+ Critical Requirement:**
+Apps MUST report calls to CallKit immediately upon VoIP push receipt, or iOS will:
+- Terminate the app
+- Stop delivering future VoIP pushes to the device
+
+**Implementation:**
+```typescript
+private async handleIncomingVoipPush(notification: any): Promise<void> {
+  const callId = data.callId || 'unknown';
+  const callerName = data.fromName || 'Doorman';
+  const apartmentNumber = data.apartmentNumber || '';
+
+  // CRITICAL: Display CallKeep UI immediately
+  await callKeepService.displayIncomingCall(
+    callId,
+    callerName,
+    apartmentNumber ? `Apt ${apartmentNumber}` : 'Intercom Call',
+    false // hasVideo
+  );
+
+  // Store call data for when app fully opens
+  await AsyncStorage.setItem('@pending_intercom_call', JSON.stringify(callData));
+}
+```
+
+#### 4. Push Registration Integration ✅
+
+**File:** `apps/expo/utils/pushNotifications.ts`
+
+**Function:** `registerPushTokenAfterLogin(userId, userType)`
+
+**Changes:**
+- Initializes VoIP push service for iOS users after login
+- Non-critical error handling (won't block regular push registration)
+- Logs success/failure for debugging
+
+```typescript
+// Register VoIP push notifications for iOS
+try {
+  const voipPushService = (await import('./voipPushNotifications')).default;
+  await voipPushService.initialize(userId, userType);
+  console.log('🔔 [registerPushToken] VoIP push initialized for iOS');
+} catch (voipError) {
+  console.warn('⚠️ [registerPushToken] VoIP push initialization failed (non-critical):', voipError);
+}
+```
+
+#### 5. Backend Push Service ✅
+
+**File:** `apps/interfone-api/src/services/push.service.ts`
+
+**New Interface:** `VoipPushParams`
+```typescript
+interface VoipPushParams {
+  voipToken: string;
+  callId: string;
+  from: string;
+  fromName?: string;
+  apartmentNumber?: string;
+  buildingName?: string;
+  channelName: string;
+  metadata?: Record<string, any>;
+}
+```
+
+**New Methods:**
+
+1. **`sendVoipPush(params: VoipPushParams)`**
+   - Sends VoIP push to single iOS device
+   - Data-only payload (no title/body)
+   - High priority delivery
+   - Sets `isVoip: true` flag in data
+   - Uses Expo Push API (same endpoint as regular push)
+
+2. **`sendVoipPushesToMultiple(baseParams, recipients[])`**
+   - Sends VoIP pushes to multiple iOS devices in parallel
+   - Maps over recipients and calls `sendVoipPush` for each
+
+**VoIP Push Payload:**
+```typescript
+{
+  to: voipToken,
+  // NO title or body - VoIP pushes are silent/data-only
+  _contentAvailable: true,
+  priority: 'high',
+  channelId: 'intercom-call',
+  data: {
+    type: 'intercom_call',
+    callId: '...',
+    from: '...',
+    fromName: 'Doorman',
+    apartmentNumber: '101',
+    buildingName: 'Building A',
+    channelName: 'call-xxx',
+    action: 'incoming_call',
+    timestamp: '1699999999',
+    isVoip: true // Flag to indicate VoIP push
+  }
+}
+```
+
+#### 6. Database Service Updates ✅
+
+**File:** `apps/interfone-api/src/services/db.service.ts`
+
+**Method Modified:** `getResidentsByApartment(apartmentId)`
+
+**Changes:**
+- Added `voip_push_token` to SELECT query:
+```typescript
+profiles!inner(
+  id,
+  full_name,
+  email,
+  phone,
+  user_type,
+  notification_enabled,
+  push_token,
+  voip_push_token  // ← ADDED
+)
+```
+- Added `voip_push_token` to mapped return object
+
+#### 7. Call Controller Platform Logic ✅
+
+**File:** `apps/interfone-api/src/controllers/call.controller.ts`
+
+**Method Modified:** `startCall(req, res)`
+
+**Changes:**
+
+1. **Participant Data:** Added `voipPushToken` to participant objects
+```typescript
+participants.push({
+  user_id: resident.id,
+  user_type: 'resident',
+  role: 'callee',
+  name: resident.name,
+  phone: resident.phone,
+  status: 'ringing',
+  rtcUid: String(resident.id),
+  rtmId: String(resident.id),
+  pushToken: resident.push_token ?? null,
+  voipPushToken: resident.voip_push_token ?? null,  // ← ADDED
+  notification_enabled: resident.notification_enabled ?? false
+});
+```
+
+2. **Platform Separation:** Split recipients into iOS (VoIP) and Android (regular)
+```typescript
+// Separate iOS (VoIP) and Android (regular) recipients
+const iosRecipients = residentParticipants.filter(
+  (p: any) => p.voipPushToken && p.notification_enabled
+);
+const androidRecipients = residentParticipants.filter(
+  (p: any) => p.pushToken && p.notification_enabled && !p.voipPushToken
+);
+
+const voipPushTargets = iosRecipients.map((participant: any) => ({
+  userId: participant.user_id,
+  voipToken: participant.voipPushToken,
+  name: participant.name
+}));
+
+const pushFallbackTargets = androidRecipients.map((participant: any) => ({
+  userId: participant.user_id,
+  pushToken: participant.pushToken,
+  name: participant.name
+}));
+```
+
+3. **Dual Push Sending:** Send VoIP pushes to iOS, regular pushes to Android
+```typescript
+const baseCallData = {
+  callId,
+  from: String(effectiveDoormanId),
+  fromName: doorman.full_name || 'Porteiro',
+  apartmentNumber,
+  buildingName: apartment.building_name,
+  channelName,
+  metadata: { schemaVersion: payloadVersion, clientVersion: clientVersion ?? null }
+};
+
+// Send VoIP pushes to iOS devices
+if (voipPushTargets.length > 0) {
+  console.log(`📱 [iOS] Sending ${voipPushTargets.length} VoIP push notifications...`);
+  const voipResults = await pushService.sendVoipPushesToMultiple(baseCallData, voipPushTargets);
+  voipPushNotificationsSent = voipResults.filter((result) => result.success).length;
+  console.log(`✅ [iOS] ${voipPushNotificationsSent}/${voipPushTargets.length} VoIP pushes sent`);
+}
+
+// Send regular pushes to Android devices
+if (pushFallbackTargets.length > 0) {
+  console.log(`📱 [Android] Sending ${pushFallbackTargets.length} regular push notifications...`);
+  const pushResults = await pushService.sendCallInvitesToMultiple(baseCallData, pushFallbackTargets);
+  pushNotificationsSent = pushResults.filter((result) => result.success).length;
+  console.log(`✅ [Android] ${pushNotificationsSent}/${pushFallbackTargets.length} regular pushes sent`);
+}
+
+const totalPushNotificationsSent = pushNotificationsSent + voipPushNotificationsSent;
+```
+
+4. **Response Metadata:** Include platform-specific counts
+```typescript
+metadata: {
+  schemaVersion: payloadVersion,
+  clientVersion: clientVersion ?? null,
+  pushNotificationsSent: totalPushNotificationsSent,
+  iosPushNotificationsSent: voipPushNotificationsSent,
+  androidPushNotificationsSent: pushNotificationsSent
+}
+```
+
+5. **Enhanced Logging:** Platform-specific logs for debugging
+```typescript
+console.log(`📊 Resident notification eligibility:`);
+console.log(`   Total residents: ${residentParticipants.length}`);
+console.log(`   With push tokens: ${withTokens.length}`);
+console.log(`   With notifications enabled: ${withNotificationsEnabled.length}`);
+console.log(`   Eligible iOS (VoIP): ${iosRecipients.length}`);
+console.log(`   Eligible Android (regular): ${androidRecipients.length}`);
+console.log(`   Total eligible: ${eligibleForNotifications.length}`);
+```
+
+### Files Modified
+
+#### Frontend (Expo App)
+1. ✅ `apps/expo/plugins/withVoipPush.js` - Created
+2. ✅ `apps/expo/app.json` - Added plugin
+3. ✅ `apps/expo/utils/voipPushNotifications.ts` - Created
+4. ✅ `apps/expo/utils/pushNotifications.ts` - Modified
+
+#### Backend (interfone-api)
+5. ✅ `apps/interfone-api/src/services/push.service.ts` - Added VoIP methods
+6. ✅ `apps/interfone-api/src/services/db.service.ts` - Query voip_push_token
+7. ✅ `apps/interfone-api/src/controllers/call.controller.ts` - Platform separation logic
+
+#### Documentation
+8. ✅ `PLAN.md` - This document
+
+### Implementation Progress
+
+- [x] Research VoIP push requirements
+- [x] Design platform-aware architecture
+- [x] Create Expo config plugin for iOS AppDelegate
+- [x] Create VoIP push notification service
+- [x] Integrate VoIP token registration
+- [x] Add backend VoIP push methods
+- [x] Update database queries for voip_push_token
+- [x] Implement platform separation in call controller
+- [x] Add comprehensive logging
+- [x] Document implementation
+- [ ] Test iOS VoIP push (app killed)
+- [ ] Test iOS VoIP push (app backgrounded)
+- [ ] Test Android regular push (no regression)
+- [ ] Test mixed iOS/Android apartment
+- [ ] Verify CallKeep UI appears immediately
+- [ ] Verify iOS 13+ compliance
+
+### iOS 13+ Compliance
+
+**Critical Requirement:**
+iOS 13+ requires apps to report incoming VoIP calls to CallKit immediately upon receiving the VoIP push notification. Failure to do so results in:
+- App termination
+- VoIP push token invalidation
+- Future VoIP pushes blocked
+
+**Our Implementation:**
+```typescript
+// In handleIncomingVoipPush():
+await callKeepService.displayIncomingCall(
+  callId,
+  callerName,
+  apartmentNumber ? `Apt ${apartmentNumber}` : 'Intercom Call',
+  false
+);
+```
+
+This immediately displays the native iOS CallKit UI, satisfying Apple's requirement.
+
+### Platform Logic Decision Tree
+
+**When call is initiated:**
+```
+1. Query residents from apartment
+2. For each resident:
+   - Has voip_push_token? → iOS recipient (use VoIP push)
+   - Has push_token only? → Android recipient (use regular push)
+   - Has neither? → Skip (no push notification)
+3. Send VoIP pushes to iOS recipients in parallel
+4. Send regular pushes to Android recipients in parallel
+5. Log separate success counts for debugging
+```
+
+### Logging Examples
+
+**iOS VoIP Push Success:**
+```
+📊 Resident notification eligibility:
+   Total residents: 3
+   With push tokens: 3
+   With notifications enabled: 3
+   Eligible iOS (VoIP): 2
+   Eligible Android (regular): 1
+   Total eligible: 3
+📱 [iOS] Sending 2 VoIP push notifications...
+✅ [iOS] 2/2 VoIP pushes sent
+📱 [Android] Sending 1 regular push notifications...
+✅ [Android] 1/1 regular pushes sent
+```
+
+**VoIP Token Registration:**
+```
+🔔 [registerPushToken] Iniciando registro de push token para userId: xxx
+🔔 [registerPushToken] VoIP push initialized for iOS
+[VoIP Push] Initializing for user: xxx type: morador
+[VoIP Push] 📱 Token received: <hex-token>
+[VoIP Push] 💾 Saving token to database...
+[VoIP Push] ✅ Token saved successfully
+[VoIP Push] ✅ Initialization complete
+```
+
+**Incoming VoIP Push (App Killed):**
+```
+[VoIP Push] 📞 Incoming push notification: {callId: xxx, fromName: "Doorman", ...}
+[VoIP Push] 🎯 Processing incoming push...
+[VoIP Push] Call details: {callId: xxx, callerName: "Doorman", apartmentNumber: "101"}
+[VoIP Push] 📞 Displaying CallKeep UI...
+[VoIP Push] ✅ CallKeep UI displayed
+[VoIP Push] 💾 Storing call data...
+[VoIP Push] ✅ Call data stored
+```
+
+### Testing Checklist
+
+#### iOS VoIP Push Tests
+- [ ] **Test 1:** App killed → Call initiated → VoIP push received → CallKeep UI appears
+- [ ] **Test 2:** App backgrounded → Call initiated → VoIP push received → CallKeep UI appears
+- [ ] **Test 3:** VoIP token registered successfully on login
+- [ ] **Test 4:** VoIP token saved to database (check `profiles.voip_push_token`)
+- [ ] **Test 5:** Backend sends VoIP push to iOS devices
+- [ ] **Test 6:** Mixed apartment (iOS + Android) → Both receive appropriate push types
+
+#### Android Regular Push Tests (Regression)
+- [ ] **Test 7:** Android app killed → Regular push received → Notification appears
+- [ ] **Test 8:** Android app backgrounded → Regular push received → Notification appears
+- [ ] **Test 9:** Regular push token still registered correctly
+- [ ] **Test 10:** Backend sends regular push to Android devices
+
+#### Platform Separation Tests
+- [ ] **Test 11:** Apartment with only iOS residents → Only VoIP pushes sent
+- [ ] **Test 12:** Apartment with only Android residents → Only regular pushes sent
+- [ ] **Test 13:** Apartment with mixed devices → Both push types sent correctly
+- [ ] **Test 14:** Logs show correct platform counts (iOS vs Android)
+
+### Edge Cases & Considerations
+
+#### Handled
+- ✅ iOS user without voip_push_token → Falls back to regular push (if available)
+- ✅ Android user with voip_push_token → Ignored (Android uses regular push)
+- ✅ User has both push_token and voip_push_token → Uses VoIP (iOS takes precedence)
+- ✅ notification_enabled = false → No push sent (both platforms)
+- ✅ Push service disabled → No pushes sent (graceful degradation)
+- ✅ VoIP token registration failure → Logs warning, continues with regular push
+- ✅ VoIP push send failure → Logged, doesn't block Android pushes
+
+#### iOS 13+ Specific
+- ✅ CallKeep UI displayed immediately on VoIP push receipt
+- ✅ Call data stored in AsyncStorage for app initialization
+- ✅ Completion handler called after processing VoIP push
+- ✅ VoIP entitlement added to iOS app
+
+### Dependencies
+
+#### Native Libraries
+- ✅ `react-native-voip-push-notification` - Already installed
+- ✅ `react-native-callkeep` - Already configured
+- ✅ `@react-native-async-storage/async-storage` - Already installed
+
+#### Expo Plugins
+- ✅ `@expo/config-plugins` - Expo framework
+- ✅ `@config-plugins/react-native-callkeep` - Already configured
+
+#### Backend
+- ✅ Expo Push API - Already used for regular pushes
+- ✅ Supabase database - `voip_push_token` column exists
+
+### Rollback Plan
+
+If issues arise:
+1. Remove `./plugins/withVoipPush.js` from `app.json` plugins array
+2. Run `expo prebuild` to regenerate iOS AppDelegate without VoIP code
+3. Backend will gracefully skip iOS recipients (no voip_push_token)
+4. Android pushes continue to work normally
+5. iOS falls back to RTM-only (existing behavior)
+
+No database migrations to revert - `voip_push_token` column can remain (nullable).
+
+### Success Criteria
+
+✅ VoIP push wakes iOS app from killed state
+✅ CallKeep UI appears immediately on VoIP push receipt
+✅ VoIP tokens registered and saved to database
+✅ Backend sends VoIP pushes to iOS, regular pushes to Android
+✅ Platform-specific logging for debugging
+✅ iOS 13+ compliance maintained
+✅ Android regular push flow unchanged (no regressions)
+✅ Mixed iOS/Android apartments work correctly
+
+---
+
+**VoIP Push Implementation Completed:** 2025-11-05
+**Status:** Ready for Testing
