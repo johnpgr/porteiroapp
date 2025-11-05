@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Modal } from '~/components/Modal';
 import { Phone, PhoneOff } from 'lucide-react-native';
 import type { UseAgoraReturn } from '~/hooks/useAgora';
-import agoraAudioService from '~/services/audioService';
 
 const { width } = Dimensions.get('window');
 
@@ -53,29 +52,12 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
     [incomingInvite]
   );
 
-  useEffect(() => {
-    const run = async () => {
-      if (isVisible) {
-        // Use intercom-specific ringtone for intercom calls
-        await agoraAudioService.playIntercomRingtone();
-      } else {
-        await agoraAudioService.stopIntercomRingtone();
-      }
-    };
-    run().catch(() => undefined);
-
-    return () => {
-      void agoraAudioService.stopIntercomRingtone();
-    };
-  }, [isVisible]);
-
   if (!agoraContext) {
     return null;
   }
 
   const handleAccept = async () => {
     try {
-      await agoraAudioService.stopIntercomRingtone();
       await answerIncomingCall?.();
       // Don't close modal - it will transition to active call UI
     } catch {
@@ -85,7 +67,6 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
 
   const handleDecline = async () => {
     try {
-      await agoraAudioService.stopIntercomRingtone();
       await declineIncomingCall?.('declined');
       onClose?.();
     } catch {
@@ -95,7 +76,6 @@ const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose,
 
   const handleEndCall = async () => {
     try {
-      await agoraAudioService.stopIntercomRingtone();
       await endActiveCall?.('hangup');
       // Modal will auto-hide when activeCall becomes null
     } catch {

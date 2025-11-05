@@ -18,9 +18,9 @@ export default function AdminTabsLayout() {
         tabBarInactiveTintColor: '#666666',
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopColor: '#e0e0e0',
-          borderTopWidth: 1,
-          paddingTop: 4,
+          paddingTop: 8,
+          paddingBottom: 8,
+          height: 100,
         },
         tabBarLabelStyle: {
           fontSize: 12,

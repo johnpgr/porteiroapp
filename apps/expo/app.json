@@ -28,6 +28,7 @@
       ],
       "expo-secure-store",
       "@config-plugins/react-native-callkeep",
+      "./plugins/withVoipPush.js",
       [
         "expo-build-properties",
         {

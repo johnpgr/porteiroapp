@@ -33,6 +33,17 @@ interface CallInvitePushParams {
   metadata?: Record<string, any>;
 }
 
+interface VoipPushParams {
+  voipToken: string;
+  callId: string;
+  from: string;
+  fromName?: string;
+  apartmentNumber?: string;
+  buildingName?: string;
+  channelName: string;
+  metadata?: Record<string, any>;
+}
+
 class PushNotificationService {
   private readonly expoApiUrl = 'https://exp.host/--/api/v2/push/send';
   private readonly enabled: boolean;
@@ -187,6 +198,143 @@ class PushNotificationService {
       this.sendCallInvite({
         ...baseParams,
         pushToken: recipient.pushToken,
+        fromName: baseParams.fromName || recipient.name
+      })
+    );
+
+    return Promise.all(promises);
+  }
+
+  /**
+   * Send iOS VoIP push notification (HIGH PRIORITY - wakes app from killed state)
+   * VoIP pushes are delivered even when the app is killed, unlike regular pushes
+   *
+   * CRITICAL: iOS 13+ requires the app to report the call to CallKit immediately
+   */
+  async sendVoipPush(params: VoipPushParams): Promise<SendPushResult> {
+    if (!this.enabled) {
+      return {
+        success: false,
+        pushToken: params.voipToken,
+        error: 'Push notifications are disabled'
+      };
+    }
+
+    // Validate VoIP push token format
+    if (!this.isValidExpoPushToken(params.voipToken)) {
+      console.warn(`⚠️ Invalid VoIP push token format: ${params.voipToken}`);
+      return {
+        success: false,
+        pushToken: params.voipToken,
+        error: 'Invalid VoIP push token format'
+      };
+    }
+
+    // VoIP push payload (data-only, no notification)
+    const payload: PushNotificationPayload = {
+      to: params.voipToken,
+      // NO title or body - VoIP pushes are silent/data-only
+      _contentAvailable: true, // iOS: deliver as background notification
+      priority: 'high',
+      channelId: 'intercom-call',
+      data: {
+        type: 'intercom_call',
+        callId: params.callId,
+        from: params.from,
+        fromName: params.fromName || 'Doorman',
+        apartmentNumber: params.apartmentNumber || '',
+        buildingName: params.buildingName || '',
+        channelName: params.channelName,
+        action: 'incoming_call',
+        timestamp: Date.now().toString(),
+        isVoip: true, // Flag to indicate this is a VoIP push
+        ...params.metadata
+      }
+    };
+
+    try {
+      const tokenPreview = `${params.voipToken?.slice(0, 12) ?? ''}...`;
+      console.log('📤 [push] Sending iOS VoIP push (high priority)', {
+        to: tokenPreview,
+        callId: params.callId,
+        from: params.from,
+        channelName: params.channelName,
+        apartmentNumber: params.apartmentNumber,
+      });
+
+      const response = await fetch(this.expoApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip, deflate'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('📡 [push] VoIP push POST status', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`❌ VoIP push notification failed (${response.status}):`, errorText);
+        return {
+          success: false,
+          pushToken: params.voipToken,
+          error: `HTTP ${response.status}: ${errorText}`
+        };
+      }
+
+      const result = await response.json();
+      const firstResult = Array.isArray(result?.data)
+        ? result.data[0]
+        : result?.data ?? result;
+
+      if (firstResult?.status === 'error') {
+        console.error('❌ VoIP push notification error:', firstResult.message, {
+          details: firstResult?.details,
+          token: tokenPreview,
+        });
+        return {
+          success: false,
+          pushToken: params.voipToken,
+          error: firstResult.message || 'VoIP push notification failed'
+        };
+      }
+
+      console.log(`✅ VoIP push sent to ${tokenPreview} (ticket: ${firstResult?.id})`);
+
+      return {
+        success: true,
+        pushToken: params.voipToken,
+        ticketId: firstResult?.id
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ Failed to send VoIP push notification:', errorMessage);
+      return {
+        success: false,
+        pushToken: params.voipToken,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Send VoIP pushes to multiple iOS recipients
+   */
+  async sendVoipPushesToMultiple(
+    baseParams: Omit<VoipPushParams, 'voipToken'>,
+    recipients: Array<{ voipToken: string; name?: string }>
+  ): Promise<SendPushResult[]> {
+    console.log('📣 [push] Sending VoIP pushes to multiple iOS recipients', {
+      recipients: recipients.length,
+      callId: baseParams.callId,
+    });
+
+    const promises = recipients.map((recipient) =>
+      this.sendVoipPush({
+        ...baseParams,
+        voipToken: recipient.voipToken,
         fromName: baseParams.fromName || recipient.name
       })
     );

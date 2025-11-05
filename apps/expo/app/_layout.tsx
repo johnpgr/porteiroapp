@@ -24,6 +24,25 @@ SplashScreen.preventAutoHideAsync().catch((error) => {
   console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
 });
 
+// Global notification handler: ensure foreground alerts for intercom calls
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    const data = notification?.request?.content?.data as any;
+    if (data?.type === 'intercom_call') {
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: true,
+    };
+  },
+});
+
 // Register background notification task at module level
 // This MUST be called outside of any component to ensure it's registered before app loads
 registerBackgroundNotificationTask();

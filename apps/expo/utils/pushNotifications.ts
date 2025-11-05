@@ -191,6 +191,8 @@ export async function sendEmergencyAlert(params: {
 /**
  * Registra push token para o usuário após login
  * Deve ser chamado imediatamente após autenticação bem-sucedida
+ *
+ * IMPORTANT: Also registers VoIP push token for iOS
  */
 export async function registerPushTokenAfterLogin(userId: string, userType: 'admin' | 'porteiro' | 'morador'): Promise<boolean> {
   try {
@@ -201,6 +203,15 @@ export async function registerPushTokenAfterLogin(userId: string, userType: 'adm
     }
 
     console.log('🔔 [registerPushToken] Iniciando registro de push token para userId:', userId);
+
+    // Register VoIP push notifications for iOS (for incoming calls when app is killed)
+    try {
+      const voipPushService = (await import('./voipPushNotifications')).default;
+      await voipPushService.initialize(userId, userType);
+      console.log('🔔 [registerPushToken] VoIP push initialized for iOS');
+    } catch (voipError) {
+      console.warn('⚠️ [registerPushToken] VoIP push initialization failed (non-critical):', voipError);
+    }
 
     // Solicitar permissão
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -236,10 +247,10 @@ export async function registerPushTokenAfterLogin(userId: string, userType: 'adm
     // Determinar tabela baseada no tipo de usuário
     const table = userType === 'admin' ? 'admin_profiles' : 'profiles';
 
-    // Verificar se o perfil existe primeiro
+    // Verificar se o perfil existe e buscar push_token atual
     const { data: existingProfile, error: checkError } = await supabase
       .from(table)
-      .select('user_id')
+      .select('user_id, push_token')
       .eq('user_id', userId)
       .single();
 
@@ -248,7 +259,15 @@ export async function registerPushTokenAfterLogin(userId: string, userType: 'adm
       return false;
     }
 
-    // Atualizar push token no banco
+    // Verificar se o token mudou
+    if (existingProfile.push_token === token) {
+      console.log('✅ [registerPushToken] Push token já está atualizado, nenhuma atualização necessária');
+      return true;
+    }
+
+    console.log('🔔 [registerPushToken] Token mudou, atualizando no banco de dados...');
+
+    // Atualizar push token no banco apenas se mudou
     const { error, count } = await supabase
       .from(table)
       .update({ push_token: token })

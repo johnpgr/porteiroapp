@@ -433,7 +433,8 @@ class DatabaseService {
             phone,
             user_type,
             notification_enabled,
-            push_token
+            push_token,
+            voip_push_token
           )
         `,
         )
@@ -460,6 +461,7 @@ class DatabaseService {
         is_primary: resident.is_primary,
         notification_enabled: resident.profiles.notification_enabled,
         push_token: resident.profiles.push_token,
+        voip_push_token: resident.profiles.voip_push_token,
       }));
     } catch (error) {
       console.error("🔥 Erro ao buscar moradores do apartamento:", error);

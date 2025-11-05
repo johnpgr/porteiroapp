@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -17,7 +17,6 @@ interface PorteiroNotification {
 }
 
 export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?: string | null) => {
-  console.log('🎯 [usePorteiroNotifications] Hook EXECUTANDO com buildingId:', buildingId, 'porteiroId:', porteiroId);
 
   const [notifications, setNotifications] = useState<PorteiroNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -25,6 +24,15 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   const [error, setError] = useState<string | null>(null);
 
   const channelsRef = useRef<RealtimeChannel[]>([]);
+
+  useEffect(() => {
+    console.log(
+      '🎯 [usePorteiroNotifications] Hook EXECUTANDO com buildingId:',
+      buildingId,
+      'porteiroId:',
+      porteiroId
+    );
+  }, [buildingId, porteiroId]);
 
   // Configurar notificações push e listeners de foreground
   useEffect(() => {
@@ -90,7 +98,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   }, []);
 
   // Função para criar notificação local
-  const createLocalNotification = async (notification: PorteiroNotification) => {
+  const createLocalNotification = useCallback(async (notification: PorteiroNotification) => {
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -104,10 +112,10 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
     } catch (err) {
       console.error('❌ [usePorteiroNotifications] Erro ao criar notificação local:', err);
     }
-  };
+  }, []);
 
   // Função para exibir popup de aprovação/rejeição
-  const showApprovalPopup = async (status: string, visitorData: any) => {
+  const showApprovalPopup = useCallback(async (status: string, visitorData: any) => {
     console.log('🎯 [showApprovalPopup] Dados recebidos:', JSON.stringify(visitorData, null, 2));
 
     const isApproved = status === 'approved';
@@ -190,10 +198,10 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       [{ text: 'OK', style: 'default' }],
       { cancelable: true }
     );
-  };
+  }, []);
 
   // Verificar se o porteiro está em turno ativo
-  const isPorteiroOnDuty = async (): Promise<boolean> => {
+  const isPorteiroOnDuty = useCallback(async (): Promise<boolean> => {
     if (!porteiroId) {
       console.log('⚠️ [usePorteiroNotifications] PorteiroId não disponível para verificação de turno');
       return false;
@@ -208,10 +216,10 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       console.error('❌ [usePorteiroNotifications] Erro ao verificar turno:', error);
       return false;
     }
-  };
+  }, [porteiroId]);
 
   // Função para adicionar nova notificação (apenas se porteiro estiver em turno)
-  const addNotification = async (notification: PorteiroNotification) => {
+  const addNotification = useCallback(async (notification: PorteiroNotification) => {
     console.log('➕ [usePorteiroNotifications] Tentando adicionar notificação:', notification.title);
 
     // Verificar se o porteiro está em turno ativo
@@ -229,10 +237,10 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
 
     // Criar notificação push local
     await createLocalNotification(notification);
-  };
+  }, [createLocalNotification, isPorteiroOnDuty]);
 
   // Iniciar listeners do Supabase
-  const startListening = async () => {
+  const startListening = useCallback(async () => {
     if (!buildingId) {
       console.log('⚠️ [usePorteiroNotifications] Não pode iniciar listeners - buildingId não disponível');
       return;
@@ -370,10 +378,10 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
       setError('Erro ao iniciar listeners de notificação');
       setIsListening(false); // Reverter estado em caso de erro
     }
-  };
+  }, [addNotification, buildingId, isListening, porteiroId, showApprovalPopup]);
 
   // Parar listeners
-  const stopListening = () => {
+  const stopListening = useCallback(() => {
     console.log('🛑 [usePorteiroNotifications] Parando listeners');
 
     channelsRef.current.forEach(channel => {
@@ -381,13 +389,13 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
     });
     channelsRef.current = [];
     setIsListening(false);
-  };
+  }, []);
 
   // Atualizar notificações
-  const refreshNotifications = async () => {
+  const refreshNotifications = useCallback(async () => {
     console.log('🔄 [usePorteiroNotifications] Atualizando notificações');
     // Aqui poderia buscar notificações do banco se necessário
-  };
+  }, []);
 
   // Iniciar listeners automaticamente quando buildingId e porteiroId estiverem disponíveis
   useEffect(() => {
@@ -406,7 +414,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
         stopListening();
       }
     };
-  }, [buildingId, porteiroId]); // Adicionado porteiroId às dependências
+  }, [buildingId, porteiroId, isListening, startListening, stopListening]); // Adicionado porteiroId às dependências
 
   return {
     notifications,

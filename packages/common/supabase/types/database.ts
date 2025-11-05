@@ -33,6 +33,7 @@ export type Database = {
           role: string | null
           updated_at: string
           user_id: string | null
+          voip_push_token: string | null
         }
         Insert: {
           address?: string | null
@@ -52,6 +53,7 @@ export type Database = {
           role?: string | null
           updated_at?: string
           user_id?: string | null
+          voip_push_token?: string | null
         }
         Update: {
           address?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           role?: string | null
           updated_at?: string
           user_id?: string | null
+          voip_push_token?: string | null
         }
         Relationships: []
       }
@@ -156,6 +159,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      app_config: {
+        Row: {
+          description: string | null
+          enabled: boolean
+          feature_key: string
+          metadata: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          description?: string | null
+          enabled?: boolean
+          feature_key: string
+          metadata?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          description?: string | null
+          enabled?: boolean
+          feature_key?: string
+          metadata?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       building_admins: {
         Row: {
@@ -1214,6 +1241,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
           user_type: string | null
+          voip_push_token: string | null
           work_schedule: string | null
         }
         Insert: {
@@ -1246,6 +1274,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_type?: string | null
+          voip_push_token?: string | null
           work_schedule?: string | null
         }
         Update: {
@@ -1278,6 +1307,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_type?: string | null
+          voip_push_token?: string | null
           work_schedule?: string | null
         }
         Relationships: [

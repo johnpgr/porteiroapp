@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IRtcEngine } from 'react-native-agora';
 import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
@@ -735,17 +735,35 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   );
 
   const answerIncomingCall = useCallback(async (): Promise<void> => {
+    console.log('[useAgora] ========================================');
+    console.log('[useAgora] 📞 answerIncomingCall() STARTED');
+    console.log('[useAgora] incomingInvite:', incomingInvite ? {
+      callId: incomingInvite.signal.callId,
+      from: incomingInvite.from,
+      channel: incomingInvite.signal.channel
+    } : null);
+    console.log('[useAgora] currentUser:', currentUser ? {
+      id: currentUser.id,
+      userType: currentUser.userType
+    } : null);
+
     if (!incomingInvite) {
+      console.error('[useAgora] ❌ No incoming invite found!');
       throw new Error('Nenhuma chamada pendente para atendimento');
     }
 
     if (!currentUser || currentUser.userType !== 'morador') {
+      console.error('[useAgora] ❌ Invalid user - not a morador');
       throw new Error('Somente moradores podem atender chamadas');
     }
 
+    console.log('[useAgora] ✅ Pre-checks passed');
     setError(null);
 
     // Call answer endpoint which now returns tokens, eliminating extra round-trip
+    console.log('[useAgora] Step 1: Calling answer API endpoint...');
+    console.log('[useAgora] API URL:', `${apiBaseUrl}/api/calls/${incomingInvite.signal.callId}/answer`);
+
     const answerResponse = await apiRequest<{
       call: Record<string, any>;
       participants: any[];
@@ -756,6 +774,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         userId: currentUser.id,
         userType: 'resident',
       }),
+    });
+
+    console.log('[useAgora] ✅ Answer API response received:', {
+      success: answerResponse.success,
+      hasTokens: !!answerResponse.data?.tokens,
+      participantCount: answerResponse.data?.participants?.length || 0
     });
 
     // Use tokens from answer response if available, otherwise fetch separately (backward compatibility)
@@ -826,16 +850,30 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
 
     // Set all state BEFORE joining channel so rtcJoinSuccess sees correct state
+    console.log('[useAgora] Step 3: Setting state and joining Agora channel...');
+    console.log('[useAgora] - Clearing incomingInvite');
+    console.log('[useAgora] - Setting callState to: connecting');
+    console.log('[useAgora] - Setting activeCall with callId:', nextActive.callId);
+
     setIncomingInvite(null);
     setCallState('connecting');
     setActiveCall(nextActive);
     activeCallRef.current = nextActive;
+
+    console.log('[useAgora] Step 4: Calling joinChannel()...');
+    console.log('[useAgora] Join params:', {
+      channelName: incomingInvite.signal.channel,
+      uid: bundle.uid,
+      hasToken: !!bundle.rtcToken
+    });
 
     await joinChannel({
       channelName: incomingInvite.signal.channel,
       uid: bundle.uid,
       token: bundle.rtcToken,
     });
+
+    console.log('[useAgora] ✅ joinChannel() completed!');
 
     if (targets.length > 0) {
       const answerSignal: RtmSignal = {
@@ -897,6 +935,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       setIncomingInvite(null);
       setCallState('idle');
+      // Dismiss native call UI if visible (reject before connected)
+      try { await callKeepService.rejectCall(incomingInvite.signal.callId); } catch {}
     },
     [apiBaseUrl, currentUser, incomingInvite, schemaVersion, sendPeerSignal]
   );
@@ -942,6 +982,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       setCallState('ending');
 
       await leaveChannel();
+      // Dismiss native call UI if visible
+      try { await callKeepService.endCall(callId); } catch {}
     },
     [activeCall, apiBaseUrl, currentUser, leaveChannel, schemaVersion, sendPeerSignal]
   );
@@ -1038,6 +1080,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         if (parsed.t === 'END' || parsed.t === 'DECLINE') {
           // Don't clear activeCall here - let leaveChannel handle it after timer
           await leaveChannel();
+          // Ensure native UI is dismissed
+          try { await callKeepService.endCall(parsed.callId); } catch {}
         }
         return;
       }
@@ -1059,6 +1103,9 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
           } catch (stopError) {
             console.warn('⚠️ Falha ao parar ringtone após cancelamento:', stopError);
           }
+
+          // Dismiss native UI for incoming cancel/decline before connected
+          try { await callKeepService.endCall(parsed.callId); } catch {}
 
           if (nextState === 'ended' || nextState === 'declined') {
             setTimeout(() => {
@@ -1129,7 +1176,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
               t: 'INVITE',
               v: schemaVersion,
               callId: callData.callId,
-              channel: callData.channel,
+              channel: callData.channel ?? callData.channelName,
               from: callData.from,
               ts: callData.timestamp,
             };
@@ -1170,72 +1217,110 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       });
     }
 
-    // Override CallKeep answer handler
-    callKeepService['onAnswerCall'] = async ({ callUUID }: { callUUID: string }) => {
-      console.log('[useAgora] CallKeep: User answered call', callUUID);
+    // Register CallKeep answer handler
+    callKeepService.setOnAnswer(async ({ callUUID }: { callUUID: string }) => {
+      console.log('[useAgora] ========================================');
+      console.log('[useAgora] 🎯 ANSWER HANDLER TRIGGERED');
+      console.log('[useAgora] callUUID:', callUUID);
+      console.log('[useAgora] Current user:', currentUser?.id, currentUser?.userType);
+      console.log('[useAgora] Has incoming invite:', !!incomingInvite);
+      console.log('[useAgora] Has active call:', !!activeCall);
 
-      // Check if we have an incoming invite
-      if (incomingInvite) {
-        console.log('[useAgora] Answering current incoming call');
-        await answerIncomingCall();
-      } else {
-        // Try to get call data from AsyncStorage
-        const pendingCallData = await AsyncStorage.getItem('@pending_intercom_call');
-        if (pendingCallData) {
-          const callData = JSON.parse(pendingCallData);
-          console.log('[useAgora] Answering call from storage:', callData.callId);
-
-          // Restore the incoming invite state
-          const inviteSignal: RtmInviteSignal = {
-            t: 'INVITE',
-            v: schemaVersion,
-            callId: callData.callId,
-            channel: callData.channel ?? callData.channelName,
-            from: callData.from,
-            ts: callData.timestamp,
-          };
-
-          setIncomingInvite({
-            signal: inviteSignal,
-            from: callData.from,
-            callSummary: {
-              callId: callData.callId,
-              apartmentNumber: callData.apartmentNumber,
-              doormanName: callData.callerName,
-              buildingId: null,
-            },
-          });
-
-          // Answer after a brief delay to ensure state is set
-          setTimeout(() => {
-            answerIncomingCall().catch((error) => {
-              console.error('[useAgora] Failed to answer call:', error);
-            });
-          }, 100);
-        }
+      // Stop any in-app ringtone immediately
+      console.log('[useAgora] Step 1: Stopping ringtone...');
+      try {
+        await agoraAudioService.stopIntercomRingtone();
+        console.log('[useAgora] ✅ Ringtone stopped');
+      } catch (err) {
+        console.error('[useAgora] ❌ Failed to stop ringtone:', err);
       }
-    };
 
-    // Override CallKeep end handler
-    callKeepService['onEndCall'] = async ({ callUUID }: { callUUID: string }) => {
-      console.log('[useAgora] CallKeep: User ended call', callUUID);
+      // Proceed with answering the call
+      console.log('[useAgora] Step 2: Calling answerIncomingCall()...');
+      try {
+        await answerIncomingCall();
+        console.log('[useAgora] ✅ answerIncomingCall() completed successfully!');
+      } catch (err) {
+        console.error('[useAgora] ❌ answerIncomingCall() failed:', err);
+        console.error('[useAgora] Error stack:', err instanceof Error ? err.stack : 'No stack');
+      }
+
+      console.log('[useAgora] 🎯 ANSWER HANDLER COMPLETE');
+      console.log('[useAgora] ========================================');
+    });
+
+    // Register CallKeep end handler
+    callKeepService.setOnEnd(async ({ callUUID }: { callUUID: string }) => {
+      console.log('[useAgora] ========================================');
+      console.log('[useAgora] 🎯 END HANDLER TRIGGERED');
+      console.log('[useAgora] callUUID:', callUUID);
+      console.log('[useAgora] Has incoming invite:', !!incomingInvite);
+      console.log('[useAgora] Has active call:', !!activeCall);
+
+      console.log('[useAgora] Stopping ringtone...');
+      try {
+        await agoraAudioService.stopIntercomRingtone();
+      } catch (err) {
+        console.error('[useAgora] Failed to stop ringtone:', err);
+      }
 
       if (incomingInvite) {
-        console.log('[useAgora] Declining incoming call');
-        await declineIncomingCall('User declined');
+        console.log('[useAgora] Found incoming invite, declining...');
+        try {
+          await declineIncomingCall('User declined');
+          console.log('[useAgora] ✅ Call declined');
+        } catch (err) {
+          console.error('[useAgora] ❌ Failed to decline call:', err);
+        }
       } else if (activeCall) {
-        console.log('[useAgora] Ending active call');
-        await endActiveCall();
+        console.log('[useAgora] Found active call, ending...');
+        try {
+          await endActiveCall();
+          console.log('[useAgora] ✅ Call ended');
+        } catch (err) {
+          console.error('[useAgora] ❌ Failed to end call:', err);
+        }
+      } else {
+        console.log('[useAgora] ⚠️ No incoming invite or active call found');
       }
 
       // Clear any pending call data
+      console.log('[useAgora] Clearing AsyncStorage...');
       await AsyncStorage.removeItem('@pending_intercom_call');
-    };
+      console.log('[useAgora] ✅ AsyncStorage cleared');
+
+      console.log('[useAgora] 🎯 END HANDLER COMPLETE');
+      console.log('[useAgora] ========================================');
+    });
+
+    // Register CallKeep mute toggle handler - wire to Agora
+    callKeepService.setOnToggleMute(async ({ muted, callUUID }: { muted: boolean; callUUID: string }) => {
+      console.log('[useAgora] CallKeep: Mute toggled', { muted, callUUID });
+
+      try {
+        // Update Agora mute state
+        await agoraService.setMuted(muted);
+        // Update local state to keep UI in sync
+        setIsMuted(muted);
+        console.log(`[useAgora] ✅ Agora audio ${muted ? 'muted' : 'unmuted'}`);
+      } catch (error) {
+        console.error('[useAgora] ❌ Failed to toggle mute:', error);
+      }
+    });
 
     return () => {
       // Cleanup is handled by CallKeepService
     };
-  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall, schemaVersion]);
+  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall]);
+
+  // Stop native + custom ringtone when our call becomes connected
+  useEffect(() => {
+    if (callState === 'connected') {
+      const uuid = activeCall?.callId ?? undefined;
+      callKeepService.reportConnectedCall(uuid).catch(() => undefined);
+      try { void agoraAudioService.stopIntercomRingtone(); } catch {}
+    }
+  }, [callState, activeCall?.callId]);
 
   useEffect(() => {
     if (!incomingInvite || currentUser?.userType !== 'morador') {

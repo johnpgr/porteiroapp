@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal as RNModal, ModalProps, StyleProp, ViewStyle } from 'react-native';
-import type { Edge } from 'react-native-safe-area-context';
+import { SafeAreaProvider, type Edge } from 'react-native-safe-area-context';
 import { SafeAreaView } from './SafeAreaView';
 
 type SafeEdges = Edge[];
@@ -20,15 +20,17 @@ type Props = ModalProps & {
 
 export function Modal({
   children,
-  safeAreaEdges = ['top', 'bottom', 'left', 'right'],
+  safeAreaEdges = ['top', 'left', 'right'],
   safeAreaStyle,
   ...modalProps
 }: Props) {
   return (
     <RNModal {...modalProps}>
-      <SafeAreaView edges={safeAreaEdges} style={[{ flex: 1 }, safeAreaStyle]}>
-        {children}
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView edges={safeAreaEdges} style={[{ flex: 1 }, safeAreaStyle]}>
+          {children}
+        </SafeAreaView>
+      </SafeAreaProvider>
     </RNModal>
   );
 }

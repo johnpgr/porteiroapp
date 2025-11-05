@@ -156,6 +156,7 @@ class CallController {
           rtcUid: String(resident.id),
           rtmId: String(resident.id),
           pushToken: resident.push_token ?? null,
+          voipPushToken: resident.voip_push_token ?? null,
           notification_enabled: resident.notification_enabled ?? false
         });
 
@@ -196,35 +197,48 @@ class CallController {
 
       // Filter residents who can receive push notifications (need BOTH token AND enabled)
       const residentParticipants = participants.filter((p: any) => p.user_type === 'resident');
-      const withTokens = residentParticipants.filter((p: any) => p.pushToken);
+      const withTokens = residentParticipants.filter((p: any) => p.pushToken || p.voipPushToken);
       const withNotificationsEnabled = residentParticipants.filter((p: any) => p.notification_enabled);
-      const eligibleForNotifications = residentParticipants.filter((p: any) => p.pushToken && p.notification_enabled);
+
+      // Separate iOS (VoIP) and Android (regular) recipients
+      const iosRecipients = residentParticipants.filter((p: any) => p.voipPushToken && p.notification_enabled);
+      const androidRecipients = residentParticipants.filter((p: any) => p.pushToken && p.notification_enabled && !p.voipPushToken);
+      const eligibleForNotifications = [...iosRecipients, ...androidRecipients];
 
       console.log(`📊 Resident notification eligibility:`);
       console.log(`   Total residents: ${residentParticipants.length}`);
       console.log(`   With push tokens: ${withTokens.length}`);
       console.log(`   With notifications enabled: ${withNotificationsEnabled.length}`);
-      console.log(`   Eligible (both): ${eligibleForNotifications.length}`);
+      console.log(`   Eligible iOS (VoIP): ${iosRecipients.length}`);
+      console.log(`   Eligible Android (regular): ${androidRecipients.length}`);
+      console.log(`   Total eligible: ${eligibleForNotifications.length}`);
 
-      const pushFallbackTargets = eligibleForNotifications.map((participant: any) => ({
+      const voipPushTargets = iosRecipients.map((participant: any) => ({
+        userId: participant.user_id,
+        voipToken: participant.voipPushToken,
+        name: participant.name
+      }));
+
+      const pushFallbackTargets = androidRecipients.map((participant: any) => ({
         userId: participant.user_id,
         pushToken: participant.pushToken,
         name: participant.name
       }));
 
       const serializedParticipants = participants.map((participant: any) => {
-        // Remover dados sensíveis (push tokens, notification settings) do payload público
-        const { pushToken, notification_enabled, ...rest } = participant;
+        // Remover dados sensíveis (push tokens, voip tokens, notification settings) do payload público
+        const { pushToken, voipPushToken, notification_enabled, ...rest } = participant;
         return rest;
       });
 
       // Warn if no residents can receive push notifications (RTM still works for open apps)
-      if (pushFallbackTargets.length === 0 && residentParticipants.length > 0) {
+      if (eligibleForNotifications.length === 0 && residentParticipants.length > 0) {
         console.warn(`⚠️  No residents will receive push notifications (call will rely on RTM for open apps)`);
         console.warn(`   Total residents: ${residentParticipants.length}`);
         console.warn(`   With push tokens: ${withTokens.length}`);
         console.warn(`   With notifications enabled: ${withNotificationsEnabled.length}`);
-        console.warn(`   Eligible (both): ${eligibleForNotifications.length}`);
+        console.warn(`   Eligible iOS (VoIP): ${iosRecipients.length}`);
+        console.warn(`   Eligible Android: ${androidRecipients.length}`);
 
         // Determine specific reason
         let reason: string;
@@ -241,36 +255,66 @@ class CallController {
 
       // Send push notifications as fallback for RTM invites
       let pushNotificationsSent = 0;
-      if (pushFallbackTargets.length > 0 && pushService.isEnabled()) {
-        console.log(`📱 Enviando ${pushFallbackTargets.length} notificações push...`);
+      let voipPushNotificationsSent = 0;
 
-        const pushResults = await pushService.sendCallInvitesToMultiple(
-          {
-            callId,
-            from: String(effectiveDoormanId),
-            fromName: doorman.full_name || 'Porteiro',
-            apartmentNumber,
-            buildingName: apartment.building_name,
-            channelName,
-            metadata: {
-              schemaVersion: payloadVersion,
-              clientVersion: clientVersion ?? null
-            }
-          },
-          pushFallbackTargets
-        );
+      if (pushService.isEnabled()) {
+        const baseCallData = {
+          callId,
+          from: String(effectiveDoormanId),
+          fromName: doorman.full_name || 'Porteiro',
+          apartmentNumber,
+          buildingName: apartment.building_name,
+          channelName,
+          metadata: {
+            schemaVersion: payloadVersion,
+            clientVersion: clientVersion ?? null
+          }
+        };
 
-        pushNotificationsSent = pushResults.filter((result) => result.success).length;
+        // Send VoIP pushes to iOS devices
+        if (voipPushTargets.length > 0) {
+          console.log(`📱 [iOS] Sending ${voipPushTargets.length} VoIP push notifications...`);
 
-        const failedPushes = pushResults.filter((result) => !result.success);
-        if (failedPushes.length > 0) {
-          console.warn(`⚠️ ${failedPushes.length} notificações push falharam:`,
-            failedPushes.map(f => ({ token: f.pushToken, error: f.error }))
+          const voipResults = await pushService.sendVoipPushesToMultiple(
+            baseCallData,
+            voipPushTargets
           );
+
+          voipPushNotificationsSent = voipResults.filter((result) => result.success).length;
+
+          const failedVoipPushes = voipResults.filter((result) => !result.success);
+          if (failedVoipPushes.length > 0) {
+            console.warn(`⚠️ [iOS] ${failedVoipPushes.length} VoIP pushes failed:`,
+              failedVoipPushes.map(f => ({ token: f.pushToken, error: f.error }))
+            );
+          }
+
+          console.log(`✅ [iOS] ${voipPushNotificationsSent}/${voipPushTargets.length} VoIP pushes sent`);
         }
 
-        console.log(`✅ ${pushNotificationsSent}/${pushFallbackTargets.length} notificações push enviadas`);
+        // Send regular pushes to Android devices
+        if (pushFallbackTargets.length > 0) {
+          console.log(`📱 [Android] Sending ${pushFallbackTargets.length} regular push notifications...`);
+
+          const pushResults = await pushService.sendCallInvitesToMultiple(
+            baseCallData,
+            pushFallbackTargets
+          );
+
+          pushNotificationsSent = pushResults.filter((result) => result.success).length;
+
+          const failedPushes = pushResults.filter((result) => !result.success);
+          if (failedPushes.length > 0) {
+            console.warn(`⚠️ [Android] ${failedPushes.length} regular pushes failed:`,
+              failedPushes.map(f => ({ token: f.pushToken, error: f.error }))
+            );
+          }
+
+          console.log(`✅ [Android] ${pushNotificationsSent}/${pushFallbackTargets.length} regular pushes sent`);
+        }
       }
+
+      const totalPushNotificationsSent = pushNotificationsSent + voipPushNotificationsSent;
 
       // Retornar dados da chamada criada
       res.status(201).json({
@@ -304,15 +348,17 @@ class CallController {
             id: doorman.id,
             name: doorman.full_name
           },
-          notificationsSent: pushNotificationsSent, // Backward compatibility
+          notificationsSent: totalPushNotificationsSent, // Backward compatibility
           metadata: {
             schemaVersion: payloadVersion,
             clientVersion: clientVersion ?? null,
-            pushNotificationsSent
+            pushNotificationsSent: totalPushNotificationsSent,
+            iosPushNotificationsSent: voipPushNotificationsSent,
+            androidPushNotificationsSent: pushNotificationsSent
           }
         },
-        message: pushNotificationsSent > 0
-          ? `Chamada iniciada. ${pushNotificationsSent} notificação${pushNotificationsSent > 1 ? 'ões' : ''} enviada${pushNotificationsSent > 1 ? 's' : ''}.`
+        message: totalPushNotificationsSent > 0
+          ? `Chamada iniciada. ${totalPushNotificationsSent} notificação${totalPushNotificationsSent > 1 ? 'ões' : ''} enviada${totalPushNotificationsSent > 1 ? 's' : ''} (iOS: ${voipPushNotificationsSent}, Android: ${pushNotificationsSent}).`
           : 'Chamada iniciada.'
       });
 

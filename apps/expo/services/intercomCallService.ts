@@ -298,15 +298,19 @@ class IntercomCallService {
    * Manipula notificação de chamada recebida
    */
   private handleCallNotificationReceived(notification: Notifications.Notification): void {
-    const data = notification.request.content.data;
-    
+    const raw = notification.request.content.data as any;
+    let data = raw;
+    // Normalize potential JSON string payloads
+    if (!data?.type && typeof raw?.dataString === 'string') {
+      try { data = JSON.parse(raw.dataString); } catch {}
+    }
+    if (!data?.type && typeof raw?.body === 'string') {
+      try { data = JSON.parse(raw.body); } catch {}
+    }
+
     if (data?.type === 'intercom_call') {
       console.log('📞 Notificação de chamada recebida:', data);
-      
-      // Aqui você pode adicionar lógica adicional, como:
-      // - Mostrar interface de chamada em tela cheia
-      // - Reproduzir som personalizado
-      // - Vibrar continuamente
+      // Additional call UI/behaviors could be triggered here if needed
     }
   }
 
@@ -314,8 +318,15 @@ class IntercomCallService {
    * Manipula resposta à notificação de chamada
    */
   private async handleCallNotificationResponse(response: Notifications.NotificationResponse): Promise<void> {
-    const data = response.notification.request.content.data;
-    
+    const raw = response.notification.request.content.data as any;
+    let data = raw;
+    if (!data?.type && typeof raw?.dataString === 'string') {
+      try { data = JSON.parse(raw.dataString); } catch {}
+    }
+    if (!data?.type && typeof raw?.body === 'string') {
+      try { data = JSON.parse(raw.body); } catch {}
+    }
+
     if (data?.type === 'intercom_call') {
       const callId = data.callId;
       const actionIdentifier = response.actionIdentifier;

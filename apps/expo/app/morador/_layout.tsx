@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import type { Subscription } from 'expo-notifications';
 import { useAuth } from '~/hooks/useAuth';
 import useAgoraHook from '~/hooks/useAgora';
+import { agoraService } from '~/services/agora/AgoraService';
 import IncomingCallModal from '~/components/IncomingCallModal';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -63,12 +64,15 @@ export default function MoradorLayout() {
   ];
 
   // Initialize Agora hook with current user context
+  // Use profile_id for RTM identity to match backend invite targets (profiles.id)
   const agoraContext = useAgoraHook({
-    currentUser: user ? {
-      id: user.id,
-      userType: 'morador',
-      displayName: (user as any)?.user_metadata?.full_name || user.email || null
-    } : null,
+    currentUser: user
+      ? {
+          id: (user as any)?.profile_id ?? user.id,
+          userType: 'morador',
+          displayName: (user as any)?.user_metadata?.full_name || user.email || null,
+        }
+      : null,
     appId: process.env.EXPO_PUBLIC_AGORA_APP_ID,
   });
 
@@ -76,6 +80,28 @@ export default function MoradorLayout() {
   const notificationListener = useRef<Subscription | null>(null);
   const responseListener = useRef<Subscription | null>(null);
   const lastNotificationCallIdRef = useRef<string | null>(null);
+
+  // Normalize incoming payload (supports Expo payloads that wrap JSON in strings)
+  const normalizeIntercomPayload = (raw: Record<string, unknown> | null | undefined): Record<string, unknown> | null => {
+    if (!raw || typeof raw !== 'object') return null;
+    if ((raw as any).type === 'intercom_call') return raw as Record<string, unknown>;
+    // Try parse string fields commonly used by Expo/FCM bridges
+    const dataString = (raw as any).dataString;
+    const body = (raw as any).body;
+    try {
+      if (typeof dataString === 'string') {
+        const parsed = JSON.parse(dataString);
+        if (parsed && parsed.type === 'intercom_call') return parsed;
+      }
+    } catch {}
+    try {
+      if (typeof body === 'string') {
+        const parsed = JSON.parse(body);
+        if (parsed && parsed.type === 'intercom_call') return parsed;
+      }
+    } catch {}
+    return null;
+  };
 
   useEffect(() => {
     if (previousPathRef.current === pathname) {
@@ -104,6 +130,11 @@ export default function MoradorLayout() {
       return;
     }
 
+    // Ensure RTM standby connection as early as possible
+    agoraService
+      .initializeStandby()
+      .catch((err) => console.error('❌ [MoradorLayout] Failed to initialize RTM standby:', err));
+
     // 🔍 CHECK FOR INITIAL NOTIFICATION: Handle notification that launched the app
     const checkInitialNotification = async () => {
       try {
@@ -113,8 +144,9 @@ export default function MoradorLayout() {
           return;
         }
 
-        const payload = response.notification.request.content.data as Record<string, unknown>;
-        if (payload?.type !== 'intercom_call') {
+        const raw = response.notification.request.content.data as Record<string, unknown>;
+        const payload = normalizeIntercomPayload(raw);
+        if (!payload) {
           console.log('📞 [MoradorLayout] Initial notification is not intercom call');
           return;
         }
@@ -139,8 +171,9 @@ export default function MoradorLayout() {
     void checkInitialNotification();
 
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      const payload = notification.request.content.data as Record<string, unknown>;
-      if (payload?.type !== 'intercom_call') {
+      const raw = notification.request.content.data as Record<string, unknown>;
+      const payload = normalizeIntercomPayload(raw);
+      if (!payload) {
         return;
       }
 
@@ -160,8 +193,9 @@ export default function MoradorLayout() {
     });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const payload = response.notification.request.content.data as Record<string, unknown>;
-      if (payload?.type !== 'intercom_call') {
+      const raw = response.notification.request.content.data as Record<string, unknown>;
+      const payload = normalizeIntercomPayload(raw);
+      if (!payload) {
         return;
       }
 
@@ -285,7 +319,11 @@ export default function MoradorLayout() {
         </Stack>
       </View>
 
-      {/* 📞 MODAL DE CHAMADA DE INTERFONE via useAgora + IncomingCallModal */}
+      {/* 📞 CHAMADA DE INTERFONE: Hybrid approach
+          - CallKeep shows native ringing UI (for background/lockscreen)
+          - When user accepts, IncomingCallModal shows (brings app to foreground)
+          - IncomingCallModal shows call controls and manages Agora connection
+      */}
       <IncomingCallModal agoraContext={agoraContext} />
     </View>
   );

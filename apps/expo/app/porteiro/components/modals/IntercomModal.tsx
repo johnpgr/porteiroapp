@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
-import { audioService } from '~/services/audioService';
 import { useAgora } from '~/hooks/useAgora';
 
 const supabaseClient = supabase as any;
@@ -38,21 +37,12 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     toggleSpeaker,
   } = useAgora();
 
-  // Listener para mudanças de estado da chamada para controlar áudio
+  // Listener para mudanças de estado da chamada
   useEffect(() => {
-    const handleCallStateChange = async () => {
-      // Parar som de chamada quando conectar, encerrar ou for recusada
-      if (callState === 'connected' || callState === 'ended' || callState === 'declined') {
-        await audioService.stopRingtone();
-
-        if (callState === 'connected') {
-          // Iniciar timer quando conectar
-          startCallTimer();
-        }
-      }
-    };
-
-    handleCallStateChange();
+    if (callState === 'connected') {
+      // Iniciar timer quando conectar
+      startCallTimer();
+    }
   }, [callState]);
 
   // Set current user for Agora hook
@@ -132,15 +122,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     }
 
     try {
-      // Initialize and play ringtone (calling tone for doorman)
-      try {
-        await audioService.initialize();
-        await audioService.loadRingtone();
-        await audioService.playRingtone();
-      } catch (audioError) {
-        console.warn('⚠️ Erro ao inicializar áudio:', audioError);
-      }
-
       // Start the call using the useAgora hook
       await startIntercomCall({
         apartmentNumber: trimmedApartment,
@@ -152,13 +133,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
 
       console.warn('❌ Falha ao iniciar chamada:', message);
       Alert.alert('Erro', message);
-
-      // Stop ringtone on error
-      try {
-        await audioService.stopRingtone();
-      } catch (audioError) {
-        console.error('❌ Erro ao parar som de chamada:', audioError);
-      }
     }
   };
 
@@ -181,9 +155,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
   // Encerrar chamada usando useAgora hook
   const handleEndCall = async () => {
     try {
-      // Stop ringtone
-      await audioService.stopRingtone();
-
       // End the call using useAgora
       await endActiveCall('hangup');
 
@@ -200,7 +171,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       console.error('Erro ao encerrar chamada:', error);
 
       // Even if there's an error, clean up
-      await audioService.stopRingtone();
       stopCallTimer();
       setCallDuration(0);
       setApartmentNumber('');
@@ -360,9 +330,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
         {(callState === 'dialing' || callState === 'ringing' || callState === 'connecting') && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
-            {callState === 'ringing' && (
-              <Text style={styles.ringingText}>🔊 Som de chamada tocando</Text>
-            )}
           </View>
         )}
 
@@ -411,11 +378,6 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       // Limpar timers
       stopCallTimer();
 
-      // Parar som de chamada
-      audioService.stopRingtone().catch((error) => {
-        console.error('Erro ao parar ringtone durante cleanup:', error);
-      });
-
       // Reset apartment number
       setApartmentNumber('');
       setCallDuration(0);
@@ -455,7 +417,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -680,12 +642,5 @@ const styles = StyleSheet.create({
   backspaceButtonText: {
     fontSize: 24,
     color: '#666',
-  },
-  ringingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#4CAF50',
-    textAlign: 'center',
-    fontWeight: '500',
   },
 });
