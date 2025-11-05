@@ -11,6 +11,8 @@ import IncomingCallModal from '~/components/IncomingCallModal';
 import { Ionicons } from '@expo/vector-icons';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
+import { callKeepService } from '~/services/CallKeepService';
+import { supabase } from '~/utils/supabase';
 
 export default function MoradorLayout() {
   const pathname = usePathname();
@@ -111,6 +113,51 @@ export default function MoradorLayout() {
       previousPathRef.current = pathname;
     }
   }, [pathname]);
+
+  // ✅ Initialize CallKeep as soon as morador logs in
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const initializeCallKeep = async () => {
+      try {
+        console.log('[MoradorLayout] 🚀 Initializing CallKeep...');
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('notification_enabled')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          console.error('[MoradorLayout] ❌ Failed to fetch notification preference:', error);
+        }
+
+        if (!profile || profile.notification_enabled !== true) {
+          console.log('[MoradorLayout] ⏭️ Skipping CallKeep - notifications disabled for user');
+          return;
+        }
+
+        await callKeepService.initialize();
+        console.log('[MoradorLayout] ✅ CallKeep initialized');
+
+        const granted = await callKeepService.requestPermissions();
+        if (!granted) {
+          console.warn('[MoradorLayout] ⚠️ CallKeep permissions denied - falling back to notifications');
+        } else {
+          console.log('[MoradorLayout] ✅ CallKeep permissions granted');
+        }
+
+        console.log('[MoradorLayout] ✅ CallKeep ready for incoming calls');
+      } catch (error) {
+        console.error('[MoradorLayout] ❌ Failed to initialize CallKeep:', error);
+        console.warn('[MoradorLayout] ⚠️ Falling back to regular notifications');
+      }
+    };
+
+    void initializeCallKeep();
+  }, [user?.id]);
 
   
 
@@ -315,6 +362,14 @@ export default function MoradorLayout() {
           <Stack.Screen name="logs" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="preregister" />
+          <Stack.Screen
+            name="settings"
+            options={{ headerShown: true, title: 'Ferramentas CallKeep' }}
+          />
+          <Stack.Screen
+            name="callkeep-status"
+            options={{ headerShown: true, title: 'Status CallKeep' }}
+          />
           <Stack.Screen name="testes" />
         </Stack>
       </View>

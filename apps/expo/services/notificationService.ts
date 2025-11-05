@@ -12,17 +12,8 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { supabase } from '~/utils/supabase';
 
-// Configurar comportamento das notificações
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
-});
+// NOTE: Notification handler is now configured in services/notificationHandler.ts
+// to prevent conflicts from multiple setNotificationHandler() calls
 
 export interface NotificationData {
   type: 'visitor_approved' | 'visitor_rejected' | 'visitor_waiting' | 'visitor_arrival' | 'delivery' | 'emergency' | 'general';
@@ -69,50 +60,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     const token = tokenData.data;
     console.log('✅ [NotificationService] Push token obtido:', token);
 
-    // Configurar canal de notificação no Android
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Notificações Porteiro',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        sound: 'doorbell_push.mp3',
-        enableVibrate: true,
-        enableLights: true,
-        showBadge: true,
-      });
-
-      await Notifications.setNotificationChannelAsync('visitor', {
-        name: 'Visitantes',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        sound: 'doorbell_push.mp3',
-      });
-
-      await Notifications.setNotificationChannelAsync('delivery', {
-        name: 'Entregas',
-        importance: Notifications.AndroidImportance.HIGH,
-        sound: 'doorbell_push.mp3',
-      });
-
-      await Notifications.setNotificationChannelAsync('emergency', {
-        name: 'Emergências',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 500, 250, 500],
-        sound: 'doorbell_push.mp3',
-      });
-
-      // Dedicated channel for intercom call invites
-      await Notifications.setNotificationChannelAsync('intercom-call', {
-        name: 'Interfone (Chamada)',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        sound: 'doorbell_push.mp3',
-        enableVibrate: true,
-        enableLights: true,
-        showBadge: true,
-      });
-    }
+    // NOTE: Notification channels are now configured in services/notificationHandler.ts
+    // to prevent duplication and ensure consistent channel setup
 
     return token;
   } catch (error) {
@@ -178,7 +127,7 @@ export async function sendPushNotification(params: {
     // Criar mensagens para cada token
     const messages = validTokens.map(token => ({
       to: token,
-      sound: 'doorbell_push.mp3',
+      sound: 'telephone_toque_interfone.mp3',
       title: params.title,
       body: params.body,
       data: params.data || {},
@@ -430,14 +379,14 @@ export async function scheduleLocalNotification(
         title,
         body,
         data: data || {},
-        sound: 'doorbell_push.mp3',
+        sound: 'telephone_toque_interfone.mp3',
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
-      trigger: delaySeconds > 0 
-        ? { 
+      trigger: delaySeconds > 0
+        ? {
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: delaySeconds 
-          } 
+            seconds: delaySeconds
+          }
         : null,
     });
 

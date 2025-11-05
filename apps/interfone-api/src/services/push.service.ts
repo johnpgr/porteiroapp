@@ -12,6 +12,7 @@ interface PushNotificationPayload {
   sound?: string;
   priority?: 'default' | 'normal' | 'high';
   channelId?: string;
+  contentAvailable?: boolean; // iOS/Expo: deliver as background notification
   _contentAvailable?: boolean; // iOS: deliver as background notification
 }
 
@@ -59,8 +60,8 @@ class PushNotificationService {
   }
 
   /**
-   * Send a call invite push notification (HEADLESS/DATA-ONLY)
-   * This allows the app to handle calls in background via TaskManager
+   * Send a call invite push notification with background handling hints.
+   * We keep a visible notification for Android reliability while preserving TaskManager wake-up data.
    */
   async sendCallInvite(params: CallInvitePushParams): Promise<SendPushResult> {
     if (!this.enabled) {
@@ -81,17 +82,27 @@ class PushNotificationService {
       };
     }
 
-    // CRITICAL: Send data-only notification (no title/body)
-    // This makes it a "headless" background notification that wakes the app
+    // CRITICAL: Deliver with a visible notification so Android keeps the message reliable,
+    // while still flagging it for background handling.
+    const title = params.fromName
+      ? `Chamada do ${params.fromName}`
+      : 'Chamada do Interfone';
+    const body = params.apartmentNumber
+      ? `Apartamento ${params.apartmentNumber}`
+      : params.buildingName
+        ? `Prédio ${params.buildingName}`
+        : 'Atendimento disponível';
+
     const payload: PushNotificationPayload = {
       to: params.pushToken,
-      // NO title or body - this triggers TaskManager background handler
-      // title: 'Chamada do Interfone',  // REMOVED
-      // body: '...',                     // REMOVED
-      _contentAvailable: true, // iOS: deliver as background notification
-      sound: 'doorbell_push.mp3',
+      // Include a visible notification so Android keeps delivery reliable
+      title,
+      body,
+      contentAvailable: true,
+      _contentAvailable: true,
+      sound: 'telephone_toque_interfone.mp3',
       priority: 'high',
-      channelId: 'intercom-call',
+      channelId: 'intercom_call',
       data: {
         type: 'intercom_call',
         callId: params.callId,
@@ -109,10 +120,11 @@ class PushNotificationService {
     try {
       // Log sanitized payload info before sending
       const tokenPreview = `${params.pushToken?.slice(0, 12) ?? ''}...`;
-      console.log('📤 [push] Preparing HEADLESS Expo push (data-only)', {
+      console.log('📤 [push] Preparing Expo push (call invite)', {
         to: tokenPreview,
         callId: params.callId,
         from: params.from,
+        contentAvailable: true,
         _contentAvailable: true,
         channelId: payload.channelId,
         sound: payload.sound,
@@ -191,8 +203,8 @@ class PushNotificationService {
     console.log('📣 [push] Sending call invites to multiple recipients', {
       recipients: recipients.length,
       callId: baseParams.callId,
-      channelId: 'intercom-call',
-      sound: 'doorbell_push.mp3',
+      channelId: 'intercom_call',
+      sound: 'telephone_toque_interfone.mp3',
     });
     const promises = recipients.map((recipient) =>
       this.sendCallInvite({
@@ -234,9 +246,10 @@ class PushNotificationService {
     const payload: PushNotificationPayload = {
       to: params.voipToken,
       // NO title or body - VoIP pushes are silent/data-only
+      contentAvailable: true,
       _contentAvailable: true, // iOS: deliver as background notification
       priority: 'high',
-      channelId: 'intercom-call',
+      channelId: 'intercom_call',
       data: {
         type: 'intercom_call',
         callId: params.callId,

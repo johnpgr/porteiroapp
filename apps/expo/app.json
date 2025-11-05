@@ -88,8 +88,13 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.BLUETOOTH",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.WAKE_LOCK"
       ],
+      "foregroundService": {
+        "type": ["camera", "microphone", "phoneCall"]
+      },
       "useNextNotificationsApi": true,
       "googleServicesFile": "./google-services.json",
       "package": "com.porteiroapp.notifications"

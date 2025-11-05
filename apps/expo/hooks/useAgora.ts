@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, AppState } from 'react-native';
+import { Alert, Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IRtcEngine } from 'react-native-agora';
 import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
@@ -336,6 +336,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   const callStateRef = useRef<CallLifecycleState>('idle');
   const currentUserRef = useRef<CurrentUserContext | null>(currentUser);
   const [incomingInvite, setIncomingInvite] = useState<IncomingInviteContext | null>(null);
+  const incomingInviteRef = useRef<IncomingInviteContext | null>(null);
 
   const [isJoined, setIsJoined] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -369,6 +370,10 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   useEffect(() => {
     apiBaseUrlRef.current = apiBaseUrl;
   }, [apiBaseUrl]);
+
+  useEffect(() => {
+    incomingInviteRef.current = incomingInvite;
+  }, [incomingInvite]);
 
   // Configure AgoraService with latest appId and API base URL
   useEffect(() => {
@@ -1210,24 +1215,15 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   // Wire CallKeep events to Agora call actions
   useEffect(() => {
-    // Initialize CallKeep for residents
-    if (currentUser?.userType === 'morador') {
-      callKeepService.initialize().catch((error: unknown) => {
-        console.error('[useAgora] Failed to initialize CallKeep:', error);
-      });
-    }
-
     // Register CallKeep answer handler
     callKeepService.setOnAnswer(async ({ callUUID }: { callUUID: string }) => {
       console.log('[useAgora] ========================================');
       console.log('[useAgora] 🎯 ANSWER HANDLER TRIGGERED');
       console.log('[useAgora] callUUID:', callUUID);
-      console.log('[useAgora] Current user:', currentUser?.id, currentUser?.userType);
-      console.log('[useAgora] Has incoming invite:', !!incomingInvite);
-      console.log('[useAgora] Has active call:', !!activeCall);
+      console.log('[useAgora] Current user:', currentUserRef.current?.id, currentUserRef.current?.userType);
+      console.log('[useAgora] Has incoming invite:', !!incomingInviteRef.current);
 
-      // Stop any in-app ringtone immediately
-      console.log('[useAgora] Step 1: Stopping ringtone...');
+      // Stop any custom ringtone immediately
       try {
         await agoraAudioService.stopIntercomRingtone();
         console.log('[useAgora] ✅ Ringtone stopped');
@@ -1235,14 +1231,90 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         console.error('[useAgora] ❌ Failed to stop ringtone:', err);
       }
 
-      // Proceed with answering the call
-      console.log('[useAgora] Step 2: Calling answerIncomingCall()...');
+      const currentInvite = incomingInviteRef.current;
+
+      // CASE 1: App already has invite in memory
+      if (currentInvite && currentInvite.signal.callId === callUUID) {
+        console.log('[useAgora] ✅ Found matching incoming invite in memory');
+        try {
+          await answerIncomingCall();
+          console.log('[useAgora] ✅ Call answered successfully (warm state)');
+        } catch (err) {
+          console.error('[useAgora] ❌ answerIncomingCall() failed:', err);
+          console.error('[useAgora] Error stack:', err instanceof Error ? err.stack : 'No stack');
+        }
+        console.log('[useAgora] 🎯 ANSWER HANDLER COMPLETE');
+        console.log('[useAgora] ========================================');
+        return;
+      }
+
+      // CASE 2: Cold start scenario
+      console.log('[useAgora] ⚠️ No incoming invite in memory - treating as cold start');
+      console.log('[useAgora] Checking AsyncStorage for pending call data...');
+
       try {
-        await answerIncomingCall();
-        console.log('[useAgora] ✅ answerIncomingCall() completed successfully!');
-      } catch (err) {
-        console.error('[useAgora] ❌ answerIncomingCall() failed:', err);
-        console.error('[useAgora] Error stack:', err instanceof Error ? err.stack : 'No stack');
+        const pendingCallData = await AsyncStorage.getItem('@pending_intercom_call');
+
+        if (!pendingCallData) {
+          console.error('[useAgora] ❌ No pending call data in AsyncStorage');
+          await callKeepService.reportEndCall(callUUID, 1);
+          Alert.alert('Call Failed', 'Could not retrieve call information. Please try again.');
+          console.log('[useAgora] 🎯 ANSWER HANDLER COMPLETE');
+          console.log('[useAgora] ========================================');
+          return;
+        }
+
+        const callData = JSON.parse(pendingCallData);
+        console.log('[useAgora] 📋 Found pending call:', callData);
+
+        // Wait for RTM invite to arrive (up to 5 seconds)
+        console.log('[useAgora] ⏳ Waiting for RTM invite (max 5s)...');
+        const success = await new Promise<boolean>((resolve) => {
+          const startTime = Date.now();
+          const maxWaitTime = 5000;
+
+          const checkInterval = setInterval(() => {
+            const latestInvite = incomingInviteRef.current;
+            if (latestInvite?.signal?.callId === callUUID) {
+              clearInterval(checkInterval);
+              console.log('[useAgora] 🎉 RTM invite received!');
+              resolve(true);
+              return;
+            }
+
+            if (Date.now() - startTime >= maxWaitTime) {
+              clearInterval(checkInterval);
+              console.error('[useAgora] ❌ Timeout waiting for RTM invite');
+              resolve(false);
+            }
+          }, 200);
+        });
+
+        if (success) {
+          try {
+            console.log('[useAgora] 🚀 Answering call after RTM invite arrived...');
+            await answerIncomingCall();
+            console.log('[useAgora] ✅ Call answered successfully (cold start)');
+          } catch (err) {
+            console.error('[useAgora] ❌ answerIncomingCall() failed after RTM:', err);
+            console.error('[useAgora] Error stack:', err instanceof Error ? err.stack : 'No stack');
+          }
+        } else {
+          await callKeepService.reportEndCall(callUUID, 1);
+          Alert.alert(
+            'Connection Failed',
+            'Could not connect to the call. The call may have ended or there may be a network issue.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (error) {
+        console.error('[useAgora] ❌ Error in cold start answer handler:', error);
+        await callKeepService.reportEndCall(callUUID, 1);
+        Alert.alert(
+          'Call Error',
+          'An error occurred while connecting to the call. Please try again.',
+          [{ text: 'OK' }]
+        );
       }
 
       console.log('[useAgora] 🎯 ANSWER HANDLER COMPLETE');
@@ -1254,8 +1326,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       console.log('[useAgora] ========================================');
       console.log('[useAgora] 🎯 END HANDLER TRIGGERED');
       console.log('[useAgora] callUUID:', callUUID);
-      console.log('[useAgora] Has incoming invite:', !!incomingInvite);
-      console.log('[useAgora] Has active call:', !!activeCall);
+      console.log('[useAgora] Has incoming invite:', !!incomingInviteRef.current);
+      console.log('[useAgora] Has active call:', !!activeCallRef.current);
 
       console.log('[useAgora] Stopping ringtone...');
       try {
@@ -1264,7 +1336,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         console.error('[useAgora] Failed to stop ringtone:', err);
       }
 
-      if (incomingInvite) {
+      if (incomingInviteRef.current) {
         console.log('[useAgora] Found incoming invite, declining...');
         try {
           await declineIncomingCall('User declined');
@@ -1272,7 +1344,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         } catch (err) {
           console.error('[useAgora] ❌ Failed to decline call:', err);
         }
-      } else if (activeCall) {
+      } else if (activeCallRef.current) {
         console.log('[useAgora] Found active call, ending...');
         try {
           await endActiveCall();
@@ -1311,7 +1383,7 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     return () => {
       // Cleanup is handled by CallKeepService
     };
-  }, [incomingInvite, activeCall, currentUser, answerIncomingCall, declineIncomingCall, endActiveCall]);
+  }, [answerIncomingCall, declineIncomingCall, endActiveCall]);
 
   // Stop native + custom ringtone when our call becomes connected
   useEffect(() => {

@@ -131,6 +131,8 @@ TaskManager.defineTask(
 
           // Display native call UI via CallKeep
           console.log('[BackgroundTask] 📞 Calling callKeepService.displayIncomingCall()...');
+          let callKeepSucceeded = false;
+
           try {
             await callKeepService.displayIncomingCall(
               callData.callId,
@@ -139,6 +141,7 @@ TaskManager.defineTask(
               false // hasVideo
             );
 
+            callKeepSucceeded = true;
             console.log('[BackgroundTask] ✅ callKeepService.displayIncomingCall() completed successfully!');
             console.log('[BackgroundTask] 📱 Native call UI should now be visible to user');
           } catch (nativeCallError) {
@@ -150,7 +153,7 @@ TaskManager.defineTask(
                 title: 'Incoming Call',
                 body: `${callData.callerName} - Apt ${callData.apartmentNumber}`,
                 data: callData,
-                sound: 'telephone_toque_interfone.mp3',
+                sound: callKeepSucceeded ? null : 'telephone_toque_interfone.mp3', // No sound if CallKeep active
                 priority: Notifications.AndroidNotificationPriority.MAX,
                 categoryIdentifier: 'call',
               },

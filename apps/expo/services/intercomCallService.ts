@@ -41,35 +41,8 @@ class IntercomCallService {
   private responseListener: any = null;
   private isInitialized = false;
 
-  constructor() {
-    this.setupNotificationHandler();
-  }
-
-  /**
-   * Configura o handler de notificações para chamadas
-   */
-  private setupNotificationHandler(): void {
-    Notifications.setNotificationHandler({
-      handleNotification: async (notification) => {
-        // Sempre mostrar notificações de chamada com alta prioridade
-        if (notification.request.content.data?.type === 'intercom_call') {
-          return {
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-            shouldShowBanner: true,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-          };
-        }
-        
-        return {
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: true,
-        };
-      },
-    });
-  }
+  // NOTE: Notification handler is now configured in services/notificationHandler.ts
+  // to prevent conflicts from multiple setNotificationHandler() calls
 
   /**
    * Inicializa o serviço
@@ -77,28 +50,9 @@ class IntercomCallService {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    await this.setupCallNotificationChannel();
+    // NOTE: Notification channels are now configured in services/notificationHandler.ts
     await this.setupPushNotificationListeners();
     this.isInitialized = true;
-  }
-
-  /**
-   * Configura canal específico para chamadas de interfone
-   */
-  private async setupCallNotificationChannel(): Promise<void> {
-    if (Device.isDevice && Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('intercom-call', {
-        name: 'Chamadas do Interfone',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 1000, 500, 1000],
-        lightColor: '#FF0000',
-        sound: 'telephone_toque_interfone.mp3', // Custom intercom ringtone from assets
-        enableVibrate: true,
-        showBadge: true,
-        bypassDnd: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      });
-    }
   }
 
   /**
@@ -252,7 +206,7 @@ class IntercomCallService {
     // Configurações específicas para Android
     if (Device.isDevice && Platform.OS === 'android') {
       notificationConfig.content.android = {
-        channelId: 'intercom-call',
+        channelId: 'intercom_call',
         priority: 'max',
         vibrate: [0, 1000, 500, 1000],
         color: '#FF0000',

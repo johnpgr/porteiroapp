@@ -16,6 +16,7 @@ import * as Linking from 'expo-linking';
 import { queueNotification } from '../services/OfflineQueue';
 import AnalyticsTracker from '../services/AnalyticsTracker';
 import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
+import { initializeNotificationHandler } from '../services/notificationHandler';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
@@ -24,28 +25,21 @@ SplashScreen.preventAutoHideAsync().catch((error) => {
   console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
 });
 
-// Global notification handler: ensure foreground alerts for intercom calls
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const data = notification?.request?.content?.data as any;
-    if (data?.type === 'intercom_call') {
-      return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      };
-    }
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: false,
-      shouldSetBadge: true,
-    };
-  },
-});
+// Initialize notification system at module level
+// CRITICAL: Handler must be set BEFORE background task registered
+(async () => {
+  try {
+    // 1. Initialize notification handler first (sets up handler + channels)
+    await initializeNotificationHandler();
 
-// Register background notification task at module level
-// This MUST be called outside of any component to ensure it's registered before app loads
-registerBackgroundNotificationTask();
+    // 2. THEN register background notification task
+    await registerBackgroundNotificationTask();
+
+    console.log('✅ [_layout] Notification system initialized');
+  } catch (error) {
+    console.error('❌ [_layout] Failed to initialize notification system:', error);
+  }
+})();
 
 const PENDING_DEEP_LINK_KEY = '@porteiro_app:pending_deep_link';
 

@@ -959,25 +959,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Não atualiza se o token já é o mesmo
-    if (user.push_token === token) {
-      return;
-    }
-
     try {
       const table = user.user_type === 'admin' ? 'admin_profiles' : 'profiles';
 
-      await supabase.from(table).update({ push_token: token }).eq('user_id', user.id);
+      const updates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
 
-      // Atualiza o estado sem criar um novo objeto se não necessário
-      setUser((prevUser) => {
-        if (!prevUser || prevUser.push_token === token) {
-          return prevUser;
-        }
-        return { ...prevUser, push_token: token };
-      });
+      const shouldEnableNotifications = user.user_type !== 'admin';
+      if (shouldEnableNotifications) {
+        updates.notification_enabled = true;
+      }
 
-      console.log('🔔 Push token atualizado no estado do usuário');
+      const tokenChanged = user.push_token !== token;
+      if (tokenChanged) {
+        updates.push_token = token;
+      }
+
+      await supabase.from(table).update(updates).eq('user_id', user.id);
+
+      if (tokenChanged) {
+        // Atualiza o estado apenas quando o token muda
+        setUser((prevUser) => {
+          if (!prevUser) {
+            return prevUser;
+          }
+          if (prevUser.push_token === token) {
+            return prevUser;
+          }
+          return { ...prevUser, push_token: token };
+        });
+      } else if (shouldEnableNotifications) {
+        // Garante que o estado reflita notificações habilitadas, se a propriedade existir
+        setUser((prevUser) => {
+          if (!prevUser) return prevUser;
+          if ((prevUser as any).notification_enabled === true) return prevUser;
+          return { ...prevUser, notification_enabled: true };
+        });
+      }
+
+      console.log('🔔 Preferências de push atualizadas para o usuário');
     } catch (error) {
       console.error('🔔 Erro ao atualizar push token:', error);
     }

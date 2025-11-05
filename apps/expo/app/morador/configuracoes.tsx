@@ -78,6 +78,22 @@ export default function ConfiguracoesScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => router.push('/morador/settings')}
+            >
+              <View style={styles.settingItemLeft}>
+                <Ionicons name="call-outline" size={24} color="#007AFF" />
+                <View style={styles.settingItemText}>
+                  <Text style={styles.settingItemTitle}>Ferramentas CallKeep</Text>
+                  <Text style={styles.settingItemSubtitle}>
+                    Testar tela nativa e consultar status da chamada
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
 
           {/* Seção de Conta */}

@@ -1,4 +1,5 @@
 import RNCallKeep from 'react-native-callkeep';
+import {foregroundService} from './AndroidForegroundService';
 import { Platform } from 'react-native';
 
 export interface CallKeepOptions {
@@ -30,11 +31,32 @@ class CallKeepService {
   private externalOnAnswer: ((args: { callUUID: string }) => void | Promise<void>) | null = null;
   private externalOnEnd: ((args: { callUUID: string }) => void | Promise<void>) | null = null;
   private externalOnToggleMute: ((args: { muted: boolean; callUUID: string }) => void | Promise<void>) | null = null;
+  private verboseLogging = __DEV__;
+
+  private vlog(...args: any[]) {
+    if (this.verboseLogging) {
+      console.log('[CallKeep][VERBOSE]', ...args);
+    }
+  }
+
+  enableVerboseLogging(enabled: boolean) {
+    this.verboseLogging = enabled;
+    console.log('[CallKeep] Verbose logging:', enabled ? 'ENABLED' : 'DISABLED');
+  }
+
+  isVerboseLoggingEnabled(): boolean {
+    return this.verboseLogging;
+  }
 
   /**
    * Inicializa o CallKeep com as configurações necessárias
    */
   async initialize(): Promise<void> {
+    this.vlog('📋 Initialize called');
+    this.vlog('  - Platform:', Platform.OS);
+    this.vlog('  - isInitialized:', this.isInitialized);
+    this.vlog('  - isNativeEnvironment:', this.isNativeEnvironment);
+
     console.log('[CallKeep] 🚀 initialize() called');
     console.log('[CallKeep] Platform:', Platform.OS);
     console.log('[CallKeep] isInitialized:', this.isInitialized);
@@ -70,12 +92,12 @@ class CallKeepService {
           imageName: 'logo',
           additionalPermissions: [],
           selfManaged: false,
-          foregroundService: {
-            channelId: 'intercom-call-keep',
-            channelName: 'Intercom Calls',
-            notificationTitle: 'Intercom call',
-            notificationIcon: 'logo'
-          }
+          // foregroundService: {
+          //   channelId: 'intercom-call-keep',
+          //   channelName: 'Intercom Calls',
+          //   notificationTitle: 'Intercom call',
+          //   notificationIcon: 'logo'
+          // }
         },
       };
 
@@ -259,17 +281,27 @@ class CallKeepService {
     handle: string = 'Interfone',
     hasVideo: boolean = false
   ): Promise<void> {
-    console.log('[CallKeep] 📞 displayIncomingCall() called');
-    console.log('[CallKeep] - callUUID:', callUUID);
-    console.log('[CallKeep] - callerName:', callerName);
-    console.log('[CallKeep] - handle:', handle);
-    console.log('[CallKeep] - hasVideo:', hasVideo);
-    console.log('[CallKeep] - Platform:', Platform.OS);
+    this.vlog('📋 displayIncomingCall called', { callUUID, callerName, handle, hasVideo });
+    this.vlog('  - isInitialized:', this.isInitialized);
+    this.vlog('  - isNativeEnvironment:', this.isNativeEnvironment);
+    this.vlog('  - Platform:', Platform.OS);
 
     try {
       if (!this.isInitialized) {
         console.log('[CallKeep] Not initialized, calling initialize()...');
         await this.initialize();
+      }
+
+      const hasPermissions = await this.checkPermissions();
+      if (!hasPermissions) {
+        console.error('[CallKeep] ❌ Permissions not granted - cannot display call');
+        throw new Error('CallKeep permissions required');
+      }
+
+      if (Platform.OS === 'android') {
+        console.log('[CallKeep] 🚀 Starting Android foreground service...');
+        await foregroundService.start(callerName, handle);
+        console.log('[CallKeep] ✅ Foreground service started');
       }
 
       // Se não estamos em ambiente nativo, apenas log
@@ -282,7 +314,7 @@ class CallKeepService {
       console.log('[CallKeep] Current call UUID set to:', this.currentCallUUID);
 
       console.log('[CallKeep] 📱 Calling RNCallKeep.displayIncomingCall()...');
-      await RNCallKeep.displayIncomingCall(callUUID, handle, callerName, 'generic', hasVideo);
+      RNCallKeep.displayIncomingCall(callUUID, handle, callerName, 'generic', hasVideo);
       console.log('[CallKeep] ✅ RNCallKeep.displayIncomingCall() completed');
       console.log('[CallKeep] 📞 Native UI should now be showing');
 
@@ -292,6 +324,11 @@ class CallKeepService {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : 'No stack'
       });
+
+      if (Platform.OS === 'android') {
+        await foregroundService.stop();
+      }
+
       throw error;
     }
   }
@@ -322,7 +359,7 @@ class CallKeepService {
 
       this.currentCallUUID = callUUID;
 
-      await RNCallKeep.startCall(callUUID, handle, contactName, 'generic', hasVideo);
+      RNCallKeep.startCall(callUUID, handle, contactName, 'generic', hasVideo);
 
       console.log(`📞 Chamada iniciada: ${callUUID} - ${contactName}`);
     } catch (error) {
@@ -352,13 +389,19 @@ class CallKeepService {
         return;
       }
 
-      await RNCallKeep.endCall(uuid);
+      RNCallKeep.endCall(uuid);
 
       if (uuid === this.currentCallUUID) {
         this.currentCallUUID = null;
       }
 
       console.log(`📞 Chamada encerrada: ${uuid}`);
+
+      if (Platform.OS === 'android') {
+        console.log('[CallKeep] 🛑 Stopping Android foreground service...');
+        await foregroundService.stop();
+        console.log('[CallKeep] ✅ Foreground service stopped');
+      }
     } catch (error) {
       console.error('❌ Erro ao encerrar chamada:', error);
       throw error;
@@ -377,7 +420,7 @@ class CallKeepService {
         return;
       }
 
-      await RNCallKeep.reportConnectedOutgoingCallWithUUID(uuid);
+      RNCallKeep.reportConnectedOutgoingCallWithUUID(uuid);
       console.log(`✅ Chamada reportada como conectada: ${uuid}`);
     } catch (error) {
       console.error('❌ Erro ao reportar chamada conectada:', error);
@@ -439,10 +482,14 @@ class CallKeepService {
         return;
       }
 
-      await RNCallKeep.reportEndCallWithUUID(uuid, reason);
+      RNCallKeep.reportEndCallWithUUID(uuid, reason);
 
       if (uuid === this.currentCallUUID) {
         this.currentCallUUID = null;
+      }
+
+      if (Platform.OS === 'android') {
+        await foregroundService.stop();
       }
 
       console.log(`📞 Chamada reportada como terminada: ${uuid} (razão: ${reason})`);
@@ -458,7 +505,7 @@ class CallKeepService {
    */
   async updateDisplay(callUUID: string, displayName: string): Promise<void> {
     try {
-      await RNCallKeep.updateDisplay(callUUID, displayName, '');
+      RNCallKeep.updateDisplay(callUUID, displayName, '');
       console.log(`📞 Display atualizado: ${callUUID} - ${displayName}`);
     } catch (error) {
       console.error('❌ Erro ao atualizar display:', error);
