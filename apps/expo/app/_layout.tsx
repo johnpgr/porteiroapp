@@ -316,11 +316,57 @@ export default function RootLayout() {
 
     // Listener para quando usuário clica na notificação
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
+      async (response) => {
         console.log('👆 [Click] Usuário clicou na notificação:', response);
         const data = response.notification.request.content.data;
+        const actionId = response.actionIdentifier;
 
-        // Navegação baseada no tipo de notificação
+        console.log('👆 [Click] Action identifier:', actionId);
+        console.log('👆 [Click] Notification type:', data?.type);
+
+        // Handle intercom call notification actions
+        if (data?.type === 'intercom_call') {
+          console.log('📞 [Click] Intercom call notification action');
+          
+          const callData = {
+            callId: data.callId,
+            from: data.from,
+            callerName: data.callerName || data.fromName || 'Doorman',
+            apartmentNumber: data.apartmentNumber || '',
+            buildingName: data.buildingName || '',
+            channelName: data.channelName || data.channel,
+            timestamp: data.timestamp || Date.now(),
+          };
+
+          if (actionId === 'ANSWER_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+            console.log('✅ [Click] User wants to answer call');
+            
+            // Store call data for app to pick up
+            await AsyncStorage.setItem('@pending_intercom_call', JSON.stringify(callData));
+            
+            // Navigate to morador home (will trigger call recovery)
+            router.push('/morador/(tabs)');
+            return;
+          } else if (actionId === 'DECLINE_CALL') {
+            console.log('❌ [Click] User declined call');
+            
+            // Decline without opening app
+            try {
+              const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+              await fetch(`${apiUrl}/api/calls/${callData.callId}/decline`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'declined' }),
+              });
+              console.log('✅ [Click] Call declined successfully');
+            } catch (error) {
+              console.error('❌ [Click] Failed to decline call:', error);
+            }
+            return;
+          }
+        }
+
+        // Navegação baseada no tipo de notificação (existing logic)
         if (data?.type === 'visitor_arrival') {
           // Navegar para tela de autorizações do morador
           router.push('/morador/authorize');

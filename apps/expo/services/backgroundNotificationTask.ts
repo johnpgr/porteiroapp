@@ -12,7 +12,6 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { callKeepService } from './CallKeepService';
 
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
@@ -129,38 +128,31 @@ TaskManager.defineTask(
           );
           console.log('[BackgroundTask] ✅ Call data stored to AsyncStorage');
 
-          // Display native call UI via CallKeep
-          console.log('[BackgroundTask] 📞 Calling callKeepService.displayIncomingCall()...');
-          let callKeepSucceeded = false;
-
+          // Show notification with answer/decline buttons
+          // CallKeep will be handled by CallCoordinator when user responds
+          console.log('[BackgroundTask] 📲 Showing notification with action buttons...');
+          
           try {
-            await callKeepService.displayIncomingCall(
-              callData.callId,
-              callData.callerName,
-              `Apt ${callData.apartmentNumber}`,
-              false // hasVideo
-            );
-
-            callKeepSucceeded = true;
-            console.log('[BackgroundTask] ✅ callKeepService.displayIncomingCall() completed successfully!');
-            console.log('[BackgroundTask] 📱 Native call UI should now be visible to user');
-          } catch (nativeCallError) {
-            console.error('[BackgroundTask] Native call UI failed, falling back to notification:', nativeCallError);
-
-            // Fallback: Display local notification if CallKeep fails
             const notificationId = await Notifications.scheduleNotificationAsync({
               content: {
-                title: 'Incoming Call',
-                body: `${callData.callerName} - Apt ${callData.apartmentNumber}`,
-                data: callData,
-                sound: callKeepSucceeded ? null : 'telephone_toque_interfone.mp3', // No sound if CallKeep active
+                title: `Chamada de ${callData.callerName}`,
+                body: `Apartamento ${callData.apartmentNumber}`,
+                data: {
+                  type: 'intercom_call',
+                  ...callData,
+                },
+                sound: 'telephone_toque_interfone.mp3',
                 priority: Notifications.AndroidNotificationPriority.MAX,
-                categoryIdentifier: 'call',
+                categoryIdentifier: 'call', // Has ANSWER_CALL and DECLINE_CALL buttons
+                vibrate: [0, 250, 250, 250],
               },
               trigger: null, // Immediate
             });
 
-            console.log('[BackgroundTask] ✅ Scheduled local notification (fallback):', notificationId);
+            console.log('[BackgroundTask] ✅ Notification scheduled with ID:', notificationId);
+            console.log('[BackgroundTask] 📱 User can tap Answer/Decline buttons or notification body');
+          } catch (notificationError) {
+            console.error('[BackgroundTask] ❌ Failed to schedule notification:', notificationError);
           }
         } else {
           console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);
