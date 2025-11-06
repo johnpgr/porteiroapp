@@ -34,7 +34,8 @@ class AndroidForegroundService {
           priority: Notifications.AndroidNotificationPriority.HIGH,
           categoryIdentifier: 'call',
           sticky: true,
-          sound: 'telephone_toque_interfone.mp3',
+          // No sound - CallKeep handles ringtone
+          // No vibration - CallKeep handles haptics
         },
         trigger: null,
       });

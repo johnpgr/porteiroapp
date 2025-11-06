@@ -90,7 +90,10 @@
         "android.permission.BLUETOOTH",
         "android.permission.INTERNET",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.CALL_PHONE",
+        "android.permission.READ_PHONE_STATE"
       ],
       "foregroundService": {
         "type": ["camera", "microphone", "phoneCall"]

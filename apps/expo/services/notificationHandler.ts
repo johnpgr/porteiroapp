@@ -101,7 +101,7 @@ async function setupNotificationChannels(): Promise<void> {
     sound: 'telephone_toque_interfone.mp3',
   });
 
-  // Intercom call channel (HIGH PRIORITY)
+  // Intercom call channel (HIGH PRIORITY) - for push notifications
   await Notifications.setNotificationChannelAsync('intercom_call', {
     name: 'Interfone (Chamada)',
     importance: Notifications.AndroidImportance.MAX,
@@ -112,7 +112,51 @@ async function setupNotificationChannels(): Promise<void> {
     showBadge: true,
   });
 
+  // CallKeep foreground service channel (CRITICAL - required for CallKeep to work)
+  await Notifications.setNotificationChannelAsync('intercom_call_keep', {
+    name: 'Chamadas Ativas (CallKeep)',
+    importance: Notifications.AndroidImportance.MAX,
+    sound: 'telephone_toque_interfone.mp3',
+    enableVibrate: true,
+    enableLights: true,
+    showBadge: true,
+    description: 'Canal para gerenciar chamadas de interfone ativas',
+  });
+
+  // Call channel (for AndroidForegroundService)
+  await Notifications.setNotificationChannelAsync('call', {
+    name: 'Chamadas em Progresso',
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: null, // No sound - CallKeep handles ringtone
+    enableVibrate: false,
+    showBadge: true,
+    description: 'Mantém o app ativo durante chamadas',
+  });
+
   console.log('✅ [NotificationHandler] Notification channels configured');
+
+  // Setup notification categories (for action buttons)
+  console.log('🔧 [NotificationHandler] Setting up notification categories...');
+  
+  await Notifications.setNotificationCategoryAsync('call', [
+    {
+      identifier: 'ANSWER_CALL',
+      buttonTitle: 'Atender',
+      options: {
+        opensAppToForeground: true,
+      },
+    },
+    {
+      identifier: 'DECLINE_CALL',
+      buttonTitle: 'Recusar',
+      options: {
+        opensAppToForeground: false,
+        isDestructive: true,
+      },
+    },
+  ]);
+
+  console.log('✅ [NotificationHandler] Notification categories configured');
 }
 
 /**

@@ -138,12 +138,12 @@ class CallKeepService {
           imageName: 'logo',
           additionalPermissions: [],
           selfManaged: false,
-          // foregroundService: {
-          //   channelId: 'intercom-call-keep',
-          //   channelName: 'Intercom Calls',
-          //   notificationTitle: 'Intercom call',
-          //   notificationIcon: 'logo'
-          // }
+          foregroundService: {
+            channelId: 'intercom_call_keep',
+            channelName: 'Intercom Calls',
+            notificationTitle: 'Intercom call in progress',
+            notificationIcon: 'logo'
+          }
         },
       };
 
