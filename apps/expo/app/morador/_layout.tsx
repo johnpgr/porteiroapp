@@ -147,6 +147,17 @@ export default function MoradorLayout() {
           displayName: (user as any)?.user_metadata?.full_name || user.email || null,
         });
 
+        // Initialize RTM standby connection immediately
+        console.log('[MoradorLayout] 🔐 Initializing RTM standby...');
+        try {
+          await agoraService.initializeStandby();
+          console.log('[MoradorLayout] ✅ RTM standby initialized');
+        } catch (error) {
+          console.error('[MoradorLayout] ❌ RTM initialization failed (non-critical):', error);
+          // Don't block call system initialization if RTM fails
+          // RTM will be retried on-demand when call arrives
+        }
+
         // Initialize CallKeep (may already be initialized from login flow)
         // The initialize() method is idempotent, so safe to call multiple times
         await callKeepService.initialize();
@@ -193,9 +204,9 @@ export default function MoradorLayout() {
       return;
     }
 
-    // Note: RTM standby is now handled by CallCoordinator's warmup flow
-    // It will connect on-demand when a call arrives (3s timeout)
-    // This prevents unnecessary RTM connections and battery drain
+    // Note: RTM standby is initialized immediately when morador logs in (see above)
+    // This ensures instant readiness for incoming intercom calls
+    // If RTM initialization fails, it will be retried on-demand when a call arrives
 
     // 🔍 CHECK FOR INITIAL NOTIFICATION: Handle notification that launched the app
     const checkInitialNotification = async () => {

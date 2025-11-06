@@ -417,8 +417,10 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       const engineInstance = await ensureRtmEngine();
       const session = rtmSessionRef.current;
 
-      if (session && session.uid === bundle.uid && session.token === bundle.rtmToken && rtmStatus === 'connected') {
-        console.log(`✅ [ensureRtmLoggedIn] Já conectado com mesma sessão`);
+      // If already connected with same UID, keep existing connection
+      // This avoids unnecessary logout/login cycles during calls
+      if (session && session.uid === bundle.uid && rtmStatus === 'connected') {
+        console.log(`✅ [ensureRtmLoggedIn] Already connected with same UID (token may differ, but connection is valid)`);
         return engineInstance;
       }
 
@@ -433,38 +435,54 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
   const joinChannel = useCallback(
     async (config: AgoraJoinConfig): Promise<void> => {
+      console.log('[useAgora] 🎯 joinChannel() ENTRY - Starting channel join process');
+      console.log('[useAgora] Channel config:', { 
+        channelName: config.channelName, 
+        uid: config.uid,
+        hasToken: !!config.token 
+      });
+      
       setIsConnecting(true);
       setError(null);
-      const granted = await agoraAudioService.requestPermissions();
-      if (!granted) {
-        setIsConnecting(false);
-        throw new Error('Permissão de microfone negada');
-      }
+      
+      // Note: Skipping expo-av audio permissions check
+      // For Agora RTC calls, CallKeep already handles microphone permissions
+      // and Agora SDK manages its own audio permissions
+      console.log('[useAgora] ⏭️ Skipping expo-av permissions (CallKeep handles microphone for RTC)');
 
+      console.log('[useAgora] 🔧 Initializing RTC engine...');
       await initializeRtcEngine();
+      console.log('[useAgora] ✅ RTC engine initialized');
 
       const userAccount =
         typeof config.uid === 'string' && config.uid.length > 0
           ? config.uid
           : (toStringId(config.uid) ?? undefined);
 
+      console.log('[useAgora] User account for join:', userAccount);
+
       let token = config.token ?? null;
 
       if (!token && userAccount) {
+        console.log('[useAgora] 🔑 No token provided, fetching from API...');
         const bundle = await fetchTokenBundle(apiBaseUrl, {
           channelName: config.channelName,
           uid: userAccount,
           role: config.role,
         });
         token = bundle.rtcToken;
+        console.log('[useAgora] ✅ Token fetched');
       }
 
       if (!token) {
+        console.error('[useAgora] ❌ No RTC token available!');
         console.warn('⚠️ Token RTC não fornecido e não foi possível obter um token válido.');
         return;
       }
 
+      console.log('[useAgora] 📡 Joining Agora RTC channel...');
       if (userAccount) {
+        console.log('[useAgora] Using joinChannelWithUserAccount...');
         await agoraService.joinChannelWithUserAccount({
           appId: config.appId ?? agoraAppId,
           token,
@@ -474,8 +492,10 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       } else {
         const numericUid =
           typeof config.uid === 'number' ? config.uid : Math.floor(Math.random() * 100000);
+        console.log('[useAgora] Using joinChannel with numeric UID:', numericUid);
         await agoraService.joinChannel({ token, channelName: config.channelName, uid: numericUid });
       }
+      console.log('[useAgora] ✅ RTC channel join call completed');
     },
     [agoraAppId, apiBaseUrl, initializeRtcEngine]
   );
@@ -872,13 +892,21 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       hasToken: !!bundle.rtcToken
     });
 
-    await joinChannel({
-      channelName: incomingInvite.signal.channel,
-      uid: bundle.uid,
-      token: bundle.rtcToken,
-    });
-
-    console.log('[useAgora] ✅ joinChannel() completed!');
+    try {
+      await joinChannel({
+        channelName: incomingInvite.signal.channel,
+        uid: bundle.uid,
+        token: bundle.rtcToken,
+      });
+      console.log('[useAgora] ✅ joinChannel() completed successfully!');
+    } catch (joinError) {
+      console.error('[useAgora] ❌ joinChannel() failed with error:', joinError);
+      console.error('[useAgora] Error details:', {
+        message: joinError instanceof Error ? joinError.message : String(joinError),
+        stack: joinError instanceof Error ? joinError.stack : undefined
+      });
+      throw joinError;
+    }
 
     if (targets.length > 0) {
       const answerSignal: RtmSignal = {

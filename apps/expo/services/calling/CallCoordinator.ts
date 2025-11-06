@@ -2,6 +2,7 @@ import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { callKeepService } from '~/services/CallKeepService';
+import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
 
 export interface VoipPushData {
@@ -100,6 +101,32 @@ export class CallCoordinator {
     }
 
     try {
+      // Step 0: Ensure AgoraService has current user context (needed for RTM warmup)
+      console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (authSession?.user) {
+        // Fetch user profile to get morador info
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, full_name, user_type')
+          .eq('user_id', authSession.user.id)
+          .eq('user_type', 'morador')
+          .single();
+        
+        if (profile) {
+          agoraService.setCurrentUser({
+            id: profile.id,
+            userType: 'morador',
+            displayName: profile.full_name || authSession.user.email || null,
+          });
+          console.log('[CallCoordinator] ✅ User context set for AgoraService');
+        } else {
+          console.warn('[CallCoordinator] ⚠️ No morador profile found for user');
+        }
+      } else {
+        console.warn('[CallCoordinator] ⚠️ No active session found');
+      }
+
       // Step 1: Warm up RTM (user chose: "warm up first")
       console.log('[CallCoordinator] Step 1: Warming up RTM...');
       const rtmReady = await this.warmupRTM();
