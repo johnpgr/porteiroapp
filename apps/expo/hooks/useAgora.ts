@@ -1174,35 +1174,51 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
           // Check if call is still recent (not expired)
           const age = Date.now() - (callData.timestamp || 0);
           if (age < 60000) { // 60 seconds
-            console.log('[useAgora] Displaying pending call:', callData);
+            console.log('[useAgora] Checking API status for pending call:', callData.callId);
 
-            // Create an incoming invite context to trigger the UI
-            const inviteSignal: RtmInviteSignal = {
-              t: 'INVITE',
-              v: schemaVersion,
-              callId: callData.callId,
-              channel: callData.channel ?? callData.channelName,
-              from: callData.from,
-              ts: callData.timestamp,
-            };
+            // Check API status before restoring - only restore if call is still active
+            try {
+              const statusResponse = await fetchCallStatus(apiBaseUrlRef.current, callData.callId);
+              const callStatus = statusResponse?.call?.status?.toLowerCase();
 
-            setIncomingInvite({
-              signal: inviteSignal,
-              from: callData.from,
-              callSummary: {
-                callId: callData.callId,
-                apartmentNumber: callData.apartmentNumber,
-                doormanName: callData.callerName,
-                buildingId: null,
-              },
-            });
+              // Only restore if call is still in calling or connecting state
+              if (callStatus === 'calling' || callStatus === 'connecting') {
+                console.log('[useAgora] Call still active, restoring:', callStatus);
 
-            console.log('[useAgora] ✅ Pending call restored from storage');
+                // Create an incoming invite context to trigger the UI
+                const inviteSignal: RtmInviteSignal = {
+                  t: 'INVITE',
+                  v: schemaVersion,
+                  callId: callData.callId,
+                  channel: callData.channel ?? callData.channelName,
+                  from: callData.from,
+                  ts: callData.timestamp,
+                };
+
+                setIncomingInvite({
+                  signal: inviteSignal,
+                  from: callData.from,
+                  participants: toParticipantList(statusResponse?.participants),
+                  callSummary: {
+                    callId: callData.callId,
+                    apartmentNumber: callData.apartmentNumber,
+                    doormanName: callData.callerName,
+                    buildingId: null,
+                  },
+                });
+
+                console.log('[useAgora] ✅ Pending call restored from storage');
+              } else {
+                console.log('[useAgora] ⚠️ Call no longer active (status:', callStatus, '), skipping restore');
+              }
+            } catch (statusError) {
+              console.warn('[useAgora] Failed to check call status, skipping restore:', statusError);
+            }
           } else {
             console.log('[useAgora] ⚠️ Pending call expired (age:', age, 'ms)');
           }
 
-          // Clear stored data
+          // Clear stored data regardless of restore outcome
           await AsyncStorage.removeItem('@pending_intercom_call');
         }
       } catch (error) {
@@ -1233,8 +1249,6 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     }
 
     let cancelled = false;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let consecutiveFailures = 0;
 
     const mapCallStatusToLifecycle = (status?: string | null): CallLifecycleState => {
       const normalized = (status ?? '').toLowerCase();
@@ -1260,10 +1274,6 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       }
 
       cancelled = true;
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
 
       setIncomingInvite(null);
       setCallState((prev) => {
@@ -1284,13 +1294,23 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       }
     };
 
-    const checkStatus = async () => {
+    // Single check after a delay to catch cases where RTM/push notifications fail
+    // NOTE: Removed constant 4s polling - rely on RTM messages and push notifications for status updates
+    const checkStatusOnce = async () => {
+      // Wait 15 seconds before checking (gives RTM/push time to deliver status changes)
+      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      if (cancelled) {
+        return;
+      }
+
       let statusResponse: CallStatusResponse | null = null;
 
       try {
         statusResponse = await fetchCallStatus(apiBaseUrlRef.current, incomingInvite.signal.callId);
       } catch (statusError) {
         console.warn('⚠️ Falha ao verificar status da chamada:', statusError);
+        return;
       }
 
       if (cancelled) {
@@ -1298,36 +1318,22 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       }
 
       if (!statusResponse) {
-        consecutiveFailures += 1;
-
-        if (consecutiveFailures >= 2) {
-          finalizeInvite('ended');
-        }
-
         return;
       }
 
-      consecutiveFailures = 0;
-
       const status = typeof statusResponse.call?.status === 'string' ? statusResponse.call.status : null;
 
+      // If call is no longer in 'calling' state, finalize it
       if (!status || status.toLowerCase() !== 'calling') {
         const nextState = mapCallStatusToLifecycle(status);
         finalizeInvite(nextState);
       }
     };
 
-    void checkStatus();
-    pollTimer = setInterval(() => {
-      void checkStatus();
-    }, 4000);
+    void checkStatusOnce();
 
     return () => {
       cancelled = true;
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
     };
   }, [incomingInvite, currentUser?.userType]);
 

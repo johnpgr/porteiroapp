@@ -38,14 +38,8 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   useEffect(() => {
     const configurePushNotifications = async () => {
       try {
-        // Configurar handler para notificações
-        Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: true,
-          }),
-        });
+        // NOTE: Notification handler is configured in services/notificationHandler.ts
+        // and initialized at module level to prevent conflicts
 
         // Solicitar permissões
         const { status } = await Notifications.requestPermissionsAsync();

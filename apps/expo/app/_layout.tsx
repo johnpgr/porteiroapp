@@ -304,23 +304,14 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Configurar handler de notificações
-  useEffect(() => {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      }),
-    });
+  // NOTE: Notification handler is configured in services/notificationHandler.ts
+  // and initialized at module level to prevent conflicts
 
-    // Listener para notificações recebidas enquanto app está em foreground
+  // Listener para notificações recebidas enquanto app está em foreground
+  useEffect(() => {
     const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
       console.log('🔔 [Foreground] Notificação recebida:', notification);
-      // A notificação será exibida automaticamente devido ao handler acima
+      // A notificação será exibida automaticamente devido ao handler centralizado em notificationHandler.ts
     });
 
     // Listener para quando usuário clica na notificação

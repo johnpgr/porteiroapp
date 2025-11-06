@@ -3,15 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
 
-// Configurar como as notificações devem ser tratadas quando recebidas
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// NOTE: Notification handler is configured in services/notificationHandler.ts
+// and initialized at module level to prevent conflicts
 
 export interface NotificationData {
   id: string;

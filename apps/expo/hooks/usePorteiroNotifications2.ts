@@ -49,14 +49,8 @@ export function usePorteiroNotifications(buildingId?: string | null, porteiroId?
     
     const configureNotifications = async () => {
       try {
-        if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync('default', {
-            name: 'default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
-          });
-        }
+        // NOTE: Notification channels are configured in services/notificationHandler.ts
+        // and initialized at module level to prevent duplication
 
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
