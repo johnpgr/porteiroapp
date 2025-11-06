@@ -13,6 +13,7 @@ import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
 import { callKeepService } from '~/services/CallKeepService';
 import { supabase } from '~/utils/supabase';
+import { callCoordinator } from '~/services/calling/CallCoordinator';
 
 export default function MoradorLayout() {
   const pathname = usePathname();
@@ -146,10 +147,13 @@ export default function MoradorLayout() {
           displayName: (user as any)?.user_metadata?.full_name || user.email || null,
         });
 
-        // Initialize CallKeep
+        // Initialize CallKeep (may already be initialized from login flow)
+        // The initialize() method is idempotent, so safe to call multiple times
         await callKeepService.initialize();
         console.log('[MoradorLayout] ✅ CallKeep initialized');
 
+        // Request permissions (may already be granted from login flow)
+        // This is a no-op if permissions were already granted
         const granted = await callKeepService.requestPermissions();
         if (!granted) {
           console.warn('[MoradorLayout] ⚠️ CallKeep permissions denied - falling back to notifications');
@@ -158,7 +162,6 @@ export default function MoradorLayout() {
         }
 
         // Initialize CallCoordinator (registers CallKeep event handlers)
-        const { callCoordinator } = await import('~/services/calling/CallCoordinator');
         callCoordinator.initialize();
         console.log('[MoradorLayout] ✅ CallCoordinator initialized');
 

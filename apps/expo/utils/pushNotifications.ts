@@ -238,6 +238,29 @@ export async function registerPushTokenAfterLogin(
 
     console.log('✅ [registerPushToken] Permissão concedida, obtendo token...');
 
+    // Initialize CallKeep and request permissions for morador users
+    // This consolidates permissions into a single flow at login
+    if (userType === 'morador') {
+      try {
+        console.log('📞 [registerPushToken] Initializing CallKeep...');
+        const { callKeepService } = await import('~/services/CallKeepService');
+
+        // Initialize CallKeep if not already initialized
+        await callKeepService.initialize();
+
+        // Request CallKeep permissions (Android only - iOS is automatic)
+        const callKeepGranted = await callKeepService.requestPermissions();
+        if (!callKeepGranted) {
+          console.warn('⚠️ [registerPushToken] CallKeep permissions denied - calls will use notifications');
+        } else {
+          console.log('✅ [registerPushToken] CallKeep permissions granted');
+        }
+      } catch (callKeepError) {
+        console.error('❌ [registerPushToken] CallKeep initialization failed:', callKeepError);
+        // Non-critical - continue with push token registration
+      }
+    }
+
     // Obter push token
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: '74e123bc-f565-44ba-92f0-86fc00cbe0b1',

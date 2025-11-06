@@ -15,7 +15,7 @@
 
 import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
 import { supabase } from './supabase';
-import { callKeepService } from '~/services/CallKeepService';
+import { callCoordinator } from '~/services/calling/CallCoordinator';
 
 // iOS only - react-native-voip-push-notification
 let VoipPushNotification: any = null;
@@ -202,8 +202,6 @@ class VoipPushNotificationService {
       // 4. Persist session
       // 5. Display CallKeep UI
       console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');
-
-      const { callCoordinator } = await import('~/services/calling/CallCoordinator');
 
       await callCoordinator.handleIncomingPush({
         callId,

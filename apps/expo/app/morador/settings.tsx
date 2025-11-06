@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { callKeepService } from '~/services/CallKeepService';
 
-export default function MoradorSettings(): JSX.Element {
+export default function MoradorSettings() {
   const handleTestCall = async () => {
     try {
       const testCallUUID = `test-${Date.now()}`;

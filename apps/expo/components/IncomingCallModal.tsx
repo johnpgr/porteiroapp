@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Modal } from '~/components/Modal';
 import { Phone, PhoneOff } from 'lucide-react-native';
 import type { UseAgoraReturn } from '~/hooks/useAgora';
+import type { CallLifecycleState } from '@porteiroapp/common/calling';
 
 const { width } = Dimensions.get('window');
 
@@ -13,6 +14,9 @@ interface IncomingCallModalProps {
 }
 
 const IncomingCallModal: React.FC<IncomingCallModalProps> = ({ visible, onClose, agoraContext }) => {
+  // NOTE: This modal currently uses useAgora context for compatibility
+  // In the future, useAgora will derive its state from CallCoordinator/CallSession events
+  // The modal interface remains the same, but the underlying state management is improved
   const {
     incomingInvite,
     activeCall,

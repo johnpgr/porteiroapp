@@ -7,29 +7,56 @@ import {
   StyleSheet,
   Text,
   View,
+  Alert,
 } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { callKeepService } from '~/services/CallKeepService';
 import { foregroundService } from '~/services/AndroidForegroundService';
+import { agoraService } from '~/services/agora/AgoraService';
 import RNCallKeep from 'react-native-callkeep';
+import type { CallLifecycleState } from '@porteiroapp/common/calling';
+import { callCoordinator } from '~/services/calling/CallCoordinator';
+import { CallSession } from '~/services/calling/CallSession';
 
 interface StatusSnapshot {
+  // CallKeep
   platform?: string;
   hasPermissions?: boolean;
   hasActiveCall?: boolean;
   currentUUID?: string;
   foregroundRunning?: boolean;
+  verboseLogging?: boolean;
+
+  // CallCoordinator
+  coordinatorInitialized?: boolean;
+  coordinatorHasSession?: boolean;
+
+  // CallSession (if exists)
+  sessionId?: string | null;
+  sessionState?: CallLifecycleState | null;
+  sessionNativeState?: string | null;
+  sessionRtmReady?: boolean;
+  sessionRtcJoined?: boolean;
+  sessionConsistent?: boolean;
+
+  // Agora
+  rtmStatus?: string;
+
+  // Persistence
+  hasSavedSession?: boolean;
+
+  // Metadata
   timestamp?: string;
   error?: string;
-  verboseLogging?: boolean;
 }
 
-export default function CallKeepStatus(): JSX.Element {
+export default function CallKeepStatus() {
   const [status, setStatus] = useState<StatusSnapshot>({});
   const [refreshing, setRefreshing] = useState(false);
 
   const checkStatus = useCallback(async () => {
     try {
+      // CallKeep
       let hasPermissions = true;
       if (Platform.OS === 'android') {
         hasPermissions = await RNCallKeep.checkPhoneAccountEnabled();
@@ -39,13 +66,45 @@ export default function CallKeepStatus(): JSX.Element {
       const currentUUID = callKeepService.getCurrentCallUUID();
       const foregroundRunning = Platform.OS === 'android' ? foregroundService.isServiceRunning() : false;
 
+      // CallCoordinator
+
+      const coordinatorDebug = callCoordinator.getDebugInfo();
+      const activeSession = callCoordinator.getActiveSession();
+      const sessionDebug = activeSession?.getDebugInfo();
+
+      // Check for saved session
+      const savedSession = await CallSession.load();
+
+      // Agora
+      const rtmStatus = agoraService.getStatus();
+
       setStatus({
+        // CallKeep
         platform: Platform.OS,
         hasPermissions,
         hasActiveCall,
         currentUUID: currentUUID ?? 'None',
         foregroundRunning,
         verboseLogging: callKeepService.isVerboseLoggingEnabled(),
+
+        // CallCoordinator
+        coordinatorInitialized: coordinatorDebug.isInitialized,
+        coordinatorHasSession: coordinatorDebug.hasActiveSession,
+
+        // CallSession
+        sessionId: sessionDebug?.id || null,
+        sessionState: sessionDebug?.state || null,
+        sessionNativeState: sessionDebug?.nativeState || null,
+        sessionRtmReady: sessionDebug?.rtmReady || false,
+        sessionRtcJoined: sessionDebug?.rtcJoined || false,
+        sessionConsistent: sessionDebug?.isConsistent ?? true,
+
+        // Agora
+        rtmStatus,
+
+        // Persistence
+        hasSavedSession: !!savedSession,
+
         timestamp: new Date().toLocaleTimeString(),
       });
     } catch (error) {
@@ -130,6 +189,80 @@ export default function CallKeepStatus(): JSX.Element {
               <Text style={styles.value}>{status.verboseLogging ? 'ON' : 'OFF'}</Text>
             </View>
 
+            <Text style={styles.sectionTitle}>CallCoordinator</Text>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Initialized</Text>
+              <Text style={[styles.value, status.coordinatorInitialized ? styles.success : styles.failure]}>
+                {status.coordinatorInitialized ? '✅ YES' : '❌ NO'}
+              </Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Has Active Session</Text>
+              <Text style={[styles.value, status.coordinatorHasSession ? styles.success : styles.normal]}>
+                {status.coordinatorHasSession ? '📞 YES' : 'No'}
+              </Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>CallSession</Text>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Session ID</Text>
+              <Text style={styles.value}>{status.sessionId || 'None'}</Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Session State</Text>
+              <Text style={[styles.value, status.sessionState ? styles.success : styles.normal]}>
+                {status.sessionState || 'idle'}
+              </Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Native State</Text>
+              <Text style={styles.value}>{status.sessionNativeState || 'idle'}</Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>RTM Ready</Text>
+              <Text style={[styles.value, status.sessionRtmReady ? styles.success : styles.normal]}>
+                {status.sessionRtmReady ? '✅ YES' : 'No'}
+              </Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>RTC Joined</Text>
+              <Text style={[styles.value, status.sessionRtcJoined ? styles.success : styles.normal]}>
+                {status.sessionRtcJoined ? '✅ YES' : 'No'}
+              </Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>State Consistent</Text>
+              <Text style={[styles.value, status.sessionConsistent ? styles.success : styles.failure]}>
+                {status.sessionConsistent ? '✅ YES' : '❌ NO (DESYNC!)'}
+              </Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>Agora</Text>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>RTM Status</Text>
+              <Text style={[styles.value, status.rtmStatus === 'connected' ? styles.success : styles.normal]}>
+                {status.rtmStatus || 'disconnected'}
+              </Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>Persistence</Text>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.label}>Has Saved Session</Text>
+              <Text style={[styles.value, status.hasSavedSession ? styles.success : styles.normal]}>
+                {status.hasSavedSession ? '💾 YES' : 'No'}
+              </Text>
+            </View>
+
             <View style={styles.statusItem}>
               <Text style={styles.label}>Last Updated</Text>
               <Text style={styles.value}>{status.timestamp}</Text>
@@ -161,6 +294,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 20,
     color: '#333333',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 12,
+    color: '#555555',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   statusItem: {
     backgroundColor: '#ffffff',

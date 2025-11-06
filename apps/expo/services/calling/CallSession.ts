@@ -4,6 +4,7 @@ import { callKeepService } from '~/services/CallKeepService';
 import agoraAudioService from '~/services/audioService';
 import type { CallLifecycleState, CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
 import { CALL_STATE_MACHINE } from './stateMachine';
+import {supabase} from "~/utils/supabase";
 
 const STORAGE_KEY = '@active_call_session';
 
@@ -178,7 +179,7 @@ export class CallSession {
       console.log(`[CallSession] Fetching tokens...`);
       this.setState('token_fetching');
 
-      const { data: sessionData } = await import('~/utils/supabase').then(m => m.supabase.auth.getSession());
+      const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
       const response = await fetch(
@@ -263,7 +264,7 @@ export class CallSession {
       this.setNativeState('idle');
 
       // Notify backend
-      const { data: sessionData } = await import('~/utils/supabase').then(m => m.supabase.auth.getSession());
+      const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
       await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/end`, {
@@ -303,7 +304,7 @@ export class CallSession {
       this.setNativeState('idle');
 
       // Notify backend
-      const { data: sessionData } = await import('~/utils/supabase').then(m => m.supabase.auth.getSession());
+      const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
       await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/decline`, {
