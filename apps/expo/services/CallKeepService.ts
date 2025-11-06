@@ -22,16 +22,62 @@ export interface CallKeepOptions {
   };
 }
 
+// Event types for CallKeep
+type CallKeepEvent = 'answer' | 'end' | 'mute' | 'hold' | 'dtmf' | 'showIncomingUi';
+type CallKeepEventHandler = (payload: any) => void;
+
+// Simple event emitter
+class Emitter<TEvents extends Record<string, any>> {
+  private listeners = new Map<keyof TEvents, Set<(payload: any) => void>>();
+
+  on<K extends keyof TEvents>(event: K, handler: (payload: TEvents[K]) => void): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(handler as any);
+
+    // Return unsubscribe function
+    return () => this.off(event, handler);
+  }
+
+  off<K extends keyof TEvents>(event: K, handler: (payload: TEvents[K]) => void): void {
+    this.listeners.get(event)?.delete(handler as any);
+  }
+
+  emit<K extends keyof TEvents>(event: K, payload: TEvents[K]): void {
+    const handlers = this.listeners.get(event);
+    if (!handlers) return;
+
+    handlers.forEach(h => {
+      try {
+        h(payload);
+      } catch (error) {
+        console.error(`[CallKeep] Event handler error for ${String(event)}:`, error);
+      }
+    });
+  }
+
+  removeAllListeners(): void {
+    this.listeners.clear();
+  }
+}
+
+interface CallKeepEvents {
+  answer: string; // callUUID
+  end: string; // callUUID
+  mute: { muted: boolean; callUUID: string };
+  hold: { hold: boolean; callUUID: string };
+  dtmf: { digits: string; callUUID: string };
+  showIncomingUi: string; // callUUID
+}
+
 class CallKeepService {
   private isInitialized = false;
   private currentCallUUID: string | null = null;
   private isNativeEnvironment = Platform.OS === 'ios' || Platform.OS === 'android';
   private lastOptions: CallKeepOptions | null = null;
-  // Optional external handlers that app code can set
-  private externalOnAnswer: ((args: { callUUID: string }) => void | Promise<void>) | null = null;
-  private externalOnEnd: ((args: { callUUID: string }) => void | Promise<void>) | null = null;
-  private externalOnToggleMute: ((args: { muted: boolean; callUUID: string }) => void | Promise<void>) | null = null;
   private verboseLogging = __DEV__;
+  private emitter = new Emitter<CallKeepEvents>();
 
   private vlog(...args: any[]) {
     if (this.verboseLogging) {
@@ -215,24 +261,14 @@ class CallKeepService {
   }
 
   /**
-   * Permite registrar handler externo para evento de atender chamada
+   * Register event handler (event emitter pattern)
+   * @param event - Event name ('answer', 'end', 'mute', etc.)
+   * @param handler - Event handler function
+   * @returns Unsubscribe function
    */
-  setOnAnswer(handler: (args: { callUUID: string }) => void | Promise<void>) {
-    this.externalOnAnswer = handler;
-  }
-
-  /**
-   * Permite registrar handler externo para evento de encerrar chamada
-   */
-  setOnEnd(handler: (args: { callUUID: string }) => void | Promise<void>) {
-    this.externalOnEnd = handler;
-  }
-
-  /**
-   * Permite registrar handler externo para evento de toggle mute
-   */
-  setOnToggleMute(handler: (args: { muted: boolean; callUUID: string }) => void | Promise<void>) {
-    this.externalOnToggleMute = handler;
+  on<K extends keyof CallKeepEvents>(event: K, handler: (payload: CallKeepEvents[K]) => void): () => void {
+    console.log(`[CallKeep] 📝 Registering handler for '${String(event)}' event`);
+    return this.emitter.on(event, handler);
   }
 
   /**
@@ -531,7 +567,6 @@ class CallKeepService {
     console.log('[CallKeep] 🎯 onAnswerCall EVENT FIRED');
     console.log('[CallKeep] - callUUID:', callUUID);
     console.log('[CallKeep] - currentCallUUID:', this.currentCallUUID);
-    console.log('[CallKeep] - hasExternalHandler:', !!this.externalOnAnswer);
     console.log('[CallKeep] - Platform:', Platform.OS);
 
     // Informar ao OS que a chamada foi atendida
@@ -548,19 +583,10 @@ class CallKeepService {
       console.error('[CallKeep] reportConnectedCall() failed:', err);
     });
 
-    // Delegar para handler externo, se presente
-    // External handler will join Agora channel while native UI remains visible
-    if (this.externalOnAnswer) {
-      console.log('[CallKeep] Step 3: Calling external answer handler...');
-      try {
-        void this.externalOnAnswer({ callUUID });
-        console.log('[CallKeep] ✅ External answer handler called');
-      } catch (e) {
-        console.error('[CallKeep] ❌ External answer handler threw error:', e);
-      }
-    } else {
-      console.warn('[CallKeep] ⚠️ No external answer handler registered!');
-    }
+    // Emit event for external listeners (e.g., CallCoordinator)
+    console.log('[CallKeep] Step 3: Emitting "answer" event...');
+    this.emitter.emit('answer', callUUID);
+    console.log('[CallKeep] ✅ "answer" event emitted');
 
     console.log('[CallKeep] 🎯 onAnswerCall handler complete');
     // IMPORTANT: We do NOT call endCall() here
@@ -571,57 +597,49 @@ class CallKeepService {
     console.log('[CallKeep] 🎯 onEndCall EVENT FIRED');
     console.log('[CallKeep] - callUUID:', callUUID);
     console.log('[CallKeep] - currentCallUUID:', this.currentCallUUID);
-    console.log('[CallKeep] - hasExternalHandler:', !!this.externalOnEnd);
 
     if (callUUID === this.currentCallUUID) {
       console.log('[CallKeep] Clearing currentCallUUID');
       this.currentCallUUID = null;
     }
 
-    // Delegar para handler externo, se presente
-    if (this.externalOnEnd) {
-      console.log('[CallKeep] Calling external end handler...');
-      try {
-        void this.externalOnEnd({ callUUID });
-        console.log('[CallKeep] ✅ External end handler called');
-      } catch (e) {
-        console.error('[CallKeep] ❌ External end handler threw error:', e);
-      }
-    } else {
-      console.warn('[CallKeep] ⚠️ No external end handler registered!');
-    }
+    // Emit event for external listeners (e.g., CallCoordinator)
+    console.log('[CallKeep] Emitting "end" event...');
+    this.emitter.emit('end', callUUID);
+    console.log('[CallKeep] ✅ "end" event emitted');
 
     console.log('[CallKeep] 🎯 onEndCall handler complete');
   };
 
   private onToggleMute = ({ muted, callUUID }: { muted: boolean; callUUID: string }) => {
-    console.log('📞 CallKeep: Mute toggled', { muted, callUUID });
-    // Delegar para handler externo, se presente
-    if (this.externalOnToggleMute) {
-      try {
-        void this.externalOnToggleMute({ muted, callUUID });
-      } catch (e) {
-        console.warn('⚠️ CallKeep external onToggleMute handler failed:', e);
-      }
-    }
+    console.log('[CallKeep] 🎯 onToggleMute EVENT FIRED', { muted, callUUID });
+    this.emitter.emit('mute', { muted, callUUID });
+    console.log('[CallKeep] ✅ "mute" event emitted');
   };
 
   private onToggleHold = ({ hold, callUUID }: { hold: boolean; callUUID: string }) => {
-    console.log('📞 CallKeep: Hold toggled', { hold, callUUID });
+    console.log('[CallKeep] 🎯 onToggleHold EVENT FIRED', { hold, callUUID });
+    this.emitter.emit('hold', { hold, callUUID });
+    console.log('[CallKeep] ✅ "hold" event emitted');
   };
 
   private onDTMF = ({ digits, callUUID }: { digits: string; callUUID: string }) => {
-    console.log('📞 CallKeep: DTMF', { digits, callUUID });
+    console.log('[CallKeep] 🎯 onDTMF EVENT FIRED', { digits, callUUID });
+    this.emitter.emit('dtmf', { digits, callUUID });
+    console.log('[CallKeep] ✅ "dtmf" event emitted');
   };
 
   private onShowIncomingCallUi = ({ callUUID }: { callUUID: string }) => {
-    console.log('📞 CallKeep: Show incoming call UI', callUUID);
+    console.log('[CallKeep] 🎯 onShowIncomingCallUi EVENT FIRED', callUUID);
+    this.emitter.emit('showIncomingUi', callUUID);
+    console.log('[CallKeep] ✅ "showIncomingUi" event emitted');
   };
 
   /**
    * Remove todos os event listeners
    */
   cleanup(): void {
+    // Remove native RNCallKeep event listeners
     RNCallKeep.removeEventListener('answerCall');
     RNCallKeep.removeEventListener('endCall');
     RNCallKeep.removeEventListener('didPerformSetMutedCallAction');
@@ -634,10 +652,13 @@ class CallKeepService {
 
     (RNCallKeep as any).removeEventListener?.('didLoadWithEvents');
 
+    // Clear event emitter listeners
+    this.emitter.removeAllListeners();
+
     this.currentCallUUID = null;
     this.isInitialized = false;
 
-    console.log('🧹 CallKeep cleanup realizado');
+    console.log('[CallKeep] 🧹 Cleanup complete - all listeners removed');
   }
 }
 

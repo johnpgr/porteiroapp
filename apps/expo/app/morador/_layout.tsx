@@ -114,15 +114,15 @@ export default function MoradorLayout() {
     }
   }, [pathname]);
 
-  // ✅ Initialize CallKeep as soon as morador logs in
+  // ✅ Initialize CallCoordinator + CallKeep as soon as morador logs in
   useEffect(() => {
     if (!user?.id) {
       return;
     }
 
-    const initializeCallKeep = async () => {
+    const initializeCallSystem = async () => {
       try {
-        console.log('[MoradorLayout] 🚀 Initializing CallKeep...');
+        console.log('[MoradorLayout] 🚀 Initializing call system...');
 
         const { data: profile, error } = await supabase
           .from('profiles')
@@ -135,10 +135,18 @@ export default function MoradorLayout() {
         }
 
         if (!profile || profile.notification_enabled !== true) {
-          console.log('[MoradorLayout] ⏭️ Skipping CallKeep - notifications disabled for user');
+          console.log('[MoradorLayout] ⏭️ Skipping call system - notifications disabled for user');
           return;
         }
 
+        // Set user context for AgoraService (needed by CallCoordinator)
+        agoraService.setCurrentUser({
+          id: (user as any)?.profile_id ?? user.id,
+          userType: 'morador',
+          displayName: (user as any)?.user_metadata?.full_name || user.email || null,
+        });
+
+        // Initialize CallKeep
         await callKeepService.initialize();
         console.log('[MoradorLayout] ✅ CallKeep initialized');
 
@@ -149,14 +157,19 @@ export default function MoradorLayout() {
           console.log('[MoradorLayout] ✅ CallKeep permissions granted');
         }
 
-        console.log('[MoradorLayout] ✅ CallKeep ready for incoming calls');
+        // Initialize CallCoordinator (registers CallKeep event handlers)
+        const { callCoordinator } = await import('~/services/calling/CallCoordinator');
+        callCoordinator.initialize();
+        console.log('[MoradorLayout] ✅ CallCoordinator initialized');
+
+        console.log('[MoradorLayout] ✅ Call system ready');
       } catch (error) {
-        console.error('[MoradorLayout] ❌ Failed to initialize CallKeep:', error);
+        console.error('[MoradorLayout] ❌ Failed to initialize call system:', error);
         console.warn('[MoradorLayout] ⚠️ Falling back to regular notifications');
       }
     };
 
-    void initializeCallKeep();
+    void initializeCallSystem();
   }, [user?.id]);
 
   
@@ -177,10 +190,9 @@ export default function MoradorLayout() {
       return;
     }
 
-    // Ensure RTM standby connection as early as possible
-    agoraService
-      .initializeStandby()
-      .catch((err) => console.error('❌ [MoradorLayout] Failed to initialize RTM standby:', err));
+    // Note: RTM standby is now handled by CallCoordinator's warmup flow
+    // It will connect on-demand when a call arrives (3s timeout)
+    // This prevents unnecessary RTM connections and battery drain
 
     // 🔍 CHECK FOR INITIAL NOTIFICATION: Handle notification that launched the app
     const checkInitialNotification = async () => {

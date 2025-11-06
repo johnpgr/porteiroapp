@@ -1660,11 +1660,11 @@ VoIP Push → CallCoordinator → CallSession (single state) → CallKeep UI + A
 - [x] Add `warmupRTM()` to AgoraService
 - [x] Create this plan document
 
-### 🔄 Phase 2: Service Updates (Week 2) - IN PROGRESS
-- [ ] Refactor CallKeepService to use event emitter
-- [ ] Update voipPushNotifications.ts to use CallCoordinator
-- [ ] Update _layout.tsx to initialize CallCoordinator
-- [ ] Test RTM warmup flow
+### ✅ Phase 2: Service Updates (Week 2) - COMPLETE
+- [x] Refactor CallKeepService to use event emitter
+- [x] Update voipPushNotifications.ts to use CallCoordinator
+- [x] Update _layout.tsx to initialize CallCoordinator
+- [ ] Test RTM warmup flow (pending Phase 4)
 
 ### ⏳ Phase 3: Hook Simplification (Week 3)
 - [ ] Simplify useAgora.ts (remove CallKeep handlers)
@@ -1698,11 +1698,11 @@ VoIP Push → CallCoordinator → CallSession (single state) → CallKeep UI + A
 ### ✅ Completed
 - `services/agora/AgoraService.ts` - Added warmupRTM() method
 - `services/calling/stateMachine.ts` - Added intermediate states
+- `services/CallKeepService.ts` - Refactored to event emitter pattern
+- `utils/voipPushNotifications.ts` - Delegates to CallCoordinator
+- `app/morador/_layout.tsx` - Initializes CallCoordinator
 
 ### ⏳ Pending
-- `services/CallKeepService.ts` - Refactor to event emitter
-- `utils/voipPushNotifications.ts` - Delegate to CallCoordinator
-- `app/morador/_layout.tsx` - Initialize CallCoordinator
 - `hooks/useAgora.ts` - Simplify, remove handlers
 - `components/IncomingCallModal.tsx` - Listen to session
 - `app/morador/callkeep-status.tsx` - Enhanced diagnostics
@@ -1763,14 +1763,23 @@ idle (ready for next call)
 - Network recovery: < 5s
 - User complaints: -80%
 
-## Next Steps (Today)
+## Next Steps
 
+### ✅ Completed Today
 1. ✅ Complete Phase 1 core classes
-2. → Refactor CallKeepService to event emitter pattern
-3. → Update VoIP push handler
-4. → Initialize CallCoordinator in _layout
-5. → Test basic flow: push → warmup → display → answer
+2. ✅ Refactor CallKeepService to event emitter pattern
+3. ✅ Update VoIP push handler
+4. ✅ Initialize CallCoordinator in _layout
+
+### 🔄 Phase 2 Complete - Moving to Phase 3
+
+Next up (Phase 3):
+- Simplify useAgora.ts (remove old CallKeep handlers)
+- Update IncomingCallModal to listen to session state
+- Enhance callkeep-status.tsx with diagnostics
+- Test state synchronization
 
 ---
 **Implementation Started:** 2025-01-06
 **Phase 1 Status:** ✅ Complete
+**Phase 2 Status:** ✅ Complete
