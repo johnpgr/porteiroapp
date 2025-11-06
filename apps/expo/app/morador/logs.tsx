@@ -4,7 +4,10 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import type { Database } from '@porteiroapp/common/supabase';
 
+type VisitorLogRow = Database['public']['Tables']['visitor_logs']['Row'];
+type CommunicationRow = Database['public']['Tables']['communications']['Row'];
 
 interface LogEntry {
   id: string;
@@ -28,7 +31,7 @@ export default function LogsScreen() {
   // Buscar apartment_id do usuário
   useEffect(() => {
     const fetchApartmentId = async () => {
-      if (!user?.id) return;
+      if (!user?.id || !user?.profile_id) return;
       
       try {
         const { data: residentData, error } = await supabase
@@ -51,13 +54,7 @@ export default function LogsScreen() {
     };
 
     fetchApartmentId();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (apartmentId) {
-      fetchLogs();
-    }
-  }, [apartmentId, filter, fetchLogs]);
+  }, [user?.id, user?.profile_id]);
 
   const fetchLogs = useCallback(async () => {
     if (!apartmentId) return;
@@ -71,61 +68,73 @@ export default function LogsScreen() {
           .from('visitor_logs')
           .select(
             `
-            *,
+            id,
+            log_time,
+            tipo_log,
+            notification_status,
+            purpose,
+            guest_name,
+            rejection_reason,
             visitors(
               name,
-              document,
-              apartment_number
+              document
+            ),
+            apartments(
+              number
             )
           `
           )
           .eq('apartment_id', apartmentId)
           .neq('notification_status', 'pending')
-          .order('timestamp', { ascending: false })
+          .order('log_time', { ascending: false })
           .limit(50);
 
         if (visitorError) throw visitorError;
 
         visitorLogs?.forEach((log) => {
           const visitor = log.visitors as any;
+          const logData = log as VisitorLogRow & { visitors: any; apartments: any };
           logEntries.push({
             id: `visitor_${log.id}`,
             type: 'visitor',
-            title: `${visitor.name}`,
-            description: getVisitorActionDescription(log.action, log.notes),
-            timestamp: log.timestamp,
-            status: log.action,
-            icon: getVisitorActionIcon(log.action),
-            color: getVisitorActionColor(log.action),
+            title: visitor?.name || logData.guest_name || 'Visitante',
+            description: getVisitorActionDescription(logData.tipo_log, logData.purpose || logData.rejection_reason),
+            timestamp: logData.log_time,
+            status: logData.tipo_log,
+            icon: getVisitorActionIcon(logData.tipo_log),
+            color: getVisitorActionColor(logData.tipo_log),
           });
         });
       }
 
       // Buscar comunicações
       if (filter === 'all' || filter === 'communication') {
-        const { data: communications, error: commError } = await supabase
-          .from('communications')
-          .select('*')
-          .or(
-            `target_apartment.eq.${user.apartment_number},target_user_type.eq.morador,target_apartment.is.null`
-          )
-          .order('created_at', { ascending: false })
-          .limit(50);
+        if (!user?.building_id) {
+          console.warn('Building ID não encontrado, pulando busca de comunicações');
+        } else {
+          const { data: communications, error: commError } = await supabase
+            .from('communications')
+            .select('*')
+            .eq('building_id', user.building_id)
+            .order('created_at', { ascending: false })
+            .limit(50);
 
-        if (commError) throw commError;
+          if (commError) throw commError;
 
-        communications?.forEach((comm) => {
-          logEntries.push({
-            id: `comm_${comm.id}`,
-            type: 'communication',
-            title: comm.title,
-            description: comm.message,
-            timestamp: comm.created_at,
-            status: comm.type,
-            icon: getCommunicationIcon(comm.type),
-            color: getCommunicationColor(comm.priority),
+          communications?.forEach((comm) => {
+            const commData = comm as CommunicationRow;
+            logEntries.push({
+              id: `comm_${comm.id}`,
+              type: 'communication',
+              title: commData.title,
+              description: commData.content,
+              timestamp: commData.created_at,
+              status: commData.type || undefined,
+              icon: getCommunicationIcon(commData.type || 'general'),
+              color: getCommunicationColor(commData.priority || 'low'),
+            });
           });
-        });
+        }
       }
 
       // Ordenar por timestamp
@@ -137,7 +146,13 @@ export default function LogsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [apartmentId, filter]);
+  }, [apartmentId, filter, user?.building_id]);
+
+  useEffect(() => {
+    if (apartmentId) {
+      fetchLogs();
+    }
+  }, [apartmentId, filter, fetchLogs]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -145,40 +160,51 @@ export default function LogsScreen() {
     setRefreshing(false);
   };
 
-  const getVisitorActionDescription = (action: string, notes?: string) => {
+  const getVisitorActionDescription = (tipoLog: string, notes?: string | null) => {
     const descriptions: { [key: string]: string } = {
+      IN: 'Entrada registrada',
+      OUT: 'Saída registrada',
+      ENTRADA: 'Entrada registrada',
+      SAIDA: 'Saída registrada',
+      SAÍDA: 'Saída registrada',
       pending: 'Aguardando autorização',
       approved: 'Visita aprovada',
       denied: 'Visita negada',
-      entered: 'Entrou no prédio',
-      left: 'Saiu do prédio',
-      preregistered: 'Pré-cadastrado',
+      rejected: 'Visita negada',
     };
-    return notes || descriptions[action] || action;
+    return notes || descriptions[tipoLog?.toUpperCase()] || tipoLog || 'Ação desconhecida';
   };
 
-  const getVisitorActionIcon = (action: string) => {
+  const getVisitorActionIcon = (tipoLog: string) => {
+    const upperLog = tipoLog?.toUpperCase();
     const icons: { [key: string]: string } = {
+      IN: 'enter',
+      OUT: 'exit',
+      ENTRADA: 'enter',
+      SAIDA: 'exit',
+      SAÍDA: 'exit',
       pending: 'time',
       approved: 'checkmark-circle',
       denied: 'close-circle',
-      entered: 'enter',
-      left: 'exit',
-      preregistered: 'person-add',
+      rejected: 'close-circle',
     };
-    return icons[action] || 'person';
+    return icons[upperLog] || 'person';
   };
 
-  const getVisitorActionColor = (action: string) => {
+  const getVisitorActionColor = (tipoLog: string) => {
+    const upperLog = tipoLog?.toUpperCase();
     const colors: { [key: string]: string } = {
+      IN: '#2196F3',
+      OUT: '#9E9E9E',
+      ENTRADA: '#2196F3',
+      SAIDA: '#9E9E9E',
+      SAÍDA: '#9E9E9E',
       pending: '#FF9800',
       approved: '#4CAF50',
       denied: '#F44336',
-      entered: '#2196F3',
-      left: '#9E9E9E',
-      preregistered: '#4CAF50',
+      rejected: '#F44336',
     };
-    return colors[action] || '#666';
+    return colors[upperLog] || '#666';
   };
 
   const getCommunicationIcon = (type: string) => {

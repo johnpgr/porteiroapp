@@ -13,19 +13,21 @@ import { router } from 'expo-router';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
+import { MediaTypeOptions } from 'expo-image-picker';
 
 interface Delivery {
   id: string;
   recipient_name: string;
   apartment_id: string;
-  sender: string;
-  description: string;
-  photo_url?: string;
-  status: 'recebida' | 'entregue';
-  received_by?: string;
-  delivered_by?: string;
-  delivered_at?: string;
-  notes?: string;
+  apartment_number?: string;
+  sender_company: string | null;
+  description: string | null;
+  photo_url?: string | null;
+  status: string | null;
+  received_by?: string | null;
+  received_at?: string | null;
+  entregue?: boolean | null;
+  notes?: string | null;
   created_at: string;
   apartments?: {
     number: string;
@@ -36,19 +38,15 @@ export default function DeliveryManagement() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'recebida' | 'entregue'>('recebida');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'delivered'>('pending');
   const [newDelivery, setNewDelivery] = useState({
     recipient_name: '',
     apartment_number: '',
-    sender: '',
+    sender_company: '',
     description: '',
     notes: '',
     photo_uri: null as string | null,
   });
-
-  useEffect(() => {
-    fetchDeliveries();
-  }, [filter, fetchDeliveries]);
 
   const fetchDeliveries = useCallback(async () => {
     try {
@@ -84,15 +82,19 @@ export default function DeliveryManagement() {
     }
   }, [filter]);
 
-  const handleDeliveryAction = async (deliveryId: string, action: 'entregue', notes?: string) => {
+  useEffect(() => {
+    fetchDeliveries();
+  }, [fetchDeliveries]);
+
+  const handleDeliveryAction = async (deliveryId: string, action: 'delivered', notes?: string) => {
     try {
-      await supabase
+      const { error } = await supabase
         .from('deliveries')
         .update({
           status: action,
-          delivered_by: 'Porteiro', // TODO: pegar do contexto de auth
-          delivered_at: new Date().toISOString(),
+          entregue: true,
           notes: notes || null,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', deliveryId);
 
@@ -106,20 +108,20 @@ export default function DeliveryManagement() {
   };
 
   const handleAddDelivery = async () => {
-    if (!newDelivery.recipient_name || !newDelivery.apartment_number || !newDelivery.sender) {
-      Alert.alert('Erro', 'Nome do destinatário, apartamento e remetente são obrigatórios');
+    if (!newDelivery.recipient_name || !newDelivery.apartment_number) {
+      Alert.alert('Erro', 'Nome do destinatário e apartamento são obrigatórios');
       return;
     }
 
     try {
-      // Buscar apartamento
+      // Buscar apartamento com building_id
       const { data: apartment, error: aptError } = await supabase
         .from('apartments')
-        .select('id')
+        .select('id, building_id')
         .eq('number', newDelivery.apartment_number)
         .single();
 
-      if (aptError || !apartment) {
+      if (aptError || !apartment || !apartment.building_id) {
         Alert.alert('Erro', 'Apartamento não encontrado');
         return;
       }
@@ -134,11 +136,12 @@ export default function DeliveryManagement() {
       const { error } = await supabase.from('deliveries').insert({
         recipient_name: newDelivery.recipient_name,
         apartment_id: apartment.id,
-        sender: newDelivery.sender,
+        building_id: apartment.building_id,
+        sender_company: newDelivery.sender_company || null,
         description: newDelivery.description || null,
         photo_url: photoUrl,
-        status: 'recebida',
-        received_by: 'Porteiro', // TODO: pegar do contexto de auth
+        status: 'pending',
+        received_at: new Date().toISOString(),
         notes: newDelivery.notes || null,
       });
 
@@ -148,7 +151,7 @@ export default function DeliveryManagement() {
       setNewDelivery({
         recipient_name: '',
         apartment_number: '',
-        sender: '',
+        sender_company: '',
         description: '',
         notes: '',
         photo_uri: null,
@@ -168,7 +171,7 @@ export default function DeliveryManagement() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
+      mediaTypes: MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
@@ -192,7 +195,7 @@ export default function DeliveryManagement() {
 
   const DeliveryCard = ({ delivery }: { delivery: Delivery }) => {
     const handleDeliver = () => {
-      if (delivery.status === 'entregue') return;
+      if (delivery.entregue || delivery.status === 'delivered') return;
 
       Alert.prompt(
         'Entregar Encomenda',
@@ -201,7 +204,7 @@ export default function DeliveryManagement() {
           { text: 'Cancelar', style: 'cancel' },
           {
             text: 'Entregar',
-            onPress: (notes) => handleDeliveryAction(delivery.id, 'entregue', notes),
+            onPress: (notes?: string) => handleDeliveryAction(delivery.id, 'delivered', notes),
           },
         ],
         'plain-text'
@@ -218,18 +221,20 @@ export default function DeliveryManagement() {
           <View
             style={[
               styles.statusBadge,
-              delivery.status === 'entregue' ? styles.statusDelivered : styles.statusReceived,
+              (delivery.entregue || delivery.status === 'delivered') ? styles.statusDelivered : styles.statusReceived,
             ]}>
             <Text style={styles.statusText}>
-              {delivery.status === 'entregue' ? '✅ Entregue' : '📥 Recebida'}
+              {(delivery.entregue || delivery.status === 'delivered') ? '✅ Entregue' : '📥 Recebida'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.deliveryDetails}>
-          <Text style={styles.detailLabel}>Remetente:</Text>
-          <Text style={styles.detailValue}>{delivery.sender}</Text>
-        </View>
+        {delivery.sender_company && (
+          <View style={styles.deliveryDetails}>
+            <Text style={styles.detailLabel}>Remetente:</Text>
+            <Text style={styles.detailValue}>{delivery.sender_company}</Text>
+          </View>
+        )}
 
         {delivery.description && (
           <View style={styles.deliveryDetails}>
@@ -240,15 +245,8 @@ export default function DeliveryManagement() {
 
         <View style={styles.deliveryDetails}>
           <Text style={styles.detailLabel}>Recebida em:</Text>
-          <Text style={styles.detailValue}>{formatDate(delivery.created_at)}</Text>
+          <Text style={styles.detailValue}>{formatDate(delivery.received_at || delivery.created_at)}</Text>
         </View>
-
-        {delivery.delivered_at && (
-          <View style={styles.deliveryDetails}>
-            <Text style={styles.detailLabel}>Entregue em:</Text>
-            <Text style={styles.detailValue}>{formatDate(delivery.delivered_at)}</Text>
-          </View>
-        )}
 
         {delivery.notes && (
           <View style={styles.deliveryDetails}>
@@ -263,7 +261,7 @@ export default function DeliveryManagement() {
           </View>
         )}
 
-        {delivery.status === 'recebida' && (
+        {!delivery.entregue && delivery.status !== 'delivered' && (
           <TouchableOpacity style={styles.deliverButton} onPress={handleDeliver}>
             <Text style={styles.deliverButtonText}>✅ Marcar como Entregue</Text>
           </TouchableOpacity>
@@ -294,8 +292,8 @@ export default function DeliveryManagement() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.filterButtons}>
               {[
-                { key: 'recebida', label: 'Recebidas', icon: '📥' },
-                { key: 'entregue', label: 'Entregues', icon: '✅' },
+                { key: 'pending', label: 'Recebidas', icon: '📥' },
+                { key: 'delivered', label: 'Entregues', icon: '✅' },
                 { key: 'all', label: 'Todas', icon: '📋' },
               ].map((filterOption) => (
                 <TouchableOpacity
@@ -348,9 +346,9 @@ export default function DeliveryManagement() {
 
             <TextInput
               style={styles.input}
-              placeholder="Remetente (empresa/pessoa)"
-              value={newDelivery.sender}
-              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, sender: text }))}
+              placeholder="Remetente (empresa/pessoa) - opcional"
+              value={newDelivery.sender_company}
+              onChangeText={(text) => setNewDelivery((prev) => ({ ...prev, sender_company: text }))}
             />
 
             <TextInput

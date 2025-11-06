@@ -12,10 +12,10 @@ const NOTIFIED_SIGNATURES_KEY = 'porteiro_notified_signatures';
 
 interface ResidentDecision {
   id: string;
-  visitor_id?: string;
-  notification_status: 'approved' | 'rejected';
-  resident_response_by: string;
-  resident_response_at: string;
+  visitor_id?: string | null;
+  notification_status: 'approved' | 'rejected' | string | null;
+  resident_response_by: string | null;
+  resident_response_at: string | null;
   apartments?: {
     number?: string;
     building_id?: string;
@@ -24,6 +24,9 @@ interface ResidentDecision {
   apartment?: {
     building_id?: string;
   };
+  visitors?: {
+    name?: string | null;
+  } | null;
 }
 
 interface ResidentInfo {
@@ -58,9 +61,12 @@ export default function PorteiroLayout() {
 
   // Função para criar assinatura única por decisão
   const getDecisionSignature = (decision: ResidentDecision): string => {
+    if (!decision.resident_response_at) {
+      return `${decision.visitor_id || 'unknown'}_${decision.notification_status || 'unknown'}_${decision.resident_response_by || 'unknown'}_${Date.now()}`;
+    }
     const timestamp = new Date(decision.resident_response_at).getTime();
     const minuteTimestamp = Math.floor(timestamp / 60000); // Truncar para minuto
-    return `${decision.visitor_id || 'unknown'}_${decision.notification_status}_${decision.resident_response_by}_${minuteTimestamp}`;
+    return `${decision.visitor_id || 'unknown'}_${decision.notification_status || 'unknown'}_${decision.resident_response_by || 'unknown'}_${minuteTimestamp}`;
   };
 
   // Carregar assinaturas notificadas do AsyncStorage ao montar
@@ -119,6 +125,7 @@ export default function PorteiroLayout() {
 
         if (
           !decision ||
+          !decision.notification_status ||
           !['approved', 'rejected'].includes(decision.notification_status) ||
           !decision.resident_response_by ||
           !decision.resident_response_at
@@ -165,7 +172,7 @@ export default function PorteiroLayout() {
       console.log(`🔔 [PorteiroLayout] ${newDecisions.length} nova(s) decisão(ões) única(s) encontrada(s)`);
 
       const residentIds = [
-        ...new Set(newDecisions.map((d) => d.resident_response_by).filter(Boolean))
+        ...new Set(newDecisions.map((d) => d.resident_response_by).filter((id): id is string => Boolean(id)))
       ];
       const residentsMap = new Map<string, string>();
 
@@ -183,7 +190,7 @@ export default function PorteiroLayout() {
               residentsMap.set(resId, `Morador ${resId.slice(0, 8)}`);
             }
           } else if (residents) {
-            residents.forEach((r) => residentsMap.set(r.id, r.full_name));
+            residents.forEach((r) => residentsMap.set(r.id, r.full_name || `Morador ${r.id.slice(0, 8)}`));
           }
         } catch (err) {
           console.warn('⚠️ [PorteiroLayout] Exceção ao buscar nomes dos moradores:', err);
@@ -197,7 +204,7 @@ export default function PorteiroLayout() {
       for (const decision of newDecisions) {
         const visitorName = decision.visitors?.name || 'Visitante';
         const apartmentNumber = decision.apartments?.number || 'N/A';
-        const moradorName = residentsMap.get(decision.resident_response_by) || 'Morador';
+        const moradorName = residentsMap.get(decision.resident_response_by || '') || 'Morador';
         const isApproved = decision.notification_status === 'approved';
         const signature = getDecisionSignature(decision);
 

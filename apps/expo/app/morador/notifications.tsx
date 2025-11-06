@@ -15,6 +15,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotificationService } from '../../hooks/useNotificationService';
 import { NotificationCard } from '../../components/NotificationCard';
 
+// Legacy notification interface for NotificationCard compatibility
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'visitor' | 'delivery' | 'communication' | 'emergency';
+  created_at: string;
+  read: boolean;
+}
+
 export default function NotificationsScreen() {
   const { user } = useAuth();
   const { 
@@ -23,7 +33,7 @@ export default function NotificationsScreen() {
     isLoading: loading 
   } = useNotificationService();
   
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const refreshNotifications = async () => {
@@ -31,7 +41,31 @@ export default function NotificationsScreen() {
     
     try {
       const history = await getNotificationHistory(50);
-      setNotifications(history);
+      // Map NotificationLog to legacy Notification format for NotificationCard
+      const mappedNotifications: Notification[] = history.map((log) => {
+        // Determine notification type from notification_type or metadata
+        let type: 'visitor' | 'delivery' | 'communication' | 'emergency' = 'communication';
+        if (log.notification_type) {
+          const lowerType = log.notification_type.toLowerCase();
+          if (lowerType.includes('visitor') || lowerType.includes('visitante')) {
+            type = 'visitor';
+          } else if (lowerType.includes('delivery') || lowerType.includes('encomenda')) {
+            type = 'delivery';
+          } else if (lowerType.includes('emergency') || lowerType.includes('emergencia')) {
+            type = 'emergency';
+          }
+        }
+        
+        return {
+          id: log.id,
+          title: log.title || 'Notificação',
+          message: log.body || '',
+          type,
+          created_at: log.created_at,
+          read: log.status === 'read',
+        };
+      });
+      setNotifications(mappedNotifications);
     } catch (error) {
       console.error('Erro ao carregar notificações:', error);
     }
@@ -48,7 +82,7 @@ export default function NotificationsScreen() {
 
   const markAllAsRead = async () => {
     try {
-      const unreadNotifications = notifications.filter(n => n.status !== 'read');
+      const unreadNotifications = notifications.filter(n => !n.read);
       await Promise.all(
         unreadNotifications.map(n => markNotificationAsRead(n.id))
       );
@@ -73,7 +107,7 @@ export default function NotificationsScreen() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => n.status !== 'read').length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Carregar notificações ao montar o componente
   useEffect(() => {

@@ -5,14 +5,13 @@ import { IRtcEngine } from 'react-native-agora';
 import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
 import type {
   AgoraTokenBundle,
-  CallLifecycleState,
   CallParticipantSnapshot,
   CallStartPayload,
   RtmInviteSignal,
   RtmSignal,
   RtmSignalType,
 } from '@porteiroapp/common/calling';
-import { deriveNextStateFromSignal } from '~/services/calling';
+import { deriveNextStateFromSignal, type CallLifecycleState } from '~/services/calling';
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
 import { agoraService } from '~/services/agora/AgoraService';

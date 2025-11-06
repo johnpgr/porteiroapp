@@ -21,13 +21,15 @@ import { notificationApi } from '../../services/notificationApi';
 interface Visitor {
   id: string;
   name: string;
-  document: string;
-  apartment_id: string;
+  document: string | null;
+  apartment_id: string | null;
+  apartment_number?: string;
   photo_url?: string;
   visitor_type?: 'comum' | 'frequente';
   authorized_by?: string;
   notes?: string;
   created_at: string;
+  notification_status?: 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida' | 'aprovado' | 'nao_permitido';
   apartments?: {
     number: string;
   };
@@ -49,10 +51,6 @@ export default function VisitorManagement() {
   const [existingVisitor, setExistingVisitor] = useState<Visitor | null>(null);
   const [, setShowExistingVisitorOptions] = useState(false);
 
-
-  useEffect(() => {
-    fetchVisitors();
-  }, [filter, fetchVisitors]);
 
   const fetchVisitors = useCallback(async () => {
     try {
@@ -98,7 +96,10 @@ export default function VisitorManagement() {
           formattedVisitors.push({
             ...visitor,
             apartment_number: logData?.apartments?.number || 'N/A',
-            apartment_id: logData?.apartment_id || null
+            apartment_id: logData?.apartment_id || visitor.apartment_id || null,
+            notification_status: visitor.status as Visitor['notification_status'] || 'pending',
+            document: visitor.document || '',
+            photo_url: visitor.photo_url || undefined
           });
         }
       }
@@ -106,7 +107,7 @@ export default function VisitorManagement() {
       console.log('✅ fetchVisitors - Visitantes formatados:', formattedVisitors.length);
       console.log('📝 fetchVisitors - Dados dos visitantes:', formattedVisitors.map(v => ({ name: v.name, type: v.visitor_type, apt: v.apartment_number })));
 
-      setVisitors(formattedVisitors);
+      setVisitors(formattedVisitors as Visitor[]);
     } catch (error) {
       console.error('💥 fetchVisitors - Erro geral:', error);
       Alert.alert('Erro', 'Falha ao carregar visitantes');
@@ -114,6 +115,10 @@ export default function VisitorManagement() {
       setLoading(false);
     }
   }, [filter]);
+
+  useEffect(() => {
+    fetchVisitors();
+  }, [filter, fetchVisitors]);
 
   const handleVisitorAction = async (
     visitorId: string,
@@ -129,64 +134,89 @@ export default function VisitorManagement() {
       }
 
       // Determinar o novo status baseado na ação e tipo de visitante
-      let newStatus = action;
-      if (action === 'entrada') {
+      let newStatus: 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida' | 'aprovado' | 'nao_permitido';
+      if (action === 'negado') {
+        newStatus = 'nao_permitido';
+      } else if (action === 'entrada') {
         // Para visitantes comuns, o status volta para 'pending' após entrada
-        // Para visitantes frequentes, mantém o status 'approved' (permanente)
+        // Para visitantes frequentes, mantém o status 'aprovado' (permanente)
         if (visitor.visitor_type === 'comum') {
           newStatus = 'pending';
         } else if (visitor.visitor_type === 'frequente') {
-          newStatus = 'approved'; // Mantém acesso permanente
+          newStatus = 'aprovado'; // Mantém acesso permanente
+        } else {
+          newStatus = 'entrada';
         }
       } else if (action === 'aprovado') {
-        newStatus = 'approved';
+        newStatus = 'aprovado';
         
         // Enviar notificação para o morador quando visitante for aprovado
         try {
+          if (!visitor.apartment_id) {
+            console.warn('Visitante não possui apartment_id, não é possível enviar notificação');
+            return;
+          }
+
           // Buscar dados do apartamento e morador
           const { data: apartment, error: aptError } = await supabase
             .from('apartments')
             .select(`
               number,
               buildings(name),
-              residents!inner(
-                users!inner(phone, full_name)
+              apartment_residents!inner(
+                profile_id,
+                profiles!inner(
+                  phone,
+                  full_name
+                )
               )
             `)
             .eq('id', visitor.apartment_id)
             .single();
 
-          if (!aptError && apartment && apartment.residents?.[0]?.users) {
-            const resident = apartment.residents[0].users;
-            const building = apartment.buildings;
+          if (!aptError && apartment) {
+            const apartmentResidents = apartment.apartment_residents as Array<{
+              profile_id: string;
+              profiles: {
+                phone: string | null;
+                full_name: string | null;
+              };
+            }>;
             
-            // Gerar um ID único para o log de visitante
-            const visitSessionId = Crypto.randomUUID();
+            if (apartmentResidents && apartmentResidents.length > 0 && apartmentResidents[0]?.profiles) {
+              const resident = apartmentResidents[0].profiles;
+              const building = apartment.buildings as { name: string } | null;
             
-            await notificationApi.sendVisitorNotification({
-              visitorLogId: visitSessionId,
-              visitorName: visitor.name,
-              residentPhone: resident.phone || '',
-              residentName: resident.full_name || '',
-              building: building?.name || 'Edifício',
-              apartment: apartment.number
-            });
-            
-            console.log('Notificação enviada com sucesso para o morador');
+              // Gerar um ID único para o log de visitante
+              const visitSessionId = Crypto.randomUUID();
+              
+              await notificationApi.sendVisitorNotification({
+                visitorLogId: visitSessionId,
+                visitorName: visitor.name,
+                residentPhone: resident.phone || '',
+                residentName: resident.full_name || '',
+                building: building?.name || 'Edifício',
+                apartment: apartment.number
+              });
+              
+              console.log('Notificação enviada com sucesso para o morador');
+            }
           }
         } catch (notificationError) {
           console.error('Erro ao enviar notificação:', notificationError);
           // Não interromper o fluxo principal se a notificação falhar
         }
-      } else if (action === 'negado') {
-        newStatus = 'nao_permitido';
+      } else if (action === 'saida') {
+        newStatus = 'saida';
+      } else {
+        newStatus = 'pending';
       }
 
       // Update removido temporariamente - notification_status não existe na tabela visitors
       // TODO: Implementar update baseado nos logs de visitantes
 
       // Registrar no log com nova estrutura
-      if (visitor) {
+      if (visitor && visitor.apartment_id) {
         // Buscar building_id do apartamento
         const { data: apartment, error: aptError } = await supabase
           .from('apartments')
@@ -221,7 +251,7 @@ export default function VisitorManagement() {
         let { data: apartmentResident, error: residentError } = await supabase
           .from('apartment_residents')
           .select('profile_id')
-          .eq('apartment_id', visitor.apartment_id)
+          .eq('apartment_id', visitor.apartment_id!)
           .eq('is_owner', true)
           .maybeSingle();
 
@@ -231,7 +261,7 @@ export default function VisitorManagement() {
           const result = await supabase
             .from('apartment_residents')
             .select('profile_id')
-            .eq('apartment_id', visitor.apartment_id)
+            .eq('apartment_id', visitor.apartment_id!)
             .limit(1)
             .maybeSingle();
 
@@ -249,7 +279,7 @@ export default function VisitorManagement() {
         }
 
         // Só criar log se for entrada ou saída
-        if (tipoLog) {
+        if (tipoLog && visitor.apartment_id) {
           const { error: logError } = await supabase.from('visitor_logs').insert({
             visitor_id: visitor.id,
             apartment_id: visitor.apartment_id,
@@ -304,13 +334,21 @@ export default function VisitorManagement() {
       }
 
       if (visitor) {
-        setExistingVisitor(visitor);
+        const visitorData: Visitor = {
+          ...visitor,
+          apartment_number: visitor.apartments?.number || '',
+          notification_status: visitor.status as Visitor['notification_status'] || 'pending',
+          photo_url: visitor.photo_url || undefined,
+          document: visitor.document || '',
+          visitor_type: (visitor.visitor_type as 'comum' | 'frequente') || undefined
+        };
+        setExistingVisitor(visitorData);
         setShowExistingVisitorOptions(true);
         Alert.alert(
           'Visitante Encontrado',
           `${visitor.name} já está cadastrado no sistema.\n\nTipo: ${visitor.visitor_type === 'frequente' ? 'Visitante Frequente' : 'Visitante Comum'}\n\nDeseja usar este cadastro ou criar um novo?`,
           [
-            { text: 'Usar Existente', onPress: () => handleUseExistingVisitor(visitor) },
+            { text: 'Usar Existente', onPress: () => handleUseExistingVisitor(visitorData) },
             { text: 'Criar Novo', onPress: () => setShowExistingVisitorOptions(false) },
             { text: 'Cancelar', style: 'cancel' }
           ]
@@ -328,7 +366,7 @@ export default function VisitorManagement() {
   const handleUseExistingVisitor = (visitor: Visitor) => {
     setNewVisitor({
       name: visitor.name,
-      document: visitor.document,
+      document: visitor.document || '',
       apartment_number: visitor.apartments?.number || '',
       notes: '',
       photo_uri: visitor.photo_url || null,
@@ -372,7 +410,7 @@ export default function VisitorManagement() {
             apartment_id: apartment.id, // Adicionar apartment_id
             photo_url: photoUrl,
             visitor_type: newVisitor.visitor_type,
-            notification_status: 'approved', // Porteiro pode aprovar diretamente
+            status: 'aprovado', // Porteiro pode aprovar diretamente
           })
           .eq('id', existingVisitor.id);
 
@@ -386,7 +424,7 @@ export default function VisitorManagement() {
           phone: null,
           photo_url: photoUrl,
           visitor_type: newVisitor.visitor_type,
-          notification_status: 'approved', // Porteiro pode aprovar diretamente
+          status: 'aprovado', // Porteiro pode aprovar diretamente
           access_type: 'com_aprovacao', // Tipo de acesso padrão
         });
 
@@ -624,7 +662,14 @@ export default function VisitorManagement() {
             visitors.map((visitor) => (
               <VisitorCard
                 key={visitor.id}
-                visitor={visitor}
+                visitor={{
+                  ...visitor,
+                  document: visitor.document || '',
+                  apartment_number: visitor.apartment_number || 'N/A',
+                  notification_status: (visitor.notification_status === 'aprovado' ? 'approved' : 
+                                       visitor.notification_status === 'nao_permitido' ? 'rejected' :
+                                       visitor.notification_status) as 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida' || 'pending'
+                }}
                 onAction={handleVisitorAction}
                 showActions={true}
               />

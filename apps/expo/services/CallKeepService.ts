@@ -2,25 +2,8 @@ import RNCallKeep from 'react-native-callkeep';
 import {foregroundService} from './AndroidForegroundService';
 import { Platform } from 'react-native';
 
-export interface CallKeepOptions {
-  ios: {
-    appName: string;
-    imageName?: string;
-    supportsVideo?: boolean;
-    maximumCallGroups?: string;
-    maximumCallsPerCallGroup?: string;
-    includesCallsInRecents?: boolean;
-  };
-  android: {
-    alertTitle: string;
-    alertDescription: string;
-    cancelButton: string;
-    okButton: string;
-    imageName?: string;
-    additionalPermissions: string[];
-    selfManaged?: boolean;
-  };
-}
+// Extract the options type from react-native-callkeep's setup function
+type CallKeepOptions = Parameters<typeof RNCallKeep.setup>[0];
 
 // Event types for CallKeep
 type CallKeepEvent = 'answer' | 'end' | 'mute' | 'hold' | 'dtmf' | 'showIncomingUi';
@@ -160,7 +143,7 @@ class CallKeepService {
 
       // Inicializar CallKeep
       console.log('[CallKeep] ⚙️ Calling RNCallKeep.setup()...');
-      await RNCallKeep.setup(options as CallKeepOptions);
+      await RNCallKeep.setup(options);
       console.log('[CallKeep] ✅ RNCallKeep.setup() completed');
 
       // Process any queued native events (answer/end) that happened before JS was ready
@@ -293,7 +276,7 @@ class CallKeepService {
     try {
       if (Platform.OS === 'android') {
         if (this.lastOptions) {
-          RNCallKeep.registerPhoneAccount(this.lastOptions as CallKeepOptions);
+          RNCallKeep.registerPhoneAccount(this.lastOptions);
         }
         return await this.checkPermissions();
       }

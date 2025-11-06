@@ -15,8 +15,15 @@ import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import type { Database } from '@porteiroapp/common/supabase';
 
-// Tipos e interfaces
+// Database types
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type VehicleRow = Database['public']['Tables']['vehicles']['Row'];
+type ApartmentResidentRow = Database['public']['Tables']['apartment_residents']['Row'];
+type ApartmentRow = Database['public']['Tables']['apartments']['Row'];
+
+// Form interface
 interface PersonForm {
   full_name: string;
   email: string;
@@ -28,36 +35,21 @@ interface PersonForm {
   birth_date?: string;
 }
 
-interface Person {
-  id: string;
-  full_name: string;
-  email: string;
-  phone?: string;
-  user_type: string;
-  building_id: string;
-  cpf?: string;
-  birth_date?: string;
-  created_at: string;
+// Extended Person type with joined data
+type Person = ProfileRow & {
   is_resident?: boolean;
   is_owner?: boolean;
-  relation?: string;
   apartment_number?: string;
-  apartment_floor?: number;
+  apartment_floor?: number | null;
   apartment_id?: string;
   resident_id?: string;
-}
+};
 
-interface Vehicle {
-  id: string;
-  license_plate: string;
-  brand?: string;
-  model?: string;
-  color?: string;
+// Vehicle type from database - keep null values as they come from DB
+type Vehicle = Omit<VehicleRow, 'type' | 'ownership_type'> & {
   type: 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other';
-  apartment_id: string;
   ownership_type: 'visita' | 'proprietario';
-  created_at: string;
-}
+};
 
 const relationOptions = {
   familiar: ['Cônjuge', 'Familia', 'Funcionário'],
@@ -191,6 +183,10 @@ export function CadastroTabContent() {
       
       // Primeiro, buscar o building_id do usuário logado
       console.log('🔍 DEBUG: Buscando building_id do usuário através de apartment_residents...');
+      if (!user.profile_id) {
+        console.error('❌ DEBUG: profile_id não encontrado');
+        throw new Error('Informações do perfil não encontradas');
+      }
       const { data: userApartmentData, error: userApartmentError } = await supabase
         .from('apartment_residents')
         .select(`
@@ -249,17 +245,9 @@ export function CadastroTabContent() {
       if (error) throw error;
       
       // Transformar os dados para o formato esperado
-      const transformedPeople = (residentsData || []).map((resident: any) => ({
-        id: resident.profiles.id,
-        full_name: resident.profiles.full_name,
-        email: resident.profiles.email,
-        phone: resident.profiles.phone,
-        user_type: resident.profiles.user_type,
-        building_id: resident.profiles.building_id,
-        cpf: resident.profiles.cpf,
-        birth_date: resident.profiles.birth_date,
+      const transformedPeople: Person[] = (residentsData || []).map((resident: any) => ({
+        ...resident.profiles,
         created_at: resident.created_at,
-        relation: resident.profiles.relation,
         is_resident: true,
         is_owner: resident.is_owner,
         apartment_number: resident.apartments.number,
@@ -306,6 +294,10 @@ export function CadastroTabContent() {
       }
 
       // Buscar apartment_id do usuário
+      if (!user.profile_id) {
+        console.error('User profile_id não encontrado');
+        return;
+      }
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
@@ -329,7 +321,13 @@ export function CadastroTabContent() {
         return;
       }
 
-      setVehicles(vehiclesData || []);
+      // Transform vehicles to match Vehicle type
+      const transformedVehicles: Vehicle[] = (vehiclesData || []).map(v => ({
+        ...v,
+        type: (v.type as Vehicle['type']) || 'car',
+        ownership_type: v.ownership_type as 'visita' | 'proprietario',
+      }));
+      setVehicles(transformedVehicles);
     } catch (error) {
       console.error('Erro ao buscar veículos:', error);
     } finally {
@@ -357,6 +355,10 @@ export function CadastroTabContent() {
       }
 
       // Buscar apartment_id do usuário
+      if (!user.profile_id) {
+        console.error('User profile_id não encontrado');
+        return;
+      }
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
@@ -389,8 +391,13 @@ export function CadastroTabContent() {
         return;
       }
 
-      // Atualizar lista de veículos
-      setVehicles(prev => [data, ...prev]);
+      // Transform and update vehicles list
+      const transformedVehicle: Vehicle = {
+        ...data,
+        type: (data.type as Vehicle['type']) || 'car',
+        ownership_type: data.ownership_type as 'visita' | 'proprietario',
+      };
+      setVehicles(prev => [transformedVehicle, ...prev]);
       
       // Limpar formulário e fechar modal
       resetVehicleForm();
@@ -558,6 +565,10 @@ export function CadastroTabContent() {
       
       // Buscar o building_id do usuário logado
       console.log('🔍 DEBUG: Buscando building_id do usuário para cadastro...');
+      if (!user.profile_id) {
+        Alert.alert('Erro', 'Informações do perfil não encontradas');
+        return;
+      }
       const { data: userApartmentData, error: userApartmentError } = await supabase
         .from('apartment_residents')
         .select(`
@@ -656,6 +667,9 @@ export function CadastroTabContent() {
           .maybeSingle();
         
         if (profileError) throw profileError;
+        if (!newProfile) {
+          throw new Error('Falha ao criar perfil');
+        }
         profileId = newProfile.id;
       }
 
@@ -664,6 +678,10 @@ export function CadastroTabContent() {
         console.log('🔍 DEBUG: Iniciando busca do apartment_id do usuário atual:', user.id);
         
         // Buscar apartment_id do usuário atual
+        if (!user.profile_id) {
+          console.error('❌ DEBUG: profile_id não encontrado para inserção');
+          throw new Error('Informações do perfil não encontradas');
+        }
         const { data: userResident, error: residentError } = await supabase
           .from('apartment_residents')
           .select('apartment_id')
@@ -676,7 +694,7 @@ export function CadastroTabContent() {
           console.log('🔍 DEBUG: Inserindo nova pessoa em apartment_residents:', {
             apartment_id: userResident.apartment_id,
             profile_id: profileId,
-            is_owner: formData.is_owner || false
+            is_owner: false
           });
           
           try {
@@ -685,7 +703,8 @@ export function CadastroTabContent() {
               .insert({
                 apartment_id: userResident.apartment_id,
                 profile_id: profileId,
-                is_owner: false
+                is_owner: false,
+                is_primary: false,
               })
               .select();
             
@@ -764,14 +783,14 @@ export function CadastroTabContent() {
   // Função para editar pessoa
   const handleEdit = (person: Person) => {
     setFormData({
-      full_name: person.full_name,
-      email: person.email,
+      full_name: person.full_name || '',
+      email: person.email || '',
       phone: person.phone || '',
       person_type: person.user_type === 'funcionario' ? 'funcionario' : 'familiar',
       relation: person.relation || '',
       is_app_user: false, // Não podemos determinar isso facilmente
-      cpf: person.cpf,
-      birth_date: person.birth_date,
+      cpf: person.cpf || undefined,
+      birth_date: person.birth_date || undefined,
     });
     setEditingPerson(person);
     setShowModal(true);
@@ -1126,7 +1145,7 @@ export function CadastroTabContent() {
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.disabledButton]}
+              style={[styles.submitButton, loading ? styles.disabledButton : undefined]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -1260,7 +1279,7 @@ export function CadastroTabContent() {
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.disabledButton]}
+              style={[styles.submitButton, loading ? styles.disabledButton : undefined]}
               onPress={handleAddVehicle}
               disabled={loading}
             >
@@ -1478,7 +1497,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   disabledButton: {
-    color: '#ccc',
+    opacity: 0.5,
   },
   modalContent: {
     paddingLeft: 24,

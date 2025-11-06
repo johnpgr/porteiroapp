@@ -16,10 +16,13 @@ import { Container } from '~/components/Container';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import type {Database} from "@porteiroapp/common/supabase"
+
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export default function PorteiroProfile() {
   const { signOut } = useAuth();
-  const [profile, setProfile] = useState<PorteiroProfile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
@@ -266,9 +269,10 @@ export default function PorteiroProfile() {
       });
     } catch (error) {
       console.error('❌ Erro inesperado ao buscar perfil:', error);
-      if (error.message.includes('network') || error.message.includes('fetch')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
         Alert.alert('Erro de Conexão', 'Verifique sua conexão com a internet e tente novamente.');
-      } else if (error.message.includes('timeout')) {
+      } else if (errorMessage.includes('timeout')) {
         Alert.alert('Timeout', 'A operação demorou muito para responder. Tente novamente.');
       } else {
         Alert.alert('Erro Inesperado', 'Ocorreu um erro inesperado ao carregar o perfil.');

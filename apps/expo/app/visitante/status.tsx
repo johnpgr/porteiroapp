@@ -12,25 +12,20 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '~/utils/supabase';
+import type { Database } from '@porteiroapp/common/supabase';
 
-interface Visitor {
-  id: string;
-  name: string;
-  document: string;
-  apartment_number: string;
-  status: 'pendente' | 'approved' | 'denied' | 'in_building' | 'exited';
-  notes?: string;
-  created_at: string;
-  updated_at?: string;
-}
+type VisitorRow = Database['public']['Tables']['visitors']['Row'];
+type VisitorLogRow = Database['public']['Tables']['visitor_logs']['Row'];
 
-interface VisitorLog {
-  id: string;
-  action: string;
-  notes?: string;
-  timestamp: string;
-  performed_by?: string;
-}
+type Visitor = VisitorRow & {
+  apartments?: { number: string } | null;
+  apartment_number?: string;
+};
+
+type VisitorLog = Pick<
+  VisitorLogRow,
+  'id' | 'tipo_log' | 'log_time' | 'purpose' | 'guest_name' | 'notification_status'
+>;
 
 export default function StatusScreen() {
   const [searchDocument, setSearchDocument] = useState('');
@@ -50,7 +45,10 @@ export default function StatusScreen() {
       // Buscar visitante mais recente com este documento
       const { data: visitorData, error: visitorError } = await supabase
         .from('visitors')
-        .select('*')
+        .select(`
+          *,
+          apartments(number)
+        `)
         .eq('document', searchDocument.trim())
         .order('created_at', { ascending: false })
         .limit(1)
@@ -63,14 +61,20 @@ export default function StatusScreen() {
         return;
       }
 
-      setVisitor(visitorData);
+      // Format visitor data with apartment number
+      const formattedVisitor: Visitor = {
+        ...visitorData,
+        apartment_number: visitorData.apartments?.number,
+        apartments: visitorData.apartments || undefined,
+      };
+      setVisitor(formattedVisitor);
 
       // Buscar logs do visitante
       const { data: logsData, error: logsError } = await supabase
         .from('visitor_logs')
-        .select('*')
+        .select('id, tipo_log, log_time, purpose, guest_name, notification_status')
         .eq('visitor_id', visitorData.id)
-        .order('timestamp', { ascending: false });
+        .order('log_time', { ascending: false });
 
       if (!logsError && logsData) {
         setLogs(logsData);
@@ -91,20 +95,28 @@ export default function StatusScreen() {
       // Atualizar dados do visitante
       const { data: visitorData, error: visitorError } = await supabase
         .from('visitors')
-        .select('*')
+        .select(`
+          *,
+          apartments(number)
+        `)
         .eq('id', visitor.id)
         .single();
 
       if (!visitorError && visitorData) {
-        setVisitor(visitorData);
+        const formattedVisitor: Visitor = {
+          ...visitorData,
+          apartment_number: visitorData.apartments?.number,
+          apartments: visitorData.apartments || undefined,
+        };
+        setVisitor(formattedVisitor);
       }
 
       // Atualizar logs
       const { data: logsData, error: logsError } = await supabase
         .from('visitor_logs')
-        .select('*')
+        .select('id, tipo_log, log_time, purpose, guest_name, notification_status')
         .eq('visitor_id', visitor.id)
-        .order('timestamp', { ascending: false });
+        .order('log_time', { ascending: false });
 
       if (!logsError && logsData) {
         setLogs(logsData);
@@ -116,9 +128,19 @@ export default function StatusScreen() {
     }
   };
 
-  const getStatusInfo = (status: string) => {
-    switch (status) {
+  const getStatusInfo = (status: string | null) => {
+    if (!status) {
+      return {
+        icon: 'help-circle',
+        color: '#9E9E9E',
+        text: 'Status Desconhecido',
+        description: '',
+      };
+    }
+
+    switch (status.toLowerCase()) {
       case 'pendente':
+      case 'pending':
         return {
           icon: 'time-outline',
           color: '#FF9800',
@@ -126,6 +148,7 @@ export default function StatusScreen() {
           description: 'Sua solicitação foi enviada ao morador',
         };
       case 'aprovado':
+      case 'approved':
         return {
           icon: 'checkmark-circle',
           color: '#4CAF50',
@@ -133,6 +156,8 @@ export default function StatusScreen() {
           description: 'Você pode acessar o prédio',
         };
       case 'nao_permitido':
+      case 'denied':
+      case 'rejected':
         return {
           icon: 'close-circle',
           color: '#F44336',
@@ -163,20 +188,23 @@ export default function StatusScreen() {
     }
   };
 
-  const getActionText = (action: string) => {
-    switch (action) {
-      case 'registered':
-        return 'Registrado';
-      case 'approved':
-        return 'Aprovado';
-      case 'denied':
-        return 'Negado';
-      case 'entered':
+  const getActionText = (tipoLog: string) => {
+    switch (tipoLog?.toUpperCase()) {
+      case 'IN':
+      case 'ENTRADA':
         return 'Entrada registrada';
-      case 'exited':
+      case 'OUT':
+      case 'SAIDA':
+      case 'SAÍDA':
         return 'Saída registrada';
+      case 'REGISTERED':
+        return 'Registrado';
+      case 'APPROVED':
+        return 'Aprovado';
+      case 'DENIED':
+        return 'Negado';
       default:
-        return action;
+        return tipoLog || 'Ação desconhecida';
     }
   };
 
@@ -237,8 +265,10 @@ export default function StatusScreen() {
               </View>
 
               <View style={styles.visitorDetails}>
-                <Text style={styles.visitorDetail}>📄 {visitor.document}</Text>
-                <Text style={styles.visitorDetail}>🏠 Apartamento {visitor.apartment_number}</Text>
+                <Text style={styles.visitorDetail}>📄 {visitor.document || 'N/A'}</Text>
+                <Text style={styles.visitorDetail}>
+                  🏠 Apartamento {visitor.apartment_number || 'N/A'}
+                </Text>
                 <Text style={styles.visitorDetail}>📅 {formatDateTime(visitor.created_at)}</Text>
               </View>
 
@@ -260,17 +290,11 @@ export default function StatusScreen() {
                 })()}
               </View>
 
-              {/* Notes */}
-              {visitor.notes && (
-                <View style={styles.notesContainer}>
-                  <Text style={styles.notesTitle}>📝 Observações:</Text>
-                  <Text style={styles.notesText}>{visitor.notes}</Text>
-                </View>
-              )}
             </View>
 
             {/* Action Buttons */}
-            {visitor.status === 'aprovado' && (
+            {(visitor.status?.toLowerCase() === 'aprovado' ||
+              visitor.status?.toLowerCase() === 'approved') && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity style={styles.actionButton}>
                   <Ionicons name="call" size={20} color="#fff" />
@@ -289,9 +313,12 @@ export default function StatusScreen() {
                       <View style={styles.timelineDot} />
                       {index < logs.length - 1 && <View style={styles.timelineLine} />}
                       <View style={styles.timelineContent}>
-                        <Text style={styles.timelineAction}>{getActionText(log.action)}</Text>
-                        <Text style={styles.timelineTime}>{formatDateTime(log.timestamp)}</Text>
-                        {log.notes && <Text style={styles.timelineNotes}>{log.notes}</Text>}
+                        <Text style={styles.timelineAction}>{getActionText(log.tipo_log)}</Text>
+                        <Text style={styles.timelineTime}>{formatDateTime(log.log_time)}</Text>
+                        {log.purpose && <Text style={styles.timelineNotes}>{log.purpose}</Text>}
+                        {log.guest_name && (
+                          <Text style={styles.timelineNotes}>Visitante: {log.guest_name}</Text>
+                        )}
                       </View>
                     </View>
                   ))}
