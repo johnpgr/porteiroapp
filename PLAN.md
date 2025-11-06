@@ -1243,7 +1243,6 @@ private async handleIncomingVoipPush(notification: any): Promise<void> {
 ```typescript
 // Register VoIP push notifications for iOS
 try {
-  const voipPushService = (await import('./voipPushNotifications')).default;
   await voipPushService.initialize(userId, userType);
   console.log('🔔 [registerPushToken] VoIP push initialized for iOS');
 } catch (voipError) {
