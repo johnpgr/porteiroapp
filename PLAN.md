@@ -1617,3 +1617,160 @@ No database migrations to revert - `voip_push_token` column can remain (nullable
 
 **VoIP Push Implementation Completed:** 2025-11-05
 **Status:** Ready for Testing
+
+---
+
+# CallKeep + Agora Integration Fix - Implementation Plan
+
+**Status:** IN PROGRESS (Phase 1 Complete)
+**Created:** 2025-01-06
+**Last Updated:** 2025-01-06
+
+## Problem Summary
+
+Current architecture has 4 separate state systems with async coordination gaps:
+- CallKeep native UI state
+- React state (useAgora)
+- Agora RTM connection state
+- Agora RTC connection state
+
+**Result**: Cold start failures, 5-8s answer delays, ~85% success rate
+
+## Solution: Follow Wazo Pattern
+
+Create single source of truth (CallSession) + coordinator layer (CallCoordinator), like Wazo SDK.
+
+```
+VoIP Push → CallCoordinator → CallSession (single state) → CallKeep UI + Agora SDK
+```
+
+## User Decisions
+
+✅ Warm up RTM BEFORE showing CallKeep UI (2-3s delay acceptable)
+✅ 3 second timeout for RTM connection
+✅ Show error + retry if RTM fails
+✅ Persist CallSession to recover from crashes
+
+## Implementation Progress
+
+### ✅ Phase 1: Core Classes (Week 1)
+- [x] Create `CallSession.ts` - Single source of truth for call state
+- [x] Create `CallCoordinator.ts` - Orchestrates call flow
+- [x] Update `stateMachine.ts` - Add intermediate states
+- [x] Add `warmupRTM()` to AgoraService
+- [x] Create this plan document
+
+### 🔄 Phase 2: Service Updates (Week 2) - IN PROGRESS
+- [ ] Refactor CallKeepService to use event emitter
+- [ ] Update voipPushNotifications.ts to use CallCoordinator
+- [ ] Update _layout.tsx to initialize CallCoordinator
+- [ ] Test RTM warmup flow
+
+### ⏳ Phase 3: Hook Simplification (Week 3)
+- [ ] Simplify useAgora.ts (remove CallKeep handlers)
+- [ ] Update IncomingCallModal to listen to session events
+- [ ] Enhance callkeep-status.tsx with diagnostics
+- [ ] Test state synchronization
+
+### ⏳ Phase 4: Testing & Polish (Week 4)
+- [ ] Test cold start scenarios
+- [ ] Test network loss/recovery
+- [ ] Test rapid consecutive calls
+- [ ] Performance optimization
+- [ ] User feedback & error boundaries
+
+## New Files Created
+
+1. **`services/calling/CallSession.ts`** (~450 lines) ✅
+   - Single object representing a call
+   - Manages state, persistence, events
+   - Atomic operations: answer(), end(), decline()
+   - Syncs with CallKeep native UI
+
+2. **`services/calling/CallCoordinator.ts`** (~400 lines) ✅
+   - Orchestrates call flow
+   - Handles VoIP push → RTM warmup → CallKeep display
+   - Registers CallKeep handlers ONCE
+   - Provides recovery from storage
+
+## Modified Files
+
+### ✅ Completed
+- `services/agora/AgoraService.ts` - Added warmupRTM() method
+- `services/calling/stateMachine.ts` - Added intermediate states
+
+### ⏳ Pending
+- `services/CallKeepService.ts` - Refactor to event emitter
+- `utils/voipPushNotifications.ts` - Delegate to CallCoordinator
+- `app/morador/_layout.tsx` - Initialize CallCoordinator
+- `hooks/useAgora.ts` - Simplify, remove handlers
+- `components/IncomingCallModal.tsx` - Listen to session
+- `app/morador/callkeep-status.tsx` - Enhanced diagnostics
+
+## Key Architecture Changes
+
+### Before
+```typescript
+// 4 separate state systems
+CallKeepService.currentCallUUID (native)
+useAgora.activeCall (React)
+AgoraService.rtmSession (RTM)
+stateMachine.callState (lifecycle)
+```
+
+### After
+```typescript
+// Single state in CallSession
+const session = new CallSession({...})
+session.state // CallLifecycleState
+session.nativeState // 'idle' | 'ringing' | 'active'
+session.rtmReady // boolean
+session.rtcJoined // boolean
+```
+
+## New State Machine Flow
+
+```
+idle
+  ↓ (VoIP push arrives)
+rtm_warming (connecting RTM, 3s timeout)
+  ↓
+rtm_ready (RTM connected, showing CallKeep UI)
+  ↓ (user answers)
+native_answered (CallKeep active, fetching tokens)
+  ↓
+token_fetching (API call for Agora tokens)
+  ↓
+rtc_joining (joining Agora voice channel)
+  ↓
+connecting (waiting for remote user)
+  ↓
+connected (audio flowing)
+  ↓
+ending (hanging up)
+  ↓
+ended (terminal state)
+  ↓
+idle (ready for next call)
+```
+
+## Success Metrics
+
+### Target (vs Current)
+- Cold start answer: < 2s (vs 5-8s)
+- Answer success: > 99% (vs ~85%)
+- State consistency: 100% (vs ~70%)
+- Network recovery: < 5s
+- User complaints: -80%
+
+## Next Steps (Today)
+
+1. ✅ Complete Phase 1 core classes
+2. → Refactor CallKeepService to event emitter pattern
+3. → Update VoIP push handler
+4. → Initialize CallCoordinator in _layout
+5. → Test basic flow: push → warmup → display → answer
+
+---
+**Implementation Started:** 2025-01-06
+**Phase 1 Status:** ✅ Complete

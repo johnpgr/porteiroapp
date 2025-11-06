@@ -477,6 +477,43 @@ class AgoraService {
     }
   }
 
+  /**
+   * Warm up RTM connection with timeout
+   * Used by CallCoordinator before showing CallKeep UI
+   * Returns true if RTM is ready, false on timeout
+   */
+  async warmupRTM(opts: { timeout: number }): Promise<boolean> {
+    console.log(`[AgoraService] warmupRTM called (timeout: ${opts.timeout}ms)`);
+
+    // Already connected
+    if (this.rtmStatus === 'connected') {
+      console.log('[AgoraService] ✅ RTM already connected');
+      return true;
+    }
+
+    // Race between warmup and timeout
+    const timeoutPromise = new Promise<boolean>(resolve =>
+      setTimeout(() => {
+        console.log('[AgoraService] ❌ RTM warmup timeout');
+        resolve(false);
+      }, opts.timeout)
+    );
+
+    const warmupPromise = this.initializeStandby()
+      .then(() => {
+        console.log('[AgoraService] ✅ RTM warmup complete');
+        return true;
+      })
+      .catch((err) => {
+        console.error('[AgoraService] ❌ RTM warmup failed:', err);
+        return false;
+      });
+
+    const result = await Promise.race([warmupPromise, timeoutPromise]);
+    console.log(`[AgoraService] warmupRTM result: ${result}`);
+    return result;
+  }
+
   async initializeStandby(): Promise<void> {
     console.log('🔧 [AgoraService] initializeStandby called');
     console.log(`  - currentUser: ${this.currentUser ? `${this.currentUser.id} (${this.currentUser.userType})` : 'null'}`);

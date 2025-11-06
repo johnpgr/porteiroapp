@@ -1,16 +1,32 @@
 import type { CallLifecycleState, RtmSignalType } from '@porteiroapp/common/calling';
 
+/**
+ * Extended CallLifecycleState with intermediate states for CallKeep integration
+ *
+ * New states added:
+ * - rtm_warming: Pre-connecting RTM before showing CallKeep UI
+ * - rtm_ready: RTM connected, CallKeep UI showing, waiting for user answer
+ * - native_answered: User clicked answer in CallKeep UI
+ * - token_fetching: Fetching Agora tokens from API
+ * - rtc_joining: Joining Agora RTC voice channel
+ */
+
 export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]> = {
-  idle: ['dialing', 'ringing'],
+  idle: ['rtm_warming', 'dialing'],
+  rtm_warming: ['rtm_ready', 'failed'],
+  rtm_ready: ['native_answered', 'declined', 'missed', 'ended'],
+  native_answered: ['token_fetching', 'failed'],
+  token_fetching: ['rtc_joining', 'failed'],
+  rtc_joining: ['connecting', 'failed'],
   dialing: ['ringing', 'failed', 'ended'],
   ringing: ['connecting', 'declined', 'missed', 'failed', 'ended'],
   connecting: ['connected', 'failed', 'ended'],
   connected: ['ending', 'ended', 'failed'],
   ending: ['ended'],
-  ended: [],
-  declined: [],
-  failed: [],
-  missed: []
+  ended: ['idle'], // Allow transition back to idle for next call
+  declined: ['idle'],
+  failed: ['idle'],
+  missed: ['idle']
 };
 
 export const RTM_SIGNAL_TO_STATE: Record<RtmSignalType, CallLifecycleState> = {
