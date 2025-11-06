@@ -1,4 +1,4 @@
-import type { CallLifecycleState, RtmSignalType } from '@porteiroapp/common/calling';
+import type { CallLifecycleState as BaseCallLifecycleState, RtmSignalType } from '@porteiroapp/common/calling';
 
 /**
  * Extended CallLifecycleState with intermediate states for CallKeep integration
@@ -10,6 +10,13 @@ import type { CallLifecycleState, RtmSignalType } from '@porteiroapp/common/call
  * - token_fetching: Fetching Agora tokens from API
  * - rtc_joining: Joining Agora RTC voice channel
  */
+export type CallLifecycleState =
+  | BaseCallLifecycleState
+  | 'rtm_warming'
+  | 'rtm_ready'
+  | 'native_answered'
+  | 'token_fetching'
+  | 'rtc_joining';
 
 export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]> = {
   idle: ['rtm_warming', 'dialing'],

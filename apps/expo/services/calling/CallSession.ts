@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { agoraService } from '~/services/agora/AgoraService';
 import { callKeepService } from '~/services/CallKeepService';
 import agoraAudioService from '~/services/audioService';
-import type { CallLifecycleState, CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
-import { CALL_STATE_MACHINE } from './stateMachine';
+import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
+import { CALL_STATE_MACHINE, type CallLifecycleState } from './stateMachine';
 import {supabase} from "~/utils/supabase";
 
 const STORAGE_KEY = '@active_call_session';
