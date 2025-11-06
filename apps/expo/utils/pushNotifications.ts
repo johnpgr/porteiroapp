@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import voipPushService from './voipPushNotifications';
+import { callKeepService } from '~/services/CallKeepService';
 
 export interface SendPushNotificationParams {
   title: string;
@@ -243,7 +244,6 @@ export async function registerPushTokenAfterLogin(
     if (userType === 'morador') {
       try {
         console.log('📞 [registerPushToken] Initializing CallKeep...');
-        const { callKeepService } = await import('~/services/CallKeepService');
 
         // Initialize CallKeep if not already initialized
         await callKeepService.initialize();
@@ -287,83 +287,132 @@ export async function registerPushTokenAfterLogin(
 
     console.log('🔔 [registerPushToken] Push token obtido:', token);
 
-    // Determinar tabela baseada no tipo de usuário
-    const table = userType === 'admin' ? 'admin_profiles' : 'profiles';
+    // Processar baseado no tipo de usuário com queries tipadas separadamente
+    if (userType === 'admin') {
+      // Query tipada para admin_profiles
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('admin_profiles')
+        .select('user_id, push_token')
+        .eq('user_id', userId)
+        .single();
 
-    // Verificar se o perfil existe e buscar push_token atual
-    const selectColumns =
-      table === 'profiles'
-        ? 'user_id, push_token, notification_enabled'
-        : 'user_id, push_token';
+      if (checkError || !existingProfile) {
+        console.error(
+          '❌ [registerPushToken] Perfil não encontrado para userId:',
+          userId,
+          checkError
+        );
+        return false;
+      }
 
-    const { data: existingProfile, error: checkError } = await supabase
-      .from(table)
-      .select(selectColumns)
-      .eq('user_id', userId)
-      .single();
+      // Verificar se o token mudou
+      const needsTokenUpdate = existingProfile.push_token !== token;
 
-    if (checkError || !existingProfile) {
-      console.error(
-        '❌ [registerPushToken] Perfil não encontrado para userId:',
-        userId,
-        checkError
-      );
-      return false;
-    }
+      if (!needsTokenUpdate) {
+        console.log(
+          '✅ [registerPushToken] Push token já estava atualizado'
+        );
+        return true;
+      }
 
-    // Verificar se o token mudou
-    const needsTokenUpdate = existingProfile.push_token !== token;
-    const needsNotificationEnable =
-      table === 'profiles' && (existingProfile as any).notification_enabled !== true;
+      console.log('🔔 [registerPushToken] Atualizando push token no banco de dados...');
 
-    if (!needsTokenUpdate && !needsNotificationEnable) {
+      // Atualizar push token
+      const { data, error } = await supabase
+        .from('admin_profiles')
+        .update({
+          push_token: token,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .select();
+
+      if (error) {
+        console.error('❌ [registerPushToken] Erro ao salvar preferências de push:', error);
+        return false;
+      }
+
+      if (!data || data.length === 0) {
+        console.error(
+          '❌ [registerPushToken] Nenhuma linha foi atualizada. userId:',
+          userId
+        );
+        return false;
+      }
+
       console.log(
-        '✅ [registerPushToken] Push token e notificações já estavam atualizados'
+        '✅ [registerPushToken] Push token registrado com sucesso para admin'
+      );
+      return true;
+    } else {
+      // Query tipada para profiles (morador ou porteiro)
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('user_id, push_token, notification_enabled')
+        .eq('user_id', userId)
+        .single();
+
+      if (checkError || !existingProfile) {
+        console.error(
+          '❌ [registerPushToken] Perfil não encontrado para userId:',
+          userId,
+          checkError
+        );
+        return false;
+      }
+
+      // Verificar se o token mudou ou se precisa habilitar notificações
+      const needsTokenUpdate = existingProfile.push_token !== token;
+      const needsNotificationEnable = existingProfile.notification_enabled !== true;
+
+      if (!needsTokenUpdate && !needsNotificationEnable) {
+        console.log(
+          '✅ [registerPushToken] Push token e notificações já estavam atualizados'
+        );
+        return true;
+      }
+
+      console.log('🔔 [registerPushToken] Atualizando preferências de notificação no banco de dados...');
+
+      const updates: {
+        push_token?: string;
+        notification_enabled: boolean;
+        updated_at: string;
+      } = {
+        notification_enabled: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (needsTokenUpdate) {
+        updates.push_token = token;
+      }
+
+      // Atualizar push token e habilitar notificações quando necessário
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('user_id', userId)
+        .select();
+
+      if (error) {
+        console.error('❌ [registerPushToken] Erro ao salvar preferências de push:', error);
+        return false;
+      }
+
+      if (!data || data.length === 0) {
+        console.error(
+          '❌ [registerPushToken] Nenhuma linha foi atualizada. userId:',
+          userId
+        );
+        return false;
+      }
+
+      console.log(
+        '✅ [registerPushToken] Preferências de push registradas com sucesso. Token atualizado:',
+        needsTokenUpdate
       );
       return true;
     }
-
-    console.log('🔔 [registerPushToken] Atualizando preferências de notificação no banco de dados...');
-
-    const updates: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-
-    if (table === 'profiles') {
-      updates.notification_enabled = true;
-    }
-
-    if (needsTokenUpdate) {
-      updates.push_token = token;
-    }
-
-    // Atualizar push token e habilitar notificações quando necessário
-    const { data, error } = await supabase
-      .from(table)
-      .update(updates)
-      .eq('user_id', userId)
-      .select();
-
-    if (error) {
-      console.error('❌ [registerPushToken] Erro ao salvar preferências de push:', error);
-      return false;
-    }
-
-    if (!data || data.length === 0) {
-      console.error(
-        '❌ [registerPushToken] Nenhuma linha foi atualizada. userId:',
-        userId,
-        'table:',
-        table
-      );
-      return false;
-    }
-
-    console.log(
-      '✅ [registerPushToken] Preferências de push registradas com sucesso. Token atualizado:',
-      needsTokenUpdate
-    );
-    return true;
   } catch (error) {
     console.error('❌ [registerPushToken] Erro ao registrar push token:', error);
     return false;
