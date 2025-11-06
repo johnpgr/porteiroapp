@@ -31,8 +31,8 @@ export interface CallNotificationCallback {
 
 class IntercomCallService {
   private activeCalls: Map<string, {
-    interval: NodeJS.Timeout;
-    timeout: NodeJS.Timeout;
+    interval: number;
+    timeout: number;
     data: IntercomCallData;
     callback: CallNotificationCallback;
   }> = new Map();
