@@ -82,22 +82,10 @@ class PushNotificationService {
       };
     }
 
-    // CRITICAL: Deliver with a visible notification so Android keeps the message reliable,
-    // while still flagging it for background handling.
-    const title = params.fromName
-      ? `Chamada do ${params.fromName}`
-      : 'Chamada do Interfone';
-    const body = params.apartmentNumber
-      ? `Apartamento ${params.apartmentNumber}`
-      : params.buildingName
-        ? `Prédio ${params.buildingName}`
-        : 'Atendimento disponível';
-
+    // Headless data-only push for Android reliability (full-screen handled by app via Notifee)
+    // Note: omit title/body to encourage background task delivery; include high priority + contentAvailable
     const payload: PushNotificationPayload = {
       to: params.pushToken,
-      // Include a visible notification so Android keeps delivery reliable
-      title,
-      body,
       contentAvailable: true,
       _contentAvailable: true,
       sound: 'telephone_toque_interfone.mp3',
@@ -120,7 +108,7 @@ class PushNotificationService {
     try {
       // Log sanitized payload info before sending
       const tokenPreview = `${params.pushToken?.slice(0, 12) ?? ''}...`;
-      console.log('📤 [push] Preparing Expo push (call invite)', {
+      console.log('📤 [push] Preparing Expo push (call invite - data only)', {
         to: tokenPreview,
         callId: params.callId,
         from: params.from,

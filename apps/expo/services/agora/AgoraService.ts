@@ -120,6 +120,8 @@ class AgoraService {
   private rtcEngine: IRtcEngine | null = null;
   private rtmStatus: RtmStatus = 'disconnected';
   private rtmListenersAttached = false;
+  private prunedPeers: Map<string, number> = new Map();
+  private readonly PRUNED_TTL_MS = 60_000; // avoid retrying unreachable peers for 60s
   private rtmMessageSubscription: { remove: () => void } | null = null;
   private rtmConnectionSubscription: { remove: () => void } | null = null;
   private rtcListenersAttached = false;
@@ -642,7 +644,19 @@ class AgoraService {
     }
 
     const data = JSON.stringify(payload);
-    const uniqueTargets = Array.from(new Set(targets)).filter(Boolean);
+    const now = Date.now();
+    // Drop peers that were recently unreachable
+    const uniqueTargets = Array.from(new Set(targets))
+      .filter(Boolean)
+      .filter((t) => {
+        const ts = this.prunedPeers.get(String(t));
+        if (!ts) return true;
+        if (now - ts > this.PRUNED_TTL_MS) {
+          this.prunedPeers.delete(String(t));
+          return true;
+        }
+        return false;
+      });
     console.log(`📤 [AgoraService] Enviando mensagem RTM para ${uniqueTargets.length} alvos (status: ${this.rtmStatus})`);
 
     for (const target of uniqueTargets) {
@@ -659,8 +673,9 @@ class AgoraService {
         const isOfflineAcceptable = codeNum === 3 || codeNum === 4;
 
         if (isOfflineAcceptable) {
-          console.warn(`⚠️ [AgoraService] Peer ${target} offline/cached (code ${codeNum}). Prosseguindo.`);
-          console.warn(`   Detalhes (não-fatal):`, err);
+          // Mark peer as pruned to avoid retry spam for a while
+          this.prunedPeers.set(String(target), now);
+          console.warn(`⚠️ [AgoraService] Peer ${target} offline/cached (code ${codeNum}). Pruning for ${Math.round(this.PRUNED_TTL_MS/1000)}s.`);
           continue;
         }
 

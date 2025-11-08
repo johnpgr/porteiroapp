@@ -346,7 +346,7 @@ export class CallSession {
     try {
       this.setState('ending');
 
-      // Send RTM END signal to notify other participants
+      // Send RTM END signal to notify other participants (RTM is the source of truth)
       console.log(`[CallSession] Sending END signal to participants...`);
       try {
         const endSignal = {
@@ -411,7 +411,10 @@ export class CallSession {
     console.log(`[CallSession] Declining call ${this.id}...`);
 
     try {
-      // Send RTM DECLINE signal to notify other participants
+      // Transition immediately so UI shows "Encerrando..."
+      this.setState('ending');
+
+      // Send RTM DECLINE signal to notify other participants (RTM is the source of truth)
       console.log(`[CallSession] Sending DECLINE signal to participants...`);
       try {
         const declineSignal = {

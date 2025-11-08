@@ -19,6 +19,7 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
   const [sessionState, setSessionState] = useState<CallLifecycleState>(session.state);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+  const isEnding = sessionState === 'ending';
 
   // Subscribe to session state changes
   useEffect(() => {
@@ -43,12 +44,14 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
   }, []);
 
   const handleAnswer = () => {
+    if (isEnding) return;
     agoraAudioService.stopIntercomRingtone();  // Stop immediately
     onAnswer();                                // Trigger coordinator
     // Keep UI open - transitions to in-call controls
   };
 
   const handleDecline = () => {
+    if (isEnding) return;
     agoraAudioService.stopIntercomRingtone();  // Stop immediately
     onDecline();                               // Trigger coordinator
     // UI closes via state change
@@ -78,15 +81,22 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
     }
   };
 
-  // Show in-call controls if call has been answered
-  const showActiveCall = sessionState !== 'ringing' && sessionState !== 'rtm_ready';
+  // Consider "active/answered flow" only after the user taps Answer
+  const answeredFlowStates: CallLifecycleState[] = [
+    'native_answered',
+    'token_fetching',
+    'rtc_joining',
+    'connecting',
+    'connected',
+  ];
+  const showAnsweredFlow = answeredFlowStates.includes(sessionState);
 
   return (
     <View style={styles.overlay}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerText}>
-            {showActiveCall ? 'Em Chamada' : 'Chamada de Interfone'}
+            {showAnsweredFlow ? 'Em Chamada' : 'Chamada de Interfone'}
           </Text>
           <Text style={styles.statusText}>
             {sessionState === 'ringing' && 'Recebendo...'}
@@ -96,7 +106,11 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
             {sessionState === 'native_answered' && 'Atendendo...'}
             {sessionState === 'token_fetching' && 'Conectando...'}
             {sessionState === 'rtc_joining' && 'Conectando...'}
-          </Text>
+            {sessionState === 'ending' && 'Encerrando...'}
+            {sessionState === 'ended' && 'Encerrada'}
+            {sessionState === 'declined' && 'Recusada'}
+            {sessionState === 'failed' && 'Falhou'}
+        </Text>
         </View>
 
         <View style={styles.infoBox}>
@@ -110,13 +124,14 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
           )}
         </View>
 
-        {showActiveCall ? (
+        {showAnsweredFlow ? (
           // Active call controls
           <>
             {sessionState === 'connected' && (
               <View style={styles.callControls}>
                 <TouchableOpacity
-                  style={[styles.controlButton, isMuted && styles.controlButtonActive]}
+                  disabled={isEnding}
+                  style={[styles.controlButton, isMuted && styles.controlButtonActive, isEnding && styles.buttonDisabled]}
                   onPress={handleToggleMute}
                 >
                   {isMuted ? (
@@ -127,7 +142,8 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
+                  disabled={isEnding}
+                  style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive, isEnding && styles.buttonDisabled]}
                   onPress={handleToggleSpeaker}
                 >
                   {isSpeakerOn ? (
@@ -140,7 +156,8 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
             )}
 
             <TouchableOpacity
-              style={[styles.endCallButton]}
+              disabled={isEnding}
+              style={[styles.endCallButton, isEnding && styles.buttonDisabled]}
               onPress={handleDecline}
             >
               <PhoneOff size={24} color="#fff" />
@@ -150,15 +167,16 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
         ) : (
           // Incoming call actions
           <View style={styles.actionsContainer}>
-            <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={handleDecline}>
+            <TouchableOpacity
+              disabled={isEnding}
+              style={[styles.actionButton, styles.declineButton, isEnding && styles.buttonDisabled]}
+              onPress={handleDecline}
+            >
               <PhoneOff size={30} color="#fff" />
               <Text style={styles.buttonLabel}>Recusar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.acceptButton]}
-              onPress={handleAnswer}
-            >
+            <TouchableOpacity disabled={isEnding} style={[styles.actionButton, styles.acceptButton, isEnding && styles.buttonDisabled]} onPress={handleAnswer}>
               <Phone size={30} color="#fff" />
               <Text style={styles.buttonLabel}>Atender</Text>
             </TouchableOpacity>
@@ -198,6 +216,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#fff',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   statusText: {
     fontSize: 14,

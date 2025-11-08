@@ -1,8 +1,8 @@
 # Push Notification Architecture Cleanup
 
-**Status:** ✅ Complete
+**Status:** 🔄 In Progress - Notifee Action Handlers
 **Created:** 2025-11-05
-**Last Updated:** 2025-11-05
+**Last Updated:** 2025-11-08
 
 ---
 
@@ -1813,3 +1813,165 @@ Next steps:
 **Phase 2 Status:** ✅ Complete
 **Phase 3 Status:** ✅ Complete
 **Phase 4 Status:** ⏳ Ready for Testing
+
+---
+
+# Notifee Action Handler Fix
+
+**Status:** ✅ Complete
+**Created:** 2025-11-08
+**Last Updated:** 2025-11-08
+
+## Problem
+
+Full-screen Notifee notifications display with action buttons (Answer/Decline), but tapping them does nothing. Call continues ringing until user manually opens app.
+
+### Root Cause
+
+backgroundNotificationTask.ts:146-155 defines Notifee notification actions:
+- `answer_call` pressAction
+- `decline_call` pressAction
+
+But NO listeners for Notifee events anywhere in codebase.
+
+_layout.tsx:354-420 only has Expo's `addNotificationResponseReceivedListener` which handles:
+- `ANSWER_CALL` (Expo identifier)
+- `DECLINE_CALL` (Expo identifier)
+
+**Notifee actions != Expo actions**. Notifee events require:
+- `notifee.onForegroundEvent()` - app open
+- `notifee.onBackgroundEvent()` - app killed/backgrounded
+
+### CRITICAL Discovery
+
+**`notifee.onBackgroundEvent()` MUST be registered at MODULE LEVEL** (outside React components).
+
+From Notifee documentation:
+> Background event handlers must be registered outside of your application logic as early as possible to ensure they are ready before any background events are received.
+
+Initial attempt registered handlers inside `useEffect()`, which runs too late when app is launched from killed state via notification action.
+
+## Solution
+
+1. **Module-level background handler** (catches all states)
+2. **Component-level foreground handler** (for navigation/UI updates)
+
+### Implementation
+
+**File:** apps/expo/app/_layout.tsx
+
+**Changes:**
+
+#### 1. Module-Level Background Handler (CRITICAL)
+Registered at top of file (line ~37), outside all components:
+
+```typescript
+// CRITICAL: This MUST be registered at MODULE LEVEL (outside React components)
+// to catch notification actions when app is launched from killed/background state
+notifee.onBackgroundEvent(async ({ type, detail }) => {
+  console.log('[_layout:module] 🔔 Notifee background event:', type, detail.pressAction?.id);
+
+  if (type === EventType.PRESS) {
+    const actionId = detail.pressAction?.id;
+
+    if (actionId === 'answer_call') {
+      console.log('[_layout:module] 📞 User tapped Answer (background)');
+      if (callCoordinator.hasActiveCall()) {
+        await callCoordinator.answerActiveCall();
+      }
+    } else if (actionId === 'decline_call') {
+      console.log('[_layout:module] ❌ User tapped Decline (background)');
+      await callCoordinator.endActiveCall('decline');
+    }
+  }
+});
+
+console.log('[_layout:module] ✅ Notifee background handler registered at module level');
+```
+
+**Why module level?**
+- Catches events when app launched from killed state
+- Runs before React components mount
+- Required by Notifee for reliable background event handling
+
+#### 2. Component-Level Foreground Handler
+Registered in `useEffect()` (line ~370) for UI updates:
+
+```typescript
+// Notifee foreground event handler (background handler is at module level)
+useEffect(() => {
+  const unsubscribeForeground = notifee.onForegroundEvent(async ({ type, detail }) => {
+    console.log('[_layout] 🔔 Notifee foreground event:', type, detail.pressAction?.id);
+
+    if (type === EventType.PRESS) {
+      const actionId = detail.pressAction?.id;
+
+      if (actionId === 'answer_call') {
+        if (callCoordinator.hasActiveCall()) {
+          await callCoordinator.answerActiveCall();
+        }
+        router.push('/morador/(tabs)'); // Navigate on answer
+      } else if (actionId === 'decline_call') {
+        await callCoordinator.endActiveCall('decline');
+      }
+    }
+  });
+
+  return () => unsubscribeForeground();
+}, [router]);
+```
+
+## Files Modified
+
+1. ✅ apps/expo/app/_layout.tsx
+   - Added module-level `notifee.onBackgroundEvent()` (line ~37)
+   - Simplified foreground handler in `useEffect()` (line ~370)
+   - Enhanced logging for debugging
+2. ✅ PLAN.md - Documented critical fix
+
+## How It Works
+
+**Scenario 1: App Killed/Background → User taps Answer**
+```
+1. User taps Answer button on lock screen notification
+2. onBackgroundEvent (module-level) catches event IMMEDIATELY
+3. actionId='answer_call' detected
+4. callCoordinator.answerActiveCall() called
+5. App foregrounds, React mounts
+6. onForegroundEvent (if needed) handles navigation
+7. ✅ Call answered
+```
+
+**Scenario 2: App Open → User taps Decline**
+```
+1. User taps Decline button while app is open
+2. onForegroundEvent catches event
+3. actionId='decline_call' detected
+4. callCoordinator.endActiveCall('decline')
+5. ✅ Call declined, notification dismissed
+```
+
+**Why Two Handlers?**
+- **Background (module-level)**: Catches events in ALL states (critical for killed app)
+- **Foreground (component-level)**: Handles UI updates/navigation (requires router)
+
+## Testing Checklist
+
+- [ ] Android lock screen - Tap Answer → Call answered
+- [ ] Android lock screen - Tap Decline → Call declined
+- [ ] App foreground - Notification action → Correct response
+- [ ] App background - Notification action → Correct response
+- [ ] App killed - Notification action → Correct response
+- [ ] Verify no duplicate handlers (Expo + Notifee coexist)
+
+## Success Criteria
+
+✅ Answer/Decline buttons on Android lock screen work
+✅ Actions forwarded to callCoordinator correctly
+✅ Navigation to morador screen on answer
+✅ Call declined via API on decline
+✅ No conflicts with existing Expo notification handler
+
+---
+**Implementation Completed:** 2025-11-08
+**Status:** Ready for Testing

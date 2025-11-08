@@ -13,9 +13,10 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import notifee, { AndroidImportance, AndroidCategory } from '@notifee/react-native';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
 
+// Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
 interface IncomingCallData {
@@ -50,29 +51,25 @@ TaskManager.defineTask(
     console.log('[BackgroundTask] Full data:', JSON.stringify(data, null, 2));
 
     try {
-      // Check if this is a notification response (user tapped) or just received
-      const isNotificationResponse = 'actionIdentifier' in data;
-
-      console.log('[BackgroundTask] 🔍 Checking if notification response or received event...');
-      console.log('[BackgroundTask] isNotificationResponse:', isNotificationResponse);
-
-      if (!isNotificationResponse) {
-        console.log('[BackgroundTask] 📨 This is a notification RECEIVED event (not user tap)');
+      // Distinguish RECEIVED vs RESPONSE by presence of `actionIdentifier`
+      const isResponseEvent = data && typeof data === 'object' && 'actionIdentifier' in (data as any);
+      if (!isResponseEvent) {
+        console.log('[BackgroundTask] 📨 This is a notification RECEIVED event');
 
         // This is a notification that was just received (not user action)
         // Robustly extract payload regardless of Expo/FCM shape
-        const raw = data as any;
+        const raw = (data as any)?.notification || (data as any);
         console.log('[BackgroundTask] 🔍 Extracting notification payload...');
-        console.log('[BackgroundTask] Checking raw?.notification?.request?.content?.data...');
+        console.log('[BackgroundTask] Checking raw?.request?.content?.data...');
 
-        let notificationData: any = raw?.notification?.request?.content?.data;
+        let notificationData: any = raw?.request?.content?.data;
 
         // Fallbacks for common Expo delivery shapes
         if (!notificationData || Object.keys(notificationData).length === 0) {
           console.log('[BackgroundTask] No data in standard location, trying fallbacks...');
 
           // Sometimes payload is placed under data
-          const topData = raw?.data;
+          const topData = (data as any)?.data || raw?.data;
           console.log('[BackgroundTask] Checking raw?.data:', !!topData);
 
           if (topData && typeof topData === 'object') {
@@ -126,7 +123,22 @@ TaskManager.defineTask(
           try {
             // 1. Display full-screen notification on Android (forces app to foreground from killed state)
             if (Platform.OS === 'android') {
-              console.log('[BackgroundTask] � Displaying notifee full-screen notification...');
+              console.log('[BackgroundTask] 📳 Displaying notifee full-screen notification...');
+
+              // Ensure critical channel exists in headless context
+              try {
+                await notifee.createChannel({
+                  id: 'intercom_call',
+                  name: 'Interfone (Chamada)',
+                  importance: AndroidImportance.HIGH,
+                  vibration: true,
+                  vibrationPattern: [250, 250, 250, 250],
+                  sound: 'telephone_toque_interfone',
+                  lights: true,
+                });
+              } catch (channelErr) {
+                console.warn('[BackgroundTask] ⚠️ Failed to create notifee channel (may already exist):', channelErr);
+              }
               
               await notifee.displayNotification({
                 title: callData.callerName || 'Chamada do Porteiro',
@@ -136,10 +148,15 @@ TaskManager.defineTask(
                 android: {
                   channelId: 'intercom_call',
                   importance: AndroidImportance.HIGH,
+                  category: AndroidCategory.CALL,
+                  ongoing: true,
+                  autoCancel: false,
 
                   // THIS FORCES APP TO FOREGROUND FROM KILLED STATE
                   fullScreenAction: {
-                    id: 'default',
+                    id: 'incoming_call_fullscreen',
+                    // With Expo, use the default activity to wake/launch the app
+                    launchActivity: 'default',
                   },
 
                   // Native buttons for lock screen
@@ -192,9 +209,11 @@ TaskManager.defineTask(
         } else {
           console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);
         }
+      } else if (isResponseEvent) {
+        // User interacted with notification; UI listeners will handle routing
+        console.log('[BackgroundTask] 👆 Notification RESPONSE event (user action)');
       } else {
-        // User tapped on notification
-        console.log('[BackgroundTask] User tapped notification, app will handle in foreground');
+        console.log('[BackgroundTask] ℹ️ Unknown event type, ignoring');
       }
     } catch (error) {
       console.error('[BackgroundTask] Error processing notification:', error);

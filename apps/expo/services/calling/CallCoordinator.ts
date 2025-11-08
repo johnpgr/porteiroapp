@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
+import notifee from '@notifee/react-native';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
@@ -34,6 +35,17 @@ export class CallCoordinator {
   // RTM warmup timeout (increased to 6s to handle RTM connection time)
   // RTM can take 1-2 seconds to connect, so we need enough buffer
   private readonly RTM_WARMUP_TIMEOUT = 6000;
+
+  // Poller to detect remote hangup when no RTM END is received
+  private remoteHangupPoll: ReturnType<typeof setInterval> | null = null;
+  private remoteEndInProgress: boolean = false;
+
+  private clearRemoteHangupPoll() {
+    if (this.remoteHangupPoll) {
+      clearInterval(this.remoteHangupPoll);
+      this.remoteHangupPoll = null;
+    }
+  }
 
   // ========================================
   // Initialization
@@ -106,8 +118,44 @@ export class CallCoordinator {
     try {
       const parsed = JSON.parse(message.text);
       
+      const type = parsed.t as 'INVITE' | 'END' | 'DECLINE' | 'ANSWER' | string;
+      const altTypeRaw = (parsed.type || parsed.action || parsed.event || '').toString().toLowerCase();
+
+      // Handle END/DECLINE signals to close UI when porteiro cancels
+      const isEndLike =
+        type === 'END' ||
+        type === 'DECLINE' ||
+        altTypeRaw === 'end' ||
+        altTypeRaw === 'ended' ||
+        altTypeRaw === 'hangup' ||
+        altTypeRaw === 'cancel' ||
+        altTypeRaw === 'cancelled' ||
+        altTypeRaw === 'intercom_call_end' ||
+        altTypeRaw === 'call_end' ||
+        altTypeRaw === 'end_call';
+
+      if (isEndLike && this.activeSession) {
+        if (this.activeSession.id === parsed.callId) {
+          console.log(`[CallCoordinator] RTM ${type} received for active call ${parsed.callId}`);
+          try {
+            // Use 'drop' to indicate remote-ended when wrapping end()
+            await this.activeSession.end('drop');
+            // Dismiss any call notifications/full-screen UI
+            try { await notifee.cancelAllNotifications(); } catch {}
+          } catch (e) {
+            console.warn('[CallCoordinator] Failed to end session on remote END, forcing cleanup:', e);
+            this.activeSession = null;
+            this.emit('sessionEnded', { session: null, finalState: 'ended' });
+          }
+        }
+        return;
+      }
+
       // Only handle INVITE messages for moradores
-      if (parsed.t !== 'INVITE') {
+      if (type !== 'INVITE') {
+        if (parsed.callId && this.activeSession?.id === parsed.callId) {
+          console.log('[CallCoordinator] RTM non-INVITE message for active call ignored:', { type, altTypeRaw, callId: parsed.callId });
+        }
         return;
       }
 
@@ -127,7 +175,23 @@ export class CallCoordinator {
       // Auto-decline if already in a call
       if (this.activeSession) {
         console.log('[CallCoordinator] Already in call, auto-declining RTM invite');
+        // 1) Notify backend about decline (busy)
         await this.declineCall(parsed.callId, 'busy');
+        // 2) Immediately notify inviter via RTM so their UI stops ringing
+        try {
+          const declineSignal = {
+            t: 'DECLINE' as const,
+            callId: parsed.callId,
+            from: agoraService.getCurrentUser()?.id || '',
+            channel: parsed.channel || parsed.channelName || `call-${parsed.callId}`,
+            timestamp: Date.now(),
+            reason: 'busy',
+          };
+          await agoraService.sendPeerMessage([peerId], declineSignal);
+          console.log('[CallCoordinator] ✅ Sent RTM DECLINE (busy) to inviter');
+        } catch (e) {
+          console.warn('[CallCoordinator] ⚠️ Failed to send RTM DECLINE to inviter:', e);
+        }
         return;
       }
 
@@ -266,6 +330,8 @@ export class CallCoordinator {
 
         if (newState === 'ended' || newState === 'declined' || newState === 'failed') {
           this.activeSession = null;
+          this.clearRemoteHangupPoll();
+          this.remoteEndInProgress = false;
           this.emit('sessionEnded', { session, finalState: newState });
         }
       });
@@ -275,11 +341,67 @@ export class CallCoordinator {
         this.emit('error', { error, operation, session });
       });
 
+      // Start a short poll to detect remote cancel if RTM END isn't received
+      this.startRemoteHangupPoll(session.id);
+
     } catch (error) {
       console.error('[CallCoordinator] ❌ Push handling failed:', error);
       Alert.alert('Call Error', 'Unable to process incoming call.');
       this.emit('error', { error, operation: 'handleIncomingPush' });
     }
+  }
+
+  private startRemoteHangupPoll(callId: string): void {
+    // Poll only during ringing state before user answers
+    this.clearRemoteHangupPoll();
+    let attempts = 0;
+    const maxAttempts = 20; // ~40s max
+
+    this.remoteHangupPoll = setInterval(async () => {
+      attempts += 1;
+      try {
+        if (!this.activeSession || this.activeSession.id !== callId) {
+          this.clearRemoteHangupPoll();
+          return;
+        }
+
+        // If user already answered/connected, stop polling
+        const state = this.activeSession.state as any;
+        if (state === 'connected' || state === 'ending' || state === 'ended') {
+          this.clearRemoteHangupPoll();
+          return;
+        }
+
+        const details = await this.fetchCallDetails(callId);
+        // If call no longer exists or backend marks it as ended, close UI
+        if (!details || (details as any).status === 'ended' || (details as any).endedAt) {
+          console.log('[CallCoordinator] 🔚 Remote hangup detected via polling');
+          if (this.remoteEndInProgress) {
+            this.clearRemoteHangupPoll();
+            return;
+          }
+          this.remoteEndInProgress = true;
+          this.clearRemoteHangupPoll();
+          try {
+            await this.activeSession.end('drop');
+            try { await notifee.cancelAllNotifications(); } catch {}
+          } catch (e) {
+            console.warn('[CallCoordinator] Poll end failed, forcing local cleanup:', e);
+            this.activeSession = null;
+            this.emit('sessionEnded', { session: null, finalState: 'ended' });
+          } finally {
+            this.remoteEndInProgress = false;
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('[CallCoordinator] Remote hangup poll error:', err);
+      }
+
+      if (attempts >= maxAttempts) {
+        this.clearRemoteHangupPoll();
+      }
+    }, 2000);
   }
 
   /**
@@ -392,6 +514,9 @@ export class CallCoordinator {
     doormanName?: string | null;
     apartmentNumber?: string | null;
     buildingId?: string | null;
+    // optional backend fields for end detection
+    status?: string | null;
+    endedAt?: string | null;
   } | null> {
     try {
       const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
@@ -418,12 +543,15 @@ export class CallCoordinator {
         }))
         .filter((p: CallParticipantSnapshot) => !!p.userId); // Filter out invalid entries
 
+      const callObj = result.data.call || {};
       return {
-        channelName: result.data.call?.channelName || result.data.call?.channel_name || '',
+        channelName: callObj.channelName || callObj.channel_name || '',
         participants,
-        doormanName: result.data.call?.doormanName || result.data.call?.doorman_name,
-        apartmentNumber: result.data.call?.apartmentNumber || result.data.call?.apartment_number,
-        buildingId: result.data.call?.buildingId || result.data.call?.building_id,
+        doormanName: callObj.doormanName || callObj.doorman_name,
+        apartmentNumber: callObj.apartmentNumber || callObj.apartment_number,
+        buildingId: callObj.buildingId || callObj.building_id,
+        status: callObj.status || null,
+        endedAt: callObj.endedAt || callObj.ended_at || null,
       };
     } catch (error) {
       console.error('[CallCoordinator] Fetch call details failed:', error);

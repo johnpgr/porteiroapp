@@ -28,6 +28,7 @@
       ],
       "expo-secure-store",
       "./plugins/withVoipPush.js",
+      "./plugins/withAndroidFullScreenIntent.js",
       [
         "expo-build-properties",
         {
