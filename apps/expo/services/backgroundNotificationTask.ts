@@ -2,7 +2,8 @@
  * Background Notification Task Handler
  *
  * This task runs when a push notification is received, even when the app is killed.
- * It handles incoming intercom calls by displaying native call UI via CallKeep.
+ * It handles incoming intercom calls by displaying full-screen notifications via notifee
+ * and creating call sessions via CallCoordinator.
  *
  * IMPORTANT: This must be registered at module level (not inside a component)
  * to ensure it's available before the app fully loads.
@@ -12,6 +13,8 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import notifee, { AndroidImportance } from '@notifee/react-native';
+import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
 
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
@@ -120,39 +123,71 @@ TaskManager.defineTask(
           console.log('[BackgroundTask] - channelName:', callData.channelName);
           console.log('[BackgroundTask] - from:', callData.from);
 
-          // Store call data for when app fully opens
-          console.log('[BackgroundTask] 💾 Storing call data to AsyncStorage...');
-          await AsyncStorage.setItem(
-            '@pending_intercom_call',
-            JSON.stringify(callData)
-          );
-          console.log('[BackgroundTask] ✅ Call data stored to AsyncStorage');
-
-          // Show notification with answer/decline buttons
-          // CallKeep will be handled by CallCoordinator when user responds
-          console.log('[BackgroundTask] 📲 Showing notification with action buttons...');
-          
           try {
-            const notificationId = await Notifications.scheduleNotificationAsync({
-              content: {
-                title: `Chamada de ${callData.callerName}`,
-                body: `Apartamento ${callData.apartmentNumber}`,
-                data: {
-                  type: 'intercom_call',
-                  ...callData,
-                },
-                sound: 'telephone_toque_interfone.mp3',
-                priority: Notifications.AndroidNotificationPriority.MAX,
-                categoryIdentifier: 'call', // Has ANSWER_CALL and DECLINE_CALL buttons
-                vibrate: [0, 250, 250, 250],
-              },
-              trigger: null, // Immediate
-            });
+            // 1. Display full-screen notification on Android (forces app to foreground from killed state)
+            if (Platform.OS === 'android') {
+              console.log('[BackgroundTask] � Displaying notifee full-screen notification...');
+              
+              await notifee.displayNotification({
+                title: callData.callerName || 'Chamada do Porteiro',
+                body: callData.apartmentNumber
+                  ? `Apt ${callData.apartmentNumber}`
+                  : 'Chamada de interfone',
+                android: {
+                  channelId: 'intercom_call',
+                  importance: AndroidImportance.HIGH,
 
-            console.log('[BackgroundTask] ✅ Notification scheduled with ID:', notificationId);
-            console.log('[BackgroundTask] 📱 User can tap Answer/Decline buttons or notification body');
+                  // THIS FORCES APP TO FOREGROUND FROM KILLED STATE
+                  fullScreenAction: {
+                    id: 'default',
+                  },
+
+                  // Native buttons for lock screen
+                  actions: [
+                    {
+                      title: 'Recusar',
+                      pressAction: { id: 'decline_call' },
+                    },
+                    {
+                      title: 'Atender',
+                      pressAction: { id: 'answer_call', launchActivity: 'default' },
+                    },
+                  ],
+
+                  pressAction: {
+                    id: 'default',
+                    launchActivity: 'default',
+                  },
+                },
+              });
+
+              console.log('[BackgroundTask] ✅ Notifee notification displayed');
+            }
+
+            // 2. CRITICAL: Create session in background via CallCoordinator
+            console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
+            
+            const pushData: VoipPushData = {
+              callId: callData.callId,
+              callerName: callData.callerName,
+              apartmentNumber: callData.apartmentNumber,
+              channelName: callData.channelName,
+              from: callData.from,
+            };
+
+            await callCoordinator.handleIncomingPush(pushData);
+            console.log('[BackgroundTask] ✅ Call session created');
+
+            // 3. Keep AsyncStorage backup as fallback
+            console.log('[BackgroundTask] 💾 Storing call data to AsyncStorage as fallback...');
+            await AsyncStorage.setItem(
+              '@pending_intercom_call',
+              JSON.stringify(callData)
+            );
+            console.log('[BackgroundTask] ✅ Call data stored to AsyncStorage');
+
           } catch (notificationError) {
-            console.error('[BackgroundTask] ❌ Failed to schedule notification:', notificationError);
+            console.error('[BackgroundTask] ❌ Failed to process intercom call:', notificationError);
           }
         } else {
           console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);

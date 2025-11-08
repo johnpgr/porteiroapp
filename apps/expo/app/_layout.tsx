@@ -28,22 +28,6 @@ SplashScreen.preventAutoHideAsync().catch((error) => {
   console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
 });
 
-// Initialize notification system at module level
-// CRITICAL: Handler must be set BEFORE background task registered
-(async () => {
-  try {
-    // 1. Initialize notification handler first (sets up handler + channels)
-    await initializeNotificationHandler();
-
-    // 2. THEN register background notification task
-    await registerBackgroundNotificationTask();
-
-    console.log('✅ [_layout] Notification system initialized');
-  } catch (error) {
-    console.error('❌ [_layout] Failed to initialize notification system:', error);
-  }
-})();
-
 const PENDING_DEEP_LINK_KEY = '@porteiro_app:pending_deep_link';
 
 // Componente interno para gerenciar push tokens
@@ -289,9 +273,6 @@ export default function RootLayout() {
       try {
         console.log('🚀 Iniciando preparação do app...');
 
-        // Initialize call coordinator
-        callCoordinator.initialize();
-
         console.log('✅ App pronto, escondendo splash screen');
         setAppReady(true);
 
@@ -311,23 +292,53 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Subscribe to call coordinator events
+  // CRITICAL: Subscribe to events BEFORE initializing callCoordinator
+  // This ensures sessionCreated events from recoverPersistedSession() are caught
   useEffect(() => {
-    const unsubscribers = [
-      callCoordinator.on('sessionCreated', ({ session }) => {
-        console.log('[_layout] Incoming call session created');
+    // 1. Define event handlers
+    const onSessionCreated = ({ session }: { session: CallSession }) => {
+      console.log('[_layout] Incoming call session created');
+      if (!session.isOutgoing) {
         setIncomingCall(session);
-      }),
-      callCoordinator.on('sessionEnded', () => {
-        console.log('[_layout] Call session ended');
-        setIncomingCall(null);
-      })
-    ];
-
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
+      }
     };
-  }, []);
+
+    const onSessionEnded = () => {
+      console.log('[_layout] Call session ended');
+      setIncomingCall(null);
+    };
+
+    // 2. Subscribe to events FIRST (before initialization)
+    const unsubCreated = callCoordinator.on('sessionCreated', onSessionCreated);
+    const unsubEnded = callCoordinator.on('sessionEnded', onSessionEnded);
+
+    // 3. Initialize notification system and callCoordinator SECOND
+    // This guarantees listeners are ready when recoverPersistedSession() fires sessionCreated
+    (async () => {
+      try {
+        console.log('[_layout] 🚀 Initializing notification system and call coordinator...');
+        
+        // Initialize notification handler first (sets up handler + channels)
+        await initializeNotificationHandler();
+
+        // Register background notification task
+        await registerBackgroundNotificationTask();
+
+        // Initialize call coordinator (may emit sessionCreated from recovery)
+        callCoordinator.initialize();
+
+        console.log('[_layout] ✅ Notification system and call coordinator initialized');
+      } catch (error) {
+        console.error('[_layout] ❌ Failed to initialize:', error);
+      }
+    })();
+
+    // 4. Cleanup subscriptions on unmount
+    return () => {
+      unsubCreated();
+      unsubEnded();
+    };
+  }, []); // Run once on mount
 
   // NOTE: Notification handler is configured in services/notificationHandler.ts
   // and initialized at module level to prevent conflicts

@@ -8,12 +8,13 @@
  * - Single notification handler with type-based routing
  * - Push token change detection and auto-update
  * - Consolidated notification channel setup
- * - CallKeep-aware sound handling (no duplicate ringtones)
+ * - Hybrid approach: notifee for intercom calls, expo-notifications for other types
  */
 
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import { supabase } from '~/utils/supabase';
 
 let isInitialized = false;
@@ -32,7 +33,7 @@ function setupNotificationHandler(): void {
       if (notificationType === 'intercom_call') {
         return {
           shouldShowAlert: true,
-          shouldPlaySound: false, // CallKeep handles sound, avoid duplicate
+          shouldPlaySound: false, // App handles ringtone via FullScreenCallUI
           shouldSetBadge: true,
           shouldShowBanner: true,
           shouldShowList: true,
@@ -149,6 +150,40 @@ async function setupNotificationChannels(): Promise<void> {
 }
 
 /**
+ * Setup Notifee notification channels (Android) for intercom calls
+ * Uses notifee for full-screen wake capability on killed apps
+ */
+async function setupNotifeeChannels(): Promise<void> {
+  if (Platform.OS !== 'android') {
+    console.log('⏭️ [NotificationHandler] Skipping notifee channels (not Android)');
+    return;
+  }
+
+  console.log('🔧 [NotificationHandler] Setting up notifee channels...');
+
+  // Critical channel for incoming calls - HIGH importance for full-screen wake
+  await notifee.createChannel({
+    id: 'intercom_call',
+    name: 'Interfone (Chamada)',
+    importance: AndroidImportance.HIGH,
+    vibration: true,
+    vibrationPattern: [0, 250, 250, 250],
+    sound: 'telephone_toque_interfone',
+    lights: true,
+  });
+
+  // Silent channel for in-progress calls
+  await notifee.createChannel({
+    id: 'call_in_progress',
+    name: 'Chamadas em Progresso',
+    importance: AndroidImportance.DEFAULT,
+    vibration: false,
+  });
+
+  console.log('✅ [NotificationHandler] Notifee channels configured');
+}
+
+/**
  * Setup push token change listener
  * Automatically updates database when Expo/FCM/APNs rolls the token
  */
@@ -225,10 +260,13 @@ export async function initializeNotificationHandler(): Promise<void> {
   // 1. Configure notification handler
   setupNotificationHandler();
 
-  // 2. Setup notification channels (Android only)
+  // 2. Setup expo notification channels (Android only)
   await setupNotificationChannels();
 
-  // 3. Setup token change listener
+  // 3. Setup notifee channels for intercom calls (Android only)
+  await setupNotifeeChannels();
+
+  // 4. Setup token change listener
   setupTokenChangeListener();
 
   isInitialized = true;
