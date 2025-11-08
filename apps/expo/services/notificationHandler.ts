@@ -71,7 +71,7 @@ async function setupNotificationChannels(): Promise<void> {
   await Notifications.setNotificationChannelAsync('default', {
     name: 'Notificações Porteiro',
     importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
+    vibrationPattern: [250, 250, 250, 250],
     lightColor: '#FF231F7C',
     sound: 'telephone_toque_interfone.mp3',
     enableVibrate: true,
@@ -83,7 +83,7 @@ async function setupNotificationChannels(): Promise<void> {
   await Notifications.setNotificationChannelAsync('visitor', {
     name: 'Visitantes',
     importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
+    vibrationPattern: [250, 250, 250, 250],
     sound: 'telephone_toque_interfone.mp3',
   });
 
@@ -98,7 +98,7 @@ async function setupNotificationChannels(): Promise<void> {
   await Notifications.setNotificationChannelAsync('emergency', {
     name: 'Emergências',
     importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 500, 250, 500],
+    vibrationPattern: [500, 250, 500, 250],
     sound: 'telephone_toque_interfone.mp3',
   });
 
@@ -106,7 +106,7 @@ async function setupNotificationChannels(): Promise<void> {
   await Notifications.setNotificationChannelAsync('intercom_call', {
     name: 'Interfone (Chamada)',
     importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
+    vibrationPattern: [250, 250, 250, 250],
     sound: 'telephone_toque_interfone.mp3',
     enableVibrate: true,
     enableLights: true,
@@ -167,7 +167,7 @@ async function setupNotifeeChannels(): Promise<void> {
     name: 'Interfone (Chamada)',
     importance: AndroidImportance.HIGH,
     vibration: true,
-    vibrationPattern: [0, 250, 250, 250],
+    vibrationPattern: [250, 250, 250, 250],
     sound: 'telephone_toque_interfone',
     lights: true,
   });
