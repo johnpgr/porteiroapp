@@ -17,7 +17,7 @@ import { Platform } from 'react-native';
 import { supabase } from '~/utils/supabase';
 
 let isInitialized = false;
-let tokenListener: Notifications.Subscription | null = null;
+let tokenListener: Notifications.EventSubscription | null = null;
 
 /**
  * Configure notification handler with type-based routing
