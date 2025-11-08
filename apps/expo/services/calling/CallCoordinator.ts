@@ -31,8 +31,9 @@ export class CallCoordinator {
   private isInitialized: boolean = false;
   private eventHandlers = new Map<CoordinatorEvent, Set<EventHandler>>();
 
-  // RTM warmup timeout (from user decision: 3 seconds)
-  private readonly RTM_WARMUP_TIMEOUT = 3000;
+  // RTM warmup timeout (increased to 6s to handle RTM connection time)
+  // RTM can take 1-2 seconds to connect, so we need enough buffer
+  private readonly RTM_WARMUP_TIMEOUT = 6000;
 
   // ========================================
   // Initialization
@@ -49,6 +50,9 @@ export class CallCoordinator {
     }
 
     console.log('[CallCoordinator] Initializing...');
+
+    // Set up RTM message listener for direct INVITE messages
+    this.setupRtmListener();
 
     // Try to recover any persisted session
     void this.recoverPersistedSession();
@@ -68,7 +72,82 @@ export class CallCoordinator {
       this.activeSession = null;
     }
 
+    // Remove RTM listener
+    if (this.rtmUnsubscribe) {
+      this.rtmUnsubscribe();
+      this.rtmUnsubscribe = null;
+    }
+
     this.isInitialized = false;
+  }
+
+  // ========================================
+  // RTM Message Listener
+  // ========================================
+
+  private rtmUnsubscribe: (() => void) | null = null;
+
+  /**
+   * Set up RTM message listener to handle INVITE messages
+   * This allows calls to be received via RTM when app is open (foreground)
+   */
+  private setupRtmListener(): void {
+    console.log('[CallCoordinator] Setting up RTM message listener');
+
+    this.rtmUnsubscribe = agoraService.on('rtmMessage', ({ message, peerId }) => {
+      void this.handleRtmMessage(message, peerId);
+    });
+  }
+
+  /**
+   * Handle incoming RTM message
+   */
+  private async handleRtmMessage(message: any, peerId: string): Promise<void> {
+    try {
+      const parsed = JSON.parse(message.text);
+      
+      // Only handle INVITE messages for moradores
+      if (parsed.t !== 'INVITE') {
+        return;
+      }
+
+      const currentUser = agoraService.getCurrentUser();
+      if (currentUser?.userType !== 'morador') {
+        return;
+      }
+
+      console.log('[CallCoordinator] 📞 RTM INVITE received:', parsed.callId);
+
+      // Check if we already have this call
+      if (this.activeSession?.id === parsed.callId) {
+        console.log('[CallCoordinator] Call already exists, ignoring duplicate RTM invite');
+        return;
+      }
+
+      // Auto-decline if already in a call
+      if (this.activeSession) {
+        console.log('[CallCoordinator] Already in call, auto-declining RTM invite');
+        await this.declineCall(parsed.callId, 'busy');
+        return;
+      }
+
+      // Convert RTM INVITE to push data format and handle it
+      const pushData: VoipPushData = {
+        callId: parsed.callId,
+        from: peerId,
+        callerName: parsed.from || 'Doorman',
+        apartmentNumber: parsed.apartmentNumber,
+        buildingName: parsed.buildingName,
+        channelName: parsed.channel || `call-${parsed.callId}`,
+        timestamp: Date.now(),
+      };
+
+      console.log('[CallCoordinator] Converting RTM INVITE to session creation');
+      await this.handleIncomingPush(pushData);
+      
+    } catch (error) {
+      console.error('[CallCoordinator] Error handling RTM message:', error);
+    }
   }
 
   // ========================================
@@ -151,6 +230,12 @@ export class CallCoordinator {
         return;
       }
 
+      console.log('[CallCoordinator] Call details received:', {
+        channelName: callDetails.channelName,
+        participantCount: callDetails.participants?.length || 0,
+        participants: callDetails.participants?.map(p => ({ userId: p.userId, status: p.status })),
+      });
+
       // Step 3: Create CallSession
       console.log('[CallCoordinator] Step 3: Creating session...');
       const session = new CallSession({
@@ -158,8 +243,9 @@ export class CallCoordinator {
         channelName: data.channelName || callDetails.channelName || `call-${data.callId}`,
         participants: callDetails.participants || [],
         isOutgoing: false,
-        callerName: data.callerName || callDetails.doormanName || 'Doorman',
-        apartmentNumber: data.apartmentNumber || callDetails.apartmentNumber,
+        // Prioritize API data over push data (API has proper names, push may have UUIDs)
+        callerName: callDetails.doormanName || data.callerName || 'Porteiro',
+        apartmentNumber: callDetails.apartmentNumber || data.apartmentNumber,
         buildingId: callDetails.buildingId,
       });
 
@@ -322,9 +408,19 @@ export class CallCoordinator {
         return null;
       }
 
+      // Map participants to handle snake_case from API
+      const participants: CallParticipantSnapshot[] = (result.data.participants || [])
+        .map((p: any) => ({
+          userId: p.userId || p.user_id,
+          status: p.status,
+          joinedAt: p.joinedAt || p.joined_at,
+          leftAt: p.leftAt || p.left_at,
+        }))
+        .filter((p: CallParticipantSnapshot) => !!p.userId); // Filter out invalid entries
+
       return {
         channelName: result.data.call?.channelName || result.data.call?.channel_name || '',
-        participants: result.data.participants || [],
+        participants,
         doormanName: result.data.call?.doormanName || result.data.call?.doorman_name,
         apartmentNumber: result.data.call?.apartmentNumber || result.data.call?.apartment_number,
         buildingId: result.data.call?.buildingId || result.data.call?.building_id,
@@ -345,7 +441,7 @@ export class CallCoordinator {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: agoraService['currentUser']?.id || '',
+          userId: agoraService.getCurrentUser()?.id || '',
           userType: 'resident',
           reason,
         }),

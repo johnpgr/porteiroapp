@@ -144,6 +144,10 @@ class AgoraService {
     this.currentUser = user;
   }
 
+  getCurrentUser(): CurrentUserContext | null {
+    return this.currentUser;
+  }
+
   on = this.emitter.on.bind(this.emitter);
   off = this.emitter.off.bind(this.emitter);
 
@@ -176,16 +180,20 @@ class AgoraService {
 
     const eventHandler: IRtcEngineEventHandler = {
       onJoinChannelSuccess: (connection) => {
+        console.log(`[AgoraService] ✅ RTC Join success: ${connection.channelId}`);
         this.emitter.emit('rtcJoinSuccess', { channelId: connection.channelId ?? '' });
       },
       onLeaveChannel: (connection) => {
         this.emitter.emit('rtcLeave', { channelId: connection.channelId ?? undefined });
       },
       onUserJoined: (_, remoteUid) => {
-        this.emitter.emit('rtcUserJoined', { remoteUid: Number(remoteUid) });
+        console.log(`[AgoraService] 👤 RTC User joined: ${remoteUid} (type: ${typeof remoteUid})`);
+        // Don't convert to Number - remoteUid can be a string (UUID) when using user accounts
+        this.emitter.emit('rtcUserJoined', { remoteUid });
       },
       onUserOffline: (_, remoteUid, reason) => {
-        this.emitter.emit('rtcUserOffline', { remoteUid: Number(remoteUid), reason });
+        console.log(`[AgoraService] 👋 RTC User offline: ${remoteUid}, reason: ${reason}`);
+        this.emitter.emit('rtcUserOffline', { remoteUid, reason });
       },
       onError: (err, msg) => {
         this.emitter.emit('rtcError', { code: err, message: msg });
@@ -499,15 +507,33 @@ class AgoraService {
       }, opts.timeout)
     );
 
-    const warmupPromise = this.initializeStandby()
-      .then(() => {
-        console.log('[AgoraService] ✅ RTM warmup complete');
+    const warmupPromise = (async () => {
+      try {
+        // Start RTM initialization
+        await this.initializeStandby();
+        
+        // Wait for RTM to actually connect (poll status with timeout)
+        const maxWait = 5000; // 5 second max wait for connection
+        const pollInterval = 100; // Check every 100ms
+        const startTime = Date.now();
+        
+        while (this.rtmStatus !== 'connected') {
+          if (Date.now() - startTime > maxWait) {
+            console.error('[AgoraService] ⏱️ RTM connection timeout after initialization');
+            return false;
+          }
+          
+          // Small delay before checking again
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        console.log('[AgoraService] ✅ RTM warmup complete - status is connected');
         return true;
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('[AgoraService] ❌ RTM warmup failed:', err);
         return false;
-      });
+      }
+    })();
 
     const result = await Promise.race([warmupPromise, timeoutPromise]);
     console.log(`[AgoraService] warmupRTM result: ${result}`);

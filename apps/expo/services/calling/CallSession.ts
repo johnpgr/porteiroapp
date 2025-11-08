@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 import { agoraService } from '~/services/agora/AgoraService';
 import agoraAudioService from '~/services/audioService';
 import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
@@ -59,6 +60,9 @@ export class CallSession {
   // Event emitter
   private eventHandlers = new Map<SessionEvent, Set<EventHandler>>();
 
+  // RTC event subscriptions
+  private rtcUnsubscribers: (() => void)[] = [];
+
   constructor(options: CallSessionOptions) {
     this.id = options.id;
     this.channelName = options.channelName;
@@ -112,6 +116,53 @@ export class CallSession {
     this.emit('stateChanged', { oldState, newState });
   }
 
+  /**
+   * Setup RTC event listeners to track call state
+   */
+  private setupRtcEventListeners(): void {
+    console.log(`[CallSession] Setting up RTC event listeners`);
+
+    // Listen for remote user joining the channel
+    const unsubUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
+      console.log(`[CallSession] Remote user joined: ${remoteUid}`);
+      
+      // Transition from connecting → connected when first user joins
+      if (this._state === 'connecting') {
+        this.setState('connected');
+      }
+    });
+
+    // Listen for remote user leaving the channel
+    const unsubUserOffline = agoraService.on('rtcUserOffline', ({ remoteUid, reason }) => {
+      console.log(`[CallSession] Remote user offline: ${remoteUid}, reason: ${reason}`);
+      
+      // If we're connected and other party leaves, end the call
+      if (this._state === 'connected') {
+        console.log(`[CallSession] Other party left, ending call`);
+        void this.end('drop');
+      }
+    });
+
+    // Listen for RTC errors
+    const unsubRtcError = agoraService.on('rtcError', ({ code, message }) => {
+      console.error(`[CallSession] RTC error: ${code} - ${message}`);
+      this.setState('failed');
+      this.emit('error', { error: new Error(`RTC error: ${code}`), operation: 'rtc' });
+    });
+
+    // Store unsubscribers for cleanup
+    this.rtcUnsubscribers.push(unsubUserJoined, unsubUserOffline, unsubRtcError);
+  }
+
+  /**
+   * Cleanup RTC event listeners
+   */
+  private cleanupRtcEventListeners(): void {
+    console.log(`[CallSession] Cleaning up RTC event listeners`);
+    this.rtcUnsubscribers.forEach(unsub => unsub());
+    this.rtcUnsubscribers = [];
+  }
+
   // ========================================
   // Lifecycle Operations
   // ========================================
@@ -134,6 +185,9 @@ export class CallSession {
 
     this._rtmReady = true;
     this.setState('rtm_ready');
+
+    // Subscribe to RTC events for call state management
+    this.setupRtcEventListeners();
 
     console.log(`[CallSession] ✅ Initialized`);
   }
@@ -161,6 +215,18 @@ export class CallSession {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
+      const userId = this.getCurrentUserId();
+      const requestBody = {
+        userId,
+        userType: 'resident',
+      };
+
+      console.log(`[CallSession] Calling answer API:`, {
+        url: `${this.getApiBaseUrl()}/api/calls/${this.id}/answer`,
+        userId,
+        hasToken: !!accessToken,
+      });
+
       const response = await fetch(
         `${this.getApiBaseUrl()}/api/calls/${this.id}/answer`,
         {
@@ -169,15 +235,28 @@ export class CallSession {
             'Content-Type': 'application/json',
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
-          body: JSON.stringify({
-            userId: this.getCurrentUserId(),
-            userType: 'resident',
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 
       if (!response.ok) {
-        throw new Error(`Answer API failed: ${response.status}`);
+        // Get detailed error message from API
+        let errorMessage = `Answer API failed: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('[CallSession] API error response:', errorData);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // Response body not JSON, use text
+          try {
+            const errorText = await response.text();
+            console.error('[CallSession] API error text:', errorText);
+            if (errorText) errorMessage = errorText;
+          } catch {
+            // Ignore
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -187,29 +266,67 @@ export class CallSession {
         throw new Error('No tokens in answer response');
       }
 
+      console.log(`[CallSession] Token bundle received:`, {
+        hasRtcToken: !!this._localBundle.rtcToken,
+        hasRtmToken: !!this._localBundle.rtmToken,
+        uid: this._localBundle.uid,
+        channelName: this._localBundle.channelName,
+      });
+
       // Join RTC channel
       console.log(`[CallSession] Joining RTC channel...`);
       this.setState('rtc_joining');
 
-      const rtcEngine = await agoraService.ensureRtcEngine();
-      const joinResult = rtcEngine.joinChannel(
-        this._localBundle.rtcToken,
-        this.channelName,
-        parseInt(this._localBundle.uid, 10) || 0,
-        {
-          autoSubscribeAudio: true,
-          autoSubscribeVideo: false,
-          publishCameraTrack: false,
-          publishMicrophoneTrack: true,
-        }
-      );
-
-      if (joinResult !== 0) {
-        throw new Error(`Failed to join RTC channel: ${joinResult}`);
+      // Request microphone permissions before joining
+      console.log(`[CallSession] Requesting microphone permissions...`);
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn(`[CallSession] ⚠️ Microphone permission denied: ${status}`);
+        // Continue anyway - user might grant permission later
+      } else {
+        console.log(`[CallSession] ✅ Microphone permission granted`);
       }
+
+      console.log(`[CallSession] RTC join params:`, {
+        channelName: this.channelName,
+        userAccount: this._localBundle.uid,
+        tokenPrefix: this._localBundle.rtcToken?.substring(0, 20) + '...',
+      });
+
+      // Use joinChannelWithUserAccount since UID is a string (UUID)
+      await agoraService.joinChannelWithUserAccount({
+        token: this._localBundle.rtcToken,
+        channelName: this.channelName,
+        userAccount: this._localBundle.uid,
+      });
 
       this._rtcJoined = true;
       this.setState('connecting');
+
+      // Send RTM ANSWER signal to notify other participants (especially porteiro)
+      console.log(`[CallSession] Sending ANSWER signal to participants...`);
+      try {
+        const answerSignal = {
+          t: 'ANSWER' as const,
+          callId: this.id,
+          from: this.getCurrentUserId(),
+          channel: this.channelName,
+          timestamp: Date.now(),
+        };
+
+        const participantIds = this.participants.map(p => p.userId).filter(Boolean);
+        console.log(`[CallSession] Participant IDs:`, participantIds);
+        
+        if (participantIds.length > 0) {
+          await agoraService.sendPeerMessage(participantIds, answerSignal);
+          console.log(`[CallSession] ✅ ANSWER signal sent to ${participantIds.length} participants`);
+        } else {
+          console.warn(`[CallSession] ⚠️ No valid participant IDs to send ANSWER signal`);
+        }
+      } catch (signalError) {
+        console.warn(`[CallSession] ⚠️ Failed to send ANSWER signal:`, signalError);
+        // Don't fail the call if signal sending fails
+      }
 
       console.log(`[CallSession] ✅ Call answered successfully`);
     } catch (error) {
@@ -229,11 +346,34 @@ export class CallSession {
     try {
       this.setState('ending');
 
+      // Send RTM END signal to notify other participants
+      console.log(`[CallSession] Sending END signal to participants...`);
+      try {
+        const endSignal = {
+          t: 'END' as const,
+          callId: this.id,
+          from: this.getCurrentUserId(),
+          channel: this.channelName,
+          timestamp: Date.now(),
+        };
+
+        const participantIds = this.participants.map(p => p.userId);
+        if (participantIds.length > 0) {
+          await agoraService.sendPeerMessage(participantIds, endSignal);
+          console.log(`[CallSession] ✅ END signal sent to ${participantIds.length} participants`);
+        }
+      } catch (signalError) {
+        console.warn(`[CallSession] ⚠️ Failed to send END signal:`, signalError);
+      }
+
       // Leave RTC channel
       if (this._rtcJoined) {
         await agoraService.leaveRtcChannel();
         this._rtcJoined = false;
       }
+
+      // Cleanup RTC event listeners
+      this.cleanupRtcEventListeners();
 
       // Notify backend
       const { data: sessionData } = await supabase.auth.getSession();
@@ -271,6 +411,26 @@ export class CallSession {
     console.log(`[CallSession] Declining call ${this.id}...`);
 
     try {
+      // Send RTM DECLINE signal to notify other participants
+      console.log(`[CallSession] Sending DECLINE signal to participants...`);
+      try {
+        const declineSignal = {
+          t: 'DECLINE' as const,
+          callId: this.id,
+          from: this.getCurrentUserId(),
+          channel: this.channelName,
+          timestamp: Date.now(),
+        };
+
+        const participantIds = this.participants.map(p => p.userId);
+        if (participantIds.length > 0) {
+          await agoraService.sendPeerMessage(participantIds, declineSignal);
+          console.log(`[CallSession] ✅ DECLINE signal sent to ${participantIds.length} participants`);
+        }
+      } catch (signalError) {
+        console.warn(`[CallSession] ⚠️ Failed to send DECLINE signal:`, signalError);
+      }
+
       // Notify backend
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -289,6 +449,9 @@ export class CallSession {
       }).catch(err => console.warn('[CallSession] Decline API failed:', err));
 
       this.setState('declined');
+
+      // Cleanup RTC event listeners
+      this.cleanupRtcEventListeners();
 
       // Clear from storage
       await this.clear();
@@ -408,7 +571,7 @@ export class CallSession {
 
   private getCurrentUserId(): string {
     // This should be passed in constructor ideally, but for now get from context
-    return agoraService['currentUser']?.id || '';
+    return agoraService.getCurrentUser()?.id || '';
   }
 
   /**

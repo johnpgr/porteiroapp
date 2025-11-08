@@ -1,39 +1,10 @@
-import { Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { ScrollView, StyleSheet } from 'react-native';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import { callKeepService } from '~/services/CallKeepService';
 
 export default function MoradorSettings() {
-  const handleTestCall = async () => {
-    try {
-      const testCallUUID = `test-${Date.now()}`;
-      await callKeepService.displayIncomingCall(testCallUUID, 'Test Doorman', 'Apt 123', false);
-      console.log('[MoradorSettings] ✅ Test CallKeep incoming call displayed');
-    } catch (error) {
-      console.error('[MoradorSettings] ❌ Test CallKeep incoming call failed:', error);
-      Alert.alert('Test Failed', String(error));
-    }
-  };
-
-  const navigateToStatus = () => {
-    router.push('/morador/callkeep-status');
-  };
-
   return (
     <ProtectedRoute requiredRole="morador">
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Developer Tools</Text>
-          <Text style={styles.subtitle}>
-            Use these tools to debug CallKeep behaviour during intercom calls.
-          </Text>
-
-          <View style={styles.actions}>
-            <Button title="🧪 Test CallKeep UI" onPress={handleTestCall} />
-            <View style={styles.spacer} />
-            <Button title="📊 View Status" onPress={navigateToStatus} />
-          </View>
-        </View>
       </ScrollView>
     </ProtectedRoute>
   );

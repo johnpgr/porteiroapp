@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Phone, PhoneOff } from 'lucide-react-native';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from 'lucide-react-native';
 import agoraAudioService from '~/services/audioService';
+import { agoraService } from '~/services/agora/AgoraService';
 import type { CallSession } from '~/services/calling/CallSession';
+import type { CallLifecycleState } from '~/services/calling/stateMachine';
 
 const { width } = Dimensions.get('window');
 
@@ -13,6 +15,23 @@ interface FullScreenCallUIProps {
 }
 
 const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, onDecline }) => {
+  // Track session state changes to trigger re-renders
+  const [sessionState, setSessionState] = useState<CallLifecycleState>(session.state);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+
+  // Subscribe to session state changes
+  useEffect(() => {
+    const unsubscribe = session.on('stateChanged', ({ newState }) => {
+      console.log('[FullScreenCallUI] Session state changed:', newState);
+      setSessionState(newState);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [session]);
+
   // Play ringtone when component mounts
   useEffect(() => {
     agoraAudioService.playIntercomRingtone();
@@ -35,8 +54,32 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
     // UI closes via state change
   };
 
+  const handleToggleMute = async () => {
+    try {
+      const rtcEngine = await agoraService.ensureRtcEngine();
+      const newMutedState = !isMuted;
+      rtcEngine.muteLocalAudioStream(newMutedState);
+      setIsMuted(newMutedState);
+      console.log(`[FullScreenCallUI] Mute toggled: ${newMutedState}`);
+    } catch (error) {
+      console.error('[FullScreenCallUI] Failed to toggle mute:', error);
+    }
+  };
+
+  const handleToggleSpeaker = async () => {
+    try {
+      const rtcEngine = await agoraService.ensureRtcEngine();
+      const newSpeakerState = !isSpeakerOn;
+      rtcEngine.setEnableSpeakerphone(newSpeakerState);
+      setIsSpeakerOn(newSpeakerState);
+      console.log(`[FullScreenCallUI] Speaker toggled: ${newSpeakerState}`);
+    } catch (error) {
+      console.error('[FullScreenCallUI] Failed to toggle speaker:', error);
+    }
+  };
+
   // Show in-call controls if call has been answered
-  const showActiveCall = session.state !== 'ringing' && session.state !== 'rtm_ready';
+  const showActiveCall = sessionState !== 'ringing' && sessionState !== 'rtm_ready';
 
   return (
     <View style={styles.overlay}>
@@ -46,13 +89,13 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
             {showActiveCall ? 'Em Chamada' : 'Chamada de Interfone'}
           </Text>
           <Text style={styles.statusText}>
-            {session.state === 'ringing' && 'Recebendo...'}
-            {session.state === 'rtm_ready' && 'Recebendo...'}
-            {session.state === 'connecting' && 'Conectando...'}
-            {session.state === 'connected' && 'Conectado'}
-            {session.state === 'native_answered' && 'Atendendo...'}
-            {session.state === 'token_fetching' && 'Conectando...'}
-            {session.state === 'rtc_joining' && 'Conectando...'}
+            {sessionState === 'ringing' && 'Recebendo...'}
+            {sessionState === 'rtm_ready' && 'Recebendo...'}
+            {sessionState === 'connecting' && 'Conectando...'}
+            {sessionState === 'connected' && 'Conectado'}
+            {sessionState === 'native_answered' && 'Atendendo...'}
+            {sessionState === 'token_fetching' && 'Conectando...'}
+            {sessionState === 'rtc_joining' && 'Conectando...'}
           </Text>
         </View>
 
@@ -70,6 +113,32 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
         {showActiveCall ? (
           // Active call controls
           <>
+            {sessionState === 'connected' && (
+              <View style={styles.callControls}>
+                <TouchableOpacity
+                  style={[styles.controlButton, isMuted && styles.controlButtonActive]}
+                  onPress={handleToggleMute}
+                >
+                  {isMuted ? (
+                    <MicOff size={24} color="#fff" />
+                  ) : (
+                    <Mic size={24} color="#666" />
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
+                  onPress={handleToggleSpeaker}
+                >
+                  {isSpeakerOn ? (
+                    <Volume2 size={24} color="#fff" />
+                  ) : (
+                    <VolumeX size={24} color="#666" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.endCallButton]}
               onPress={handleDecline}
@@ -170,6 +239,26 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     backgroundColor: '#ef4444',
+  },
+  callControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginVertical: 24,
+  },
+  controlButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2a2a2a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#3a3a3a',
+  },
+  controlButtonActive: {
+    backgroundColor: '#22c55e',
+    borderColor: '#22c55e',
   },
   endCallButton: {
     backgroundColor: '#ef4444',

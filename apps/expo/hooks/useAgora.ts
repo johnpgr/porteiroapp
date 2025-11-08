@@ -1108,8 +1108,18 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       }
 
       if (activeCall && parsed.callId === activeCall.callId) {
+        console.log(`[RTM] Signal received for active call: ${parsed.t}`);
         const nextState = deriveNextStateFromSignal(callState, parsed.t as RtmSignalType);
-        setCallState(nextState);
+        console.log(`[RTM] State transition: ${callState} → ${nextState}`);
+        
+        // For outgoing calls, transition directly to 'connected' when receiving ANSWER
+        // (don't wait for RTC user joined event due to potential race conditions)
+        if (parsed.t === 'ANSWER' && activeCall.isOutgoing && nextState === 'connecting') {
+          console.log(`[RTM] Outgoing call answered - transitioning to connected`);
+          setCallState('connected');
+        } else {
+          setCallState(nextState);
+        }
 
         if (parsed.t === 'END' || parsed.t === 'DECLINE') {
           // Don't clear activeCall here - let leaveChannel handle it after timer
@@ -1406,9 +1416,13 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     });
 
     const offUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
-      setCallState((prev) =>
-        prev === 'connecting' || prev === 'ringing' || prev === 'dialing' ? 'connected' : prev
-      );
+      console.log(`[useAgora] 🎉 RTC User joined: ${remoteUid}`);
+      console.log(`[useAgora] Current call state: ${callStateRef.current}`);
+      setCallState((prev) => {
+        const newState = prev === 'connecting' || prev === 'ringing' || prev === 'dialing' ? 'connected' : prev;
+        console.log(`[useAgora] State transition after user joined: ${prev} → ${newState}`);
+        return newState;
+      });
     });
 
     const offUserOffline = agoraService.on('rtcUserOffline', ({ remoteUid, reason }) => {

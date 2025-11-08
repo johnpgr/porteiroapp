@@ -6,14 +6,12 @@ import type { Subscription } from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '~/hooks/useAuth';
 import { agoraService } from '~/services/agora/AgoraService';
-import FullScreenCallUI from '~/components/FullScreenCallUI';
 
 import { Ionicons } from '@expo/vector-icons';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
-import type { CallSession } from '~/services/calling/CallSession';
 
 export default function MoradorLayout() {
   const pathname = usePathname();
@@ -22,7 +20,6 @@ export default function MoradorLayout() {
   const { user, signOut } = useAuth();
   const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<CallSession | null>(null);
 
   const shouldHideHeader =
     pathname === '/morador/login' ||
@@ -159,27 +156,14 @@ export default function MoradorLayout() {
     void initializeCallSystem();
   }, [user?.id]);
 
-  // Subscribe to call coordinator events
-  useEffect(() => {
-    const unsubscribers = [
-      callCoordinator.on('sessionCreated', ({ session }) => {
-        console.log('[MoradorLayout] Incoming call session created');
-        setIncomingCall(session);
-      }),
-      callCoordinator.on('sessionEnded', () => {
-        console.log('[MoradorLayout] Call session ended');
-        setIncomingCall(null);
-      })
-    ];
-
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-    };
-  }, []);
+  // NOTE: Call UI is handled globally in root _layout.tsx
+  // The coordinator subscription and FullScreenCallUI rendering happens there
+  // to avoid duplicate ringtones and UI instances
 
   // 🔄 CHECK FOR PENDING CALL ON APP STARTUP
-  // If user tapped "Answer" on notification while app was killed,
-  // the call data is stored in AsyncStorage and we need to recover it
+  // Handles two scenarios:
+  // 1. App launched from notification tap -> getLastNotificationResponseAsync()
+  // 2. Background task stored call data -> AsyncStorage
   useEffect(() => {
     if (!user?.id) {
       return;
@@ -188,29 +172,89 @@ export default function MoradorLayout() {
     const checkPendingCall = async () => {
       try {
         console.log('[MoradorLayout] 🔍 Checking for pending call on startup...');
+        console.log('[MoradorLayout] User ID:', user?.id);
+        
+        // METHOD 1: Check if app was launched from a notification tap
+        // This is more reliable than AsyncStorage for detecting notification launches
+        console.log('[MoradorLayout] 📱 Checking getLastNotificationResponseAsync...');
+        const lastNotificationResponse = await Notifications.getLastNotificationResponseAsync();
+        
+        if (lastNotificationResponse) {
+          const rawData = lastNotificationResponse.notification.request.content.data;
+          const notificationData = normalizeIntercomPayload(rawData);
+          console.log('[MoradorLayout] 📞 App launched from notification:', notificationData);
+          
+          if (notificationData?.type === 'intercom_call' && notificationData?.callId) {
+            console.log('[MoradorLayout] 🎉 Intercom call notification detected!');
+            console.log('[MoradorLayout] Call ID:', notificationData.callId);
+            console.log('[MoradorLayout] From:', notificationData.from);
+            console.log('[MoradorLayout] Caller name:', notificationData.fromName || notificationData.callerName);
+            
+            // Check if call is still active
+            const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+            console.log('[MoradorLayout] Checking call status at:', `${apiUrl}/api/calls/${notificationData.callId}/status`);
+            
+            const response = await fetch(`${apiUrl}/api/calls/${notificationData.callId}/status`);
+            const result = await response.json();
+            
+            console.log('[MoradorLayout] Call status response:', result.data?.call?.status);
+
+            if (result.success && (result.data?.call?.status === 'ringing' || result.data?.call?.status === 'calling')) {
+              console.log('[MoradorLayout] ✅ Call still active, recovering from notification...');
+              
+              // Delegate to CallCoordinator to handle the call
+              await callCoordinator.handleIncomingPush({
+                callId: (notificationData.callId as string) || 'unknown',
+                from: (notificationData.from as string) || '',
+                callerName: (notificationData.fromName as string) || (notificationData.callerName as string) || 'Porteiro',
+                apartmentNumber: (notificationData.apartmentNumber as string) || '',
+                buildingName: (notificationData.buildingName as string) || '',
+                channelName: (notificationData.channelName as string) || (notificationData.channel as string) || `call-${notificationData.callId}`,
+                timestamp: Date.now(),
+              });
+              
+              // Clear AsyncStorage backup if it exists
+              await AsyncStorage.removeItem('@pending_intercom_call');
+              return; // Exit early, call recovered successfully
+            } else {
+              console.log('[MoradorLayout] ⏭️ Call no longer active, skipping recovery');
+              console.log('[MoradorLayout] Call status was:', result.data?.call?.status);
+            }
+          }
+        } else {
+          console.log('[MoradorLayout] No notification response found');
+        }
+        
+        // METHOD 2: Check AsyncStorage (backup for when background task stored call data)
+        console.log('[MoradorLayout] 💾 Checking AsyncStorage for pending call...');
         const pendingData = await AsyncStorage.getItem('@pending_intercom_call');
         
         if (!pendingData) {
-          console.log('[MoradorLayout] No pending call found');
+          console.log('[MoradorLayout] No pending call in AsyncStorage');
           return;
         }
 
         const callData = JSON.parse(pendingData);
-        console.log('[MoradorLayout] 📞 Found pending call:', callData.callId);
+        console.log('[MoradorLayout] 📞 Found pending call in AsyncStorage:', callData.callId);
+        console.log('[MoradorLayout] Call data:', callData);
 
         // Check if call is still active
         const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+        console.log('[MoradorLayout] Checking call status at:', `${apiUrl}/api/calls/${callData.callId}/status`);
+        
         const response = await fetch(`${apiUrl}/api/calls/${callData.callId}/status`);
         const result = await response.json();
+        
+        console.log('[MoradorLayout] Call status response:', result.data?.call?.status);
 
-        if (result.success && result.data?.status === 'ringing') {
-          console.log('[MoradorLayout] ✅ Call still active, recovering...');
+        if (result.success && (result.data?.call?.status === 'ringing' || result.data?.call?.status === 'calling')) {
+          console.log('[MoradorLayout] ✅ Call still active, recovering from AsyncStorage...');
           
           // Delegate to CallCoordinator to handle the call
           await callCoordinator.handleIncomingPush({
             callId: callData.callId,
             from: callData.from,
-            callerName: callData.callerName || 'Doorman',
+            callerName: callData.callerName || 'Porteiro',
             apartmentNumber: callData.apartmentNumber || '',
             buildingName: callData.buildingName || '',
             channelName: callData.channelName,
@@ -218,6 +262,7 @@ export default function MoradorLayout() {
           });
         } else {
           console.log('[MoradorLayout] ⏭️ Call no longer active, skipping recovery');
+          console.log('[MoradorLayout] Call status was:', result.data?.call?.status);
         }
 
         // Clear pending call data
@@ -366,38 +411,12 @@ export default function MoradorLayout() {
           <Stack.Screen name="notifications" />
           <Stack.Screen name="preregister" />
           <Stack.Screen name="testes" />
-          {/* TODO: Remove or update CallKeep debug screens
-          <Stack.Screen
-            name="callkeep-tools"
-            options={{ headerShown: true, title: 'Ferramentas CallKeep' }}
-          />
-          <Stack.Screen
-            name="callkeep-status"
-            options={{ headerShown: true, title: 'Status CallKeep' }}
-          />
-          */}
         </Stack>
       </View>
 
-      {/* 📞 CHAMADA DE INTERFONE: Full-screen call UI
-          - CallCoordinator emits 'sessionCreated' event when call arrives
-          - Shows FullScreenCallUI with absolute positioning (z-index 999)
-          - User can answer/decline via UI buttons
-          - CallCoordinator manages session lifecycle
+      {/* 📞 CHAMADA DE INTERFONE
+          Call UI is rendered globally in root _layout.tsx to avoid duplicates
       */}
-      {incomingCall && (
-        <FullScreenCallUI
-          session={incomingCall}
-          onAnswer={() => {
-            console.log('✅ [MoradorLayout] User answered call');
-            void callCoordinator.answerActiveCall();
-          }}
-          onDecline={() => {
-            console.log('❌ [MoradorLayout] User declined call');
-            void callCoordinator.endActiveCall();
-          }}
-        />
-      )}
     </View>
   );
 }
