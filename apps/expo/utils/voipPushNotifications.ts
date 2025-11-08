@@ -9,7 +9,7 @@
  * Flow:
  * 1. Register for VoIP push on app start (iOS only)
  * 2. Receive VoIP token → Save to database
- * 3. Receive VoIP push → Display CallKeep UI immediately
+ * 3. Receive VoIP push → Display full-screen call UI immediately
  * 4. User answers → Join Agora call
  */
 
@@ -172,7 +172,7 @@ class VoipPushNotificationService {
 
   /**
    * Handle incoming VoIP push notification
-   * Delegates to CallCoordinator for proper RTM warmup + CallKeep integration
+   * Delegates to CallCoordinator for proper RTM warmup + full-screen UI
    */
   private async handleIncomingVoipPush(notification: any): Promise<void> {
     console.log('[VoIP Push] 🎯 Processing incoming push...');
@@ -200,7 +200,7 @@ class VoipPushNotificationService {
       // 2. Show error + retry if RTM fails
       // 3. Create CallSession
       // 4. Persist session
-      // 5. Display CallKeep UI
+      // 5. Emit event to show full-screen UI
       console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');
 
       await callCoordinator.handleIncomingPush({
@@ -218,7 +218,6 @@ class VoipPushNotificationService {
       console.error('[VoIP Push] ❌ Error handling incoming push:', error);
 
       // Fallback: If coordinator fails, show error to user
-      // iOS 13+ still requires CallKit response, so we must handle gracefully
       console.error('[VoIP Push] Coordinator failed, call may not work correctly');
     }
   }

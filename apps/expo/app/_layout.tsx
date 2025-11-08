@@ -17,6 +17,9 @@ import { queueNotification } from '../services/OfflineQueue';
 import AnalyticsTracker from '../services/AnalyticsTracker';
 import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
 import { initializeNotificationHandler } from '../services/notificationHandler';
+import { callCoordinator } from '~/services/calling/CallCoordinator';
+import type { CallSession } from '~/services/calling/CallSession';
+import FullScreenCallUI from '~/components/FullScreenCallUI';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
@@ -276,14 +279,18 @@ function DeepLinkManager() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({});
+  const [loaded, error] = useFonts({});
   const router = useRouter();
   const [appReady, setAppReady] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<CallSession | null>(null);
 
   useEffect(() => {
     async function prepare() {
       try {
         console.log('🚀 Iniciando preparação do app...');
+
+        // Initialize call coordinator
+        callCoordinator.initialize();
 
         console.log('✅ App pronto, escondendo splash screen');
         setAppReady(true);
@@ -303,6 +310,24 @@ export default function RootLayout() {
       prepare();
     }
   }, [loaded]);
+
+  // Subscribe to call coordinator events
+  useEffect(() => {
+    const unsubscribers = [
+      callCoordinator.on('sessionCreated', ({ session }) => {
+        console.log('[_layout] Incoming call session created');
+        setIncomingCall(session);
+      }),
+      callCoordinator.on('sessionEnded', () => {
+        console.log('[_layout] Call session ended');
+        setIncomingCall(null);
+      })
+    ];
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, []);
 
   // NOTE: Notification handler is configured in services/notificationHandler.ts
   // and initialized at module level to prevent conflicts
@@ -327,41 +352,21 @@ export default function RootLayout() {
         // Handle intercom call notification actions
         if (data?.type === 'intercom_call') {
           console.log('📞 [Click] Intercom call notification action');
-          
-          const callData = {
-            callId: data.callId,
-            from: data.from,
-            callerName: data.callerName || data.fromName || 'Doorman',
-            apartmentNumber: data.apartmentNumber || '',
-            buildingName: data.buildingName || '',
-            channelName: data.channelName || data.channel,
-            timestamp: data.timestamp || Date.now(),
-          };
 
           if (actionId === 'ANSWER_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
             console.log('✅ [Click] User wants to answer call');
             
-            // Store call data for app to pick up
-            await AsyncStorage.setItem('@pending_intercom_call', JSON.stringify(callData));
+            // Coordinator handles answer logic
+            await callCoordinator.answerActiveCall();
             
-            // Navigate to morador home (will trigger call recovery)
+            // Navigate to morador home (UI will appear via state subscription)
             router.push('/morador/(tabs)');
             return;
           } else if (actionId === 'DECLINE_CALL') {
             console.log('❌ [Click] User declined call');
             
-            // Decline without opening app
-            try {
-              const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-              await fetch(`${apiUrl}/api/calls/${callData.callId}/decline`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reason: 'declined' }),
-              });
-              console.log('✅ [Click] Call declined successfully');
-            } catch (error) {
-              console.error('❌ [Click] Failed to decline call:', error);
-            }
+            // Coordinator handles decline logic + API call
+            await callCoordinator.endActiveCall('decline');
             return;
           }
         }
@@ -408,6 +413,19 @@ export default function RootLayout() {
             </ReadOnlyGuard>
           </ThemeProvider>
         </AuthProvider>
+        {incomingCall && (
+          <FullScreenCallUI
+            session={incomingCall}
+            onAnswer={() => {
+              console.log('[_layout] User tapped Answer');
+              callCoordinator.answerActiveCall();
+            }}
+            onDecline={() => {
+              console.log('[_layout] User tapped Decline');
+              callCoordinator.endActiveCall('decline');
+            }}
+          />
+        )}
       </SafeAreaView>
     </SafeAreaProvider>
   );

@@ -112,22 +112,11 @@ async function setupNotificationChannels(): Promise<void> {
     showBadge: true,
   });
 
-  // CallKeep foreground service channel (CRITICAL - required for CallKeep to work)
-  await Notifications.setNotificationChannelAsync('intercom_call_keep', {
-    name: 'Chamadas Ativas (CallKeep)',
-    importance: Notifications.AndroidImportance.MAX,
-    sound: 'telephone_toque_interfone.mp3',
-    enableVibrate: true,
-    enableLights: true,
-    showBadge: true,
-    description: 'Canal para gerenciar chamadas de interfone ativas',
-  });
-
   // Call channel (for AndroidForegroundService)
   await Notifications.setNotificationChannelAsync('call', {
     name: 'Chamadas em Progresso',
     importance: Notifications.AndroidImportance.HIGH,
-    sound: null, // No sound - CallKeep handles ringtone
+    sound: null, // No sound - custom ringtone handled separately
     enableVibrate: false,
     showBadge: true,
     description: 'Mantém o app ativo durante chamadas',

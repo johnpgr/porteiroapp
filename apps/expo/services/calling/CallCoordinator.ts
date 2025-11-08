@@ -1,7 +1,6 @@
 import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
-import { callKeepService } from '~/services/CallKeepService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
 
@@ -40,7 +39,7 @@ export class CallCoordinator {
   // ========================================
 
   /**
-   * Initialize coordinator - register CallKeep handlers ONCE
+   * Initialize coordinator
    * Call this on app start after user is authenticated
    */
   initialize(): void {
@@ -50,11 +49,6 @@ export class CallCoordinator {
     }
 
     console.log('[CallCoordinator] Initializing...');
-
-    // Register CallKeep event handlers
-    callKeepService.on('answer', this.handleAnswer.bind(this));
-    callKeepService.on('end', this.handleEnd.bind(this));
-    callKeepService.on('mute', this.handleMute.bind(this));
 
     // Try to recover any persisted session
     void this.recoverPersistedSession();
@@ -96,7 +90,14 @@ export class CallCoordinator {
 
     // Check if we already have this call
     if (this.activeSession?.id === data.callId) {
-      console.log('[CallCoordinator] Call already exists, ignoring');
+      console.log('[CallCoordinator] Call already exists, ignoring duplicate push');
+      return;
+    }
+
+    // Auto-decline if already in a call (one call at a time)
+    if (this.activeSession) {
+      console.log('[CallCoordinator] Already in call, auto-declining new call');
+      await this.declineCall(data.callId, 'busy');
       return;
     }
 
@@ -154,7 +155,6 @@ export class CallCoordinator {
       console.log('[CallCoordinator] Step 3: Creating session...');
       const session = new CallSession({
         id: data.callId,
-        callKeepUUID: data.callId, // Use callId as UUID for consistency
         channelName: data.channelName || callDetails.channelName || `call-${data.callId}`,
         participants: callDetails.participants || [],
         isOutgoing: false,
@@ -169,15 +169,6 @@ export class CallCoordinator {
       // Step 4: Persist session (user chose: "yes, persist")
       console.log('[CallCoordinator] Step 4: Persisting session...');
       await session.save();
-
-      // Step 5: Show CallKeep UI
-      console.log('[CallCoordinator] Step 5: Displaying CallKeep UI...');
-      await callKeepService.displayIncomingCall(
-        session.callKeepUUID,
-        session.callerName || 'Doorman',
-        session.apartmentNumber ? `Apt ${session.apartmentNumber}` : 'Intercom Call',
-        false // hasVideo
-      );
 
       console.log('[CallCoordinator] ✅ Call ready for answer');
 
@@ -259,102 +250,47 @@ export class CallCoordinator {
   }
 
   // ========================================
-  // Call Actions (from CallKeep)
+  // Public Call Actions
   // ========================================
 
   /**
-   * Handle answer action from CallKeep
-   * Called when user answers from lock screen or CallKeep UI
+   * Answer the active call
+   * Called from UI when user taps answer button
    */
-  private async handleAnswer(callUUID: string): Promise<void> {
-    console.log('[CallCoordinator] 🎯 Answer action for UUID:', callUUID);
-
-    const session = this.activeSession;
-
-    // Case 1: Session exists in memory (happy path)
-    if (session && session.callKeepUUID === callUUID) {
-      console.log('[CallCoordinator] Session found in memory');
-
-      try {
-        await session.answer();
-        console.log('[CallCoordinator] ✅ Call answered');
-      } catch (error) {
-        console.error('[CallCoordinator] ❌ Answer failed:', error);
-        Alert.alert('Call Failed', 'Unable to connect to the call.');
-      }
-
+  async answerActiveCall(): Promise<void> {
+    if (!this.activeSession) {
+      Alert.alert('No active call');
       return;
     }
 
-    // Case 2: Session not in memory, try to recover from storage
-    console.log('[CallCoordinator] No session in memory, checking storage...');
-
-    const recovered = await CallSession.load();
-    if (recovered && recovered.callKeepUUID === callUUID) {
-      console.log('[CallCoordinator] ✅ Session recovered from storage');
-
-      // Restore as active session
-      this.activeSession = recovered;
-
-      try {
-        await recovered.answer();
-        console.log('[CallCoordinator] ✅ Recovered call answered');
-      } catch (error) {
-        console.error('[CallCoordinator] ❌ Recovered answer failed:', error);
-        Alert.alert('Call Failed', 'Unable to connect to the call.');
-      }
-
-      return;
-    }
-
-    // Case 3: No session at all - this shouldn't happen but handle gracefully
-    console.error('[CallCoordinator] ❌ No session found for answer');
-    Alert.alert(
-      'Call Lost',
-      'Call information was lost. This may happen after an app restart.',
-      [{ text: 'OK' }]
-    );
-
-    // End the native call
-    await callKeepService.reportEndCall(callUUID, 1);
-  }
-
-  /**
-   * Handle end action from CallKeep
-   * Called when user ends call from CallKeep UI
-   */
-  private async handleEnd(callUUID: string): Promise<void> {
-    console.log('[CallCoordinator] 🎯 End action for UUID:', callUUID);
-
-    const session = this.activeSession;
-
-    if (session && session.callKeepUUID === callUUID) {
-      await session.end('hangup');
-      this.activeSession = null;
-      console.log('[CallCoordinator] ✅ Call ended');
-      return;
-    }
-
-    // Try to recover and end
-    const recovered = await CallSession.load();
-    if (recovered && recovered.callKeepUUID === callUUID) {
-      await recovered.end('hangup');
-      console.log('[CallCoordinator] ✅ Recovered call ended');
-    }
-  }
-
-  /**
-   * Handle mute toggle from CallKeep
-   */
-  private async handleMute({ muted, callUUID }: { muted: boolean; callUUID: string }): Promise<void> {
-    console.log('[CallCoordinator] 🎯 Mute toggle:', muted, 'for UUID:', callUUID);
+    console.log('[CallCoordinator] Answering active call');
 
     try {
-      await agoraService.setMuted(muted);
-      console.log(`[CallCoordinator] ✅ Audio ${muted ? 'muted' : 'unmuted'}`);
+      await this.activeSession.answer();
+      console.log('[CallCoordinator] ✅ Call answered');
     } catch (error) {
-      console.error('[CallCoordinator] ❌ Mute toggle failed:', error);
+      console.error('[CallCoordinator] ❌ Answer failed:', error);
+      Alert.alert('Call Failed', 'Unable to connect to the call.');
     }
+  }
+
+  /**
+   * End the active call
+   * Called from UI when user taps decline or hangup button
+   */
+  async endActiveCall(reason: 'decline' | 'hangup' = 'hangup'): Promise<void> {
+    if (!this.activeSession) return;
+
+    console.log(`[CallCoordinator] Ending active call (${reason})`);
+
+    if (reason === 'decline') {
+      await this.activeSession.decline();
+    } else {
+      await this.activeSession.end(reason);
+    }
+
+    this.activeSession = null;
+    console.log('[CallCoordinator] ✅ Call ended');
   }
 
   // ========================================

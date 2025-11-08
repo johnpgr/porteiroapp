@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { agoraService } from '~/services/agora/AgoraService';
-import { callKeepService } from '~/services/CallKeepService';
 import agoraAudioService from '~/services/audioService';
 import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
 import { CALL_STATE_MACHINE, type CallLifecycleState } from './stateMachine';
@@ -10,7 +9,6 @@ const STORAGE_KEY = '@active_call_session';
 
 interface CallSessionData {
   id: string;
-  callKeepUUID: string;
   channelName: string;
   participants: CallParticipantSnapshot[];
   isOutgoing: boolean;
@@ -22,7 +20,6 @@ interface CallSessionData {
 
 interface CallSessionOptions {
   id: string;
-  callKeepUUID: string;
   channelName: string;
   participants: CallParticipantSnapshot[];
   isOutgoing: boolean;
@@ -41,7 +38,6 @@ type EventHandler = (payload: any) => void;
 export class CallSession {
   // Identity
   readonly id: string;
-  readonly callKeepUUID: string;
   readonly channelName: string;
   readonly initiatedAt: number;
 
@@ -54,7 +50,6 @@ export class CallSession {
 
   // State
   private _state: CallLifecycleState = 'idle';
-  private _nativeState: 'idle' | 'ringing' | 'active' = 'idle';
 
   // Connection status
   private _rtmReady: boolean = false;
@@ -66,7 +61,6 @@ export class CallSession {
 
   constructor(options: CallSessionOptions) {
     this.id = options.id;
-    this.callKeepUUID = options.callKeepUUID;
     this.channelName = options.channelName;
     this.participants = options.participants;
     this.isOutgoing = options.isOutgoing;
@@ -84,10 +78,6 @@ export class CallSession {
 
   get state(): CallLifecycleState {
     return this._state;
-  }
-
-  get nativeState(): 'idle' | 'ringing' | 'active' {
-    return this._nativeState;
   }
 
   get rtmReady(): boolean {
@@ -120,13 +110,6 @@ export class CallSession {
     console.log(`[CallSession] State: ${oldState} → ${newState}`);
 
     this.emit('stateChanged', { oldState, newState });
-  }
-
-  private setNativeState(state: 'idle' | 'ringing' | 'active'): void {
-    if (this._nativeState === state) return;
-
-    console.log(`[CallSession] Native state: ${this._nativeState} → ${state}`);
-    this._nativeState = state;
   }
 
   // ========================================
@@ -167,13 +150,9 @@ export class CallSession {
 
     try {
       this.setState('native_answered');
-      this.setNativeState('active');
 
       // Stop ringtone immediately
       await agoraAudioService.stopIntercomRingtone().catch(() => {});
-
-      // Mark CallKeep call as active
-      await callKeepService.answerIncoming(this.callKeepUUID);
 
       // Fetch tokens
       console.log(`[CallSession] Fetching tokens...`);
@@ -232,9 +211,6 @@ export class CallSession {
       this._rtcJoined = true;
       this.setState('connecting');
 
-      // Report connected to CallKeep
-      await callKeepService.reportConnectedCall(this.callKeepUUID);
-
       console.log(`[CallSession] ✅ Call answered successfully`);
     } catch (error) {
       console.error(`[CallSession] ❌ Answer failed:`, error);
@@ -258,10 +234,6 @@ export class CallSession {
         await agoraService.leaveRtcChannel();
         this._rtcJoined = false;
       }
-
-      // End CallKeep call
-      await callKeepService.endCall(this.callKeepUUID);
-      this.setNativeState('idle');
 
       // Notify backend
       const { data: sessionData } = await supabase.auth.getSession();
@@ -299,10 +271,6 @@ export class CallSession {
     console.log(`[CallSession] Declining call ${this.id}...`);
 
     try {
-      // Reject CallKeep call
-      await callKeepService.rejectCall(this.callKeepUUID);
-      this.setNativeState('idle');
-
       // Notify backend
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
@@ -333,51 +301,6 @@ export class CallSession {
   }
 
   // ========================================
-  // State Synchronization
-  // ========================================
-
-  /**
-   * Check if CallKeep native state matches our state
-   */
-  isConsistent(): boolean {
-    // If we're in an active call state, native should be active
-    const activeStates: CallLifecycleState[] = ['connecting', 'connected', 'native_answered', 'rtc_joining', 'token_fetching'];
-    if (activeStates.includes(this._state)) {
-      return this._nativeState === 'active';
-    }
-
-    // If we're ringing, native should be ringing
-    if (this._state === 'rtm_ready' || this._state === 'ringing') {
-      return this._nativeState === 'ringing';
-    }
-
-    // Terminal states should have idle native state
-    const terminalStates: CallLifecycleState[] = ['ended', 'declined', 'failed', 'missed'];
-    if (terminalStates.includes(this._state)) {
-      return this._nativeState === 'idle';
-    }
-
-    return true;
-  }
-
-  /**
-   * Force sync native state with current state
-   */
-  syncNativeState(): void {
-    console.log(`[CallSession] Syncing native state...`);
-
-    if (this._state === 'connected' && this._nativeState !== 'active') {
-      void callKeepService.reportConnectedCall(this.callKeepUUID);
-      this.setNativeState('active');
-    }
-
-    if (this._state === 'ended' && this._nativeState !== 'idle') {
-      void callKeepService.endCall(this.callKeepUUID);
-      this.setNativeState('idle');
-    }
-  }
-
-  // ========================================
   // Persistence
   // ========================================
 
@@ -388,7 +311,6 @@ export class CallSession {
     try {
       const data: CallSessionData = {
         id: this.id,
-        callKeepUUID: this.callKeepUUID,
         channelName: this.channelName,
         participants: this.participants,
         isOutgoing: this.isOutgoing,
@@ -417,7 +339,6 @@ export class CallSession {
 
       const session = new CallSession({
         id: data.id,
-        callKeepUUID: data.callKeepUUID,
         channelName: data.channelName,
         participants: data.participants,
         isOutgoing: data.isOutgoing,
@@ -515,12 +436,9 @@ export class CallSession {
   getDebugInfo(): Record<string, any> {
     return {
       id: this.id,
-      callKeepUUID: this.callKeepUUID,
       state: this._state,
-      nativeState: this._nativeState,
       rtmReady: this._rtmReady,
       rtcJoined: this._rtcJoined,
-      isConsistent: this.isConsistent(),
       age: Date.now() - this.initiatedAt,
     };
   }

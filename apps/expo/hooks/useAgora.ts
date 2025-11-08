@@ -15,7 +15,9 @@ import { deriveNextStateFromSignal, type CallLifecycleState } from '~/services/c
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
 import { agoraService } from '~/services/agora/AgoraService';
-import { callKeepService } from '~/services/CallKeepService';
+
+// NOTE: This hook is deprecated in favor of CallCoordinator + CallSession
+// CallKeep has been removed - using custom full-screen call UI instead
 
 type UserType = 'porteiro' | 'morador';
 
@@ -967,8 +969,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
 
       setIncomingInvite(null);
       setCallState('idle');
-      // Dismiss native call UI if visible (reject before connected)
-      try { await callKeepService.rejectCall(incomingInvite.signal.callId); } catch {}
+      // NOTE: CallKeep removed - using custom full-screen call UI
+      // try { await callKeepService.rejectCall(incomingInvite.signal.callId); } catch {}
     },
     [apiBaseUrl, currentUser, incomingInvite, schemaVersion, sendPeerSignal]
   );
@@ -1014,8 +1016,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
       setCallState('ending');
 
       await leaveChannel();
-      // Dismiss native call UI if visible
-      try { await callKeepService.endCall(callId); } catch {}
+      // NOTE: CallKeep removed - using custom full-screen call UI
+      // try { await callKeepService.endCall(callId); } catch {}
     },
     [activeCall, apiBaseUrl, currentUser, leaveChannel, schemaVersion, sendPeerSignal]
   );
@@ -1112,8 +1114,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
         if (parsed.t === 'END' || parsed.t === 'DECLINE') {
           // Don't clear activeCall here - let leaveChannel handle it after timer
           await leaveChannel();
-          // Ensure native UI is dismissed
-          try { await callKeepService.endCall(parsed.callId); } catch {}
+          // NOTE: CallKeep removed - using custom full-screen call UI
+          // try { await callKeepService.endCall(parsed.callId); } catch {}
         }
         return;
       }
@@ -1136,8 +1138,8 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
             console.warn('⚠️ Falha ao parar ringtone após cancelamento:', stopError);
           }
 
-          // Dismiss native UI for incoming cancel/decline before connected
-          try { await callKeepService.endCall(parsed.callId); } catch {}
+          // NOTE: CallKeep removed - using custom full-screen call UI
+          // try { await callKeepService.endCall(parsed.callId); } catch {}
 
           if (nextState === 'ended' || nextState === 'declined') {
             setTimeout(() => {
@@ -1261,11 +1263,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
   // CallCoordinator handles: answer, end, mute via event emitter pattern
   // This prevents re-registration on re-renders and stale closures
 
-  // Stop native + custom ringtone when our call becomes connected
+  // Stop custom ringtone when our call becomes connected
   useEffect(() => {
     if (callState === 'connected') {
-      const uuid = activeCall?.callId ?? undefined;
-      callKeepService.reportConnectedCall(uuid).catch(() => undefined);
+      // NOTE: CallKeep removed - using custom full-screen call UI
+      // const uuid = activeCall?.callId ?? undefined;
+      // callKeepService.reportConnectedCall(uuid).catch(() => undefined);
       try { void agoraAudioService.stopIntercomRingtone(); } catch {}
     }
   }, [callState, activeCall?.callId]);

@@ -2,7 +2,6 @@ import { supabase } from './supabase';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import voipPushService from './voipPushNotifications';
-import { callKeepService } from '~/services/CallKeepService';
 
 export interface SendPushNotificationParams {
   title: string;
@@ -239,27 +238,7 @@ export async function registerPushTokenAfterLogin(
 
     console.log('✅ [registerPushToken] Permissão concedida, obtendo token...');
 
-    // Initialize CallKeep and request permissions for morador users
-    // This consolidates permissions into a single flow at login
-    if (userType === 'morador') {
-      try {
-        console.log('📞 [registerPushToken] Initializing CallKeep...');
-
-        // Initialize CallKeep if not already initialized
-        await callKeepService.initialize();
-
-        // Request CallKeep permissions (Android only - iOS is automatic)
-        const callKeepGranted = await callKeepService.requestPermissions();
-        if (!callKeepGranted) {
-          console.warn('⚠️ [registerPushToken] CallKeep permissions denied - calls will use notifications');
-        } else {
-          console.log('✅ [registerPushToken] CallKeep permissions granted');
-        }
-      } catch (callKeepError) {
-        console.error('❌ [registerPushToken] CallKeep initialization failed:', callKeepError);
-        // Non-critical - continue with push token registration
-      }
-    }
+    // Note: CallKeep removed - using custom full-screen call UI instead
 
     // Obter push token
     const tokenData = await Notifications.getExpoPushTokenAsync({
