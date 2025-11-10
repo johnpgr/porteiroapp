@@ -45,6 +45,9 @@ patchedDependencies:
   agora-react-native-rtm@1.5.1:
     hash: ic7rysbk25hbz3lztdg7qnik4a
     path: patches/agora-react-native-rtm@1.5.1.patch
+  react-native-callkeep@4.3.16:
+    hash: 3hfddyx7vo47kdnakdsabju4cq
+    path: patches/react-native-callkeep@4.3.16.patch
   react-native@0.81.5:
     hash: 7tfqahyehwcwlxfa7vxfjmsqwy
     path: patches/react-native@0.81.5.patch
@@ -167,6 +170,9 @@ importers:
       react-native-agora:
         specifier: ^4.5.3
         version: 4.5.3(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
+      react-native-callkeep:
+        specifier: ^4.3.16
+        version: 4.3.16(patch_hash=3hfddyx7vo47kdnakdsabju4cq)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
@@ -4689,6 +4695,11 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  react-native-callkeep@4.3.16:
+    resolution: {integrity: sha512-aIxn02T5zW4jNPyzRdFGTWv6xD3Vy/1AkBMB6iYvWZEHWnfmgNGF0hELqg03Vbc2BNUhfqpu17aIydos+5Hurg==}
+    peerDependencies:
+      react-native: '>=0.40.0'
 
   react-native-gesture-handler@2.28.0:
     resolution: {integrity: sha512-0msfJ1vRxXKVgTgvL+1ZOoYw3/0z1R+Ked0+udoJhyplC2jbVKIJ8Z1bzWdpQRCV3QcQ87Op0zJVE5DhKK2A0A==}
@@ -10823,6 +10834,10 @@ snapshots:
       react: 19.1.0
       react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
       ts-interface-checker: 1.0.2
+
+  react-native-callkeep@4.3.16(patch_hash=3hfddyx7vo47kdnakdsabju4cq)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)):
+    dependencies:
+      react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
 
   react-native-gesture-handler@2.28.0(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0):
     dependencies:
