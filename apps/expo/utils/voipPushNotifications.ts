@@ -13,35 +13,20 @@
  * 4. User answers → Join Agora call
  */
 
-import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
-import { callCoordinator } from '~/services/calling/CallCoordinator';
+import { callCoordinator, type VoipPushData } from '~/services/calling/CallCoordinator';
 
 // iOS only - react-native-voip-push-notification
-let VoipPushNotification: any = null;
-let voipPushEmitter: NativeEventEmitter | null = null;
+let VoipPushNotification: typeof import('react-native-voip-push-notification').default | null = null;
 
 // Only import on iOS
 if (Platform.OS === 'ios') {
   try {
     VoipPushNotification = require('react-native-voip-push-notification').default;
-    if (NativeModules.RNVoipPushNotification) {
-      voipPushEmitter = new NativeEventEmitter(NativeModules.RNVoipPushNotification);
-    }
   } catch (error) {
     console.warn('[VoIP Push] react-native-voip-push-notification not available:', error);
   }
-}
-
-interface VoipPushData {
-  callId: string;
-  from: string;
-  fromName?: string;
-  apartmentNumber?: string;
-  buildingName?: string;
-  channelName: string;
-  timestamp?: string;
-  [key: string]: any;
 }
 
 class VoipPushNotificationService {
@@ -75,9 +60,6 @@ class VoipPushNotificationService {
     this.userType = userType;
 
     try {
-      // Request VoIP push permissions
-      VoipPushNotification.requestPermissions();
-
       // Register for VoIP push
       VoipPushNotification.registerVoipToken();
 
@@ -95,12 +77,12 @@ class VoipPushNotificationService {
    * Setup event listeners for VoIP push
    */
   private setupEventListeners(): void {
-    if (!VoipPushNotification || !voipPushEmitter) {
+    if (!VoipPushNotification) {
       return;
     }
 
     // Listen for VoIP token registration
-    voipPushEmitter.addListener('register', (token: string) => {
+    VoipPushNotification.addEventListener('register', (token: string) => {
       console.log('[VoIP Push] 📱 Token received:', token);
       this.voipToken = token;
       this.saveVoipTokenToDatabase(token);
@@ -110,12 +92,6 @@ class VoipPushNotificationService {
     VoipPushNotification.addEventListener('notification', (notification: any) => {
       console.log('[VoIP Push] 📞 Incoming push notification:', notification);
       this.handleIncomingVoipPush(notification);
-    });
-
-    // Listen for token invalidation
-    voipPushEmitter.addListener('tokenInvalidated', () => {
-      console.log('[VoIP Push] ⚠️ Token invalidated');
-      this.voipToken = null;
     });
 
     console.log('[VoIP Push] Event listeners registered');
@@ -178,8 +154,8 @@ class VoipPushNotificationService {
   private async handleIncomingVoipPush(notification: any): Promise<void> {
     console.log('[VoIP Push] 🎯 Processing incoming push...');
 
-    // Extract call data from notification
-    const data: VoipPushData = notification || {};
+    // Extract call data from notification (raw data can have different field formats)
+    const data: any = notification || {};
 
     const callId = data.callId || data.call_id || 'unknown';
     const callerName = data.fromName || data.from_name || data.callerName || 'Porteiro';
@@ -205,7 +181,7 @@ class VoipPushNotificationService {
         apartmentNumber,
         buildingName,
         channelName,
-        timestamp: Date.now(),
+        timestamp: data.timestamp ? Number(data.timestamp) : Date.now(),
       };
 
       console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');
@@ -242,12 +218,8 @@ class VoipPushNotificationService {
     this.isRegistered = false;
 
     // Remove event listeners
-    if (voipPushEmitter) {
-      voipPushEmitter.removeAllListeners('register');
-      voipPushEmitter.removeAllListeners('tokenInvalidated');
-    }
-
     if (VoipPushNotification) {
+      VoipPushNotification.removeEventListener('register');
       VoipPushNotification.removeEventListener('notification');
     }
   }

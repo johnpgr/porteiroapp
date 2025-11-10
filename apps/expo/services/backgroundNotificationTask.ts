@@ -19,8 +19,10 @@ import { MyCallDataManager } from './calling/MyCallDataManager';
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
+type CallKeepOptions = Parameters<typeof RNCallKeep.setup>[0];
+
 // CallKeep options (defined at module level)
-const callKeepOptions = {
+const callKeepOptions: CallKeepOptions = {
   ios: { appName: 'James Avisa' },
   android: {
     alertTitle: 'Permissions required',
@@ -33,6 +35,7 @@ const callKeepOptions = {
       notificationTitle: 'Incoming call',
       notificationIcon: 'ic_notification',
     },
+    additionalPermissions: [],
   },
 };
 

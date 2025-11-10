@@ -1,6 +1,6 @@
 import RNCallKeep from 'react-native-callkeep';
 import { Platform } from 'react-native';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'expo-modules-core';
 
 export const EndCallReason = {
   FAILED: "FAILED",
@@ -11,9 +11,17 @@ export const EndCallReason = {
 
 export type EndCallReason = (typeof EndCallReason)[keyof typeof EndCallReason];
 
+// Define event map for type-safe EventEmitter
+export type CallKeepEventMap = {
+  answerCall: (payload: { callId: string }) => void;
+  endCall: (payload: { callId: string }) => void;
+  didLoadWithEvents: (events: any[]) => void;
+  didActivateAudioSession: () => void;
+};
+
 class CallKeepService {
   private isAvailable: boolean = false;
-  private eventEmitter = new EventEmitter();
+  private eventEmitter = new EventEmitter<CallKeepEventMap>();
   private hasAttempted: boolean = false;
   private isSetup: boolean = false;
 
@@ -178,10 +186,13 @@ class CallKeepService {
   /**
    * Subscribe to CallKeep events
    */
-  addEventListener(event: string, handler: (...args: any[]) => void): () => void {
-    this.eventEmitter.on(event, handler);
+  addEventListener<EventName extends keyof CallKeepEventMap>(
+    event: EventName,
+    handler: CallKeepEventMap[EventName]
+  ): () => void {
+    const subscription = this.eventEmitter.addListener(event, handler);
     return () => {
-      this.eventEmitter.removeListener(event, handler);
+      subscription.remove();
     };
   }
 
