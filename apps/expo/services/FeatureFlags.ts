@@ -50,7 +50,7 @@ class FeatureFlagService {
   private async fetchFlags(): Promise<void> {
     try {
       const { data, error } = await supabase
-        .from<FeatureFlagRecord>('app_config')
+        .from('app_config')
         .select('feature_key, enabled, metadata');
 
       if (error) {
@@ -63,7 +63,7 @@ class FeatureFlagService {
       data?.forEach((flag) => {
         this.cache.set(flag.feature_key, flag.enabled);
         if (flag.metadata) {
-          this.metadata.set(flag.feature_key, flag.metadata);
+          this.metadata.set(flag.feature_key, flag.metadata as Record<string, unknown>);
         }
       });
 

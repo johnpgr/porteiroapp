@@ -72,7 +72,7 @@ interface CallFiltersBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onApply: (status: StatusFilter, dateRange: DateRangeFilter) => void;
-  bottomSheetRef: React.RefObject<BottomSheetModalRef>;
+  bottomSheetRef: React.RefObject<BottomSheetModalRef | null>;
   statusFilter: StatusFilter;
   dateRangeFilter: DateRangeFilter;
 }

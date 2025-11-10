@@ -435,11 +435,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             profile_id: adminProfile.id,
             email: adminProfile.email,
             user_type: 'admin',
-            condominium_id: undefined,
-            building_id: undefined,
+            condominium_id: null,
+            building_id: null,
+            telefone: adminProfile.phone,
+            nome: adminProfile.full_name,
             is_active: adminProfile.is_active ?? true,
             last_login: new Date().toISOString(),
-            push_token: adminProfile.push_token ?? undefined,
+            push_token: adminProfile.push_token,
           };
         } else {
           return null;
@@ -463,15 +465,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           profile_id: profile.id,
           email: profile.email ?? '',
           user_type: (profile.user_type ?? profile.role ?? 'morador') as AuthUserRole,
-          condominium_id: undefined, // profiles table doesn't have this field
-          building_id: profile.building_id ?? undefined,
-          apartment_id: undefined, // profiles table doesn't have this field
-          apartment_number: undefined, // profiles table doesn't have this field
-          nome: profile.full_name ?? undefined,
-          telefone: profile.phone ?? undefined,
-          is_active: true, // profiles table doesn't have this field, default to true
-          last_login: shouldUpdateLogin ? now.toISOString() : profile.last_seen ?? undefined,
-          push_token: profile.push_token ?? undefined,
+          condominium_id: null,
+          building_id: profile.building_id ?? null,
+          apartment_id: null,
+          apartment_number: null,
+          nome: profile.full_name ?? null,
+          telefone: profile.phone ?? null,
+          is_active: true,
+          last_login: shouldUpdateLogin ? now.toISOString() : profile.last_seen ?? null,
+          push_token: profile.push_token ?? null,
         };
         profileFetchRole = profile.user_type ?? profile.role ?? undefined;
       }
@@ -556,19 +558,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedToken = await TokenStorage.getToken();
       const cachedUser = await TokenStorage.getUserData();
 
-      if (!cachedToken || !cachedUser) {
-        console.log('[Auth] Sem sessão em cache para modo offline');
+      if (!cachedToken || !cachedUser || !cachedUser.profile_id) {
+        console.log('[Auth] Sem sessão em cache válida para modo offline');
         setUser(null);
         setIsReadOnly(false);
         AnalyticsTracker.trackEvent('auth_offline_no_cache', {
           hasToken: Boolean(cachedToken),
           hasUser: Boolean(cachedUser),
+          hasProfileId: Boolean(cachedUser?.profile_id),
         });
         return;
       }
 
+      // At this point, cachedUser.profile_id is guaranteed to exist
       const normalizedUser: AuthUser = {
         ...cachedUser,
+        profile_id: cachedUser.profile_id, // Explicitly set to satisfy TypeScript
         user_type: cachedUser.user_type ?? (cachedUser as unknown as { role?: string }).role ?? 'morador',
       };
 
@@ -765,10 +770,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     TokenStorage.getUserData()
       .then((cachedUser) => {
-        if (!isMounted || !cachedUser) return;
+        if (!isMounted || !cachedUser || !cachedUser.profile_id) return;
 
         const normalizedUser: AuthUser = {
           ...cachedUser,
+          profile_id: cachedUser.profile_id, // Explicitly set to satisfy TypeScript
           user_type: cachedUser.user_type ?? (cachedUser as any).role ?? 'morador',
         };
 

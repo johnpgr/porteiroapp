@@ -31,7 +31,7 @@ export default function LogsScreen() {
   // Buscar apartment_id do usuário
   useEffect(() => {
     const fetchApartmentId = async () => {
-      if (!user?.id || !user?.profile_id) return;
+      if (!user) return;
       
       try {
         const { data: residentData, error } = await supabase
@@ -54,7 +54,7 @@ export default function LogsScreen() {
     };
 
     fetchApartmentId();
-  }, [user?.id, user?.profile_id]);
+  }, [user]);
 
   const fetchLogs = useCallback(async () => {
     if (!apartmentId) return;

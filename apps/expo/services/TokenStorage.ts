@@ -272,8 +272,8 @@ export class TokenStorage {
         throw new Error('Invalid user data payload');
       }
 
-      if (!parsed.id || !parsed.email) {
-        throw new Error('Missing required user fields');
+      if (!parsed.id || !parsed.email || !parsed.profile_id) {
+        throw new Error('Missing required user fields (id, email, or profile_id)');
       }
 
       return parsed;

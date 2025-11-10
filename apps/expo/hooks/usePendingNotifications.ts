@@ -60,7 +60,7 @@ export const usePendingNotifications = () => {
 
   // Buscar apartment_id do usuário
   const fetchApartmentId = useCallback(async () => {
-    if (!user?.id || !user?.profile_id) return;
+    if (!user) return;
     
     try {
       const { data, error } = await supabase
@@ -80,7 +80,7 @@ export const usePendingNotifications = () => {
       console.error('Erro ao buscar apartment_id:', err);
       setError('Erro ao identificar apartamento');
     }
-  }, [user?.id, user?.profile_id]);
+  }, [user]);
 
   // Buscar notificações pendentes
   const fetchPendingNotifications = useCallback(async () => {
