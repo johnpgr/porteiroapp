@@ -140,9 +140,11 @@ export class CallCoordinator {
   private async handleRtmMessage(message: any, peerId: string): Promise<void> {
     try {
       const parsed = JSON.parse(message.text);
-      
+
       const type = parsed.t as 'INVITE' | 'END' | 'DECLINE' | 'ANSWER' | string;
-      const altTypeRaw = (parsed.type || parsed.action || parsed.event || '').toString().toLowerCase();
+      const altTypeRaw = (parsed.type || parsed.action || parsed.event || '')
+        .toString()
+        .toLowerCase();
 
       // Handle END/DECLINE signals to close UI when porteiro cancels
       const isEndLike =
@@ -157,7 +159,7 @@ export class CallCoordinator {
         altTypeRaw === 'call_end' ||
         altTypeRaw === 'end_call';
 
-        if (isEndLike && this.activeSession) {
+      if (isEndLike && this.activeSession) {
         if (this.activeSession.id === parsed.callId) {
           console.log(`[CallCoordinator] RTM ${type} received for active call ${parsed.callId}`);
           try {
@@ -168,7 +170,10 @@ export class CallCoordinator {
             // Use 'drop' to indicate remote-ended when wrapping end()
             await this.activeSession.end('drop');
           } catch (e) {
-            console.warn('[CallCoordinator] Failed to end session on remote END, forcing cleanup:', e);
+            console.warn(
+              '[CallCoordinator] Failed to end session on remote END, forcing cleanup:',
+              e
+            );
             this.activeSession = null;
             this.emit('sessionEnded', { session: null, finalState: 'ended' });
           }
@@ -179,7 +184,11 @@ export class CallCoordinator {
       // Only handle INVITE messages for moradores
       if (type !== 'INVITE') {
         if (parsed.callId && this.activeSession?.id === parsed.callId) {
-          console.log('[CallCoordinator] RTM non-INVITE message for active call ignored:', { type, altTypeRaw, callId: parsed.callId });
+          console.log('[CallCoordinator] RTM non-INVITE message for active call ignored:', {
+            type,
+            altTypeRaw,
+            callId: parsed.callId,
+          });
         }
         return;
       }
@@ -233,7 +242,6 @@ export class CallCoordinator {
 
       console.log('[CallCoordinator] Converting RTM INVITE to session creation');
       await this.handleIncomingPush(pushData);
-      
     } catch (error) {
       console.error('[CallCoordinator] Error handling RTM message:', error);
     }
@@ -272,7 +280,9 @@ export class CallCoordinator {
     try {
       // Step 0: Ensure AgoraService has current user context (needed for RTM warmup)
       console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
-      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
       if (authSession?.user) {
         // Fetch user profile to get morador info
         const { data: profile } = await supabase
@@ -281,7 +291,7 @@ export class CallCoordinator {
           .eq('user_id', authSession.user.id)
           .eq('user_type', 'morador')
           .single();
-        
+
         if (profile) {
           agoraService.setCurrentUser({
             id: profile.id,
@@ -326,13 +336,11 @@ export class CallCoordinator {
       // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
       // Only show if CallKeep is available and we haven't created a session yet
       if (this.callKeepAvailable) {
-        callKeepService.displayIncomingCall(
-          data.callId,
-          data.from,
-          data.callerName || 'Porteiro'
-        );
+        callKeepService.displayIncomingCall(data.callId, data.from, data.callerName || 'Porteiro');
         if (__DEV__) {
-          console.log('[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)');
+          console.log(
+            '[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)'
+          );
         }
       }
 
@@ -349,7 +357,10 @@ export class CallCoordinator {
       console.log('[CallCoordinator] Call details received:', {
         channelName: callDetails.channelName,
         participantCount: callDetails.participants?.length || 0,
-        participants: callDetails.participants?.map(p => ({ userId: p.userId, status: p.status })),
+        participants: callDetails.participants?.map((p) => ({
+          userId: p.userId,
+          status: p.status,
+        })),
       });
 
       // Step 3: Create CallSession
@@ -395,7 +406,6 @@ export class CallCoordinator {
 
       // Start a short poll to detect remote cancel if RTM END isn't received
       this.startRemoteHangupPoll(session.id);
-
     } catch (error) {
       console.error('[CallCoordinator] ❌ Push handling failed:', error);
       Alert.alert('Call Error', 'Unable to process incoming call.');
@@ -715,7 +725,7 @@ export class CallCoordinator {
     const handlers = this.eventHandlers.get(event);
     if (!handlers) return;
 
-    handlers.forEach(handler => {
+    handlers.forEach((handler) => {
       try {
         handler(payload);
       } catch (error) {
@@ -725,20 +735,158 @@ export class CallCoordinator {
   }
 
   /**
+   * Wait for a session to be created for the given callId
+   * Returns the session if found, null if timeout or aborted
+   * Uses event listener with timeout promise - no polling needed
+   */
+  private async waitForSession(
+    callId: string,
+    timeoutMs: number,
+    signal?: AbortSignal
+  ): Promise<CallSession | null> {
+    // Early abort check
+    if (signal?.aborted) {
+      console.log(`[CallCoordinator] Wait aborted before starting for ${callId}`);
+      return null;
+    }
+
+    // If session already exists, return it immediately
+    if (this.activeSession?.id === callId) {
+      return this.activeSession;
+    }
+
+    // Race between event listener, timeout, and abort signal
+    return Promise.race<CallSession | null>([
+      // Event listener promise - resolves when session is created
+      new Promise<CallSession | null>((resolve) => {
+        let unsubscribe: (() => void) | null = null;
+
+        const cleanup = () => {
+          if (unsubscribe) {
+            unsubscribe();
+            unsubscribe = null;
+          }
+          signal?.removeEventListener('abort', handleAbort);
+        };
+
+        const handleAbort = () => {
+          console.log(`[CallCoordinator] Wait aborted for ${callId}`);
+          cleanup();
+          resolve(null);
+        };
+
+        unsubscribe = this.on('sessionCreated', ({ session }: { session: CallSession }) => {
+          if (session.id === callId) {
+            cleanup();
+            resolve(session);
+          }
+        });
+
+        // Listen for abort signal
+        signal?.addEventListener('abort', handleAbort);
+      }),
+
+      // Timeout promise - resolves to null after timeout
+      new Promise<CallSession | null>((resolve) => {
+        setTimeout(() => {
+          console.warn(`[CallCoordinator] Timeout waiting for session ${callId}`);
+          resolve(null);
+        }, timeoutMs);
+      }),
+    ]);
+  }
+
+  /**
+   * Ensures a session exists for the given callId
+   * Returns true if session is ready, false if all attempts failed
+   */
+  private async ensureSessionExists(callId: string, sessionWaitTimeout = 3000, sessionCreateTimeout = 5000): Promise<boolean> {
+    // Quick check: already exists?
+    if (this.activeSession?.id === callId) {
+      console.log('[CallCoordinator] Session already exists');
+      return true;
+    }
+
+    // Create abort controller for cancellable operations
+    const abortController = new AbortController();
+
+    try {
+      // Wait for session to be created
+      console.log('[CallCoordinator] Waiting for session creation...');
+      const existingSession = await this.waitForSession(
+        callId,
+        sessionWaitTimeout,
+        abortController.signal
+      );
+
+      if (existingSession?.id === callId) {
+        console.log('[CallCoordinator] Session became available');
+        return true;
+      }
+
+      // Session didn't appear - try to create from stored data
+      console.log('[CallCoordinator] Session not found, attempting to create from stored data');
+
+      const callData = await MyCallDataManager.getCallData(callId);
+      if (!callData) {
+        console.error('[CallCoordinator] No stored call data found');
+        return false;
+      }
+
+      // Create session from stored data
+      const pushData: VoipPushData = {
+        callId: callData.callId,
+        from: callData.from,
+        callerName: callData.callerName,
+        apartmentNumber: callData.apartmentNumber,
+        channelName: callData.channelName,
+      };
+
+      await this.handleIncomingPush(pushData);
+
+      // Wait for newly created session
+      const createdSession = await this.waitForSession(
+        callId,
+        sessionCreateTimeout,
+        abortController.signal
+      );
+
+      if (createdSession?.id === callId) {
+        console.log('[CallCoordinator] Successfully created session from stored data');
+        return true;
+      }
+
+      console.error('[CallCoordinator] Failed to create session from stored data');
+      return false;
+    } catch (error) {
+      console.error('[CallCoordinator] Error ensuring session exists:', error);
+      return false;
+    } finally {
+      // Clean up: abort any pending operations
+      abortController.abort();
+    }
+  }
+
+  /**
    * Handle CallKeep answer event
+   *
+   * CRITICAL: This may fire before the session is created (race condition).
+   * We need to wait for the session or create it from stored data.
    */
   private async handleCallKeepAnswer(callId: string): Promise<void> {
     console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
 
     try {
-      // Retrieve stored call data
-      const callData = await MyCallDataManager.getCallData(callId);
-      if (!callData) {
-        console.error('[CallCoordinator] No call data found for CallKeep answer');
+      // Ensure session exists (wait or create)
+      const sessionReady = await this.ensureSessionExists(callId);
+
+      if (!sessionReady) {
+        console.error('[CallCoordinator] Failed to establish session, cannot answer');
         return;
       }
 
-      // Call existing answer logic
+      // Answer the call
+      console.log('[CallCoordinator] Session ready, answering');
       await this.answerActiveCall();
 
       // Android: bring app to foreground
@@ -749,7 +897,6 @@ export class CallCoordinator {
       console.error('[CallCoordinator] CallKeep answer error:', error);
     }
   }
-
   /**
    * Handle CallKeep end event
    */
