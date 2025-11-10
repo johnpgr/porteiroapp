@@ -42,6 +42,9 @@ export class CallCoordinator {
   private remoteHangupPoll: ReturnType<typeof setInterval> | null = null;
   private remoteEndInProgress: boolean = false;
 
+  // Track in-progress handleIncomingPush calls to prevent duplicates
+  private incomingPushPromises = new Map<string, Promise<void>>();
+
   private clearRemoteHangupPoll() {
     if (this.remoteHangupPoll) {
       clearInterval(this.remoteHangupPoll);
@@ -270,6 +273,13 @@ export class CallCoordinator {
       return;
     }
 
+    // Check if there's already an in-progress creation for this call
+    const existingPromise = this.incomingPushPromises.get(data.callId);
+    if (existingPromise) {
+      console.log('[CallCoordinator] Session creation already in progress, waiting for it');
+      return existingPromise;
+    }
+
     // Auto-decline if already in a call (one call at a time)
     if (this.activeSession) {
       console.log('[CallCoordinator] Already in call, auto-declining new call');
@@ -277,6 +287,22 @@ export class CallCoordinator {
       return;
     }
 
+    // Create and store the promise for this call creation
+    const promise = this.handleIncomingPushInternal(data);
+    this.incomingPushPromises.set(data.callId, promise);
+
+    try {
+      await promise;
+    } finally {
+      this.incomingPushPromises.delete(data.callId);
+    }
+  }
+
+  /**
+   * Internal implementation of handleIncomingPush
+   * Separated to allow promise tracking in the public method
+   */
+  private async handleIncomingPushInternal(data: VoipPushData): Promise<void> {
     try {
       // Step 0: Ensure AgoraService has current user context (needed for RTM warmup)
       console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
@@ -800,11 +826,27 @@ export class CallCoordinator {
    * Ensures a session exists for the given callId
    * Returns true if session is ready, false if all attempts failed
    */
-  private async ensureSessionExists(callId: string, sessionWaitTimeout = 3000, sessionCreateTimeout = 5000): Promise<boolean> {
+  private async ensureSessionExists(callId: string, sessionWaitTimeout = 10000, sessionCreateTimeout = 10000): Promise<boolean> {
     // Quick check: already exists?
     if (this.activeSession?.id === callId) {
       console.log('[CallCoordinator] Session already exists');
       return true;
+    }
+
+    // Check if there's an in-progress creation promise and wait for it
+    const inProgressPromise = this.incomingPushPromises.get(callId);
+    if (inProgressPromise) {
+      console.log('[CallCoordinator] Waiting for in-progress session creation');
+      try {
+        await inProgressPromise;
+        // After waiting, check if session was created
+        if (this.activeSession?.id === callId) {
+          console.log('[CallCoordinator] Session created by in-progress operation');
+          return true;
+        }
+      } catch (error) {
+        console.error('[CallCoordinator] In-progress creation failed:', error);
+      }
     }
 
     // Create abort controller for cancellable operations
@@ -919,10 +961,12 @@ export class CallCoordinator {
     console.log('[CallCoordinator] Handling early CallKeep events:', events.length);
 
     for (const event of events) {
-      if (event.name === 'RNCallKeepPerformAnswerCallAction') {
-        await this.handleCallKeepAnswer(event.data.callId);
-      } else if (event.name === 'RNCallKeepPerformEndCallAction') {
-        await this.handleCallKeepEnd(event.data.callId);
+      const data = event?.data || {};
+      const normalizedId: string | undefined = (data.callUUID || data.callId || data.uuid || data.id) ?? undefined;
+      if (event.name === 'RNCallKeepPerformAnswerCallAction' && normalizedId) {
+        await this.handleCallKeepAnswer(String(normalizedId));
+      } else if (event.name === 'RNCallKeepPerformEndCallAction' && normalizedId) {
+        await this.handleCallKeepEnd(String(normalizedId));
       }
     }
   }

@@ -194,20 +194,34 @@ class CallKeepService {
    * Setup RNCallKeep event listeners and forward through EventEmitter
    */
   private setupEventListeners(): void {
-    // Answer call event (CallKeep uses callUUID, we normalize to callId)
-    RNCallKeep.addEventListener('answerCall', ({ callUUID }: { callUUID: string }) => {
+    // Answer call event (normalize payload: callUUID | callId | uuid | id)
+    RNCallKeep.addEventListener('answerCall', (payload: any) => {
+      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
       if (__DEV__) {
-        console.log('[CallKeepService] Answer call event:', callUUID);
+        console.log('[CallKeepService] Answer call event:', normalizedId);
       }
-      this.eventEmitter.emit('answerCall', { callId: callUUID });
+      if (!normalizedId) {
+        if (__DEV__) {
+          console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
+        }
+        return;
+      }
+      this.eventEmitter.emit('answerCall', { callId: String(normalizedId) });
     });
 
-    // End call event (CallKeep uses callUUID, we normalize to callId)
-    RNCallKeep.addEventListener('endCall', ({ callUUID }: { callUUID: string }) => {
+    // End call event (normalize payload)
+    RNCallKeep.addEventListener('endCall', (payload: any) => {
+      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
       if (__DEV__) {
-        console.log('[CallKeepService] End call event:', callUUID);
+        console.log('[CallKeepService] End call event:', normalizedId);
       }
-      this.eventEmitter.emit('endCall', { callId: callUUID });
+      if (!normalizedId) {
+        if (__DEV__) {
+          console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
+        }
+        return;
+      }
+      this.eventEmitter.emit('endCall', { callId: String(normalizedId) });
     });
 
     // Early events (iOS - when user taps answer before JS loads)
@@ -233,4 +247,3 @@ class CallKeepService {
 }
 
 export const callKeepService = new CallKeepService();
-
