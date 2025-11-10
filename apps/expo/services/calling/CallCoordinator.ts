@@ -1,6 +1,5 @@
 import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
-import notifee from '@notifee/react-native';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
@@ -140,8 +139,6 @@ export class CallCoordinator {
           try {
             // Use 'drop' to indicate remote-ended when wrapping end()
             await this.activeSession.end('drop');
-            // Dismiss any call notifications/full-screen UI
-            try { await notifee.cancelAllNotifications(); } catch {}
           } catch (e) {
             console.warn('[CallCoordinator] Failed to end session on remote END, forcing cleanup:', e);
             this.activeSession = null;
@@ -384,7 +381,6 @@ export class CallCoordinator {
           this.clearRemoteHangupPoll();
           try {
             await this.activeSession.end('drop');
-            try { await notifee.cancelAllNotifications(); } catch {}
           } catch (e) {
             console.warn('[CallCoordinator] Poll end failed, forcing local cleanup:', e);
             this.activeSession = null;

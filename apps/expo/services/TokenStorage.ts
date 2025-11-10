@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import FeatureFlags from './FeatureFlags';
 import type { AuthUser } from '~/types/auth.types';
-import NativeSecureTokenStorage from '~/modules/SecureTokenStorage';
 
 const TOKEN_KEY = '@porteiro_app:jwt_token';
 const USER_DATA_KEY = '@porteiro_app:user_data';
@@ -18,54 +17,16 @@ const getChunkKey = (key: string, index: number) => `${key}_chunk_${index}`;
 const sanitizeSecureKey = (key: string): string =>
   key.replace(/[^A-Za-z0-9._-]/g, '_');
 
-type NativeModule = {
-  getToken: (key: string) => Promise<string | null>;
-  setToken: (key: string, value: string) => Promise<void>;
-  deleteToken: (key: string) => Promise<void>;
-};
-
-const hasNativeSecureStore =
-  !!NativeSecureTokenStorage &&
-  typeof NativeSecureTokenStorage.getToken === 'function' &&
-  typeof NativeSecureTokenStorage.setToken === 'function' &&
-  typeof NativeSecureTokenStorage.deleteToken === 'function';
-
-const nativeModule: NativeModule | null = hasNativeSecureStore
-  ? ({
-      getToken: NativeSecureTokenStorage!.getToken,
-      setToken: NativeSecureTokenStorage!.setToken,
-      deleteToken: NativeSecureTokenStorage!.deleteToken,
-    } as NativeModule)
-  : null;
-
 const setSecureItem = async (key: string, value: string): Promise<void> => {
   const sanitized = sanitizeSecureKey(key);
-  if (nativeModule) {
-    await nativeModule.setToken(sanitized, value);
-    if (sanitized !== key) {
-      await nativeModule.deleteToken(key).catch(() => {});
-    }
-  } else {
-    await SecureStore.setItemAsync(sanitized, value);
-    if (sanitized !== key) {
-      await SecureStore.deleteItemAsync(key).catch(() => {});
-    }
+  await SecureStore.setItemAsync(sanitized, value);
+  if (sanitized !== key) {
+    await SecureStore.deleteItemAsync(key).catch(() => {});
   }
 };
 
 const getSecureItem = async (key: string): Promise<string | null> => {
   const sanitized = sanitizeSecureKey(key);
-  if (nativeModule) {
-    const value = await nativeModule.getToken(sanitized);
-    if (value != null) {
-      return value;
-    }
-    if (sanitized !== key) {
-      return nativeModule.getToken(key).catch(() => null);
-    }
-    return null;
-  }
-
   const value = await SecureStore.getItemAsync(sanitized);
   if (value != null) {
     return value;
@@ -78,16 +39,9 @@ const getSecureItem = async (key: string): Promise<string | null> => {
 
 const deleteSecureItem = async (key: string): Promise<void> => {
   const sanitized = sanitizeSecureKey(key);
-  if (nativeModule) {
-    await nativeModule.deleteToken(sanitized).catch(() => {});
-    if (sanitized !== key) {
-      await nativeModule.deleteToken(key).catch(() => {});
-    }
-  } else {
-    await SecureStore.deleteItemAsync(sanitized).catch(() => {});
-    if (sanitized !== key) {
-      await SecureStore.deleteItemAsync(key).catch(() => {});
-    }
+  await SecureStore.deleteItemAsync(sanitized).catch(() => {});
+  if (sanitized !== key) {
+    await SecureStore.deleteItemAsync(key).catch(() => {});
   }
 };
 

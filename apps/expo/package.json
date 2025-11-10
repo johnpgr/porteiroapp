@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "@notifee/react-native": "^9.1.8",
     "@porteiroapp/common": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
@@ -52,7 +51,6 @@
     "expo-task-manager": "~14.0.8",
     "expo-web-browser": "~15.0.7",
     "lucide-react-native": "^0.542.0",
-    "node-fetch": "^3.3.2",
     "react": "catalog:react19",
     "react-native": "0.81.5",
     "react-native-agora": "^4.5.3",

@@ -20,7 +20,6 @@ import { initializeNotificationHandler } from '../services/notificationHandler';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import type { CallSession } from '~/services/calling/CallSession';
 import FullScreenCallUI from '~/components/FullScreenCallUI';
-import notifee, { EventType } from '@notifee/react-native';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
@@ -342,46 +341,6 @@ export default function RootLayout() {
       unsubEnded();
     };
   }, []); // Run once on mount
-
-  // Notifee foreground event handler (background handler is at module level)
-  useEffect(() => {
-    console.log('[_layout] 🎯 Setting up Notifee FOREGROUND event handler...');
-
-    // Handle foreground events (app is open)
-    const unsubscribeForeground = notifee.onForegroundEvent(async ({ type, detail }) => {
-      console.log('[_layout] 🔔 Notifee foreground event - type:', type, 'action:', detail.pressAction?.id);
-
-      // EventType.ACTION_PRESS (2) = user tapped action button
-      // EventType.PRESS (1) = user tapped notification body
-      if (type === EventType.ACTION_PRESS || type === EventType.PRESS) {
-        const actionId = detail.pressAction?.id;
-        console.log('[_layout] Action detected:', actionId);
-
-        if (actionId === 'answer_call') {
-          console.log('[_layout] 📞 User tapped Answer (foreground)');
-          if (callCoordinator.hasActiveCall()) {
-            await callCoordinator.answerActiveCall();
-          }
-          router.push('/morador/(tabs)');
-        } else if (actionId === 'decline_call') {
-          console.log('[_layout] ❌ User tapped Decline (foreground)');
-          await callCoordinator.endActiveCall('decline');
-        } else if (actionId === 'default') {
-          console.log('[_layout] 👆 User tapped notification body');
-          // Navigate to call screen or handle default action
-          if (callCoordinator.hasActiveCall()) {
-            router.push('/morador/(tabs)');
-          }
-        }
-      }
-    });
-
-    console.log('[_layout] ✅ Notifee foreground handler registered');
-
-    return () => {
-      unsubscribeForeground();
-    };
-  }, [router]);
 
   // NOTE: Notification handler is configured in services/notificationHandler.ts
   // and initialized at module level to prevent conflicts

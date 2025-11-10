@@ -62,9 +62,6 @@ importers:
       '@expo/vector-icons':
         specifier: ^15.0.2
         version: 15.0.3(expo-font@14.0.9(expo@54.0.19)(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
-      '@notifee/react-native':
-        specifier: ^9.1.8
-        version: 9.1.8(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))
       '@porteiroapp/common':
         specifier: workspace:*
         version: link:../../packages/common
@@ -161,9 +158,6 @@ importers:
       lucide-react-native:
         specifier: ^0.542.0
         version: 0.542.0(react-native-svg@15.12.1(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)
-      node-fetch:
-        specifier: ^3.3.2
-        version: 3.3.2
       react:
         specifier: catalog:react19
         version: 19.1.0
@@ -1340,11 +1334,6 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
-
-  '@notifee/react-native@9.1.8':
-    resolution: {integrity: sha512-Az/dueoPerJsbbjRxu8a558wKY+gONUrfoy3Hs++5OqbeMsR0dYe6P+4oN6twrLFyzAhEA1tEoZRvQTFDRmvQg==}
-    peerDependencies:
-      react-native: '*'
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -6897,10 +6886,6 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@notifee/react-native@9.1.8(react-native@0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0))':
-    dependencies:
-      react-native: 0.81.5(patch_hash=7tfqahyehwcwlxfa7vxfjmsqwy)(@babel/core@7.28.4)(@types/react@19.2.2)(react@19.1.0)
-
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -7522,7 +7507,7 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
-      '@types/node': 22.18.12
+      '@types/node': 20.19.23
 
   '@types/mime@1.3.5': {}
 
@@ -7569,7 +7554,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.18.12
+      '@types/node': 20.19.23
 
   '@types/yargs-parser@21.0.3': {}
 

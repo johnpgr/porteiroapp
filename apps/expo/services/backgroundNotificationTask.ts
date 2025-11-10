@@ -2,8 +2,7 @@
  * Background Notification Task Handler
  *
  * This task runs when a push notification is received, even when the app is killed.
- * It handles incoming intercom calls by displaying full-screen notifications via notifee
- * and creating call sessions via CallCoordinator.
+ * It handles incoming intercom calls by creating call sessions via CallCoordinator.
  *
  * IMPORTANT: This must be registered at module level (not inside a component)
  * to ensure it's available before the app fully loads.
@@ -13,7 +12,6 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import notifee, { AndroidImportance, AndroidCategory } from '@notifee/react-native';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
 
 // Use a fixed, non-empty task name as per Expo docs
@@ -121,67 +119,7 @@ TaskManager.defineTask(
           console.log('[BackgroundTask] - from:', callData.from);
 
           try {
-            // 1. Display full-screen notification on Android (forces app to foreground from killed state)
-            if (Platform.OS === 'android') {
-              console.log('[BackgroundTask] 📳 Displaying notifee full-screen notification...');
-
-              // Ensure critical channel exists in headless context
-              try {
-                await notifee.createChannel({
-                  id: 'intercom_call',
-                  name: 'Interfone (Chamada)',
-                  importance: AndroidImportance.HIGH,
-                  vibration: true,
-                  vibrationPattern: [250, 250, 250, 250],
-                  sound: 'telephone_toque_interfone',
-                  lights: true,
-                });
-              } catch (channelErr) {
-                console.warn('[BackgroundTask] ⚠️ Failed to create notifee channel (may already exist):', channelErr);
-              }
-              
-              await notifee.displayNotification({
-                title: callData.callerName || 'Chamada do Porteiro',
-                body: callData.apartmentNumber
-                  ? `Apt ${callData.apartmentNumber}`
-                  : 'Chamada de interfone',
-                android: {
-                  channelId: 'intercom_call',
-                  importance: AndroidImportance.HIGH,
-                  category: AndroidCategory.CALL,
-                  ongoing: true,
-                  autoCancel: false,
-
-                  // THIS FORCES APP TO FOREGROUND FROM KILLED STATE
-                  fullScreenAction: {
-                    id: 'incoming_call_fullscreen',
-                    // With Expo, use the default activity to wake/launch the app
-                    launchActivity: 'default',
-                  },
-
-                  // Native buttons for lock screen
-                  actions: [
-                    {
-                      title: 'Recusar',
-                      pressAction: { id: 'decline_call' },
-                    },
-                    {
-                      title: 'Atender',
-                      pressAction: { id: 'answer_call', launchActivity: 'default' },
-                    },
-                  ],
-
-                  pressAction: {
-                    id: 'default',
-                    launchActivity: 'default',
-                  },
-                },
-              });
-
-              console.log('[BackgroundTask] ✅ Notifee notification displayed');
-            }
-
-            // 2. CRITICAL: Create session in background via CallCoordinator
+            // 1. CRITICAL: Create session in background via CallCoordinator
             console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
             
             const pushData: VoipPushData = {
@@ -195,7 +133,7 @@ TaskManager.defineTask(
             await callCoordinator.handleIncomingPush(pushData);
             console.log('[BackgroundTask] ✅ Call session created');
 
-            // 3. Keep AsyncStorage backup as fallback
+            // 2. Keep AsyncStorage backup as fallback
             console.log('[BackgroundTask] 💾 Storing call data to AsyncStorage as fallback...');
             await AsyncStorage.setItem(
               '@pending_intercom_call',
