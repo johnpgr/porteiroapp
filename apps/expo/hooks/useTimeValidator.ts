@@ -6,7 +6,7 @@ import { useNotificationLogger } from './useNotificationLogger';
 interface ValidationRule {
   id: string; // deve corresponder ao identificador da notificação agendada
   lembreteId: string;
-  type: 'exact' | 'before';
+  type: 'exact' | 'before_15min';
   scheduledTime: Date;
   title: string;
   body: string;
@@ -31,7 +31,7 @@ export function useTimeValidator() {
     lastValidation: null,
   });
   const [isValidating, setIsValidating] = useState(false);
-  const validationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const validationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef<AppStateStatus>('active');
   
   const { logMissed, logFallbackTriggered } = useNotificationLogger();
@@ -54,7 +54,7 @@ export function useTimeValidator() {
 
   // Validação crítica inline para evitar dependências instáveis
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     
     if (validationRules.length > 0) {
       const validate = async () => {
@@ -90,7 +90,7 @@ export function useTimeValidator() {
                     sound: true,
                     data: { ...(rule.data || {}), customId: rule.id, fallback: true },
                   },
-                  trigger: { seconds: 1 },
+                  trigger: { seconds: 1 } as any,
                 });
                 
                 await logFallbackTriggered({

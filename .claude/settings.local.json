@@ -15,7 +15,8 @@
       "Bash(pnpm build:common:*)",
       "WebSearch",
       "WebFetch(domain:docs.expo.dev)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ],
     "deny": [],
     "ask": []

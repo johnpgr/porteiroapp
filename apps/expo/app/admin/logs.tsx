@@ -165,6 +165,7 @@ export default function SystemLogs() {
           visit_session_id,
           purpose,
           notification_status,
+          authorized_by,
           created_at,
           building_id,
           visitors(
@@ -189,6 +190,30 @@ export default function SystemLogs() {
         console.log('✅ Logs encontrados:', logsData.data?.length || 0);
       }
 
+      // Buscar nomes dos usuários que autorizaram
+      const authorizedIds = (logsData.data || [])
+        .map((log) => log.authorized_by)
+        .filter((id): id is string => id !== null && id !== undefined);
+      const uniqueAuthorizedIds = [...new Set(authorizedIds)];
+
+      let authorizedNames: Record<string, string> = {};
+      if (uniqueAuthorizedIds.length > 0) {
+        const { data: authorizedProfiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', uniqueAuthorizedIds);
+
+        if (authorizedProfiles) {
+          authorizedNames = authorizedProfiles.reduce(
+            (acc, profile) => {
+              acc[profile.id] = profile.full_name || '';
+              return acc;
+            },
+            {} as Record<string, string>
+          );
+        }
+      }
+
       setBuildings(adminBuildings || []);
       setLogs(
         (logsData.data || []).map((log) => ({
@@ -198,11 +223,11 @@ export default function SystemLogs() {
           apartment_number: log.apartments?.number || 'N/A',
           building_name: log.buildings?.name || 'Não identificado',
           log_time: log.log_time,
-          tipo_log: log.tipo_log,
+          tipo_log: log.tipo_log as 'IN' | 'OUT',
           visit_session_id: log.visit_session_id,
-          purpose: log.purpose,
+          purpose: log.purpose ?? undefined,
           notification_status: log.notification_status || 'pending',
-          authorized_by_name: log.authorized_by_name || null,
+          authorized_by_name: log.authorized_by ? authorizedNames[log.authorized_by] : undefined,
           created_at: log.created_at
         }))
       );

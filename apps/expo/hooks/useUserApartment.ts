@@ -3,14 +3,14 @@ import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
 
 interface UseUserApartmentReturn {
-  apartmentNumber: string | null;
+  apartment: { id: string; number: string } | null;
   loading: boolean;
   error: string | null;
 }
 
 export const useUserApartment = (): UseUserApartmentReturn => {
   const { user } = useAuth();
-  const [apartmentNumber, setApartmentNumber] = useState<string | null>(null);
+  const [apartment, setApartment] = useState<{ id: string; number: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,24 +26,18 @@ export const useUserApartment = (): UseUserApartmentReturn => {
         setError(null);
 
         // Buscar o apartamento do usuário através da tabela apartment_residents
-        console.log('Buscando apartamento para user.profile_id:', user.profile_id);
-
-        if (!user.profile_id) {
-          console.error('user.profile_id não está definido');
-          setError('Perfil incompleto');
-          setApartmentNumber(null);
-          setLoading(false);
-          return;
-        }
+        console.log('Buscando apartamento para user.id:', user.id);
 
         const { data, error: queryError } = await supabase
           .from('apartment_residents')
           .select(`
+            apartment_id,
             apartments (
+              id,
               number
             )
           `)
-          .eq('profile_id', user.profile_id)
+          .eq('profile_id', user.id)
           .eq('is_active', true)
           .single();
 
@@ -52,18 +46,21 @@ export const useUserApartment = (): UseUserApartmentReturn => {
         if (queryError) {
           console.error('Erro ao buscar apartamento do usuário:', queryError);
           setError('Erro ao carregar apartamento');
-          setApartmentNumber(null);
-        } else if (data?.apartments?.number) {
+          setApartment(null);
+        } else if (data?.apartments?.number && data?.apartment_id) {
           console.log('Apartamento encontrado:', data.apartments.number);
-          setApartmentNumber(data.apartments.number);
+          setApartment({ 
+            id: data.apartment_id,
+            number: data.apartments.number 
+          });
         } else {
           console.log('Nenhum apartamento encontrado para o usuário');
-          setApartmentNumber(null);
+          setApartment(null);
         }
       } catch (err) {
         console.error('Erro inesperado ao buscar apartamento:', err);
         setError('Erro inesperado');
-        setApartmentNumber(null);
+        setApartment(null);
       } finally {
         setLoading(false);
       }
@@ -73,7 +70,7 @@ export const useUserApartment = (): UseUserApartmentReturn => {
   }, [user?.id]);
 
   return {
-    apartmentNumber,
+    apartment,
     loading,
     error
   };

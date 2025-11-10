@@ -66,7 +66,7 @@ export const usePendingNotifications = () => {
       const { data, error } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
       
       if (error) throw error;

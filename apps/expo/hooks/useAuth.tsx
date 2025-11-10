@@ -17,7 +17,8 @@ import { processQueue } from '../services/OfflineQueue';
 import AnalyticsTracker from '../services/AnalyticsTracker';
 import { registerPushTokenAfterLogin } from '../utils/pushNotifications';
 import type { User } from '@porteiroapp/common/supabase';
-import type { AuthUser, AuthUserRole } from '~/types/auth.types';
+import type { AuthUser, AuthProfile, AuthAdminProfile } from '~/types/auth.types';
+import { isRegularUser, isAdminUser } from '~/types/auth.types';
 
 export type SignInReturn =
   | {
@@ -431,17 +432,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq('user_id', authUser.id);
 
           userData = {
-            id: authUser.id,
-            profile_id: adminProfile.id,
-            email: adminProfile.email,
-            user_type: 'admin',
-            condominium_id: null,
-            building_id: null,
-            telefone: adminProfile.phone,
-            nome: adminProfile.full_name,
-            is_active: adminProfile.is_active ?? true,
-            last_login: new Date().toISOString(),
-            push_token: adminProfile.push_token,
+            ...adminProfile,
+            user_type: 'admin' as const,
           };
         } else {
           return null;
@@ -460,34 +452,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq('user_id', authUser.id);
         }
 
+        const profileUserType = (profile.user_type ?? profile.role ?? 'morador') as 'morador' | 'porteiro';
         userData = {
-          id: authUser.id,
-          profile_id: profile.id,
-          email: profile.email ?? '',
-          user_type: (profile.user_type ?? profile.role ?? 'morador') as AuthUserRole,
-          condominium_id: null,
-          building_id: profile.building_id ?? null,
-          apartment_id: null,
-          apartment_number: null,
-          nome: profile.full_name ?? null,
-          telefone: profile.phone ?? null,
-          is_active: true,
-          last_login: shouldUpdateLogin ? now.toISOString() : profile.last_seen ?? null,
-          push_token: profile.push_token ?? null,
+          ...profile,
+          user_type: profileUserType,
         };
         profileFetchRole = profile.user_type ?? profile.role ?? undefined;
       }
 
       // Salva os dados do usuário no TokenStorage
-      await TokenStorage.saveUserData({
-        ...userData,
-        role:
-          userData.user_type === 'admin'
-            ? 'admin'
-            : userData.user_type === 'porteiro'
-              ? 'porteiro'
-              : 'morador',
-      });
+      await TokenStorage.saveUserData(userData);
 
       await updateLastAuthTime();
       setIsOffline(false);
@@ -501,12 +475,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           prevUser.id !== userData.id ||
           prevUser.email !== userData.email ||
           prevUser.user_type !== userData.user_type ||
-          prevUser.building_id !== userData.building_id ||
-          prevUser.condominium_id !== userData.condominium_id ||
-          prevUser.apartment_id !== userData.apartment_id ||
-          prevUser.apartment_number !== userData.apartment_number ||
+          (isRegularUser(prevUser) && isRegularUser(userData) && prevUser.building_id !== userData.building_id) ||
           prevUser.push_token !== userData.push_token ||
-          prevUser.last_login !== userData.last_login
+          (isRegularUser(prevUser) && isRegularUser(userData) && prevUser.last_seen !== userData.last_seen)
         ) {
           return userData;
         }
@@ -558,24 +529,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedToken = await TokenStorage.getToken();
       const cachedUser = await TokenStorage.getUserData();
 
-      if (!cachedToken || !cachedUser || !cachedUser.profile_id) {
+      if (!cachedToken || !cachedUser || !cachedUser.id) {
         console.log('[Auth] Sem sessão em cache válida para modo offline');
         setUser(null);
         setIsReadOnly(false);
         AnalyticsTracker.trackEvent('auth_offline_no_cache', {
           hasToken: Boolean(cachedToken),
           hasUser: Boolean(cachedUser),
-          hasProfileId: Boolean(cachedUser?.profile_id),
+          hasProfileId: Boolean(cachedUser?.id),
         });
         return;
       }
 
-      // At this point, cachedUser.profile_id is guaranteed to exist
-      const normalizedUser: AuthUser = {
-        ...cachedUser,
-        profile_id: cachedUser.profile_id, // Explicitly set to satisfy TypeScript
-        user_type: cachedUser.user_type ?? (cachedUser as unknown as { role?: string }).role ?? 'morador',
-      };
+      // At this point, cachedUser.id is guaranteed to exist (profile id)
+      // Normalize user_type - ensure it's a valid AuthUser type
+      let normalizedUser: AuthUser;
+      if (cachedUser.user_type === 'admin') {
+        normalizedUser = {
+          ...cachedUser,
+          user_type: 'admin' as const,
+        } as AuthAdminProfile;
+      } else {
+        const profileUserType = (cachedUser.user_type ?? (cachedUser as unknown as { role?: string }).role ?? 'morador') as 'morador' | 'porteiro';
+        normalizedUser = {
+          ...cachedUser,
+          user_type: profileUserType,
+        } as AuthProfile;
+      }
 
       const lastAuthRaw = await AsyncStorage.getItem(LAST_AUTH_TIMESTAMP_KEY);
       const lastAuthTime = lastAuthRaw ? parseInt(lastAuthRaw, 10) : 0;
@@ -667,21 +647,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       AnalyticsTracker.trackEvent('auth_user_valid', { role: user.user_type });
 
       // Verifica o tipo de usuário e redireciona para as páginas index corretas
-      switch (user.user_type) {
-        case 'admin':
-          router.replace('/admin/(tabs)' as any);
-          break;
-        case 'porteiro':
-          router.replace('/porteiro');
-          break;
-        case 'morador':
-          router.replace('/morador/(tabs)' as any);
-          break;
-        default:
-          logError('Tipo de usuário não reconhecido:', user.user_type);
-          await signOut();
-          router.replace('/');
-          break;
+      if (isAdminUser(user)) {
+        router.replace('/admin/(tabs)' as any);
+      } else if (user.user_type === 'porteiro') {
+        router.replace('/porteiro');
+      } else if (user.user_type === 'morador') {
+        router.replace('/morador/(tabs)' as any);
+      } else {
+        logError('Tipo de usuário não reconhecido:', user.user_type);
+        await signOut();
+        router.replace('/');
       }
     } catch (error) {
       logError('Erro ao verificar e redirecionar usuário:', error);
@@ -770,13 +745,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     TokenStorage.getUserData()
       .then((cachedUser) => {
-        if (!isMounted || !cachedUser || !cachedUser.profile_id) return;
+        if (!isMounted || !cachedUser || !cachedUser.id) return;
 
-        const normalizedUser: AuthUser = {
-          ...cachedUser,
-          profile_id: cachedUser.profile_id, // Explicitly set to satisfy TypeScript
-          user_type: cachedUser.user_type ?? (cachedUser as any).role ?? 'morador',
-        };
+        // Normalize user_type - ensure it's a valid AuthUser type
+        let normalizedUser: AuthUser;
+        if (cachedUser.user_type === 'admin') {
+          normalizedUser = {
+            ...cachedUser,
+            user_type: 'admin' as const,
+          } as AuthAdminProfile;
+        } else {
+          const profileUserType = (cachedUser.user_type ?? (cachedUser as any).role ?? 'morador') as 'morador' | 'porteiro';
+          normalizedUser = {
+            ...cachedUser,
+            user_type: profileUserType,
+          } as AuthProfile;
+        }
 
         setUser((prev) => (prev ?? normalizedUser));
         AnalyticsTracker.trackEvent('auth_cache_hit', {
@@ -941,7 +925,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await loadUserProfile(data.user);
 
       // Register push token immediately after successful login
-      if (userData?.user_type && userData.user_type !== 'visitante') {
+      if (userData?.user_type) {
         registerPushTokenAfterLogin(data.user.id, userData.user_type).catch((error) => {
           console.error('🔔 Failed to register push token after login:', error);
         });
@@ -982,7 +966,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updates.push_token = token;
       }
 
-      await supabase.from(table).update(updates).eq('user_id', user.id);
+      if (!user.user_id) {
+        console.error('[AuthProvider] Cannot update push token: user.user_id is null');
+        return;
+      }
+      await supabase.from(table).update(updates).eq('user_id', user.user_id);
 
       if (tokenChanged) {
         // Atualiza o estado apenas quando o token muda
@@ -1047,12 +1035,12 @@ export function usePermissions() {
   const canReceiveDeliveries = user?.user_type === 'porteiro';
   const canAuthorizeVisitors = user?.user_type === 'morador';
 
-  const canManageCondominium = user?.user_type === 'admin' && user?.condominium_id;
+  const canManageCondominium = false; // condominium_id removed, always false
   const canManageBuilding =
-    (user?.user_type === 'admin' && user?.condominium_id) ||
-    (user?.user_type === 'porteiro' && user?.building_id);
-  const canAccessCondominium = user?.condominium_id;
-  const canAccessBuilding = user?.building_id || user?.condominium_id;
+    (user?.user_type === 'admin') ||
+    (user && isRegularUser(user) && user.building_id);
+  const canAccessCondominium = false; // condominium_id removed, always false
+  const canAccessBuilding = user && isRegularUser(user) ? user.building_id : null;
 
   return {
     canManageUsers,
@@ -1065,7 +1053,7 @@ export function usePermissions() {
     canAccessCondominium,
     canAccessBuilding,
     userRole: user?.user_type,
-    condominiumId: user?.condominium_id,
-    buildingId: user?.building_id,
+    condominiumId: null, // condominium_id removed
+    buildingId: user && isRegularUser(user) ? user.building_id : null,
   };
 }

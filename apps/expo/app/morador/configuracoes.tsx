@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
-import NotificationTest from '~/components/NotificationTest';
+import { NotificationTest } from '~/components/NotificationTest';
 
 export default function ConfiguracoesScreen() {
   const { user } = useAuth();

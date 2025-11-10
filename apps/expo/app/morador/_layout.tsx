@@ -19,7 +19,7 @@ export default function MoradorLayout() {
   const previousPathRef = useRef<string | null>(null);
   const [shouldAnimate, setShouldAnimate] = useState(true);
   const { user, signOut } = useAuth();
-  const { apartmentNumber, loading: apartmentLoading } = useUserApartment();
+  const { apartment, loading: apartmentLoading } = useUserApartment();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const shouldHideHeader =
@@ -127,7 +127,7 @@ export default function MoradorLayout() {
 
         // Set user context for AgoraService (needed by CallCoordinator)
         agoraService.setCurrentUser({
-          id: (user as any)?.profile_id ?? user.id,
+          id: user.id,
           userType: 'morador',
           displayName: (user as any)?.user_metadata?.full_name || user.email || null,
         });
@@ -381,8 +381,8 @@ export default function MoradorLayout() {
               <Text style={styles.subtitle}>
                 {apartmentLoading
                   ? 'Carregando...'
-                  : apartmentNumber
-                    ? `Apartamento ${apartmentNumber}`
+                  : apartment?.number
+                    ? `Apartamento ${apartment?.number}`
                     : 'Apartamento não encontrado'}
               </Text>
             </View>

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { VisitorCard } from '~/components/VisitorCard';
 import { flattenStyles } from '~/utils/styles';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
@@ -35,6 +36,7 @@ interface Visitor {
 
 export default function AuthorizeScreen() {
   const { user } = useAuth();
+  const { apartment } = useUserApartment();
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,13 +46,13 @@ export default function AuthorizeScreen() {
   const [notes, setNotes] = useState('');
 
   const fetchPendingVisitors = async () => {
-    if (!user?.apartment_number) return;
+    if (!apartment?.number) return;
 
     try {
       const { data, error } = await supabase
         .from('visitors')
         .select('*')
-        .eq('apartment_number', user.apartment_number)
+        .eq('apartment_number', apartment.number)
         .eq('status', 'pendente')
         .order('created_at', { ascending: false });
 

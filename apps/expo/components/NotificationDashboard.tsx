@@ -115,7 +115,11 @@ export default function NotificationDashboard() {
         ),
         profiles!inner (
           full_name,
-          apartment_number
+          apartment_residents (
+            apartments (
+              number
+            )
+          )
         )
       `)
       .order('sent_at', { ascending: false })
@@ -140,7 +144,7 @@ export default function NotificationDashboard() {
       },
       user: {
         name: log.profiles.full_name,
-        apartment_number: log.profiles.apartment_number
+        apartment_number: (log.profiles.apartment_residents as any)?.[0]?.apartments?.number || 'N/A'
       }
     })) || [];
 

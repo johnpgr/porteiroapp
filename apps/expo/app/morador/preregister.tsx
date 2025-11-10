@@ -14,10 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
+import { isRegularUser } from '~/types/auth.types';
 
 export default function PreregisterScreen() {
   const { user } = useAuth();
+  const { apartment } = useUserApartment();
   const [formData, setFormData] = useState({
     name: '',
     document: '',
@@ -88,7 +91,7 @@ export default function PreregisterScreen() {
       Alert.alert('Erro', 'Documento é obrigatório');
       return false;
     }
-    if (!user?.apartment_number) {
+    if (!apartment?.number) {
       Alert.alert('Erro', 'Número do apartamento não encontrado');
       return false;
     }
@@ -97,9 +100,36 @@ export default function PreregisterScreen() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    if (!user || !isRegularUser(user)) {
+      Alert.alert('Erro', 'Usuário não autorizado');
+      return;
+    }
+    if (!user.user_id) {
+      Alert.alert('Erro', 'ID do usuário não encontrado');
+      return;
+    }
 
     setLoading(true);
     try {
+      // Buscar apartment_id e building_id do usuário
+      const { data: apartmentData, error: apartmentError } = await supabase
+        .from('apartment_residents')
+        .select(`
+          apartment_id,
+          apartments!inner (
+            building_id
+          )
+        `)
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (apartmentError || !apartmentData) {
+        throw new Error('Não foi possível encontrar o apartamento do usuário');
+      }
+
+      const apartmentId = apartmentData.apartment_id;
+      const buildingId = apartmentData.apartments.building_id;
+
       // Inserir visitante pré-cadastrado
       const { error } = await supabase.from('visitors').insert({
         name: formData.name.trim(),
@@ -114,30 +144,30 @@ export default function PreregisterScreen() {
       // Criar log da atividade
       await supabase.from('visitor_logs').insert({
         visitor_id: null, // Será preenchido pelo trigger
-        action: 'preregistered',
-        performed_by: user!.id,
-        notes: `Visitante pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
-        timestamp: new Date().toISOString(),
+        apartment_id: apartmentId,
+        building_id: buildingId,
+        log_time: new Date().toISOString(),
+        tipo_log: 'IN',
+        purpose: `Visitante pré-cadastrado pelo morador do apt. ${apartment?.number || 'N/A'}`,
+        authorized_by: user.user_id,
       });
 
       // Criar notificação para o porteiro
       await supabase.from('communications').insert({
         title: 'Visitante Pré-cadastrado',
-        message: `${formData.name} foi pré-cadastrado pelo morador do apt. ${user!.apartment_number}`,
+        content: `${formData.name} foi pré-cadastrado pelo morador do apt. ${apartment?.number || 'N/A'}`,
         type: 'visitor',
         priority: 'low',
-        target_user_type: 'porteiro',
-        created_by: user!.id,
+        building_id: buildingId,
+        created_by: user.user_id,
       });
 
       // Enviar notificação push para porteiros (não bloqueia o fluxo)
-      if (user?.building_id) {
-        notifyPorteiroVisitorAuthorized({
-          visitorName: formData.name,
-          apartmentNumber: user.apartment_number || 'N/A',
-          buildingId: user.building_id,
-        }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
-      }
+      notifyPorteiroVisitorAuthorized({
+        visitorName: formData.name,
+        apartmentNumber: apartment?.number || 'N/A',
+        buildingId: buildingId,
+      }).catch((err) => console.warn('🔔 Erro ao enviar push notification:', err));
 
       Alert.alert(
         'Sucesso!',

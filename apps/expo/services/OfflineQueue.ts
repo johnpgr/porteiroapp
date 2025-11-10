@@ -45,11 +45,11 @@ const saveQueue = async (items: QueuedItem[]): Promise<void> => {
 };
 
 export const queueNotification = async (
-  item: Omit<QueuedItem, 'id' | 'timestamp' | 'type'> & { type?: 'notification_received' }
+  item: Omit<QueuedItem, 'id' | 'timestamp' | 'type'> & { id?: string; type?: 'notification_received' }
 ): Promise<void> => {
   const queue = await getQueue();
   queue.push({
-    id: item.id ?? generateId(),
+    id: item.id || generateId(),
     type: 'notification_received',
     payload: item.payload ?? null,
     timestamp: Date.now(),

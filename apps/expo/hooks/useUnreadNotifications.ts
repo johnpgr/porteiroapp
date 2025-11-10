@@ -33,7 +33,7 @@ export function useUnreadNotifications(
   const [isLoading, setIsLoading] = useState(false);
 
   const isMountedRef = useRef(true);
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
   const isFetchingRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
 

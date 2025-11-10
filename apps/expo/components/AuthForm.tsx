@@ -18,7 +18,7 @@ export default function AuthForm({
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
-  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const submitTimeoutRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -124,7 +124,11 @@ export default function AuthForm({
       
       // Tratamento específico para iOS
       if (Platform.OS === 'ios') {
-        const errorMessage = error?.message?.toLowerCase() || '';
+        // O tipo de 'error' pode não ter a propriedade 'message'
+        const errorMessage =
+          typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string'
+            ? ((error as any).message as string).toLowerCase()
+            : '';
         if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
           Alert.alert(
             'Erro de Conexão', 

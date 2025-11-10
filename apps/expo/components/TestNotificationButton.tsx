@@ -50,7 +50,7 @@ const TestNotificationButton: React.FC<TestNotificationButtonProps> = ({ style }
             building_id
           )
         `)
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
 
       if (apartmentError) {

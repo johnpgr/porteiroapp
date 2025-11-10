@@ -375,7 +375,7 @@ export const usePorteiroNotifications = (buildingId?: string | null, porteiroId?
   }, [addNotification, buildingId, isListening, porteiroId, showApprovalPopup]);
 
   // Parar listeners
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback(async () => {
     console.log('🛑 [usePorteiroNotifications] Parando listeners');
 
     channelsRef.current.forEach(channel => {

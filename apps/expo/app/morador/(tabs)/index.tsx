@@ -52,7 +52,7 @@ export default function MoradorInicioTab() {
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
 
       if (apartmentError) {

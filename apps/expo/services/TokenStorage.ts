@@ -45,10 +45,6 @@ const deleteSecureItem = async (key: string): Promise<void> => {
   }
 };
 
-export type StoredUserData = AuthUser & {
-  role: 'morador' | 'porteiro' | 'admin';
-  profile?: any;
-};
 
 async function saveTokenSecurely(key: string, value: string): Promise<void> {
   if (!SECURE_STORE_SUPPORTED) {
@@ -233,7 +229,7 @@ export class TokenStorage {
     }
   }
 
-  static async saveUserData(userData: StoredUserData): Promise<void> {
+  static async saveUserData(userData: AuthUser): Promise<void> {
     try {
       await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
     } catch (error) {
@@ -260,20 +256,20 @@ export class TokenStorage {
     }
   }
 
-  static async getUserData(): Promise<StoredUserData | null> {
+  static async getUserData(): Promise<AuthUser | null> {
     try {
       const userDataRaw = await AsyncStorage.getItem(USER_DATA_KEY);
       if (!userDataRaw) {
         return null;
       }
 
-      const parsed = JSON.parse(userDataRaw) as StoredUserData;
+      const parsed = JSON.parse(userDataRaw) as AuthUser;
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('Invalid user data payload');
       }
 
-      if (!parsed.id || !parsed.email || !parsed.profile_id) {
-        throw new Error('Missing required user fields (id, email, or profile_id)');
+      if (!parsed.id || !parsed.email) {
+        throw new Error('Missing required user fields (id or email)');
       }
 
       return parsed;
@@ -359,13 +355,13 @@ export class TokenStorage {
     }
   }
 
-  static async updateUserData(userData: Partial<StoredUserData>): Promise<void> {
+  static async updateUserData(userData: Partial<AuthUser>): Promise<void> {
     try {
       const currentData = await this.getUserData();
       const mergedData = {
         ...(currentData ?? {}),
         ...userData,
-      } as StoredUserData;
+      } as AuthUser;
 
       await this.saveUserData(mergedData);
     } catch (error) {
@@ -378,7 +374,7 @@ export class TokenStorage {
     hasToken: boolean;
     hasUserData: boolean;
     isExpired: boolean;
-    userData?: StoredUserData;
+    userData?: AuthUser;
   }> {
     try {
       const [token, userData, isExpired] = await Promise.all([

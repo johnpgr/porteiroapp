@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 
@@ -287,6 +288,7 @@ interface FetchOptions {
 
 export default function CallsTab() {
   const { user } = useAuth();
+  const { apartment, loading: apartmentLoading } = useUserApartment();
   const [calls, setCalls] = useState<CallHistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -300,8 +302,6 @@ export default function CallsTab() {
 
   const isFetchingRef = useRef(false);
   const offsetRef = useRef(0);
-  const apartmentIdRef = useRef<string | null>(user?.apartment_id ?? null);
-  const apartmentLoadingRef = useRef(false);
   const filterSheetRef = useRef<BottomSheetModalRef>(null);
 
   const openFilterSheet = useCallback(() => {
@@ -311,48 +311,6 @@ export default function CallsTab() {
   const handleFilterSheetClose = useCallback(() => {
     setFilterSheetVisible(false);
   }, []);
-
-  const loadApartmentId = useCallback(async (): Promise<string | null> => {
-    if (apartmentIdRef.current) {
-      return apartmentIdRef.current;
-    }
-
-    if (!user?.id) {
-      return null;
-    }
-
-    if (apartmentLoadingRef.current) {
-      // Aguarda a consulta atual ser concluída
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      return apartmentIdRef.current;
-    }
-
-    try {
-      apartmentLoadingRef.current = true;
-      const { data, error: apartmentError } = await supabase
-        .from('apartment_residents')
-        .select('apartment_id')
-        .eq('profile_id', user.profile_id)
-        .maybeSingle();
-
-      if (apartmentError) {
-        console.error('Erro ao buscar apartamento do morador:', apartmentError.message);
-        throw new Error(apartmentError.message);
-      }
-
-      if (!data?.apartment_id) {
-        return null;
-      }
-
-      apartmentIdRef.current = data.apartment_id;
-      return data.apartment_id;
-    } catch (apartError) {
-      console.error('Erro ao carregar apartment_id:', apartError);
-      return null;
-    } finally {
-      apartmentLoadingRef.current = false;
-    }
-  }, [user?.id]);
 
   const formatCallDate = useCallback((isoDate: string) => {
     const date = new Date(isoDate);
@@ -482,9 +440,12 @@ export default function CallsTab() {
       }
 
       try {
-        const apartmentId = await loadApartmentId();
+        // Wait for apartment data to load if still loading
+        if (apartmentLoading) {
+          return;
+        }
 
-        if (!apartmentId) {
+        if (!apartment?.id) {
           setCalls([]);
           setHasMore(false);
           setNoApartmentMessage(
@@ -512,7 +473,7 @@ export default function CallsTab() {
             call_participants(resident_id, status, joined_at, left_at)
           `
           )
-          .eq('apartment_id', apartmentId)
+          .eq('apartment_id', apartment.id)
           .order('started_at', { ascending: false })
           .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
 
@@ -560,7 +521,7 @@ export default function CallsTab() {
         setLoadingMore(false);
       }
     },
-    [dateRangeFilter, loadApartmentId, statusFilter, transformCall, user?.id]
+    [apartment, apartmentLoading, dateRangeFilter, statusFilter, transformCall, user?.id]
   );
 
   const handleApplyFilters = useCallback(

@@ -84,7 +84,13 @@ export default function EditBuilding() {
         .order('number', { ascending: true });
 
       if (error) throw error;
-      setApartments(data || []);
+      // Ensure data is never null and floor is never null (convert null to undefined)
+      setApartments(
+        (data || []).map((apartment) => ({
+          ...apartment,
+          floor: apartment.floor === null ? undefined : apartment.floor,
+        }))
+      );
     } catch (error) {
       console.error('Erro ao carregar apartamentos:', error);
       Alert.alert('Erro', 'Falha ao carregar apartamentos');

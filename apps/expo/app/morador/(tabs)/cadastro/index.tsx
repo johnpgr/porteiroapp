@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '~/utils/supabase';
 import type { Database } from '@porteiroapp/common/supabase';
 
@@ -162,11 +163,11 @@ export function CadastroTabContent() {
   
   // Carregar pessoas cadastradas
   useEffect(() => {
-    if (user?.building_id) {
+    if (user && isRegularUser(user) && user.building_id) {
       fetchPeople();
       fetchVehicles();
     }
-  }, [user?.building_id]);
+  }, [user]);
 
   // Função para buscar pessoas cadastradas
   const fetchPeople = async () => {
@@ -183,7 +184,7 @@ export function CadastroTabContent() {
       
       // Primeiro, buscar o building_id do usuário logado
       console.log('🔍 DEBUG: Buscando building_id do usuário através de apartment_residents...');
-      if (!user.profile_id) {
+      if (!user.id) {
         console.error('❌ DEBUG: profile_id não encontrado');
         throw new Error('Informações do perfil não encontradas');
       }
@@ -195,7 +196,7 @@ export function CadastroTabContent() {
             building_id
           )
         `)
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id do usuário:', {
@@ -260,7 +261,7 @@ export function CadastroTabContent() {
       const { data: userResident } = await supabase
         .from('apartment_residents')
         .select('apartment_id, is_owner')
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
       
       if (userResident) {
@@ -294,14 +295,14 @@ export function CadastroTabContent() {
       }
 
       // Buscar apartment_id do usuário
-      if (!user.profile_id) {
+      if (!user.id) {
         console.error('User profile_id não encontrado');
         return;
       }
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
 
       if (residentError || !userResident?.apartment_id) {
@@ -355,14 +356,14 @@ export function CadastroTabContent() {
       }
 
       // Buscar apartment_id do usuário
-      if (!user.profile_id) {
+      if (!user.id) {
         console.error('User profile_id não encontrado');
         return;
       }
       const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
 
       if (residentError || !userResident?.apartment_id) {
@@ -565,7 +566,7 @@ export function CadastroTabContent() {
       
       // Buscar o building_id do usuário logado
       console.log('🔍 DEBUG: Buscando building_id do usuário para cadastro...');
-      if (!user.profile_id) {
+      if (!user.id) {
         Alert.alert('Erro', 'Informações do perfil não encontradas');
         return;
       }
@@ -577,7 +578,7 @@ export function CadastroTabContent() {
             building_id
           )
         `)
-        .eq('profile_id', user.profile_id)
+        .eq('profile_id', user.id)
         .maybeSingle();
       
       console.log('🔍 DEBUG: Resultado da busca do building_id para cadastro:', {
@@ -678,14 +679,14 @@ export function CadastroTabContent() {
         console.log('🔍 DEBUG: Iniciando busca do apartment_id do usuário atual:', user.id);
         
         // Buscar apartment_id do usuário atual
-        if (!user.profile_id) {
+        if (!user.id) {
           console.error('❌ DEBUG: profile_id não encontrado para inserção');
           throw new Error('Informações do perfil não encontradas');
         }
         const { data: userResident, error: residentError } = await supabase
           .from('apartment_residents')
           .select('apartment_id')
-          .eq('profile_id', user.profile_id)
+          .eq('profile_id', user.id)
           .maybeSingle();
         
         console.log('🔍 DEBUG: Resultado da busca apartment_id:', { userResident, residentError });
