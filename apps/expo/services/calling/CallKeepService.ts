@@ -2,12 +2,14 @@ import RNCallKeep from 'react-native-callkeep';
 import { Platform } from 'react-native';
 import { EventEmitter } from 'events';
 
-const END_CALL_REASONS = {
-  FAILED: 1,
-  REMOTE_ENDED: 2,
-  DECLINED: 3,
-  BUSY: 4,
+export const EndCallReason = {
+  FAILED: "FAILED",
+  REMOTE_ENDED: "REMOTE_ENDED",
+  DECLINED: "DECLINED",
+  BUSY: "BUSY",
 } as const;
+
+export type EndCallReason = (typeof EndCallReason)[keyof typeof EndCallReason];
 
 class CallKeepService {
   private isAvailable: boolean = false;
