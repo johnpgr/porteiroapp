@@ -1,8 +1,10 @@
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
+import { callKeepService } from './CallKeepService';
+import { MyCallDataManager } from './MyCallDataManager';
 
 export interface VoipPushData {
   callId: string;
@@ -30,6 +32,7 @@ export class CallCoordinator {
   private activeSession: CallSession | null = null;
   private isInitialized: boolean = false;
   private eventHandlers = new Map<CoordinatorEvent, Set<EventHandler>>();
+  private callKeepAvailable: boolean = false;
 
   // RTM warmup timeout (increased to 6s to handle RTM connection time)
   // RTM can take 1-2 seconds to connect, so we need enough buffer
@@ -54,13 +57,34 @@ export class CallCoordinator {
    * Initialize coordinator
    * Call this on app start after user is authenticated
    */
-  initialize(): void {
+  async initialize(): Promise<void> {
     if (this.isInitialized) {
       console.log('[CallCoordinator] Already initialized');
       return;
     }
 
     console.log('[CallCoordinator] Initializing...');
+
+    // Initialize CallKeep before setting up listeners
+    this.callKeepAvailable = await callKeepService.setup();
+
+    // Subscribe to CallKeep events
+    callKeepService.addEventListener('answerCall', ({ callId }: { callId: string }) => {
+      void this.handleCallKeepAnswer(callId);
+    });
+
+    callKeepService.addEventListener('endCall', ({ callId }: { callId: string }) => {
+      void this.handleCallKeepEnd(callId);
+    });
+
+    callKeepService.addEventListener('didLoadWithEvents', (events: any[]) => {
+      void this.handleEarlyEvents(events);
+    });
+
+    callKeepService.addEventListener('didActivateAudioSession', () => {
+      console.log('[CallCoordinator] CallKit audio session activated');
+      // Audio session ready, Agora already handling audio
+    });
 
     // Set up RTM message listener for direct INVITE messages
     this.setupRtmListener();
@@ -133,10 +157,14 @@ export class CallCoordinator {
         altTypeRaw === 'call_end' ||
         altTypeRaw === 'end_call';
 
-      if (isEndLike && this.activeSession) {
+        if (isEndLike && this.activeSession) {
         if (this.activeSession.id === parsed.callId) {
           console.log(`[CallCoordinator] RTM ${type} received for active call ${parsed.callId}`);
           try {
+            // End CallKeep UI if available
+            if (this.callKeepAvailable) {
+              callKeepService.endCall(parsed.callId);
+            }
             // Use 'drop' to indicate remote-ended when wrapping end()
             await this.activeSession.end('drop');
           } catch (e) {
@@ -268,7 +296,19 @@ export class CallCoordinator {
         console.warn('[CallCoordinator] ⚠️ No active session found');
       }
 
-      // Step 1: Warm up RTM (user chose: "warm up first")
+      // NEW: Store call data for CallKeep (needed before RTM warmup)
+      await MyCallDataManager.storeCallData(data.callId, {
+        channelName: data.channelName,
+        rtcToken: '', // Will be fetched from API
+        callerName: data.callerName || 'Porteiro',
+        apartmentNumber: data.apartmentNumber,
+        from: data.from,
+        callId: data.callId,
+      });
+      await MyCallDataManager.setCurrentCallId(data.callId);
+
+      // Step 1: Warm up RTM FIRST (user chose: "warm up first")
+      // This ensures RTM is ready when user taps answer in CallKeep UI
       console.log('[CallCoordinator] Step 1: Warming up RTM...');
       const rtmReady = await this.warmupRTM();
 
@@ -280,6 +320,21 @@ export class CallCoordinator {
       }
 
       console.log('[CallCoordinator] ✅ RTM ready');
+
+      // NEW: Display CallKeep UI AFTER RTM warmup (if not already shown)
+      // Note: iOS AppDelegate already shows CallKit UI, Android background task shows ConnectionService UI
+      // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
+      // Only show if CallKeep is available and we haven't created a session yet
+      if (this.callKeepAvailable) {
+        callKeepService.displayIncomingCall(
+          data.callId,
+          data.from,
+          data.callerName || 'Porteiro'
+        );
+        if (__DEV__) {
+          console.log('[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)');
+        }
+      }
 
       // Step 2: Fetch call details from API
       console.log('[CallCoordinator] Step 2: Fetching call details...');
@@ -380,6 +435,10 @@ export class CallCoordinator {
           this.remoteEndInProgress = true;
           this.clearRemoteHangupPoll();
           try {
+            // End CallKeep UI if available
+            if (this.callKeepAvailable && this.activeSession?.id) {
+              callKeepService.endCall(this.activeSession.id);
+            }
             await this.activeSession.end('drop');
           } catch (e) {
             console.warn('[CallCoordinator] Poll end failed, forcing local cleanup:', e);
@@ -487,11 +546,22 @@ export class CallCoordinator {
 
     console.log(`[CallCoordinator] Ending active call (${reason})`);
 
+    const callId = this.activeSession.id;
+
+    // Before leaving channel, end CallKeep if available
+    if (this.callKeepAvailable) {
+      callKeepService.endCall(callId);
+    }
+
     if (reason === 'decline') {
       await this.activeSession.decline();
     } else {
       await this.activeSession.end(reason);
     }
+
+    // Clear call data
+    await MyCallDataManager.clearCallData(callId);
+    await MyCallDataManager.clearCurrentCallId();
 
     this.activeSession = null;
     console.log('[CallCoordinator] ✅ Call ended');
@@ -655,6 +725,62 @@ export class CallCoordinator {
   }
 
   /**
+   * Handle CallKeep answer event
+   */
+  private async handleCallKeepAnswer(callId: string): Promise<void> {
+    console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
+
+    try {
+      // Retrieve stored call data
+      const callData = await MyCallDataManager.getCallData(callId);
+      if (!callData) {
+        console.error('[CallCoordinator] No call data found for CallKeep answer');
+        return;
+      }
+
+      // Call existing answer logic
+      await this.answerActiveCall();
+
+      // Android: bring app to foreground
+      if (Platform.OS === 'android') {
+        callKeepService.backToForeground();
+      }
+    } catch (error) {
+      console.error('[CallCoordinator] CallKeep answer error:', error);
+    }
+  }
+
+  /**
+   * Handle CallKeep end event
+   */
+  private async handleCallKeepEnd(callId: string): Promise<void> {
+    console.log(`[CallCoordinator] CallKeep end event: ${callId}`);
+
+    try {
+      await this.endActiveCall('decline');
+      await MyCallDataManager.clearCallData(callId);
+      await MyCallDataManager.clearCurrentCallId();
+    } catch (error) {
+      console.error('[CallCoordinator] CallKeep end error:', error);
+    }
+  }
+
+  /**
+   * Handle early CallKeep events (iOS - when user taps answer before JS loads)
+   */
+  private async handleEarlyEvents(events: any[]): Promise<void> {
+    console.log('[CallCoordinator] Handling early CallKeep events:', events.length);
+
+    for (const event of events) {
+      if (event.name === 'RNCallKeepPerformAnswerCallAction') {
+        await this.handleCallKeepAnswer(event.data.callId);
+      } else if (event.name === 'RNCallKeepPerformEndCallAction') {
+        await this.handleCallKeepEnd(event.data.callId);
+      }
+    }
+  }
+
+  /**
    * Get debug info
    */
   getDebugInfo(): Record<string, any> {
@@ -662,6 +788,7 @@ export class CallCoordinator {
       isInitialized: this.isInitialized,
       hasActiveSession: this.hasActiveCall(),
       activeSession: this.activeSession?.getDebugInfo() || null,
+      callKeepAvailable: this.callKeepAvailable,
     };
   }
 }

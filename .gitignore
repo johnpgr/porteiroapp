@@ -18,6 +18,9 @@ expo-env.d.ts
 ios
 android
 
+# Exception: Allow plugin iOS directories (these are source files, not generated)
+!apps/expo/plugins/**/ios/
+
 # macOS
 .DS_Store
 

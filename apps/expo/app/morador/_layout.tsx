@@ -12,6 +12,7 @@ import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
+import { callKeepService } from '~/services/calling/CallKeepService';
 
 export default function MoradorLayout() {
   const pathname = usePathname();
@@ -142,8 +143,12 @@ export default function MoradorLayout() {
           // RTM will be retried on-demand when call arrives
         }
 
+        // Initialize CallKeep before CallCoordinator
+        await callKeepService.setup();
+        console.log('[MoradorLayout] ✅ CallKeep initialized');
+
         // Initialize CallCoordinator
-        callCoordinator.initialize();
+        await callCoordinator.initialize();
         console.log('[MoradorLayout] ✅ CallCoordinator initialized');
 
         console.log('[MoradorLayout] ✅ Call system ready');

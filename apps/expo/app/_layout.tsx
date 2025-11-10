@@ -20,6 +20,7 @@ import { initializeNotificationHandler } from '../services/notificationHandler';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import type { CallSession } from '~/services/calling/CallSession';
 import FullScreenCallUI from '~/components/FullScreenCallUI';
+import { callKeepService } from '~/services/calling/CallKeepService';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
 
@@ -301,7 +302,11 @@ export default function RootLayout() {
     const onSessionCreated = ({ session }: { session: CallSession }) => {
       console.log('[_layout] Incoming call session created');
       if (!session.isOutgoing) {
-        setIncomingCall(session);
+        // Only show custom UI if CallKeep unavailable
+        if (!callKeepService.checkAvailability()) {
+          setIncomingCall(session);
+        }
+        // Otherwise, CallKeep native UI is already showing
       }
     };
 
@@ -326,8 +331,11 @@ export default function RootLayout() {
         // Register background notification task
         await registerBackgroundNotificationTask();
 
+        // Initialize CallKeep before CallCoordinator
+        await callKeepService.setup();
+
         // Initialize call coordinator (may emit sessionCreated from recovery)
-        callCoordinator.initialize();
+        await callCoordinator.initialize();
 
         console.log('[_layout] ✅ Notification system and call coordinator initialized');
       } catch (error) {

@@ -172,7 +172,8 @@ class VoipPushNotificationService {
 
   /**
    * Handle incoming VoIP push notification
-   * Delegates to CallCoordinator for proper RTM warmup + full-screen UI
+   * Simplified: Just extract data and delegate to CallCoordinator
+   * Trust that AppDelegate already reported to CallKit (via plugin)
    */
   private async handleIncomingVoipPush(notification: any): Promise<void> {
     console.log('[VoIP Push] 🎯 Processing incoming push...');
@@ -181,9 +182,9 @@ class VoipPushNotificationService {
     const data: VoipPushData = notification || {};
 
     const callId = data.callId || data.call_id || 'unknown';
-    const callerName = data.fromName || data.from_name || 'Doorman';
+    const callerName = data.fromName || data.from_name || data.callerName || 'Porteiro';
     const apartmentNumber = data.apartmentNumber || data.apartment_number || '';
-    const channelName = data.channelName || data.channel_name || `call-${callId}`;
+    const channelName = data.channelName || data.channel_name || data.channel || `call-${callId}`;
     const buildingName = data.buildingName || data.building_name || '';
 
     console.log('[VoIP Push] Call details:', {
@@ -194,16 +195,10 @@ class VoipPushNotificationService {
     });
 
     try {
-      // Delegate to CallCoordinator
-      // CallCoordinator will:
-      // 1. Warm up RTM (3s timeout)
-      // 2. Show error + retry if RTM fails
-      // 3. Create CallSession
-      // 4. Persist session
-      // 5. Emit event to show full-screen UI
-      console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');
-
-      await callCoordinator.handleIncomingPush({
+      // Extract data and delegate to CallCoordinator
+      // AppDelegate already reported to CallKit (via withCallKitAppDelegate plugin)
+      // CallCoordinator will handle RTM warmup and session creation
+      const pushData: VoipPushData = {
         callId,
         from: data.from || '',
         callerName,
@@ -211,13 +206,13 @@ class VoipPushNotificationService {
         buildingName,
         channelName,
         timestamp: Date.now(),
-      });
+      };
 
+      console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');
+      await callCoordinator.handleIncomingPush(pushData);
       console.log('[VoIP Push] ✅ CallCoordinator handled push successfully');
     } catch (error) {
       console.error('[VoIP Push] ❌ Error handling incoming push:', error);
-
-      // Fallback: If coordinator fails, show error to user
       console.error('[VoIP Push] Coordinator failed, call may not work correctly');
     }
   }
