@@ -102,7 +102,7 @@ export default function MoradorLayout() {
 
   // ✅ Initialize CallCoordinator as soon as morador logs in
   useEffect(() => {
-    if (!user?.id) {
+    if (!user || !user.user_id) {
       return;
     }
 
@@ -113,11 +113,12 @@ export default function MoradorLayout() {
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('notification_enabled')
-          .eq('user_id', user.id)
-          .single();
+          .eq('user_id', user.user_id!)
+          .maybeSingle();
 
+        // Gracefully handle missing profile row without throwing a redbox
         if (error) {
-          console.error('[MoradorLayout] ❌ Failed to fetch notification preference:', error);
+          console.warn('[MoradorLayout] ⚠️ Could not fetch notification preference, defaulting to disabled:', error);
         }
 
         if (!profile || profile.notification_enabled !== true) {
