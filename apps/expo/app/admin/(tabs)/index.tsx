@@ -5,12 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
-import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
-import { supabase, adminAuth } from '~/utils/supabase';
+import { adminAuth } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 
 interface Building {
@@ -21,7 +19,6 @@ interface Building {
 export default function AdminDashboardTab() {
   const { user } = useAuth();
   const [buildings, setBuildings] = useState<Building[]>([]);
-  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -56,57 +53,10 @@ export default function AdminDashboardTab() {
     }
   };
 
-  const handleEmergency = () => {
-    router.push('/admin/emergency');
-  };
-
-  const menuItems: ProfileMenuItem[] = [
-    {
-      label: 'Meu Perfil',
-      iconName: 'person',
-      onPress: () => {
-        setShowAvatarMenu(false);
-        router.push('/admin/profile');
-      },
-    },
-    {
-      label: 'Sair',
-      iconName: 'log-out',
-      iconColor: '#f44336',
-      destructive: true,
-      onPress: async () => {
-        setShowAvatarMenu(false);
-        try {
-          await supabase.auth.signOut();
-          router.replace('/');
-        } catch (error) {
-          console.error('Erro ao fazer logout:', error);
-          Alert.alert('Erro', 'Não foi possível fazer logout');
-        }
-      },
-    },
-  ];
-
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-        <TouchableOpacity style={styles.panicButton} onPress={handleEmergency}>
-          <Text style={styles.panicButtonText}>🚨</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Painel Admin</Text>
-        <View style={styles.avatarContainer}>
-          <TouchableOpacity onPress={() => setShowAvatarMenu((prev) => !prev)}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>👨‍💼</Text>
-            </View>
-          </TouchableOpacity>
-          <ProfileMenu
-            visible={showAvatarMenu}
-            onClose={() => setShowAvatarMenu(false)}
-            items={menuItems}
-            placement="top-right"
-          />
-        </View>
+        <Text style={styles.title}>📊 Painel Admin</Text>
       </View>
     </View>
   );
@@ -149,43 +99,21 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FF9800',
     paddingBottom: 15,
-    paddingTop: 15,
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     paddingHorizontal: 20,
-    zIndex: 50,
   },
   headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    alignItems: 'center',
+    display: 'flex',
     justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 20,
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingTop: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  panicButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f44336',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  panicButtonText: {
-    fontSize: 20,
   },
   content: {
     flex: 1,
@@ -235,9 +163,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  avatarContainer: {
-    position: 'relative',
-    zIndex: 1000,
   },
 });
