@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { router } from 'expo-router';
+import type { RealtimeChannel } from "@porteiroapp/common/supabase";
+import { useCallback, useEffect, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Container } from '~/components/Container';
-import { supabase } from '~/utils/supabase';
-import { flattenStyles } from '~/utils/styles';
 import { useAuth } from '~/hooks/useAuth';
 import { useNotifications } from '~/hooks/useNotifications';
-import * as Notifications from 'expo-notifications';
-import type {RealtimeChannel} from "@porteiroapp/common/supabase"
+import { flattenStyles } from '~/utils/styles';
+import { supabase } from '~/utils/supabase';
 
 interface VisitorLog {
   id: string;
@@ -755,7 +753,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
-    marginBottom: 20,
   },
   title: {
     fontSize: 18,

@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { supabase, adminAuth } from '~/utils/supabase';
+import { useAuth } from '~/hooks/useAuth';
 
 interface Building {
   id: string;
@@ -18,19 +19,25 @@ interface Building {
 }
 
 export default function AdminDashboardTab() {
+  const { user } = useAuth();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) {
+      fetchData();
+    } else {
+      setBuildings([]);
+    }
+  }, [user]);
 
   const fetchData = async () => {
+    if (!user) return;
+
     try {
       const currentAdmin = await adminAuth.getCurrentAdmin();
       if (!currentAdmin) {
-        console.error('Administrador não encontrado');
-        router.push('/');
+        // Silent return during logout - expected behavior
         return;
       }
 

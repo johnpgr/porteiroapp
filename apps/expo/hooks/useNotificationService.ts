@@ -261,9 +261,12 @@ export const useNotificationService = (): UseNotificationServiceReturn => {
     try {
       const { data, error } = await supabase
         .from('notification_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .select(`
+          *,
+          notifications!inner(recipient_id)
+        `)
+        .eq('notifications.recipient_id', user.id)
+        .order('attempted_at', { ascending: false })
         .limit(limit);
 
       if (error) {

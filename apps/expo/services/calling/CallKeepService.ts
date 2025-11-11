@@ -1,6 +1,7 @@
 import RNCallKeep from 'react-native-callkeep';
 import { Platform } from 'react-native';
 import { EventEmitter } from 'expo-modules-core';
+import * as Device from 'expo-device';
 
 export const EndCallReason = {
   FAILED: "FAILED",
@@ -36,6 +37,16 @@ class CallKeepService {
       return true;
     }
 
+    // Skip setup on emulators - phone account registration crashes
+    if (!Device.isDevice) {
+      this.isAvailable = false;
+      this.hasAttempted = true;
+      if (__DEV__) {
+        console.log('[CallKeepService] ⚠️ Skipping setup on emulator - CallKeep unavailable');
+      }
+      return false;
+    }
+
     // Allow retry if previous attempt failed
     try {
       const options = {
@@ -43,15 +54,15 @@ class CallKeepService {
           appName: 'James Avisa',
         },
         android: {
-          alertTitle: 'Permissions required',
-          alertDescription: 'This app needs phone account access',
-          cancelButton: 'Cancel',
+          alertTitle: 'Permissões necessárias',
+          alertDescription: 'Este app precisa de acesso à conta telefônica',
+          cancelButton: 'Cancelar',
           okButton: 'OK',
           additionalPermissions: [],
           foregroundService: {
             channelId: 'com.porteiroapp.callkeep',
-            channelName: 'Incoming Call Service',
-            notificationTitle: 'Incoming call',
+            channelName: 'Serviço de Chamadas',
+            notificationTitle: 'Chamada recebida',
             notificationIcon: 'ic_notification',
           },
         },
