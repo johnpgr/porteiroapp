@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { Container } from '~/components/Container';
 import { usePorteiroDashboard } from '~/providers/PorteiroDashboardProvider';
 import { flattenStyles } from '~/utils/styles';
@@ -63,7 +63,7 @@ export default function PorteiroAvisosScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft color="#fff" size={30} />
+            <IconSymbol name="chevron.left" color="#fff" size={30} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>📢 Avisos</Text>

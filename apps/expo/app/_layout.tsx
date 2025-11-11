@@ -330,13 +330,10 @@ export default function RootLayout() {
         // Register background notification task
         await registerBackgroundNotificationTask();
 
-        // Initialize CallKeep before CallCoordinator
-        await callKeepService.setup();
+        // Defer CallKeep and CallCoordinator initialization until user login
+        // CallKeep and CallCoordinator are initialized in morador/_layout.tsx after authentication
 
-        // Initialize call coordinator (may emit sessionCreated from recovery)
-        await callCoordinator.initialize();
-
-        console.log('[_layout] ✅ Notification system and call coordinator initialized');
+        console.log('[_layout] ✅ Notification system initialized (CallKeep/Coordinator deferred until login)');
       } catch (error) {
         console.error('[_layout] ❌ Failed to initialize:', error);
       }

@@ -11,7 +11,7 @@ import {
 import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { flattenStyles } from '~/utils/styles';
-import { ArrowBigLeft, ArrowLeft } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 export default function PorteiroEmergencyPage() {
   const handleEmergencyCall = (service: string, number: string) => {
@@ -39,7 +39,7 @@ export default function PorteiroEmergencyPage() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft color="#fff" size={30} />
+            <IconSymbol name="chevron.left" color="#fff" size={30} />
           </TouchableOpacity>
           <View>
             <Text style={styles.title}>🚨 Emergência</Text>

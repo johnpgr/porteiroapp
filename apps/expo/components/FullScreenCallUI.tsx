@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import agoraAudioService from '~/services/audioService';
 import { agoraService } from '~/services/agora/AgoraService';
 import type { CallSession } from '~/services/calling/CallSession';
@@ -135,9 +135,9 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
                   onPress={handleToggleMute}
                 >
                   {isMuted ? (
-                    <MicOff size={24} color="#fff" />
+                    <IconSymbol name="mic.slash.fill" size={24} color="#fff" />
                   ) : (
-                    <Mic size={24} color="#666" />
+                    <IconSymbol name="mic" size={24} color="#666" />
                   )}
                 </TouchableOpacity>
 
@@ -147,9 +147,9 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
                   onPress={handleToggleSpeaker}
                 >
                   {isSpeakerOn ? (
-                    <Volume2 size={24} color="#fff" />
+                    <IconSymbol name="speaker.wave.3.fill" size={24} color="#fff" />
                   ) : (
-                    <VolumeX size={24} color="#666" />
+                    <IconSymbol name="speaker.slash.fill" size={24} color="#666" />
                   )}
                 </TouchableOpacity>
               </View>
@@ -160,7 +160,7 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
               style={[styles.endCallButton, isEnding && styles.buttonDisabled]}
               onPress={handleDecline}
             >
-              <PhoneOff size={24} color="#fff" />
+              <IconSymbol name="phone.down.fill" size={24} color="#fff" />
               <Text style={styles.buttonLabel}>Encerrar</Text>
             </TouchableOpacity>
           </>
@@ -172,12 +172,12 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
               style={[styles.actionButton, styles.declineButton, isEnding && styles.buttonDisabled]}
               onPress={handleDecline}
             >
-              <PhoneOff size={30} color="#fff" />
+              <IconSymbol name="phone.down.fill" size={30} color="#fff" />
               <Text style={styles.buttonLabel}>Recusar</Text>
             </TouchableOpacity>
 
             <TouchableOpacity disabled={isEnding} style={[styles.actionButton, styles.acceptButton, isEnding && styles.buttonDisabled]} onPress={handleAnswer}>
-              <Phone size={30} color="#fff" />
+              <IconSymbol name="phone.fill" size={30} color="#fff" />
               <Text style={styles.buttonLabel}>Atender</Text>
             </TouchableOpacity>
           </View>

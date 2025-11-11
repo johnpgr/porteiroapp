@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { supabase } from '~/utils/supabase';
-import { Bell, Users, AlertCircle, CheckCircle, Clock, Trash2 } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface NotificationStats {
   total: number;
@@ -222,13 +222,13 @@ export default function NotificationDashboard() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
-        return <CheckCircle size={16} color="#10B981" />;
+        return <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />;
       case 'failed':
-        return <AlertCircle size={16} color="#EF4444" />;
+        return <IconSymbol name="exclamationmark.circle.fill" size={16} color="#EF4444" />;
       case 'pending':
-        return <Clock size={16} color="#F59E0B" />;
+        return <IconSymbol name="clock.fill" size={16} color="#F59E0B" />;
       default:
-        return <Clock size={16} color="#6B7280" />;
+        return <IconSymbol name="clock.fill" size={16} color="#6B7280" />;
     }
   };
 
@@ -267,7 +267,7 @@ export default function NotificationDashboard() {
       <View style={styles.header}>
         <Text style={styles.title}>Dashboard de Notificações</Text>
         <TouchableOpacity onPress={clearOldLogs} style={styles.clearButton}>
-          <Trash2 size={20} color="#EF4444" />
+          <IconSymbol name="trash.fill" size={20} color="#EF4444" />
           <Text style={styles.clearButtonText}>Limpar Logs</Text>
         </TouchableOpacity>
       </View>
@@ -275,31 +275,31 @@ export default function NotificationDashboard() {
       {/* Estatísticas */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Bell size={24} color="#3B82F6" />
+          <IconSymbol name="bell.fill" size={24} color="#3B82F6" />
           <Text style={styles.statNumber}>{stats.total}</Text>
           <Text style={styles.statLabel}>Total</Text>
         </View>
         
         <View style={styles.statCard}>
-          <Clock size={24} color="#F59E0B" />
+          <IconSymbol name="clock.fill" size={24} color="#F59E0B" />
           <Text style={styles.statNumber}>{stats.pending}</Text>
           <Text style={styles.statLabel}>Pendentes</Text>
         </View>
         
         <View style={styles.statCard}>
-          <CheckCircle size={24} color="#10B981" />
+          <IconSymbol name="checkmark.circle.fill" size={24} color="#10B981" />
           <Text style={styles.statNumber}>{stats.sent}</Text>
           <Text style={styles.statLabel}>Enviadas</Text>
         </View>
         
         <View style={styles.statCard}>
-          <AlertCircle size={24} color="#EF4444" />
+          <IconSymbol name="exclamationmark.circle.fill" size={24} color="#EF4444" />
           <Text style={styles.statNumber}>{stats.failed}</Text>
           <Text style={styles.statLabel}>Falharam</Text>
         </View>
         
         <View style={styles.statCard}>
-          <Users size={24} color="#8B5CF6" />
+          <IconSymbol name="person.2.fill" size={24} color="#8B5CF6" />
           <Text style={styles.statNumber}>{stats.activeTokens}</Text>
           <Text style={styles.statLabel}>Dispositivos</Text>
         </View>
