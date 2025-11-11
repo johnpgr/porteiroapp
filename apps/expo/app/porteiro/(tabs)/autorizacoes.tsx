@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import AutorizacoesTab from '../AutorizacoesTab';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 
 export default function PorteiroAutorizacoesScreen() {
   const { user } = useAuth();
@@ -86,7 +87,20 @@ export default function PorteiroAutorizacoesScreen() {
     );
   }
 
-  return <AutorizacoesTab buildingId={buildingId} user={user} />;
+  // Type guard: ensure user is a regular user (not admin) for porteiro screens
+  if (!isRegularUser(user)) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>
+          Esta tela é apenas para porteiros.
+        </Text>
+      </View>
+    );
+  }
+
+  // At this point, TypeScript knows user is AuthProfile (not AuthAdminProfile)
+  // AuthProfile extends ProfileRow, so we can pass it directly
+  return <AutorizacoesTab buildingId={buildingId} user={user as any} />;
 }
 
 const styles = StyleSheet.create({

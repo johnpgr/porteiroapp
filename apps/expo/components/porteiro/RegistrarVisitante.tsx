@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { flattenStyles } from '~/utils/styles';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { uploadVisitorPhoto } from '~/services/photoUploadService';
 import { notificationApi } from '~/services/notificationApi';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
@@ -658,7 +659,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
       try {
         // Verificar se o porteiro está logado e tem building_id
-        if (!user || !user.building_id) {
+        if (!user || !isRegularUser(user) || !user.building_id) {
           Alert.alert('Erro', 'Porteiro não identificado. Faça login novamente.');
           setIsSubmitting(false);
           return;
@@ -727,7 +728,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         const visitSessionId = Crypto.randomUUID();
 
         // Determinar o propósito baseado no tipo de visita
-        let purpose = tipoVisita;
+        let purpose: string | null = tipoVisita;
         if (tipoVisita === 'prestador' && empresaPrestador) {
           purpose = `prestador - ${empresaPrestador.replace('_', ' ')}`;
         } else if (tipoVisita === 'entrega' && empresaEntrega) {
@@ -745,11 +746,11 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         const visitorLogData = {
           visitor_id: visitorId,
           apartment_id: selectedApartment.id,
-          building_id: user.building_id,
+          building_id: (isRegularUser(user) && user.building_id) || '',
           log_time: new Date().toISOString(),
           tipo_log: 'IN',
           visit_session_id: visitSessionId,
-          purpose: observacoes || purpose,
+          purpose: observacoes || purpose || undefined,
           entry_type: entryType,
           authorized_by: user.id,
           photo_url: photoUrl
@@ -804,7 +805,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             apartmentIds: [selectedApartment.id],
             visitorName: nomeVisitante,
             apartmentNumber: apartamento,
-            purpose: observacoes || purpose,
+            purpose: observacoes || purpose || undefined,
             photoUrl: photoUrl || undefined,
           });
 
@@ -999,9 +1000,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
     setCurrentStep('apartamento');
     setApartamento('');
     setSelectedApartment(null);
-    setTipoVisita('');
-    setEmpresaPrestador('');
-    setEmpresaEntrega('');
+    setTipoVisita(null);
+    setEmpresaPrestador(null);
+    setEmpresaEntrega(null);
     setNomeVisitante('');
     setCpfVisitante('');
     setObservacoes('');

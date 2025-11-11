@@ -20,7 +20,7 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
     startShift,
     endShift,
     refreshShiftStatus
-  } = useShiftControl(user?.id, buildingId);
+  } = useShiftControl({ porteiroId: user?.id || '', buildingId });
 
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
@@ -158,11 +158,11 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
                   </Text>
                 </View>
                 <Text className="text-white/80 text-xs">
-                  {formatDuration(currentShift.start_time)}
+                  {formatDuration(currentShift.shift_start)}
                 </Text>
               </View>
               <Text className="text-white/70 text-xs mt-1">
-                Iniciado às {formatTime(currentShift.start_time)}
+                Iniciado às {formatTime(currentShift.shift_start)}
               </Text>
             </View>
           ) : (

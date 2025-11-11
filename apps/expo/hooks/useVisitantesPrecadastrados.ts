@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { useUserApartment } from './useUserApartment';
 import type { Database } from '~/../../packages/common/supabase/types/database';
 
@@ -103,7 +104,7 @@ export function useVisitantesPrecadastrados() {
       }
 
       // Filtrar por prédio se for porteiro
-      if (user.user_type === 'porteiro' && user.building_id) {
+      if (user.user_type === 'porteiro' && isRegularUser(user) && user.building_id) {
         const { data, error: fetchError } = await supabase
           .from('visitors')
           .select(`
@@ -174,7 +175,7 @@ export function useVisitantesPrecadastrados() {
       }
 
       // Filtrar por prédio se for porteiro
-      if (user.user_type === 'porteiro' && user.building_id) {
+      if (user.user_type === 'porteiro' && isRegularUser(user) && user.building_id) {
         query = query.eq('building_id', user.building_id);
       }
 
@@ -373,7 +374,7 @@ export function useVisitantesPrecadastrados() {
       const logData = {
         visitor_id: visitanteId,
         apartment_id: visitor.apartment_id!,
-        building_id: user.building_id!,
+        building_id: (isRegularUser(user) && user.building_id) || '',
         tipo_log: 'entrada',
         entry_type: 'visitante',
         log_time: new Date().toISOString(),

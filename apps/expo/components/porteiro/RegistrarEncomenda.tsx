@@ -42,7 +42,7 @@ const empresasEntrega = [
 interface Apartment {
   id: string;
   number: string;
-  floor: number;
+  floor: number | null;
 }
 
 export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEncomendaProps) {
@@ -668,8 +668,8 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
                   // Enviar notificação de entrega aguardando aprovação
                   await notificationApi.sendVisitorWaitingNotification({
                     visitor_name: `Entrega de ${empresaSelecionada.nome}`,
-                    resident_phone: residentData.profiles.phone,
-                    resident_name: residentData.profiles.full_name,
+                    resident_phone: residentData.profiles.phone || '',
+                    resident_name: residentData.profiles.full_name || '',
                     building: buildingData?.name || 'Seu prédio',
                     apartment: selectedApartment.number,
                     visitor_log_id: visitorLogData.id
@@ -808,10 +808,10 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         </View>
 
       <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
+        <View style={styles.progressBar as any}>
           <View
             style={[
-              styles.progressFill,
+              styles.progressFill as any,
               {
                 width: `${(
                   (['apartamento', 'empresa', 'destinatario', 'descricao', 'observacoes', 'foto', 'confirmacao'].indexOf(currentStep) + 1) /
@@ -821,12 +821,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
             ]}
           />
         </View>
-        <Text style={styles.progressText}>
+        <Text style={styles.progressText as any}>
           {['apartamento', 'empresa', 'destinatario', 'descricao', 'observacoes', 'foto', 'confirmacao'].indexOf(currentStep) + 1} de 7
         </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content as any} showsVerticalScrollIndicator={false}>
         {currentStep === 'apartamento' && renderApartamentoStep()}
         {currentStep === 'empresa' && renderEmpresaStep()}
         {currentStep === 'destinatario' && renderDestinatarioStep()}
@@ -888,12 +888,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   progressFill: {
-    height: '100%',
+    height: 4,
     backgroundColor: '#4CAF50',
     borderRadius: 2,
   },
   progressText: {
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginTop: 8,
     fontSize: 14,
     color: '#666',
@@ -935,9 +935,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   apartmentsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 15,
+    // grid not supported in React Native, using flexbox instead
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   apartmentButton: {
     backgroundColor: '#fff',

@@ -33,6 +33,9 @@ interface FormData {
   birth_date: string;
   phone: string;
   photoUri: string | null;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  address: string;
 }
 
 export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
@@ -40,7 +43,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
   onClose,
   onComplete,
 }) => {
-  const [step, setStep] = useState<'personal' | 'contact' | 'emergency' | 'photo'>('personal');
+  const [step, setStep] = useState<'personal' | 'contact' | 'photo'>('personal');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
@@ -50,6 +53,9 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
     birth_date: '',
     phone: '',
     photoUri: null,
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    address: '',
   });
 
   const {
@@ -95,6 +101,9 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         phone: '',
         birth_date: '',
         photoUri: null,
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        address: '',
       });
       setErrors({});
       setIsLoading(false);
@@ -365,6 +374,7 @@ export const FirstLoginModal: React.FC<FirstLoginModalProps> = ({
         birth_date: formData.birth_date,
         emergency_contact_name: formData.emergency_contact_name,
         emergency_contact_phone: formData.emergency_contact_phone,
+        address: formData.address,
       });
 
       console.log('📊 DEBUG FirstLoginModal - Resultado recebido:', result);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { supabase } from '../../utils/supabaseUnified';
+import { supabase } from '~/utils/supabase';
 import { Bell, Users, AlertCircle, CheckCircle, Clock, Trash2 } from 'lucide-react-native';
 
 interface NotificationStats {
@@ -50,7 +50,8 @@ export default function NotificationDashboard() {
         unsubscribe();
       }
     };
-  }, [loadDashboardData, setupRealtimeSubscription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -90,9 +91,9 @@ export default function NotificationDashboard() {
     }
 
     const total = notifications?.length || 0;
-    const pending = notifications?.filter(n => n.status === 'pending').length || 0;
-    const sent = notifications?.filter(n => n.status === 'sent').length || 0;
-    const failed = notifications?.filter(n => n.status === 'failed').length || 0;
+    const pending = notifications?.filter((n: any) => n.status === 'pending').length || 0;
+    const sent = notifications?.filter((n: any) => n.status === 'sent').length || 0;
+    const failed = notifications?.filter((n: any) => n.status === 'failed').length || 0;
     const activeTokens = tokens?.length || 0;
 
     setStats({ total, pending, sent, failed, activeTokens });
@@ -130,7 +131,7 @@ export default function NotificationDashboard() {
       return;
     }
 
-    const formattedLogs = data?.map(log => ({
+    const formattedLogs = data?.map((log: any) => ({
       id: log.id,
       notification_id: log.notification_id,
       user_id: log.user_id,

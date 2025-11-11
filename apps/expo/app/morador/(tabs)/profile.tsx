@@ -237,10 +237,10 @@ export default function MoradorProfile() {
     } catch (error) {
       console.error('❌ Erro geral ao buscar perfil:', {
         error,
-        message: error.message,
-        stack: error.stack
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       });
-      Alert.alert('Erro', `Erro interno do servidor: ${error.message}`);
+      Alert.alert('Erro', `Erro interno do servidor: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
     }
@@ -493,9 +493,9 @@ export default function MoradorProfile() {
     } catch (err) {
       console.error('❌ LOG - Erro interno capturado:', {
         error: err,
-        message: err.message,
-        stack: err.stack,
-        name: err.name,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        name: err instanceof Error ? err.name : 'Unknown',
         user_id: user?.id,
         timestamp: new Date().toISOString()
       });

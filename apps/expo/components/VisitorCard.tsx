@@ -9,10 +9,11 @@ interface Visitor {
   document: string;
   apartment_number: string;
   photo_url?: string;
-  notification_status: 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida';
+  notification_status: 'pending' | 'approved' | 'rejected' | 'entrada' | 'saida' | 'aprovado' | 'nao_permitido' | string;
   visitor_type?: 'comum' | 'frequente';
   created_at: string;
   purpose?: string;
+  authorized_by?: string;
 }
 
 interface VisitorCardProps {
@@ -86,7 +87,6 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
         .select(`
           id,
           full_name,
-          photo_url,
           apartment_residents!inner(
             apartments!inner(number)
           )
@@ -100,10 +100,10 @@ export function VisitorCard({ visitor, onApprove, onDeny, onAction, showActions 
       }
 
       setResidentData({
-        id: profile.id,
-        full_name: profile.full_name,
-        photo_url: profile.photo_url,
-        apartment_number: profile.apartment_residents?.[0]?.apartments?.number
+        id: (profile as any).id,
+        full_name: (profile as any).full_name,
+        photo_url: undefined,
+        apartment_number: (profile as any).apartment_residents?.[0]?.apartments?.number
       });
       setShowResidentModal(true);
     } catch (error) {

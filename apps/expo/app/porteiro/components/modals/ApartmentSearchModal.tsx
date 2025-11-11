@@ -118,7 +118,7 @@ const ApartmentSearchModal: React.FC<ApartmentSearchModalProps> = ({
                   {/* Detalhes expandidos */}
                   {expandedCards.has(activity.id) && (
                     <View style={styles.activityDetails}>
-                      {activity.details.map((detail, index) => (
+                      {activity.details.map((detail: string, index: number) => (
                         <Text key={index} style={styles.activityDetail}>{detail}</Text>
                       ))}
 

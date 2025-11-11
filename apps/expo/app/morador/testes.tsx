@@ -29,15 +29,10 @@ function TestesContent() {
     createLembrete,
     deleteLembrete,
     lembretes,
-    notificationStats,
-    validationStats,
-    generateNotificationReport
   } = useLembretes();
 
   const [testResults, setTestResults] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [debugReport, setDebugReport] = useState<string>('');
-  const [showReport, setShowReport] = useState(false);
 
   // Cenários de teste específicos
   const testScenarios: TestScenario[] = [
@@ -90,15 +85,16 @@ function TestesContent() {
         titulo: scenario.name,
         descricao: scenario.description,
         data_vencimento: scenario.scheduledTime.toISOString(),
-        categoria: scenario.category,
+        categoria: scenario.category as any,
         prioridade: scenario.priority,
-        status: 'pendente' as const
+        status: 'pendente' as const,
+        building_admin_id: null, // Required field - null for general reminders
       };
 
       const result = await createLembrete(lembreteData);
       
-      if (result) {
-        addTestLog(`✅ Lembrete criado com sucesso - ID: ${result.id}`);
+      if (result.success && result.lembrete) {
+        addTestLog(`✅ Lembrete criado com sucesso - ID: ${result.lembrete.id}`);
         addTestLog(`📱 Notificações agendadas: exata + 15min antes`);
         addTestLog(`🔍 Validação em tempo real ativada`);
       } else {
@@ -135,21 +131,13 @@ function TestesContent() {
   };
 
   const generateReport = async () => {
-    try {
-      const report = await generateNotificationReport();
-      setDebugReport(report);
-      setShowReport(true);
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao gerar relatório');
-    }
+    // Notification stats temporarily disabled
+    addTestLog('📊 Relatório de notificações temporariamente desativado');
   };
 
   useEffect(() => {
-    // Atualizar relatório automaticamente a cada 30 segundos
-    const interval = setInterval(generateReport, 30000);
-    generateReport(); // Gerar relatório inicial
-    
-    return () => clearInterval(interval);
+    // Report generation temporarily disabled
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -233,16 +221,12 @@ function TestesContent() {
           <View style={styles.statsRow}>
             <View style={[styles.statCard, styles.blueCard]}>
               <Text style={styles.statTitle}>📱 Notificações</Text>
-              <Text style={styles.statValue}>Agendadas: {notificationStats?.scheduled || 0}</Text>
-              <Text style={styles.statValue}>Disparadas: {notificationStats?.triggered || 0}</Text>
-              <Text style={styles.statValue}>Perdidas: {notificationStats?.missed || 0}</Text>
+              <Text style={styles.statValue}>Temporariamente desativadas</Text>
             </View>
             
             <View style={[styles.statCard, styles.greenCard]}>
               <Text style={styles.statTitle}>✅ Validação</Text>
-              <Text style={styles.statValue}>Regras: {validationStats?.activeRules || 0}</Text>
-              <Text style={styles.statValue}>Verificações: {validationStats?.totalChecks || 0}</Text>
-              <Text style={styles.statValue}>Fallbacks: {validationStats?.fallbackTriggers || 0}</Text>
+              <Text style={styles.statValue}>Temporariamente desativada</Text>
             </View>
           </View>
           

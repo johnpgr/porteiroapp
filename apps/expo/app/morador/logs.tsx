@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import type { Database } from '@porteiroapp/common/supabase';
 
 type VisitorLogRow = Database['public']['Tables']['visitor_logs']['Row'];
@@ -109,7 +110,7 @@ export default function LogsScreen() {
 
       // Buscar comunicações
       if (filter === 'all' || filter === 'communication') {
-        if (!user?.building_id) {
+        if (!user?.id || !isRegularUser(user) || !user.building_id) {
           console.warn('Building ID não encontrado, pulando busca de comunicações');
         } else {
           const { data: communications, error: commError } = await supabase
@@ -146,7 +147,7 @@ export default function LogsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [apartmentId, filter, user?.building_id]);
+  }, [apartmentId, filter, user?.id]);
 
   useEffect(() => {
     if (apartmentId) {

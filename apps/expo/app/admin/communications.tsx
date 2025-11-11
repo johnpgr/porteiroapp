@@ -9,7 +9,9 @@ import {
   StyleSheet,
   FlatList,
   Image,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
@@ -28,8 +30,8 @@ interface Communication {
   id: string;
   title: string;
   content: string;
-  type: string;
-  priority: string;
+  type: string | null;
+  priority: string | null;
   created_at: string;
   building: {
     name: string;
@@ -455,17 +457,8 @@ export default function Communications() {
   };
 
   const showDatePickerModal = () => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: poll.expires_at ? new Date(poll.expires_at) : new Date(),
-        onChange: onDateChange,
-        mode: 'datetime',
-        is24Hour: true,
-        minimumDate: new Date(),
-      });
-    } else {
-      setShowDatePicker(true);
-    }
+    // Use DateTimePicker for both platforms
+    setShowDatePicker(true);
   };
 
   // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
@@ -692,7 +685,7 @@ export default function Communications() {
       setSelectedDate(new Date());
       setDateError('');
     } catch (error) {
-      Alert.alert('Erro', 'Falha ao criar enquete: ' + error.message);
+      Alert.alert('Erro', 'Falha ao criar enquete: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     }
   };
 
@@ -1050,7 +1043,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowCommunicationTypePicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Tipo</Text>
@@ -1099,7 +1092,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowCommunicationPriorityPicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Prioridade</Text>
@@ -1148,7 +1141,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowCommunicationBuildingPicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Prédio</Text>
@@ -1192,7 +1185,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowPollBuildingPicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Prédio</Text>
@@ -1236,7 +1229,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowDatePicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Data</Text>
@@ -1277,7 +1270,7 @@ export default function Communications() {
         animationType="fade"
         onRequestClose={() => setShowTimePicker(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Selecionar Hora</Text>
@@ -1765,20 +1758,20 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   // Estilos dos modais dos pickers
-  modalOverlay: {
+  pickerModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
+  pickerModalContent: {
     backgroundColor: 'white',
     margin: 20,
     borderRadius: 12,
     maxHeight: '90%',
     minWidth: '80%',
   },
-  modalHeader: {
+  pickerModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1786,12 +1779,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  modalTitle: {
+  pickerModalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#374151',
   },
-  modalCloseText: {
+  pickerModalCloseText: {
     fontSize: 18,
     color: '#6b7280',
     fontWeight: '600',

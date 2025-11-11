@@ -11,7 +11,7 @@ import {
 import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
-import type { Database } from '~/types/database';
+import type { Database } from '@porteiroapp/common/supabase';
 
 type Building = {
   id: string;

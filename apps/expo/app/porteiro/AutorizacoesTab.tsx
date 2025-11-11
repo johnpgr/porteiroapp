@@ -13,12 +13,72 @@ import { Modal } from '~/components/Modal';
 import { supabase } from '~/utils/supabase';
 import { notifyResidentOfVisitorArrival } from '~/services/notifyResidentService';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
+import type { Tables } from '@porteiroapp/common/supabase';
+
+// Database row types
+type ProfileRow = Tables<'profiles'>;
+type VisitorRow = Tables<'visitors'>;
+type VisitorLogRow = Tables<'visitor_logs'>;
+type DeliveryRow = Tables<'deliveries'>;
+type ApartmentRow = Tables<'apartments'>;
+
+// Extended types with relations
+type VisitorWithApartment = VisitorRow & {
+  apartments?: {
+    number: string;
+    building_id: string;
+  } | null;
+};
+
+type VisitorLogWithRelations = VisitorLogRow & {
+  visitors?: {
+    name: string | null;
+    document: string | null;
+    phone: string | null;
+  } | null;
+  apartments?: {
+    number: string;
+  } | null;
+  visitor_name?: string;
+  visitor_document?: string | null;
+  visitor_phone?: string | null;
+  apartment_number?: string;
+  resident_response_by_name?: string | null;
+  authorized_by_name?: string | null;
+  delivery_recipient?: string | null;
+};
+
+// UI Activity Entry type
+interface ActivityEntry {
+  id: string;
+  type: 'visit' | 'delivery';
+  title: string;
+  subtitle: string;
+  status: string;
+  time: string;
+  icon: string;
+  color: string;
+  photo_url?: string | null;
+  details: string[];
+  actions?: {
+    primary?: {
+      label: string;
+      action: () => void;
+      color: string;
+    };
+    secondary?: {
+      label: string;
+      action: () => void;
+      color: string;
+    };
+  };
+}
 
 interface AutorizacoesTabProps {
   buildingId: string;
-  user: any; // Consider replacing 'any' with a more specific user type if available
+  user: ProfileRow;
   filter?: string;
-  timeFilter?: any; // Consider replacing 'any' with a more specific type for timeFilter
+  timeFilter?: 'all' | 'today' | 'week' | 'month';
 }
 
 const AutorizacoesTab = ({
@@ -27,23 +87,23 @@ const AutorizacoesTab = ({
   filter = 'all',
   timeFilter: externalTimeFilter,
 }: AutorizacoesTabProps) => {
-  const [activities, setActivities] = useState([]);
-  const [preAuthorizedVisitors, setPreAuthorizedVisitors] = useState([]);
-  const [visitorLogs, setVisitorLogs] = useState([]);
+  const [activities, setActivities] = useState<ActivityEntry[]>([]);
+  const [preAuthorizedVisitors, setPreAuthorizedVisitors] = useState<ActivityEntry[]>([]);
+  const [visitorLogs, setVisitorLogs] = useState<VisitorLogWithRelations[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedAuth, setSelectedAuth] = useState();
-  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [selectedAuth, setSelectedAuth] = useState<ActivityEntry | undefined>();
+  const [expandedCards, setExpandedCards] = useState(new Set<string>());
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState();
-  const [notifications, setNotifications] = useState([]);
+  const [selectedImage, setSelectedImage] = useState<string | undefined>();
+  const [notifications, setNotifications] = useState<VisitorLogWithRelations[]>([]);
   const [countdown, setCountdown] = useState(5);
-  const [activeSection, setActiveSection] = useState('visitors');
+  const [activeSection, setActiveSection] = useState<'visitors' | 'preauthorized' | 'apartment'>('visitors');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState(externalTimeFilter || 'all');
   const [showApartmentModal, setShowApartmentModal] = useState(false);
   const [apartmentNumber, setApartmentNumber] = useState('');
-  const [apartmentVisitors, setApartmentVisitors] = useState([]);
+  const [apartmentVisitors, setApartmentVisitors] = useState<ActivityEntry[]>([]);
 
   // Estados para paginação e filtros
   const [visitorLogsPage, setVisitorLogsPage] = useState(0);
@@ -70,7 +130,7 @@ const AutorizacoesTab = ({
   };
 
   // Função para entregar encomenda
-  const entregarEncomenda = async (delivery: any) => {
+  const entregarEncomenda = async (delivery: DeliveryRow) => {
     try {
       const { error } = await supabase
         .from('deliveries')
@@ -92,7 +152,7 @@ const AutorizacoesTab = ({
   };
 
   // Função para remover encomenda
-  const removerEncomenda = async (delivery: any) => {
+  const removerEncomenda = async (delivery: DeliveryRow) => {
     try {
       Alert.alert('Confirmar Remoção', 'Tem certeza que deseja remover esta encomenda?', [
         {
@@ -213,7 +273,8 @@ const AutorizacoesTab = ({
         const residentIds =
           logsData
             ?.filter((log) => log.resident_response_by)
-            .map((log) => log.resident_response_by) || [];
+            .map((log) => log.resident_response_by)
+            .filter((id): id is string => id !== null) || [];
         const uniqueResidentIds = [...new Set(residentIds)];
 
         let residentNames = {} as Record<string, string>;
@@ -226,7 +287,7 @@ const AutorizacoesTab = ({
           if (residentsData) {
             residentNames = residentsData.reduce(
               (acc, profile) => {
-                acc[profile.id] = profile.full_name;
+                acc[profile.id] = profile.full_name || 'Morador';
                 return acc;
               },
               {} as Record<string, string>
@@ -236,7 +297,10 @@ const AutorizacoesTab = ({
 
         // Buscar nomes dos usuários (porteiros/moradores) que constam em authorized_by
         const authorizedIds =
-          logsData?.filter((log) => log.authorized_by).map((log) => log.authorized_by) || [];
+          logsData
+            ?.filter((log) => log.authorized_by)
+            .map((log) => log.authorized_by)
+            .filter((id): id is string => id !== null) || [];
         const uniqueAuthorizedIds = [...new Set(authorizedIds)];
 
         let authorizedNames = {} as Record<string, string>;
@@ -249,7 +313,7 @@ const AutorizacoesTab = ({
           if (authorizedProfiles) {
             authorizedNames = authorizedProfiles.reduce(
               (acc, profile) => {
-                acc[profile.id] = profile.full_name;
+                acc[profile.id] = profile.full_name || 'Porteiro';
                 return acc;
               },
               {} as Record<string, string>
@@ -258,18 +322,21 @@ const AutorizacoesTab = ({
         }
 
         // Mapear dados com nomes dos moradores
-        const mappedLogs =
-          logsData?.map((log) => ({
-            ...log,
-            visitor_name: log.visitors?.name || log.guest_name,
-            visitor_document: log.visitors?.document,
-            visitor_phone: log.visitors?.phone,
-            apartment_number: log.apartments?.number,
-            resident_response_by_name: log.resident_response_by
-              ? residentNames[log.resident_response_by]
-              : null,
-            authorized_by_name: log.authorized_by ? authorizedNames[log.authorized_by] : null,
-          })) || [];
+        const mappedLogs: VisitorLogWithRelations[] =
+          logsData?.map((log) => {
+            const mapped = {
+              ...log,
+              visitor_name: log.visitors?.name || log.guest_name || '',
+              visitor_document: log.visitors?.document,
+              visitor_phone: log.visitors?.phone,
+              apartment_number: log.apartments?.number || '',
+              resident_response_by_name: log.resident_response_by
+                ? residentNames[log.resident_response_by] || null
+                : null,
+              authorized_by_name: log.authorized_by ? authorizedNames[log.authorized_by] || null : null,
+            };
+            return mapped as VisitorLogWithRelations;
+          }) || [];
 
         console.log(`📦 [fetchVisitorLogs] Logs mapeados: ${mappedLogs.length} itens`);
         console.log(`📦 [fetchVisitorLogs] Primeiros 3 logs mapeados:`, mappedLogs.slice(0, 3));
@@ -300,7 +367,7 @@ const AutorizacoesTab = ({
         );
       } catch (error) {
         console.error('❌ [fetchVisitorLogs] EXCEÇÃO:', error);
-        console.error('❌ [fetchVisitorLogs] Stack trace:', error.stack);
+        console.error('❌ [fetchVisitorLogs] Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -317,7 +384,7 @@ const AutorizacoesTab = ({
     }
   }, [buildingId, statusFilter, fetchVisitorLogs]);
 
-  const confirmarChegada = async (visit) => {
+  const confirmarChegada = async (visit: VisitorWithApartment) => {
     try {
       const activity = activities.find((a) => a.id === visit.id);
       if (!activity) return;
@@ -386,7 +453,7 @@ const AutorizacoesTab = ({
       let { data: apartmentResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('profile_id, profiles!inner(full_name)')
-        .eq('apartment_id', visitorData.apartment_id)
+        .eq('apartment_id', visitorData.apartment_id!)
         .eq('is_owner', true)
         .maybeSingle();
 
@@ -398,7 +465,7 @@ const AutorizacoesTab = ({
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
-          .eq('apartment_id', visitorData.apartment_id)
+          .eq('apartment_id', visitorData.apartment_id!)
           .limit(1)
           .maybeSingle();
 
@@ -411,7 +478,7 @@ const AutorizacoesTab = ({
 
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
-        residentName = apartmentResident.profiles.full_name;
+        residentName = apartmentResident.profiles.full_name || 'Morador';
         console.log(
           `✅ [confirmarChegada] Morador encontrado: ${residentName} (ID: ${residentId})`
         );
@@ -426,11 +493,17 @@ const AutorizacoesTab = ({
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartments')
         .select('number')
-        .eq('id', visitorData.apartment_id)
+        .eq('id', visitorData.apartment_id!)
         .single();
 
       if (apartmentError) {
         console.error('❌ [confirmarChegada] Erro ao buscar dados do apartamento:', apartmentError);
+      }
+
+      // Verificar se o visitante tem apartment_id
+      if (!visitorData.apartment_id) {
+        Alert.alert('Erro', 'Visitante sem apartamento associado');
+        return;
       }
 
       // Criar dados do log baseado no access_type
@@ -490,12 +563,12 @@ const AutorizacoesTab = ({
 
         // 1. Enviar via WhatsApp/SMS (método antigo)
         const notificationResult = await notifyResidentOfVisitorArrival({
-          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          visitorName: visitorData.name,
           apartmentNumber: apartmentData?.number || 'N/A',
           buildingId: buildingId,
           visitorId: visit.id,
-          purpose: visitorData.purpose || 'Visita',
-          photo_url: visitorData.photo_url,
+          purpose: 'Visita',
+          photo_url: visitorData.photo_url || undefined,
           entry_type: 'visitor',
         });
 
@@ -516,10 +589,10 @@ const AutorizacoesTab = ({
           console.log('📱 [confirmarChegada] Enviando push notification para morador...');
           const pushResult = await notifyResidentsVisitorArrival({
             apartmentIds: [visitorData.apartment_id],
-            visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+            visitorName: visitorData.name,
             apartmentNumber: apartmentData?.number || 'N/A',
-            purpose: visitorData.purpose || 'Visita',
-            photoUrl: visitorData.photo_url,
+            purpose: 'Visita',
+            photoUrl: visitorData.photo_url || undefined,
           });
 
           if (pushResult.success) {
@@ -628,8 +701,8 @@ const AutorizacoesTab = ({
 
         // Processar visitantes pré-autorizados (filtrar expirados)
         const visitActivities: ActivityEntry[] = (visitResult || [])
-          .filter((visit: any) => visit.status !== 'expirado') // Filtrar visitantes expirados
-          .map((visit: any) => {
+          .filter((visit: VisitorWithApartment) => visit.status !== 'expirado') // Filtrar visitantes expirados
+          .map((visit: VisitorWithApartment) => {
             const isApproved = visit.status === 'aprovado';
             const isDireto = visit.access_type === 'direto';
             const isPending = visit.status === 'pendente';
@@ -782,7 +855,7 @@ const AutorizacoesTab = ({
 
   const closeImageModal = () => {
     setShowImageModal(false);
-    setSelectedImage(null);
+    setSelectedImage(undefined);
   };
 
   // Funções auxiliares para LogCard
@@ -933,7 +1006,7 @@ const AutorizacoesTab = ({
       let { data: apartmentResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('profile_id, profiles!inner(full_name)')
-        .eq('apartment_id', visitorData.apartment_id)
+        .eq('apartment_id', visitorData.apartment_id!)
         .eq('is_owner', true)
         .maybeSingle();
 
@@ -945,7 +1018,7 @@ const AutorizacoesTab = ({
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
-          .eq('apartment_id', visitorData.apartment_id)
+          .eq('apartment_id', visitorData.apartment_id!)
           .limit(1)
           .maybeSingle();
 
@@ -958,7 +1031,7 @@ const AutorizacoesTab = ({
 
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
-        residentName = apartmentResident.profiles.full_name;
+        residentName = apartmentResident.profiles.full_name || 'Morador';
         console.log(
           `✅ [handleNotifyResident] Morador encontrado: ${residentName} (ID: ${residentId})`
         );
@@ -967,6 +1040,12 @@ const AutorizacoesTab = ({
           '❌ [handleNotifyResident] Nenhum morador encontrado para apartment_id:',
           visitorData.apartment_id
         );
+      }
+
+      // Verificar se o visitante tem apartment_id
+      if (!visitorData.apartment_id) {
+        Alert.alert('Erro', 'Visitante sem apartamento associado');
+        return;
       }
 
       // Criar automaticamente um novo registro no visitor_logs
@@ -1025,10 +1104,10 @@ const AutorizacoesTab = ({
         console.log('📱 [handleNotifyResident] Enviando push notification para morador...');
         const pushResult = await notifyResidentsVisitorArrival({
           apartmentIds: [visitorData.apartment_id],
-          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          visitorName: visitorData.name,
           apartmentNumber: visitorData.apartments?.number || 'N/A',
-          purpose: visitorData.purpose || 'Visita',
-          photoUrl: visitorData.photo_url,
+          purpose: 'Visita',
+          photoUrl: visitorData.photo_url || undefined,
         });
 
         if (pushResult.success) {
@@ -1090,7 +1169,7 @@ const AutorizacoesTab = ({
       let { data: apartmentResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('profile_id, profiles!inner(full_name)')
-        .eq('apartment_id', visitorData.apartment_id)
+        .eq('apartment_id', visitorData.apartment_id!)
         .eq('is_owner', true)
         .maybeSingle();
 
@@ -1102,7 +1181,7 @@ const AutorizacoesTab = ({
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
-          .eq('apartment_id', visitorData.apartment_id)
+          .eq('apartment_id', visitorData.apartment_id!)
           .limit(1)
           .maybeSingle();
 
@@ -1115,13 +1194,19 @@ const AutorizacoesTab = ({
 
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
-        residentName = apartmentResident.profiles.full_name;
+        residentName = apartmentResident.profiles.full_name || 'Morador';
         console.log(`✅ [handleCheckIn] Morador encontrado: ${residentName} (ID: ${residentId})`);
       } else {
         console.error(
           '❌ [handleCheckIn] Nenhum morador encontrado para apartment_id:',
           visitorData.apartment_id
         );
+      }
+
+      // Verificar se o visitante tem apartment_id
+      if (!visitorData.apartment_id) {
+        Alert.alert('Erro', 'Visitante sem apartamento associado');
+        return;
       }
 
       // Criar dados do log baseado no access_type
@@ -1191,12 +1276,12 @@ const AutorizacoesTab = ({
 
         // 1. Enviar via WhatsApp/SMS (método antigo)
         const notificationResult = await notifyResidentOfVisitorArrival({
-          visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+          visitorName: visitorData.name,
           apartmentNumber: apartmentData?.number || 'N/A',
           buildingId: buildingId,
           visitorId: activityId,
-          purpose: visitorData.purpose || 'Visita',
-          photo_url: visitorData.photo_url,
+          purpose: 'Visita',
+          photo_url: visitorData.photo_url || undefined,
           entry_type: 'visitor',
         });
 
@@ -1214,10 +1299,10 @@ const AutorizacoesTab = ({
           console.log('📱 [handleCheckIn] Enviando push notification para morador...');
           const pushResult = await notifyResidentsVisitorArrival({
             apartmentIds: [visitorData.apartment_id],
-            visitorName: visitorData.name || activity.title.replace('👤 ', ''),
+            visitorName: visitorData.name,
             apartmentNumber: apartmentData?.number || 'N/A',
-            purpose: visitorData.purpose || 'Visita',
-            photoUrl: visitorData.photo_url,
+            purpose: 'Visita',
+            photoUrl: visitorData.photo_url || undefined,
           });
 
           if (pushResult.success) {
@@ -1298,11 +1383,11 @@ const AutorizacoesTab = ({
       }
 
       // Processar visitantes da mesma forma que em fetchActivities
-      const processedVisitors = visitors.map((visit: any) => {
+      const processedVisitors: ActivityEntry[] = (visitors || []).map((visit: VisitorWithApartment) => {
         const isApproved = visit.status === 'aprovado';
         const isPending = visit.status === 'pendente';
         const visitorName = visit.name || 'Visitante';
-        const allowDirectAccess = visit.allow_direct_access === true;
+        const allowDirectAccess = visit.access_type === 'direto';
 
         return {
           id: visit.id,
@@ -1418,10 +1503,10 @@ const AutorizacoesTab = ({
     return true;
   });
 
-  const LogCard = ({ log }: { log: any }) => {
+  const LogCard = ({ log }: { log: VisitorLogWithRelations }) => {
     const isExpanded = expandedCards.has(log.id);
-    const statusInfo = getVisitorLogStatus(log.notification_status, log.tipo_log);
-    const logIcon = getLogIcon(log.entry_type);
+    const statusInfo = getVisitorLogStatus(log.notification_status || '', log.tipo_log);
+    const logIcon = getLogIcon(log.entry_type || '');
 
     return (
       <TouchableOpacity style={styles.logCard} onPress={() => toggleCardExpansion(log.id)}>
@@ -1447,7 +1532,7 @@ const AutorizacoesTab = ({
           </View>
           {log.photo_url && (
             <View style={styles.photoContainer}>
-              <TouchableOpacity onPress={() => openImageModal(log.photo_url)}>
+              <TouchableOpacity onPress={() => log.photo_url && openImageModal(log.photo_url)}>
                 <Image source={{ uri: log.photo_url }} style={styles.logPhoto} resizeMode="cover" />
               </TouchableOpacity>
             </View>
@@ -1829,11 +1914,9 @@ const AutorizacoesTab = ({
             <Text style={styles.confirmModalIcon}>✅</Text>
             <Text style={styles.confirmModalTitle}>Morador Notificado!</Text>
             <Text style={styles.confirmModalMessage}>
-              {selectedAuth.isEncomenda
-                ? `A encomenda de ${selectedAuth.nomeConvidado} foi registrada na portaria.`
-                : selectedAuth.jaAutorizado
-                  ? `${selectedAuth.nomeConvidado} foi liberado para subir ao apartamento ${selectedAuth.apartamento}.`
-                  : `O morador do apartamento ${selectedAuth.apartamento} foi notificado sobre a chegada de ${selectedAuth.nomeConvidado}.`}
+              {selectedAuth.type === 'delivery'
+                ? `A encomenda foi registrada na portaria.`
+                : `O morador foi notificado sobre a chegada de ${selectedAuth.title.replace('👤 ', '')}.`}
             </Text>
             <Text style={styles.countdownText}>Fechando em {countdown} segundos...</Text>
             <TouchableOpacity
@@ -2379,7 +2462,6 @@ const styles = StyleSheet.create({
     minWidth: 120, // Largura mínima para textos longos
     textAlign: 'right',
     lineHeight: 10, // Altura de linha compacta
-    numberOfLines: 1, // Força uma única linha
   },
   logTime: {
     fontSize: 10, // Reduzido de 11 para 10

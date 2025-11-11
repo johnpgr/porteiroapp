@@ -20,19 +20,20 @@ import { VisitorCard } from '~/components/VisitorCard';
 import { flattenStyles } from '~/utils/styles';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
 import { sendPushNotification } from '~/utils/pushNotifications';
+import type { Tables } from '@porteiroapp/common/supabase';
 
-interface Visitor {
-  id: string;
-  name: string;
+type VisitorRow = Tables<'visitors'>;
+
+// Extended type for display with apartment info
+// Override nullable fields to match VisitorCard expectations
+type Visitor = Omit<VisitorRow, 'document' | 'photo_url' | 'phone' | 'visitor_type'> & {
   document: string;
-  phone?: string;
   apartment_number: string;
+  notification_status: string;
   photo_url?: string;
-  notes?: string;
-  status: 'pendente' | 'approved' | 'denied' | 'in_building' | 'left';
-  created_at: string;
-  authorized_by?: string;
-}
+  phone?: string;
+  visitor_type?: 'comum' | 'frequente';
+};
 
 export default function AuthorizeScreen() {
   const { user } = useAuth();
@@ -46,18 +47,32 @@ export default function AuthorizeScreen() {
   const [notes, setNotes] = useState('');
 
   const fetchPendingVisitors = async () => {
-    if (!apartment?.number) return;
+    if (!apartment?.id) return;
 
     try {
       const { data, error } = await supabase
         .from('visitors')
-        .select('*')
-        .eq('apartment_number', apartment.number)
+        .select('*, apartments!inner(number)')
+        .eq('apartment_id', apartment.id)
         .eq('status', 'pendente')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setVisitors(data || []);
+      
+      // Map the data to include apartment_number for display and filter out invalid entries
+      const visitorsWithApartment: Visitor[] = (data || [])
+        .filter((v: any) => v.document) // Filter out visitors without document
+        .map((v: any) => ({
+          ...v,
+          document: v.document,
+          apartment_number: v.apartments?.number || apartment.number || '',
+          notification_status: v.status || 'pendente',
+          photo_url: v.photo_url || undefined,
+          phone: v.phone || undefined,
+          visitor_type: v.visitor_type === 'frequente' ? 'frequente' : (v.visitor_type === 'comum' ? 'comum' : undefined),
+        }));
+      
+      setVisitors(visitorsWithApartment);
     } catch (error) {
       console.error('Erro ao buscar visitantes:', error);
       Alert.alert('Erro', 'Não foi possível carregar os visitantes pendentes');
@@ -90,18 +105,20 @@ export default function AuthorizeScreen() {
         .from('visitors')
         .update({
           status: newStatus,
-          authorized_by: user.id,
-          notes: notes || selectedVisitor.notes,
         })
         .eq('id', selectedVisitor.id);
 
       if (error) throw error;
 
-      // Buscar dados do apartamento incluindo building_id
+      if (!selectedVisitor.apartment_id) {
+        throw new Error('Visitante sem apartamento associado');
+      }
+
+      // Buscar dados do apartamento incluindo building_id e número
       const { data: apartmentData } = await supabase
         .from('apartments')
-        .select('id, building_id')
-        .eq('apartment_number', selectedVisitor.apartment_number)
+        .select('id, building_id, number')
+        .eq('id', selectedVisitor.apartment_id)
         .maybeSingle();
 
       if (apartmentData) {
@@ -123,11 +140,11 @@ export default function AuthorizeScreen() {
         // Criar notificação para o porteiro na tabela communications
         await supabase.from('communications').insert({
           title: `Visitante ${actionType === 'approve' ? 'Aprovado' : 'Negado'}`,
-          message: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${selectedVisitor.apartment_number}`,
+          content: `${selectedVisitor.name} foi ${actionType === 'approve' ? 'aprovado' : 'negado'} pelo morador do apt. ${apartmentData.number}`,
+          building_id: apartmentData.building_id,
+          created_by: user.id,
           type: 'visitor',
           priority: 'medium',
-          target_user_type: 'porteiro',
-          created_by: user.id,
         });
 
         // Enviar notificação push para o porteiro via Edge Function
@@ -135,8 +152,8 @@ export default function AuthorizeScreen() {
           const isApproved = actionType === 'approve';
           const title = isApproved ? '✅ Visitante Aprovado' : '❌ Visitante Rejeitado';
           const message = isApproved
-            ? `${selectedVisitor.name} foi aprovado para o apartamento ${selectedVisitor.apartment_number}`
-            : `A entrada de ${selectedVisitor.name} foi rejeitada pelo apartamento ${selectedVisitor.apartment_number}`;
+            ? `${selectedVisitor.name} foi aprovado para o apartamento ${apartmentData.number}`
+            : `A entrada de ${selectedVisitor.name} foi rejeitada pelo apartamento ${apartmentData.number}`;
 
           const result = await sendPushNotification({
             title,
@@ -148,7 +165,7 @@ export default function AuthorizeScreen() {
               type: isApproved ? 'visitor_approved' : 'visitor_rejected',
               visitor_id: selectedVisitor.id,
               visitor_name: selectedVisitor.name,
-              apartment_number: selectedVisitor.apartment_number,
+              apartment_number: apartmentData.number,
             },
           });
 

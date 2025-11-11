@@ -43,10 +43,15 @@ export default function NotificationsScreen() {
       const history = await getNotificationHistory(50);
       // Map NotificationLog to legacy Notification format for NotificationCard
       const mappedNotifications: Notification[] = history.map((log) => {
-        // Determine notification type from notification_type or metadata
+        // Parse response_data to get notification details
+        const responseData = log.response_data as any;
+        const title = responseData?.title || 'Notificação';
+        const body = responseData?.body || '';
+        
+        // Determine notification type from metadata or default to communication
         let type: 'visitor' | 'delivery' | 'communication' | 'emergency' = 'communication';
-        if (log.notification_type) {
-          const lowerType = log.notification_type.toLowerCase();
+        if (responseData?.type) {
+          const lowerType = responseData.type.toLowerCase();
           if (lowerType.includes('visitor') || lowerType.includes('visitante')) {
             type = 'visitor';
           } else if (lowerType.includes('delivery') || lowerType.includes('encomenda')) {
@@ -58,10 +63,10 @@ export default function NotificationsScreen() {
         
         return {
           id: log.id,
-          title: log.title || 'Notificação',
-          message: log.body || '',
+          title,
+          message: body,
           type,
-          created_at: log.created_at,
+          created_at: log.attempted_at || log.delivered_at || new Date().toISOString(),
           read: log.status === 'read',
         };
       });

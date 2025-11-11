@@ -150,7 +150,7 @@ export default function EnquetesTab() {
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
 
           // Verificar se a enquete ainda está ativa (não expirou)
-          const isExpired = new Date(poll.expires_at) < new Date();
+          const isExpired = poll.expires_at ? new Date(poll.expires_at) < new Date() : false;
 
           return {
             ...poll,

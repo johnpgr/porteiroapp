@@ -30,45 +30,6 @@ export default function AudioPlayer({
   const [totalDuration, setTotalDuration] = useState(duration);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (autoPlay && uri) {
-      handlePlay();
-    }
-
-    return () => {
-      // Cleanup ao desmontar
-      handleStop();
-    };
-  }, [uri, autoPlay, handlePlay, handleStop]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isPlaying && !isPaused) {
-      interval = setInterval(async () => {
-        const status = await audioService.getPlaybackStatus();
-        if (status && status.isLoaded) {
-          setCurrentPosition(status.positionMillis || 0);
-          setTotalDuration(status.durationMillis || duration);
-
-          // Verificar se terminou
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setIsPaused(false);
-            setCurrentPosition(0);
-            onPlayEnd?.();
-          }
-        }
-      }, 100);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isPlaying, isPaused, duration, onPlayEnd, handlePlay]);
-
   const handlePlay = useCallback(async () => {
     if (!uri) {
       onError?.('URI do áudio não fornecida');
@@ -101,6 +62,57 @@ export default function AudioPlayer({
     }
   }, [uri, isPaused, onError, onPlayStart]);
 
+  const handleStop = useCallback(async () => {
+    try {
+      await audioService.stopAudio();
+      setIsPlaying(false);
+      setIsPaused(false);
+      setCurrentPosition(0);
+    } catch (error) {
+      console.error('Erro ao parar áudio:', error);
+      onError?.('Erro ao parar áudio');
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    if (autoPlay && uri) {
+      handlePlay();
+    }
+
+    return () => {
+      // Cleanup ao desmontar
+      handleStop();
+    };
+  }, [uri, autoPlay, handlePlay, handleStop]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    if (isPlaying && !isPaused) {
+      interval = setInterval(async () => {
+        const status = await audioService.getPlaybackStatus();
+        if (status && status.isLoaded) {
+          setCurrentPosition(status.positionMillis || 0);
+          setTotalDuration(status.durationMillis || duration);
+
+          // Verificar se terminou
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setIsPaused(false);
+            setCurrentPosition(0);
+            onPlayEnd?.();
+          }
+        }
+      }, 100);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isPlaying, isPaused, duration, onPlayEnd]);
+
   const handlePause = async () => {
     try {
       await audioService.pauseAudio();
@@ -110,17 +122,6 @@ export default function AudioPlayer({
       onError?.('Erro ao pausar áudio');
     }
   };
-
-  const handleStop = useCallback(async () => {
-    try {
-      await audioService.stopAudio();
-      setIsPlaying(false);
-      setIsPaused(false);
-      setCurrentPosition(0);
-    } catch (error) {
-      console.error('Erro ao parar áudio:', error);
-    }
-  }, []);
 
   const formatTime = (milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000);

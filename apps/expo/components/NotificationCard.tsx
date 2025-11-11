@@ -176,7 +176,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         const visitorDetails = [];
         if (notification.purpose) visitorDetails.push(`📋 ${notification.purpose}`);
         if (notification.guest_name) visitorDetails.push(`👤 ${notification.guest_name}`);
-        if (notification.phone) visitorDetails.push(`📞 ${notification.phone}`);
+        if (notification.visitors?.phone) visitorDetails.push(`📞 ${notification.visitors.phone}`);
         return visitorDetails.length > 0 ? visitorDetails.join('\n') : 'Informações do visitante não disponíveis';
       
       case 'delivery':
@@ -297,7 +297,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
         {isDelivery ? (
           <>
             <TouchableOpacity
-              style={[styles.actionButton, styles.porterButton]}
+              style={[styles.actionButton, styles.receivedPorterButton]}
               onPress={handleDeliveryPortaria}
               disabled={responding}
             >
@@ -306,7 +306,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton, styles.elevatorButton]}
+              style={[styles.actionButton, styles.receivedElevatorButton]}
               onPress={handleDeliveryElevador}
               disabled={responding}
             >
@@ -393,7 +393,7 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.noPhotoContainer}>
-                    <Ionicons name="camera-off" size={40} color="#ccc" />
+                    <Ionicons name="camera-outline" size={40} color="#ccc" />
                     <Text style={styles.noPhotoText}>Imagem não registrada</Text>
                   </View>
                 )}
@@ -414,14 +414,14 @@ function PendingNotificationCard({ notification, onRespond, onInfoPress }: Pendi
                   </View>
                 )}
 
-                {notification.phone && (
+                {notification.visitors?.phone && (
                   <View style={styles.infoItem}>
                     <View style={styles.infoIcon}>
                      <Ionicons name="call-outline" size={18} color="#4CAF50" />
                    </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Telefone</Text>
-                      <Text style={styles.infoValue}>{notification.phone}</Text>
+                      <Text style={styles.infoValue}>{notification.visitors.phone}</Text>
                     </View>
                   </View>
                 )}
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
   denyButton: {
     backgroundColor: '#f44336',
   },
-  porterButton: {
+  receivedPorterButton: {
     backgroundColor: '#4CAF50',
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#45a049',
   },
-  elevatorButton: {
+  receivedElevatorButton: {
     backgroundColor: '#2196F3',
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -1306,13 +1306,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignItems: 'center',
   },
-  porterButton: {
+  deliveryPorterButton: {
     backgroundColor: '#e3f2fd',
   },
-  elevatorButton: {
+  deliveryElevatorButton: {
     backgroundColor: '#f3e5f5',
   },
-  apartmentButton: {
+  deliveryApartmentButton: {
     backgroundColor: '#e8f5e8',
   },
   deliveryOptionText: {

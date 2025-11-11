@@ -18,10 +18,10 @@ import { supabase } from '../../../utils/supabase';
 interface VisitorData {
   id: string;
   name: string;
-  phone: string;
-  visitor_type: 'comum' | 'frequente';
-  apartment_id: string;
-  token_expires_at: string;
+  phone: string | null;
+  visitor_type: string | null;
+  apartment_id: string | null;
+  token_expires_at: string | null;
 }
 
 // Função para formatar CPF
@@ -243,6 +243,11 @@ export default function CompletarCadastro() {
       const sanitizedCpf = sanitizeInput(cpf);
       
       // Validar se o token ainda é válido
+      if (!visitorData.token_expires_at) {
+        Alert.alert('Erro', 'Token inválido.');
+        return;
+      }
+      
       const tokenExpiry = new Date(visitorData.token_expires_at);
       if (tokenExpiry < new Date()) {
         Alert.alert('Erro', 'Token expirado. Solicite um novo link.');

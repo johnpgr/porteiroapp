@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '~/utils/supabase';
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
 // import { useAvisosNotifications } from '~/hooks/useAvisosNotifications';
@@ -19,8 +20,8 @@ interface Communication {
   id: string;
   title: string;
   content: string;
-  type: string;
-  priority: string;
+  type: string | null;
+  priority: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,11 +36,11 @@ interface PollOption {
 interface Poll {
   id: string;
   title: string;
-  description: string;
-  building_id: string;
-  created_at: string;
-  expires_at: string;
-  is_active: boolean;
+  description: string | null;
+  building_id: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  is_active: boolean | null;
   options: PollOption[];
   total_votes: number;
   user_voted: boolean;
@@ -72,8 +73,11 @@ const AvisosTab = () => {
   // const { startListening, stopListening, isListening } = useAvisosNotifications();
 
   useEffect(() => {
-    fetchCommunications();
-  }, [user?.building_id]);
+    if (user?.id && isRegularUser(user) && user.building_id) {
+      fetchCommunications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   useEffect(() => {
     if (user) {
@@ -132,7 +136,7 @@ const AvisosTab = () => {
   }, [user?.id]);
 
   const fetchCommunications = useCallback(async () => {
-    if (!user?.building_id) {
+    if (!user?.id || !isRegularUser(user) || !user.building_id) {
       setLoading(false);
       return;
     }
@@ -154,7 +158,7 @@ const AvisosTab = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.building_id]);
+  }, [user?.id]);
 
   // Buscar enquetes ativas
   const fetchPolls = useCallback(async () => {
@@ -192,6 +196,7 @@ const AvisosTab = () => {
       // Filtrar enquetes que expiraram há mais de 30 dias
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const filteredPolls = pollsData.filter(poll => {
+        if (!poll.expires_at) return true;
         const expiresDate = new Date(poll.expires_at);
         return expiresDate >= thirtyDaysAgo;
       });
@@ -239,7 +244,7 @@ const AvisosTab = () => {
           const userVoted = !!userVoteData;
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
 
-          const isExpired = new Date(poll.expires_at) < new Date();
+          const isExpired = poll.expires_at ? new Date(poll.expires_at) < new Date() : false;
           
           return {
             ...poll,
@@ -355,7 +360,7 @@ const AvisosTab = () => {
 
   // Configurar subscrições em tempo real
   const setupRealtimeSubscriptions = useCallback(() => {
-    if (!user?.building_id || isSubscribedRef.current) {
+    if (!user?.id || !isRegularUser(user) || !user.building_id || isSubscribedRef.current) {
       return;
     }
 
@@ -440,22 +445,22 @@ const AvisosTab = () => {
       console.error('Erro ao configurar subscrições realtime:', error);
       setRealtimeError('Erro ao configurar atualizações em tempo real');
     }
-  }, [user?.building_id, fetchCommunications, fetchPolls]);
+  }, [user?.id, fetchCommunications, fetchPolls]);
 
   // Configurar subscrições em tempo real
   useEffect(() => {
-    if (user?.building_id) {
+    if (user?.id && isRegularUser(user) && user.building_id) {
       setupRealtimeSubscriptions();
     }
 
     return cleanupSubscriptions;
-  }, [user?.building_id, setupRealtimeSubscriptions, cleanupSubscriptions]);
+  }, [user?.id, setupRealtimeSubscriptions, cleanupSubscriptions]);
 
   // Renderizar opção de voto
   const renderPollOption = (poll: Poll, option: PollOption) => {
     const percentage = poll.total_votes > 0 ? (option.votes_count / poll.total_votes) * 100 : 0;
     const isUserVote = poll.user_vote_option_id === option.id;
-    const isExpired = new Date(poll.expires_at) < new Date();
+    const isExpired = poll.expires_at ? new Date(poll.expires_at) < new Date() : false;
     const canVote = !poll.user_voted && !isExpired;
     const isVoting = votingPollId === poll.id;
 
@@ -511,8 +516,8 @@ const AvisosTab = () => {
 
   // Renderizar enquete
   const renderPoll = (poll: Poll) => {
-    const isExpired = new Date(poll.expires_at) < new Date();
-    const expiresDate = new Date(poll.expires_at);
+    const isExpired = poll.expires_at ? new Date(poll.expires_at) < new Date() : false;
+    const expiresDate = poll.expires_at ? new Date(poll.expires_at) : new Date();
     
     return (
       <View key={poll.id} style={styles.pollCard}>
@@ -535,12 +540,16 @@ const AvisosTab = () => {
           <Text style={styles.pollDescription}>{poll.description}</Text>
         )}
         
-        <Text style={styles.pollExpiry}>
-          Criada em: {new Date(poll.created_at).toLocaleDateString('pt-BR')} às {new Date(poll.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-        <Text style={styles.pollExpiry}>
-          {isExpired ? 'Expirou em' : 'Expira em'}: {expiresDate.toLocaleDateString('pt-BR')} às {expiresDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-        </Text>
+        {poll.created_at && (
+          <Text style={styles.pollExpiry}>
+            Criada em: {new Date(poll.created_at).toLocaleDateString('pt-BR')} às {new Date(poll.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        )}
+        {poll.expires_at && (
+          <Text style={styles.pollExpiry}>
+            {isExpired ? 'Expirou em' : 'Expira em'}: {expiresDate.toLocaleDateString('pt-BR')} às {expiresDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        )}
         
         <View style={styles.pollOptions}>
           {poll.options.map(option => renderPollOption(poll, option))}
@@ -599,7 +608,7 @@ const AvisosTab = () => {
             communications.map((communication) => (
               <View key={communication.id} style={styles.noticeCard}>
                 <Text style={styles.noticeTitle}>
-                  {getTypeIcon(communication.type)} {communication.title}
+                  {getTypeIcon(communication.type || '')} {communication.title}
                 </Text>
                 <Text style={styles.noticeDescription}>
                   {communication.content}

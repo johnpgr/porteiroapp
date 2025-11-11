@@ -454,7 +454,7 @@ export default function Polls() {
       setSelectedDate(new Date());
       setDateError('');
     } catch (error) {
-      Alert.alert('Erro', 'Falha ao criar enquete: ' + error.message);
+      Alert.alert('Erro', 'Falha ao criar enquete: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     }
   };
 

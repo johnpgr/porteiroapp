@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children, redirectTo = '/login', userTy
 
     if (!user) {
       hasRedirectedRef.current = true;
-      router.replace(redirectTo);
+      router.replace(redirectTo as any);
       return;
     }
 

@@ -25,7 +25,7 @@ interface Apartment {
   id: string;
   building_id: string;
   number: string;
-  floor: number;
+  floor: number | null;
 }
 
 export default function RegisterScreen() {
@@ -109,8 +109,8 @@ export default function RegisterScreen() {
         setFormData(prev => ({
           ...prev,
           name: data.name,
-          document: data.document,
-          phone: data.phone,
+          document: data.document || '',
+          phone: data.phone || '',
           photo_url: data.photo_url || ''
         }));
         Alert.alert(
@@ -404,27 +404,10 @@ export default function RegisterScreen() {
 
       console.log('Visitor log criado com sucesso:', logData);
 
-      // Criar notificação para o morador
-      await supabase.from('communications').insert({
-        title: 'Novo Visitante Registrado',
-        message: `${formData.name} deseja visitá-lo no ${selectedBuilding?.name}, Apt ${formData.apartment_number}. Documento: ${formData.document}`,
-        type: 'visitor',
-        priority: 'medium',
-        building_id: formData.building_id,
-        target_apartment: formData.apartment_number.trim(),
-        target_user_type: 'morador',
-      });
-
-      // Criar notificação para o porteiro (se houver)
-      await supabase.from('communications').insert({
-        title: 'Visitante Aguardando',
-        message: `${formData.name} registrou-se para visitar ${selectedBuilding?.name}, Apt ${formData.apartment_number}`,
-        type: 'visitor',
-        priority: 'medium',
-        building_id: formData.building_id,
-        target_user_type: 'porteiro',
-      });
-
+      // Note: Communications table requires created_by (admin_profiles id)
+      // For visitor registrations, we'll skip creating communications
+      // and rely on visitor_logs notifications instead
+      
       Alert.alert(
         'Registro Realizado! 📱',
         'Seu registro foi enviado ao morador. Aguarde a autorização para acessar o prédio.',
@@ -642,10 +625,13 @@ export default function RegisterScreen() {
                       Alert.alert(
                         'Selecionar Apartamento',
                         'Escolha um apartamento:',
-                        apartments.map(apartment => ({
-                          text: `Apartamento ${apartment.number}${apartment.floor ? ` - ${apartment.floor}º andar` : ''}`,
-                          onPress: () => handleApartmentSelect(apartment)
-                        })).concat([{ text: 'Cancelar', style: 'cancel' }])
+                        [
+                          ...apartments.map(apartment => ({
+                            text: `Apartamento ${apartment.number}${apartment.floor ? ` - ${apartment.floor}º andar` : ''}`,
+                            onPress: () => handleApartmentSelect(apartment)
+                          })),
+                          { text: 'Cancelar', onPress: () => {}, style: 'cancel' as const }
+                        ]
                       );
                     }}
                   >

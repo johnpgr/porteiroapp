@@ -20,6 +20,7 @@ import notificationService from '~/services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { supabaseAdmin } from '~/utils/supabase-admin';
 import { sendBulkWhatsAppMessages, isApiAvailable } from '~/utils/whatsapp';
+import type { Tables } from '@porteiroapp/common/supabase';
 
 // Função utilitária para formatação de placa de veículo
 const formatLicensePlate = (input: string): string => {
@@ -113,8 +114,10 @@ const getVehicleTypeInfo = (type: string) => {
 interface ResidentData {
   name: string;
   phone: string;
+  email: string;
   building: string;
   apartment: string;
+  profile_id: string;
   temporary_password?: string; // Senha temporária para moradores
 }
 
@@ -246,48 +249,47 @@ const storeTemporaryPassword = async (
   }
 };
 
-// Interface flexível para refletir divergências atuais entre código e schema
-interface User {
-  id: string;
-  name?: string; // coluna real
-  full_name?: string; // legado usado no código antigo
+// Type aliases from database schema
+type ProfileRow = Tables<'profiles'>;
+type BuildingRow = Tables<'buildings'>;
+type ApartmentRow = Tables<'apartments'>;
+type VehicleRow = Tables<'vehicles'>;
+
+// Extended types for queries with relations (using Pick to select only queried fields)
+type ProfileWithApartments = Pick<ProfileRow, 
+  | 'id'
+  | 'full_name' 
+  | 'phone'
+  | 'email'
+  | 'cpf'
+  | 'created_at'
+  | 'building_id'
+> & {
   role: 'admin' | 'porteiro' | 'morador';
-  user_type?: string | null; // algumas consultas retornam user_type
-  cpf?: string | null;
-  phone?: string | null;
-  email?: string | null;
+  avatar_url?: string | null;
+  user_type?: string | null;
   birth_date?: string | null;
   address?: string | null;
-  building_id?: string | null;
-  photo_url?: string | null;
-  last_login?: string | null;
-  created_at: string;
-  apartments?: { id: string; number: string; building_id: string }[];
-}
+  last_seen?: string | null;
+  apartments?: { 
+    apartment?: {
+      id: string;
+      number: string; 
+      building_id: string;
+    }
+  }[];
+};
 
-interface Building {
-  id: string;
-  name: string;
-}
-
-interface Apartment {
-  id: string;
-  number: string;
-  building_id: string;
-}
-
-interface Vehicle {
-  id: string;
-  license_plate: string;
-  model: string;
-  color: string;
-  brand?: string;
-  type?: string;
-  parking_spot?: string;
-  owner_id: string;
-  building_id: string;
-  apartment_id?: string;
-  created_at: string;
+type VehicleWithRelations = Pick<VehicleRow,
+  | 'id'
+  | 'license_plate'
+  | 'model'
+  | 'color'
+  | 'brand'
+  | 'type'
+  | 'apartment_id'
+  | 'created_at'
+> & {
   apartments?: {
     id: string;
     number: string;
@@ -295,14 +297,14 @@ interface Vehicle {
     buildings?: {
       name: string;
     };
-  };
-}
+  } | null;
+};
 
 export default function UsersManagement() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [buildings, setBuildings] = useState<Building[]>([]);
-  const [apartments, setApartments] = useState<Apartment[]>([]);
-  const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
+  const [users, setUsers] = useState<ProfileWithApartments[]>([]);
+  const [buildings, setBuildings] = useState<BuildingRow[]>([]);
+  const [apartments, setApartments] = useState<ApartmentRow[]>([]);
+  const [filteredApartments, setFilteredApartments] = useState<ApartmentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('users');
@@ -342,7 +344,7 @@ export default function UsersManagement() {
   const [showUserListModal, setShowUserListModal] = useState(false);
   const [userListFilter, setUserListFilter] = useState<'morador' | 'porteiro'>('morador');
   const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
-  const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  const [adminUsers, setAdminUsers] = useState<ProfileWithApartments[]>([]);
 
   // Estados para modais de seleção de prédios
   const [showBuildingModal, setShowBuildingModal] = useState(false);
@@ -526,7 +528,13 @@ export default function UsersManagement() {
       console.log('🔍 [DEBUG] Moradores após filtragem:', filteredMoradores.length);
       console.log('🔍 [DEBUG] Total de usuários filtrados:', filteredUsers.length);
 
-      setAdminUsers(filteredUsers);
+      // Map to ensure type compatibility
+      const typedUsers: ProfileWithApartments[] = filteredUsers.map(user => ({
+        ...user,
+        role: (user.role || 'morador') as ProfileWithApartments['role'],
+      }));
+
+      setAdminUsers(typedUsers);
     } catch (error) {
       console.error('Erro ao carregar usuários do admin:', error);
     }
@@ -781,7 +789,7 @@ export default function UsersManagement() {
   // Estados para cadastro de veículos
   const [showVehicleForm, setShowVehicleForm] = useState(false);
   const [showVehicleListModal, setShowVehicleListModal] = useState(false);
-  const [adminVehicles, setAdminVehicles] = useState<Vehicle[]>([]);
+  const [adminVehicles, setAdminVehicles] = useState<VehicleWithRelations[]>([]);
   const [newVehicle, setNewVehicle] = useState({
     license_plate: '',
     brand: '',
@@ -789,8 +797,8 @@ export default function UsersManagement() {
     color: '',
     type: 'car',
   });
-  const [vehicleOwners, setVehicleOwners] = useState<User[]>([]);
-  const [vehicleApartments, setVehicleApartments] = useState<Apartment[]>([]);
+  const [vehicleOwners, setVehicleOwners] = useState<ProfileWithApartments[]>([]);
+  const [vehicleApartments, setVehicleApartments] = useState<ApartmentRow[]>([]);
 
   useEffect(() => {
     fetchUsers();
@@ -866,9 +874,7 @@ export default function UsersManagement() {
         supabase
           .from('profiles')
           .select(nestedSelectInner)
-          .filter('building_id', 'in', `(${buildingIds.join(',')})`, {
-            foreignTable: 'apartment_residents.apartments',
-          })
+          .filter('apartment_residents.apartments.building_id', 'in', `(${buildingIds.join(',')})`)
           .order('full_name'),
       ]);
 
@@ -881,21 +887,21 @@ export default function UsersManagement() {
       for (const u of merged) uniqByIdMap.set(u.id, u);
       const combinedData = Array.from(uniqByIdMap.values());
 
-      const usersWithApartments: User[] = (combinedData || [])
+      const usersWithApartments: ProfileWithApartments[] = (combinedData || [])
         .map((user: any) => ({
           ...user,
           name: user.name || user.full_name,
-          role: (user.user_type || user.role || 'morador') as User['role'],
+          role: (user.user_type || user.role || 'morador') as ProfileWithApartments['role'],
           apartments:
             user.apartments
               ?.map((ar: any) => ar.apartment)
               .filter((apt: any) => buildingIds.includes(apt.building_id)) || [],
         }))
-        .filter((user: User) => {
+        .filter((user: ProfileWithApartments) => {
           // Filtrar usuários que têm pelo menos um apartamento nos prédios gerenciados
           // ou que são porteiros/admins associados aos prédios
           return (
-            user.apartments.length > 0 ||
+            (user.apartments && user.apartments.length > 0) ||
             (user.building_id && buildingIds.includes(user.building_id)) ||
             user.role === 'admin'
           );
@@ -1312,9 +1318,11 @@ export default function UsersManagement() {
           console.log('✅ [DEBUG] Passo 4 CONCLUÍDO - Senha temporária armazenada');
 
           // Adicionar dados extras para uso posterior
-          insertedUser.temporary_password = temporaryPassword;
-          insertedUser.user_id = authData.user.id;
-          usersWithPasswords.push({ user: insertedUser, resident });
+          const userWithExtras = {
+            ...insertedUser,
+            temporary_password: temporaryPassword,
+          };
+          usersWithPasswords.push({ user: userWithExtras, resident });
 
           console.log(
             `✅ [DEBUG] === USUÁRIO ${i + 1} PROCESSADO COM SUCESSO: ${resident.name} ===`
@@ -1571,7 +1579,7 @@ export default function UsersManagement() {
       if (successCount > 0) {
         // Limpar formulário
         setMultipleResidents([
-          { name: '', phone: '', selectedBuildingId: '', selectedApartmentId: '' },
+          { name: '', phone: '', email: '', selectedBuildingId: '', selectedApartmentId: '' },
         ]);
         fetchUsers();
       }
@@ -1769,12 +1777,17 @@ export default function UsersManagement() {
 
           console.log('✅ [DEBUG] Senha temporária gerada e armazenada com sucesso');
 
-          // Armazenar a senha temporária no objeto insertedUser para uso no WhatsApp
-          insertedUser.temporary_password = temporaryPassword;
+          // Criar objeto com senha temporária para uso no WhatsApp
+          const userWithPassword = {
+            ...insertedUser,
+            temporary_password: temporaryPassword,
+          };
+          // Reatribuir para uso posterior
+          (insertedUser as any).temporary_password = temporaryPassword;
 
           console.log('🔑 [DEBUG] Senha temporária atribuída ao insertedUser:', {
             id: insertedUser.id,
-            temporary_password: insertedUser.temporary_password,
+            temporary_password: temporaryPassword,
           });
         } catch (error) {
           console.error('❌ [DEBUG] Erro ao criar morador:', error);
@@ -1803,7 +1816,7 @@ export default function UsersManagement() {
       if (newUser.type === 'porteiro') {
         Alert.alert(
           'Porteiro Criado com Sucesso!',
-          `O porteiro ${newUser.name} foi cadastrado e pode fazer login com:\n\nE-mail: ${newUser.email}\nSenha: ${generatedPassword}\n\nO porteiro poderá alterar sua senha após o primeiro login.`
+          `O porteiro ${newUser.name} foi cadastrado e pode fazer login com:\n\nE-mail: ${newUser.email}\nSenha: ${temporaryPassword}\n\nO porteiro poderá alterar sua senha após o primeiro login.`
         );
       } else {
         Alert.alert('Sucesso', 'Usuário criado com sucesso');
@@ -1951,7 +1964,14 @@ export default function UsersManagement() {
 
   // Funções para cadastro em massa e WhatsApp
   const addBulkResident = () => {
-    setBulkResidents([...bulkResidents, { name: '', phone: '', building: '', apartment: '' }]);
+    setBulkResidents([...bulkResidents, { 
+      name: '', 
+      phone: '', 
+      email: '',
+      building: '', 
+      apartment: '',
+      profile_id: '',
+    }]);
   };
 
   const removeBulkResident = (index: number) => {
@@ -2172,13 +2192,13 @@ export default function UsersManagement() {
 
         if (apartment && building) {
           const residentData: ResidentData = {
-            name: userData.full_name || userData.name,
-            phone: userData.phone,
-            email: userData.email,
+            name: userData.full_name || userData.name || '',
+            phone: userData.phone || '',
+            email: userData.email || '',
             building: building.name,
             apartment: apartment.number,
             profile_id: userData.id, // Incluir profile_id obrigatório
-            temporaryPassword: recoveredTemporaryPassword, // Incluir senha temporária recuperada
+            temporary_password: recoveredTemporaryPassword, // Incluir senha temporária recuperada
           };
 
           console.log('🔑 [DEBUG] Dados do residente para WhatsApp:', {
@@ -2614,9 +2634,9 @@ export default function UsersManagement() {
 
                     // Apply building filter if selected
                     if (buildingFilter) {
-                      return user.apartments.some(
+                      return user.apartments?.some(
                         (apt) => apt.apartment?.building_id === buildingFilter
-                      );
+                      ) || false;
                     }
 
                     return true;
@@ -2669,7 +2689,7 @@ export default function UsersManagement() {
                       </View>
                       <TouchableOpacity
                         style={styles.deleteButton}
-                        onPress={() => handleDeleteUser(user.id, user.full_name)}>
+                        onPress={() => handleDeleteUser(user.id, user.full_name || 'Usuário')}>
                         <Text style={styles.deleteButtonText}>🗑️</Text>
                       </TouchableOpacity>
                     </View>
@@ -2686,9 +2706,9 @@ export default function UsersManagement() {
                       );
                     if (!hasApartmentsInBuildings) return false;
                     if (buildingFilter) {
-                      return user.apartments.some(
+                      return user.apartments?.some(
                         (apt) => apt.apartment?.building_id === buildingFilter
-                      );
+                      ) || false;
                     }
                     return true;
                   }
@@ -3878,12 +3898,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingContainer: {
+  submitLoadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loadingText: {
+  submitLoadingText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
@@ -3928,7 +3948,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
-  vehicleIconContainer: {
+  vehicleCardIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,

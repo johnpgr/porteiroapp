@@ -18,7 +18,7 @@ export const NotificationUsageExample: React.FC = () => {
     unreadCount,
     startListening,
     stopListening,
-    fetchRecentNotifications,
+    refreshNotifications,
     markAsRead,
     confirmUrgentNotification,
     getNotificationStats
@@ -33,7 +33,7 @@ export const NotificationUsageExample: React.FC = () => {
       startListening();
       
       // Carregar notificações recentes
-      fetchRecentNotifications(20);
+      refreshNotifications();
     }
 
     // Cleanup ao desmontar componente

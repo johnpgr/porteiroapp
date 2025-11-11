@@ -16,16 +16,16 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
   buildingId,
   onGuestSelected
 }) => {
-  const [activities, setActivities] = useState([]);
+  const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [expandedCards, setExpandedCards] = useState(new Set<string>());
   const [showImageModal, setShowImageModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Estados para seleção múltipla
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [selectedGuests, setSelectedGuests] = useState(new Set());
+  const [selectedGuests, setSelectedGuests] = useState(new Set<string>());
   const [batchActionLoading, setBatchActionLoading] = useState(false);
 
   // Função para alternar seleção múltipla
@@ -177,7 +177,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
 
       // Transformar dados para o formato esperado pelo componente
       const formattedActivities = visitors.map(visitor => {
-        const getStatusInfo = (status, accessType) => {
+        const getStatusInfo = (status: any, accessType: any) => {
           if (status === 'aprovado' || accessType === 'direto') {
             return {
               status: 'ENTRADA LIBERADA',
@@ -197,7 +197,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
           id: visitor.id,
           icon: '👤',
           title: `👤 ${visitor.name}`,
-          subtitle: `Apt. ${visitor.apartments.number} • ${visitor.purpose || 'Visita'}`,
+          subtitle: `Apt. ${visitor.apartments.number} • Visita`,
           ...statusInfo,
           time: new Date(visitor.created_at).toLocaleTimeString('pt-BR', {
             hour: '2-digit',
@@ -207,7 +207,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
             `Nome: ${visitor.name}`,
             `Apartamento: ${visitor.apartments.number}`,
             `Documento: ${visitor.document || 'Não informado'}`,
-            `Propósito: ${visitor.purpose || 'Visita'}`,
+            `Propósito: Visita`,
             `Tipo: ${visitor.visit_type || 'Não informado'}`,
             `Acesso: ${visitor.access_type === 'direto' ? 'Entrada Direta' : 'Com Aprovação'}`,
             visitor.visit_start_time && visitor.visit_end_time 
@@ -352,7 +352,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       let { data: apartmentResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('profile_id, profiles!inner(full_name)')
-        .eq('apartment_id', visitorData.apartment_id)
+        .eq('apartment_id', visitorData.apartment_id || '')
         .eq('is_owner', true)
         .maybeSingle();
 
@@ -362,7 +362,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
-          .eq('apartment_id', visitorData.apartment_id)
+          .eq('apartment_id', visitorData.apartment_id || '')
           .limit(1)
           .maybeSingle();
 
@@ -375,7 +375,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
 
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
-        residentName = apartmentResident.profiles.full_name;
+        residentName = apartmentResident.profiles.full_name || 'Morador';
         console.log(`✅ [handleNotifyResident] Morador encontrado: ${residentName} (ID: ${residentId})`);
       } else {
         console.error('❌ [handleNotifyResident] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
@@ -385,7 +385,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       const logData = {
         visitor_id: activityId,
         building_id: buildingId,
-        apartment_id: visitorData.apartment_id,
+        apartment_id: visitorData.apartment_id || '',
         guest_name: visitorData.name || activity.title.replace('👤 ', ''),
         entry_type: 'visitor',
         notification_status: 'pending',
@@ -394,7 +394,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         visit_session_id: generateUUID(),
         resident_response_by: residentId,
         purpose: `Notificação de chegada do visitante - Aguardando aprovação do morador`,
-        photo_url: visitorData.photo_url
+        photo_url: visitorData.photo_url || undefined
       };
 
       const { error: insertError } = await supabase
@@ -432,11 +432,11 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       try {
         console.log('📱 [handleNotifyResident] Enviando push notification para morador...');
         const pushResult = await notifyResidentsVisitorArrival({
-          apartmentIds: [visitorData.apartment_id],
+          apartmentIds: visitorData.apartment_id ? [visitorData.apartment_id] : [],
           visitorName: visitorData.name || activity.title.replace('👤 ', ''),
           apartmentNumber: visitorData.apartments?.number || 'N/A',
-          purpose: visitorData.purpose || 'Visita',
-          photoUrl: visitorData.photo_url
+          purpose: 'Visita',
+          photoUrl: visitorData.photo_url || undefined
         });
 
         if (pushResult.success) {
@@ -497,7 +497,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       let { data: apartmentResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('profile_id, profiles!inner(full_name)')
-        .eq('apartment_id', visitorData.apartment_id)
+        .eq('apartment_id', visitorData.apartment_id || '')
         .eq('is_owner', true)
         .maybeSingle();
 
@@ -507,7 +507,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         const result = await supabase
           .from('apartment_residents')
           .select('profile_id, profiles!inner(full_name)')
-          .eq('apartment_id', visitorData.apartment_id)
+          .eq('apartment_id', visitorData.apartment_id || '')
           .limit(1)
           .maybeSingle();
 
@@ -520,7 +520,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
 
       if (apartmentResident && !residentError) {
         residentId = apartmentResident.profile_id;
-        residentName = apartmentResident.profiles.full_name;
+        residentName = apartmentResident.profiles.full_name || 'Morador';
         console.log(`✅ [handleCheckIn] Morador encontrado: ${residentName} (ID: ${residentId})`);
       } else {
         console.error('❌ [handleCheckIn] Nenhum morador encontrado para apartment_id:', visitorData.apartment_id);
@@ -530,7 +530,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       const logData = {
         visitor_id: activityId,
         building_id: buildingId,
-        apartment_id: visitorData.apartment_id,
+        apartment_id: visitorData.apartment_id || '',
         guest_name: visitorData.name || activity.title.replace('👤 ', ''),
         entry_type: 'visitor',
         notification_status: 'approved',
@@ -539,7 +539,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         visit_session_id: generateUUID(),
         resident_response_by: residentId,
         purpose: `Check-in confirmado pelo porteiro - Visitante pré-cadastrado autorizado por: ${residentName}`,
-        photo_url: visitorData.photo_url
+        photo_url: visitorData.photo_url || undefined
       };
 
       // Registrar entrada aprovada no visitor_logs
@@ -580,7 +580,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
       const { data: apartmentData, error: apartmentError } = await supabase
         .from('apartments')
         .select('number')
-        .eq('id', visitorData.apartment_id)
+        .eq('id', visitorData.apartment_id || '')
         .single();
 
       if (apartmentError) {
@@ -597,8 +597,8 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
           apartmentNumber: apartmentData?.number || 'N/A',
           buildingId: buildingId,
           visitorId: activityId,
-          purpose: visitorData.purpose || 'Visita',
-          photo_url: visitorData.photo_url,
+          purpose: 'Visita',
+          photo_url: visitorData.photo_url || undefined,
           entry_type: 'visitor'
         });
 
@@ -612,11 +612,11 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
         try {
           console.log('📱 [handleCheckIn] Enviando push notification para morador...');
           const pushResult = await notifyResidentsVisitorArrival({
-            apartmentIds: [visitorData.apartment_id],
+            apartmentIds: visitorData.apartment_id ? [visitorData.apartment_id] : [],
             visitorName: visitorData.name || activity.title.replace('👤 ', ''),
             apartmentNumber: apartmentData?.number || 'N/A',
-            purpose: visitorData.purpose || 'Visita',
-            photoUrl: visitorData.photo_url
+            purpose: 'Visita',
+            photoUrl: visitorData.photo_url || undefined
           });
 
           if (pushResult.success) {
@@ -814,7 +814,7 @@ const PreAuthorizedGuestsList: React.FC<PreAuthorizedGuestsListProps> = ({
                   {/* Detalhes expandidos - agora apenas para informações extras */}
                   {expandedCards.has(activity.id) && !multiSelectMode && (
                     <View style={styles.activityDetails}>
-                      {activity.details.map((detail, index) => (
+                      {activity.details.map((detail: any, index: number) => (
                         <Text key={index} style={styles.activityDetail}>{detail}</Text>
                       ))}
                     </View>

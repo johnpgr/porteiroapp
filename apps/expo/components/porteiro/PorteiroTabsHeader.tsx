@@ -118,7 +118,7 @@ export default function PorteiroTabsHeader() {
         .single();
 
       if (profileError) {
-        const nameParts = user.email.split('@')[0].split('.');
+        const nameParts = (user.email || 'user@porteiro.app').split('@')[0].split('.');
         const name = nameParts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
         const initials = nameParts.map((part) => part.charAt(0).toUpperCase()).join('');
         const schedule = parseWorkSchedule(null);
@@ -130,12 +130,12 @@ export default function PorteiroTabsHeader() {
           shift_end: schedule.end,
         });
       } else {
-        const nameParts = (profile.full_name || user.email.split('@')[0]).split(' ');
+        const nameParts = (profile.full_name || user.email || 'Porteiro').split(' ');
         const initials = nameParts.map((part) => part.charAt(0).toUpperCase()).join('').slice(0, 2);
         const schedule = parseWorkSchedule(profile.work_schedule);
 
         setPorteiroData({
-          name: profile.full_name || user.email,
+          name: profile.full_name || user.email || 'Porteiro',
           initials,
           shift_start: schedule.start,
           shift_end: schedule.end,

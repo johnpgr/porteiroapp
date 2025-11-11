@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { PorteiroDashboardProvider } from '~/providers/PorteiroDashboardProvider';
 import PorteiroTabsHeader from '~/components/porteiro/PorteiroTabsHeader';
 
@@ -97,7 +98,7 @@ export default function PorteiroLayout() {
     }
 
     // Só executar se estiver pronto e for um porteiro logado
-    if (!isReady || !user || user.user_type !== 'porteiro' || !user.building_id) {
+    if (!isReady || !user || user.user_type !== 'porteiro' || !isRegularUser(user) || !user.building_id) {
       return;
     }
 
