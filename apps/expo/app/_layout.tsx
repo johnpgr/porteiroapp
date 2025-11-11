@@ -1,4 +1,3 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Device from 'expo-device';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
@@ -440,19 +439,17 @@ export default function RootLayout() {
         <AuthProvider>
           <PushTokenManager />
           <DeepLinkManager />
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <ReadOnlyGuard>
-              <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="admin" options={{ headerShown: false }} />
-                <Stack.Screen name="porteiro" options={{ headerShown: false }} />
-                <Stack.Screen name="morador" options={{ headerShown: false }} />
-                <Stack.Screen name="visitante" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style="auto" />
-            </ReadOnlyGuard>
-          </ThemeProvider>
+          <ReadOnlyGuard>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="admin" options={{ headerShown: false }} />
+              <Stack.Screen name="porteiro" options={{ headerShown: false }} />
+              <Stack.Screen name="morador" options={{ headerShown: false }} />
+              <Stack.Screen name="visitante" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          </ReadOnlyGuard>
         </AuthProvider>
         {incomingCall && (
           <FullScreenCallUI

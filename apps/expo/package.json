@@ -24,7 +24,6 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "^11.4.1",
     "@react-native-picker/picker": "2.11.1",
-    "@react-navigation/native": "^7.0.3",
     "agora-react-native-rtm": "^1.5.1",
     "date-fns": "catalog:",
     "expo": "^54.0.2",
