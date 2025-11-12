@@ -9,8 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Modal } from '~/components/Modal';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { notificationApi } from '../../services/notificationApi';
@@ -1103,14 +1102,16 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Registrar Veículo</Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color="#666" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={onClose}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.title}>🚗 Registrar Veículo</Text>
+          <Text style={styles.subtitle}>Cadastro de Visitantes</Text>
         </View>
+      </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -1132,34 +1133,53 @@ export default function RegistrarVeiculo({ onClose, onConfirm }: RegistrarVeicul
       </View>
 
       {renderCurrentStep()}
-      </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#2196F3',
+    display: 'flex',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#f8f9fa',
+    flexDirection: 'row',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
+    paddingHorizontal: 20,
+    gap: 50,
+    paddingVertical: 30,
+    marginBottom: 10,
   },
-  headerTitle: {
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 5,
   },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
   },
   progressContainer: {
     padding: 20,

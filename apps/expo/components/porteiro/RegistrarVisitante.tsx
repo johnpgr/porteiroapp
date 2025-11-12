@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { flattenStyles } from '~/utils/styles';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
@@ -21,7 +21,6 @@ import { uploadVisitorPhoto } from '~/services/photoUploadService';
 import { notificationApi } from '~/services/notificationApi';
 import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
 import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
-import { Modal } from '~/components/Modal';
 import { CameraModal } from '~/components/shared/CameraModal';
 
 type FlowStep =
@@ -232,7 +231,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
     try {
       setIsCheckingPreAuthorized(true);
-      console.log('🔍 [RegistrarVisitante] Verificando convidados pré-autorizados para apartamento:', apartmentId);
+      console.log(
+        '🔍 [RegistrarVisitante] Verificando convidados pré-autorizados para apartamento:',
+        apartmentId
+      );
 
       const { data: visitors, error } = await supabase
         .from('visitors')
@@ -242,7 +244,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         .limit(1);
 
       if (error) {
-        console.error('❌ [RegistrarVisitante] Erro ao verificar convidados pré-autorizados:', error);
+        console.error(
+          '❌ [RegistrarVisitante] Erro ao verificar convidados pré-autorizados:',
+          error
+        );
         setCurrentStep('tipo'); // Continuar fluxo normal em caso de erro
         return;
       }
@@ -251,10 +256,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       setHasPreAuthorizedGuests(hasGuests);
 
       if (hasGuests) {
-        console.log('✅ [RegistrarVisitante] Convidados pré-autorizados encontrados, exibindo step preauthorized');
+        console.log(
+          '✅ [RegistrarVisitante] Convidados pré-autorizados encontrados, exibindo step preauthorized'
+        );
         setCurrentStep('preauthorized');
       } else {
-        console.log('ℹ️ [RegistrarVisitante] Nenhum convidado pré-autorizado encontrado, seguindo fluxo normal');
+        console.log(
+          'ℹ️ [RegistrarVisitante] Nenhum convidado pré-autorizado encontrado, seguindo fluxo normal'
+        );
         setCurrentStep('tipo');
       }
     } catch (error) {
@@ -285,10 +294,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           return (
             <TouchableOpacity
               key={index}
-              style={flattenStyles([
-                styles.keypadButton,
-                isConfirm && styles.confirmButton
-              ])}
+              style={flattenStyles([styles.keypadButton, isConfirm && styles.confirmButton])}
               onPress={() => {
                 if (isBackspace) {
                   setValue(value.slice(0, -1));
@@ -311,22 +317,23 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
   // Função para agrupar apartamentos por andar
   const groupApartmentsByFloor = () => {
-    const grouped = availableApartments.reduce((acc, apartment) => {
-      const floor = apartment.floor;
-      if (!acc[floor]) {
-        acc[floor] = [];
-      }
-      acc[floor].push(apartment);
-      return acc;
-    }, {} as Record<number, Apartment[]>);
-    
+    const grouped = availableApartments.reduce(
+      (acc, apartment) => {
+        const floor = apartment.floor;
+        if (!acc[floor]) {
+          acc[floor] = [];
+        }
+        acc[floor].push(apartment);
+        return acc;
+      },
+      {} as Record<number, Apartment[]>
+    );
+
     return Object.keys(grouped)
       .map(Number)
       .sort((a, b) => a - b)
-      .map(floor => ({ floor, apartments: grouped[floor] }));
+      .map((floor) => ({ floor, apartments: grouped[floor] }));
   };
-
-
 
   const renderApartamentoStep = () => {
     const handleApartmentConfirm = async () => {
@@ -336,9 +343,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       }
 
       // Buscar o apartamento pelo número digitado
-      const foundApartment = availableApartments.find(
-        (apt) => apt.number === apartamento
-      );
+      const foundApartment = availableApartments.find((apt) => apt.number === apartamento);
 
       if (!foundApartment) {
         Alert.alert(
@@ -358,7 +363,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         id: foundApartment.id,
         number: foundApartment.number,
       });
-      
+
       // Verificar se existem convidados pré-autorizados para este apartamento
       await checkPreAuthorizedGuests(foundApartment.id);
     };
@@ -376,9 +381,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         ) : availableApartments.length === 0 ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorTitle}>⚠️ Nenhum Apartamento</Text>
-            <Text style={styles.errorText}>
-              Não há apartamentos cadastrados neste prédio.
-            </Text>
+            <Text style={styles.errorText}>Não há apartamentos cadastrados neste prédio.</Text>
           </View>
         ) : (
           renderNumericKeypad(apartamento, setApartamento, handleApartmentConfirm)
@@ -552,14 +555,14 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           maxLength={14}
         />
 
-        <TouchableOpacity
-          style={styles.nextButton}
-          onPress={() => setCurrentStep('observacoes')}>
+        <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep('observacoes')}>
           <Text style={styles.nextButtonText}>Continuar →</Text>
         </TouchableOpacity>
-        
+
         {cpfVisitante && !isValidCPF(cpfVisitante) && (
-          <Text style={styles.validationWarning}>CPF inválido - será salvo em branco se não corrigido</Text>
+          <Text style={styles.validationWarning}>
+            CPF inválido - será salvo em branco se não corrigido
+          </Text>
         )}
       </View>
     </View>
@@ -630,9 +633,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             <Text style={styles.cameraPromptText}>
               A foto do visitante é opcional, mas ajuda na identificação.
             </Text>
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={() => setShowCameraModal(true)}>
+            <TouchableOpacity style={styles.nextButton} onPress={() => setShowCameraModal(true)}>
               <Text style={styles.nextButtonText}>Abrir Câmera</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -689,7 +690,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         // Primeiro, inserir ou buscar o visitante
         let visitorId;
         let existingVisitor = null;
-        
+
         // Só buscar por CPF se foi fornecido e é válido
         if (cpfVisitante && isValidCPF(cpfVisitante)) {
           const { data } = await (supabase as any)
@@ -708,9 +709,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             .from('visitors')
             .insert({
               name: nomeVisitante,
-              document: (cpfVisitante && isValidCPF(cpfVisitante)) ? cpfVisitante : null,
+              document: cpfVisitante && isValidCPF(cpfVisitante) ? cpfVisitante : null,
               phone: null, // Campo phone da estrutura correta
-              photo_url: photoUrl || null
+              photo_url: photoUrl || null,
             })
             .select('id')
             .single();
@@ -735,14 +736,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           purpose = `entrega - ${empresaEntrega.replace('_', ' ')}`;
         }
 
-        let entryType = 'visitor'; 
+        let entryType = 'visitor';
         if (tipoVisita === 'entrega') {
           entryType = 'delivery';
         } else if (tipoVisita === 'prestador') {
           entryType = 'visitor';
         }
 
-        
         const visitorLogData = {
           visitor_id: visitorId,
           apartment_id: selectedApartment.id,
@@ -753,13 +753,16 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           purpose: observacoes || purpose || undefined,
           entry_type: entryType,
           authorized_by: user.id,
-          photo_url: photoUrl
+          photo_url: photoUrl,
         };
-        
-        console.log('💾 Dados do log de visitante a serem salvos:', JSON.stringify(visitorLogData, null, 2));
+
+        console.log(
+          '💾 Dados do log de visitante a serem salvos:',
+          JSON.stringify(visitorLogData, null, 2)
+        );
         console.log('💾 PhotoUrl no momento do salvamento:', photoUrl);
         console.log('📋 Dados do visitor_log preparados:', visitorLogData);
-        
+
         const { data: logData, error: logError } = await (supabase as any)
           .from('visitor_logs')
           .insert(visitorLogData)
@@ -775,7 +778,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
         // Enviar notificação push para os moradores do apartamento via Edge Function
         try {
-          console.log('📱 [RegistrarVisitante] ==================== INICIO PUSH NOTIFICATION ====================');
+          console.log(
+            '📱 [RegistrarVisitante] ==================== INICIO PUSH NOTIFICATION ===================='
+          );
           console.log('📱 [RegistrarVisitante] Apartamento ID:', selectedApartment.id);
           console.log('📱 [RegistrarVisitante] Apartamento Number:', apartamento);
           console.log('📱 [RegistrarVisitante] Visitor Name:', nomeVisitante);
@@ -783,7 +788,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           // Verificar se há moradores com push_token neste apartamento
           const { data: residentsCheck, error: checkError } = await (supabase as any)
             .from('apartment_residents')
-            .select('profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)')
+            .select(
+              'profile_id, profiles!inner(id, full_name, push_token, notification_enabled, user_type)'
+            )
             .eq('apartment_id', selectedApartment.id);
 
           console.log('🔍 [RegistrarVisitante] Verificação de moradores:', {
@@ -795,8 +802,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               user_type: r.profiles?.user_type,
               has_token: !!r.profiles?.push_token,
               notification_enabled: r.profiles?.notification_enabled,
-              token_preview: r.profiles?.push_token ? r.profiles.push_token.substring(0, 20) + '...' : null
-            }))
+              token_preview: r.profiles?.push_token
+                ? r.profiles.push_token.substring(0, 20) + '...'
+                : null,
+            })),
           });
 
           console.log('📱 [RegistrarVisitante] Chamando notifyResidentsVisitorArrival...');
@@ -809,20 +818,33 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             photoUrl: photoUrl || undefined,
           });
 
-          console.log('📱 [RegistrarVisitante] Resultado completo do push:', JSON.stringify(pushResult, null, 2));
+          console.log(
+            '📱 [RegistrarVisitante] Resultado completo do push:',
+            JSON.stringify(pushResult, null, 2)
+          );
 
           if (pushResult.success && pushResult.sent > 0) {
-            console.log(`✅ [RegistrarVisitante] Push notification enviada para ${pushResult.sent} morador(es)`);
+            console.log(
+              `✅ [RegistrarVisitante] Push notification enviada para ${pushResult.sent} morador(es)`
+            );
           } else {
-            console.warn('⚠️ [RegistrarVisitante] Push notification não enviada:', pushResult.message);
+            console.warn(
+              '⚠️ [RegistrarVisitante] Push notification não enviada:',
+              pushResult.message
+            );
             console.warn('⚠️ [RegistrarVisitante] Total tokens encontrados:', pushResult.total);
             console.warn('⚠️ [RegistrarVisitante] Enviados:', pushResult.sent);
             console.warn('⚠️ [RegistrarVisitante] Falhas:', pushResult.failed);
           }
-          console.log('📱 [RegistrarVisitante] ==================== FIM PUSH NOTIFICATION ====================');
+          console.log(
+            '📱 [RegistrarVisitante] ==================== FIM PUSH NOTIFICATION ===================='
+          );
         } catch (pushError) {
           console.error('❌ [RegistrarVisitante] Erro ao enviar push notification:', pushError);
-          console.error('❌ [RegistrarVisitante] Stack:', pushError instanceof Error ? pushError.stack : 'N/A');
+          console.error(
+            '❌ [RegistrarVisitante] Stack:',
+            pushError instanceof Error ? pushError.stack : 'N/A'
+          );
           // Não bloqueia o fluxo se a notificação push falhar
         }
 
@@ -847,7 +869,8 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
             // Buscar dados do morador proprietário
             const { data: residentData, error: residentError } = await (supabase as any)
               .from('apartments')
-              .select(`
+              .select(
+                `
                 apartment_residents!inner(
                   profiles!inner(
                     full_name,
@@ -859,18 +882,26 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                 buildings!inner(
                   name
                 )
-              `)
+              `
+              )
               .eq('id', selectedApartment.id)
               .eq('apartment_residents.is_owner', true)
               .single();
 
-            if (residentData && residentData.apartment_residents && residentData.apartment_residents.length > 0) {
+            if (
+              residentData &&
+              residentData.apartment_residents &&
+              residentData.apartment_residents.length > 0
+            ) {
               // 🎯 ENVIAR APENAS PARA O PRIMEIRO PROPRIETÁRIO (evitar duplicatas)
               const resident = residentData.apartment_residents[0];
               const building = residentData.buildings;
 
               if (resident.profiles.phone && building) {
-                console.log('📱 [RegistrarVisitante] Enviando WhatsApp para:', resident.profiles.full_name);
+                console.log(
+                  '📱 [RegistrarVisitante] Enviando WhatsApp para:',
+                  resident.profiles.full_name
+                );
 
                 await notificationApi.sendVisitorAuthorization({
                   visitorName: nomeVisitante,
@@ -878,10 +909,12 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                   residentPhone: resident.profiles.phone,
                   residentEmail: resident.profiles.email || '',
                   building: building.name,
-                  apartment: selectedApartment.number
+                  apartment: selectedApartment.number,
                 });
 
-                console.log('✅ [RegistrarVisitante] Mensagem de autorização WhatsApp enviada com sucesso');
+                console.log(
+                  '✅ [RegistrarVisitante] Mensagem de autorização WhatsApp enviada com sucesso'
+                );
 
                 // Atualizar status IMEDIATAMENTE para evitar reenvios
                 await (supabase as any)
@@ -889,9 +922,13 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
                   .update({ notification_status: 'sent' })
                   .eq('id', logData.id);
 
-                console.log('✅ [RegistrarVisitante] Status atualizado para "sent" - bloqueio ativado');
+                console.log(
+                  '✅ [RegistrarVisitante] Status atualizado para "sent" - bloqueio ativado'
+                );
               } else {
-                console.warn('⚠️ [RegistrarVisitante] Dados insuficientes para enviar notificação via API');
+                console.warn(
+                  '⚠️ [RegistrarVisitante] Dados insuficientes para enviar notificação via API'
+                );
               }
             }
           } catch (apiError) {
@@ -915,7 +952,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         }
       } catch (error) {
         console.error('Erro geral ao registrar visitante:', error);
-        Alert.alert('Erro', 'Falha inesperada ao registrar visitante. Verifique sua conexão e tente novamente.');
+        Alert.alert(
+          'Erro',
+          'Falha inesperada ao registrar visitante. Verifique sua conexão e tente novamente.'
+        );
       } finally {
         setIsSubmitting(false);
         console.log('🔓 [RegistrarVisitante] Submissão desbloqueada - isSubmitting = false');
@@ -935,7 +975,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
 
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Apartamento:</Text>
-            <Text style={styles.summaryValue}>{selectedApartment?.number || 'Não selecionado'}</Text>
+            <Text style={styles.summaryValue}>
+              {selectedApartment?.number || 'Não selecionado'}
+            </Text>
           </View>
 
           <View style={styles.summaryItem}>
@@ -978,11 +1020,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           )}
         </View>
 
-        <TouchableOpacity 
-          style={[styles.confirmFinalButton, isSubmitting && styles.confirmFinalButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.confirmFinalButton, isSubmitting && styles.confirmFinalButtonDisabled]}
           onPress={handleConfirm}
-          disabled={isSubmitting}
-        >
+          disabled={isSubmitting}>
           {isSubmitting ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="small" color="#fff" />
@@ -1020,7 +1061,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       return (
         <View style={styles.stepContainer}>
           <Text style={styles.stepTitle}>Verificando Convidados</Text>
-          <Text style={styles.stepSubtitle}>Aguarde enquanto verificamos se há convidados pré-autorizados...</Text>
+          <Text style={styles.stepSubtitle}>
+            Aguarde enquanto verificamos se há convidados pré-autorizados...
+          </Text>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
             <Text style={styles.loadingText}>Carregando...</Text>
@@ -1034,10 +1077,7 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         <View style={styles.stepContainer}>
           <Text style={styles.stepTitle}>Erro</Text>
           <Text style={styles.stepSubtitle}>Informações do apartamento não encontradas.</Text>
-          <TouchableOpacity 
-            style={styles.nextButton} 
-            onPress={() => setCurrentStep('tipo')}
-          >
+          <TouchableOpacity style={styles.nextButton} onPress={() => setCurrentStep('tipo')}>
             <Text style={styles.nextButtonText}>Continuar</Text>
           </TouchableOpacity>
         </View>
@@ -1048,9 +1088,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Convidados Pré-autorizados</Text>
         <Text style={styles.stepSubtitle}>
-          Apartamento {selectedApartment.number} - Selecione um convidado ou continue o registro normal
+          Apartamento {selectedApartment.number} - Selecione um convidado ou continue o registro
+          normal
         </Text>
-        
+
         <PreAuthorizedGuestsList
           apartmentId={selectedApartment.id}
           buildingId={doormanBuildingId}
@@ -1061,10 +1102,9 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           }}
         />
 
-        <TouchableOpacity 
-          style={[styles.nextButton, { marginTop: 20 }]} 
-          onPress={() => setCurrentStep('tipo')}
-        >
+        <TouchableOpacity
+          style={[styles.nextButton, { marginTop: 20 }]}
+          onPress={() => setCurrentStep('tipo')}>
           <Text style={styles.nextButtonText}>Registrar Novo Visitante</Text>
         </TouchableOpacity>
       </View>
@@ -1099,14 +1139,16 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Registrar Visitante</Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color="#666" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={onClose}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.title}>👤 Registrar Visitante</Text>
+          <Text style={styles.subtitle}>Cadastro de Visitantes</Text>
         </View>
+      </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
@@ -1115,18 +1157,29 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
               styles.progressFill,
               {
                 width: `${(() => {
-                  const mainSteps = ['apartamento', 'tipo', 'nome', 'cpf', 'observacoes', 'foto', 'confirmacao'];
+                  const mainSteps = [
+                    'apartamento',
+                    'tipo',
+                    'nome',
+                    'cpf',
+                    'observacoes',
+                    'foto',
+                    'confirmacao',
+                  ];
                   let stepIndex = mainSteps.indexOf(currentStep);
-                  
+
                   // Handle intermediate steps that aren't in the main flow
                   if (stepIndex === -1) {
                     if (currentStep === 'preauthorized') {
                       stepIndex = 0; // Same as 'apartamento'
-                    } else if (currentStep === 'empresa_prestador' || currentStep === 'empresa_entrega') {
+                    } else if (
+                      currentStep === 'empresa_prestador' ||
+                      currentStep === 'empresa_entrega'
+                    ) {
                       stepIndex = 1; // Same as 'tipo'
                     }
                   }
-                  
+
                   return ((stepIndex + 1) / mainSteps.length) * 100;
                 })()}%`,
               },
@@ -1135,18 +1188,29 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         </View>
         <Text style={styles.progressText}>
           {(() => {
-            const mainSteps = ['apartamento', 'tipo', 'nome', 'cpf', 'observacoes', 'foto', 'confirmacao'];
+            const mainSteps = [
+              'apartamento',
+              'tipo',
+              'nome',
+              'cpf',
+              'observacoes',
+              'foto',
+              'confirmacao',
+            ];
             let stepIndex = mainSteps.indexOf(currentStep);
-            
+
             // Handle intermediate steps that aren't in the main flow
             if (stepIndex === -1) {
               if (currentStep === 'preauthorized') {
                 stepIndex = 0; // Same as 'apartamento'
-              } else if (currentStep === 'empresa_prestador' || currentStep === 'empresa_entrega') {
+              } else if (
+                currentStep === 'empresa_prestador' ||
+                currentStep === 'empresa_entrega'
+              ) {
                 stepIndex = 1; // Same as 'tipo'
               }
             }
-            
+
             return `${stepIndex + 1} de ${mainSteps.length}`;
           })()}
         </Text>
@@ -1169,33 +1233,52 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         title="Foto do Visitante"
       />
     </View>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#2196F3',
+    display: 'flex',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#f8f9fa',
+    flexDirection: 'row',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
+    paddingHorizontal: 20,
+    gap: 50,
+    paddingVertical: 30,
+    marginBottom: 10,
   },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTitle: {
-    color: '#333',
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
   },
   progressContainer: {
     padding: 20,

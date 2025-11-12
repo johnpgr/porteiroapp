@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import { useAgora } from '~/hooks/useAgora';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 export default function PorteiroIntercomScreen() {
   const router = useRouter();
@@ -393,11 +394,13 @@ export default function PorteiroIntercomScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-          <Text style={styles.closeButtonText}>✕</Text>
+        <TouchableOpacity style={styles.backButton} onPress={handleClose}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Interfone</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.title}>📞 Interfone</Text>
+          <Text style={styles.subtitle}>Sistema de Chamadas</Text>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -410,43 +413,51 @@ export default function PorteiroIntercomScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f5f5',
   },
   header: {
+    backgroundColor: '#2196F3',
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    gap: 50,
+    paddingVertical: 30,
+    marginBottom: 10,
   },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeButtonText: {
-    fontSize: 18,
-    color: '#666',
-    fontWeight: 'bold',
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
   },
-  headerTitle: {
+  title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 5,
   },
-  headerSpacer: {
-    width: 40,
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
   },
   content: {
-    marginTop: 28,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
 
   // Estilos para entrada do apartamento

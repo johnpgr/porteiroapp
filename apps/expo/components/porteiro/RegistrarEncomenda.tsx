@@ -11,13 +11,12 @@ import {
   Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
 import { notificationApi } from '../../services/notificationApi';
 import { uploadDeliveryPhoto } from '../../services/photoUploadService';
 import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
-import { Modal } from '~/components/Modal';
 import { CameraModal } from '~/components/shared/CameraModal';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';
@@ -798,14 +797,16 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   };
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Registrar Encomenda</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={24} color="#666" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={onClose}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.title}>📦 Registrar Encomenda</Text>
+          <Text style={styles.subtitle}>Cadastro de Entregas</Text>
         </View>
+      </View>
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar as any}>
@@ -851,33 +852,52 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         title="Foto da Encomenda"
       />
     </View>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#2196F3',
+    display: 'flex',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#f8f9fa',
+    flexDirection: 'row',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
+    paddingHorizontal: 20,
+    gap: 50,
+    paddingVertical: 30,
+    marginBottom: 10,
   },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTitle: {
-    color: '#333',
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  title: {
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
   },
   progressContainer: {
     padding: 20,

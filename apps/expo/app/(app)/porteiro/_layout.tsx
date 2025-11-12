@@ -440,6 +440,27 @@ export default function PorteiroLayout() {
             }}
           />
           <Stack.Screen
+            name="registrar-visitante"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="registrar-encomenda"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="registrar-veiculo"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
             name="intercom"
             options={{
               presentation: 'fullScreenModal',
