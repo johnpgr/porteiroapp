@@ -13,7 +13,8 @@ import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import notificationService from '~/services/whatsappService';
+import { IconSymbol } from '~/components/ui/IconSymbol';
+import { whatsAppService } from '~/services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { supabaseAdmin } from '~/utils/supabase-admin';
 
@@ -77,11 +78,9 @@ const generateTemporaryPassword = (): string => {
 
 // Função para hash da senha
 const hashPassword = async (password: string): Promise<string> => {
-  const hash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    password,
-    { encoding: Crypto.CryptoEncoding.HEX }
-  );
+  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password, {
+    encoding: Crypto.CryptoEncoding.HEX,
+  });
   return hash;
 };
 
@@ -227,32 +226,32 @@ export default function MultipleDispatchesScreen() {
   const validateMultipleResidents = () => {
     const phoneNumbers = new Set();
     const apartmentIds = new Set();
-    
+
     for (let i = 0; i < multipleResidents.length; i++) {
       const resident = multipleResidents[i];
-      
+
       // Validação de nome
       if (!resident.name.trim()) {
         Alert.alert('Erro', `Morador ${i + 1}: Nome é obrigatório`);
         return false;
       }
-      
+
       if (resident.name.trim().length < 2) {
         Alert.alert('Erro', `Morador ${i + 1}: Nome deve ter pelo menos 2 caracteres`);
         return false;
       }
-      
+
       // Validação de telefone
       if (!resident.phone.trim()) {
         Alert.alert('Erro', `Morador ${i + 1}: Telefone é obrigatório`);
         return false;
       }
-      
+
       if (!validateBrazilianPhone(resident.phone)) {
         Alert.alert('Erro', `Morador ${i + 1}: Formato de telefone inválido. Use (11) 99999-9999`);
         return false;
       }
-      
+
       // Verificar telefones duplicados
       const formattedPhone = formatBrazilianPhone(resident.phone);
       if (phoneNumbers.has(formattedPhone)) {
@@ -260,45 +259,45 @@ export default function MultipleDispatchesScreen() {
         return false;
       }
       phoneNumbers.add(formattedPhone);
-      
+
       // Validação de email
       if (!resident.email.trim()) {
         Alert.alert('Erro', `Morador ${i + 1}: Email é obrigatório`);
         return false;
       }
-      
+
       if (!validateEmail(resident.email.trim())) {
         Alert.alert('Erro', `Morador ${i + 1}: Formato de email inválido`);
         return false;
       }
-      
+
       // Validação de prédio
       if (!resident.selectedBuildingId) {
         Alert.alert('Erro', `Morador ${i + 1}: Selecione um prédio`);
         return false;
       }
-      
+
       // Validação de apartamento
       if (!resident.selectedApartmentId) {
         Alert.alert('Erro', `Morador ${i + 1}: Selecione um apartamento`);
         return false;
       }
-      
+
       // Verificar apartamentos duplicados
       if (apartmentIds.has(resident.selectedApartmentId)) {
         Alert.alert('Erro', `Apartamento duplicado na lista (Morador ${i + 1})`);
         return false;
       }
       apartmentIds.add(resident.selectedApartmentId);
-      
+
       // Validar se o apartamento pertence ao prédio selecionado
-      const apartment = apartments.find(apt => apt.id === resident.selectedApartmentId);
+      const apartment = apartments.find((apt) => apt.id === resident.selectedApartmentId);
       if (apartment && apartment.building_id !== resident.selectedBuildingId) {
         Alert.alert('Erro', `Morador ${i + 1}: Apartamento não pertence ao prédio selecionado`);
         return false;
       }
     }
-    
+
     return true;
   };
 
@@ -319,36 +318,39 @@ export default function MultipleDispatchesScreen() {
       // Primeira fase: Validação e preparação dos dados
       setProcessingStatus('Validando dados e verificando duplicatas...');
       const validatedResidents = [];
-      
+
       for (const resident of multipleResidents) {
         try {
           const formattedPhone = formatBrazilianPhone(resident.phone);
-          
+
           if (processedPhones.has(formattedPhone)) {
             errors.push(`${resident.name}: Telefone duplicado interno`);
             errorCount++;
             continue;
           }
-          
+
           // Verificar se já existe no banco de dados
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id, full_name')
             .eq('phone', formattedPhone as any)
             .single();
-            
+
           if (existingProfile && 'full_name' in existingProfile) {
-            errors.push(`${resident.name}: Telefone já cadastrado para ${existingProfile.full_name}`);
+            errors.push(
+              `${resident.name}: Telefone já cadastrado para ${existingProfile.full_name}`
+            );
             errorCount++;
             continue;
           }
-          
+
           processedPhones.add(formattedPhone);
           validatedResidents.push({ ...resident, formattedPhone });
-          
         } catch (validationError) {
           errorCount++;
-          errors.push(`${resident.name}: Erro na validação - ${validationError instanceof Error ? validationError.message : 'Erro desconhecido'}`);
+          errors.push(
+            `${resident.name}: Erro na validação - ${validationError instanceof Error ? validationError.message : 'Erro desconhecido'}`
+          );
         }
       }
 
@@ -360,11 +362,13 @@ export default function MultipleDispatchesScreen() {
       // Segunda fase: Criação individual com sequência correta
       setProcessingStatus(`Processando ${validatedResidents.length} usuários individualmente...`);
       const usersWithPasswords = [];
-      
+
       for (let i = 0; i < validatedResidents.length; i++) {
         const resident = validatedResidents[i];
-        setProcessingStatus(`Processando ${resident.name} (${i + 1}/${validatedResidents.length})...`);
-        
+        setProcessingStatus(
+          `Processando ${resident.name} (${i + 1}/${validatedResidents.length})...`
+        );
+
         try {
           // Gerar senha temporária
           const temporaryPassword = generateTemporaryPassword();
@@ -377,8 +381,8 @@ export default function MultipleDispatchesScreen() {
             email_confirm: true,
             user_metadata: {
               full_name: resident.name,
-              user_type: 'morador'
-            }
+              user_type: 'morador',
+            },
           });
 
           if (authError) {
@@ -424,7 +428,12 @@ export default function MultipleDispatchesScreen() {
           }
 
           // Armazenar senha temporária
-          await storeTemporaryPassword((insertedUser as any).id, temporaryPassword, hashedPassword, resident.formattedPhone);
+          await storeTemporaryPassword(
+            (insertedUser as any).id,
+            temporaryPassword,
+            hashedPassword,
+            resident.formattedPhone
+          );
 
           // Adicionar senha temporária ao objeto para uso no WhatsApp
           (insertedUser as any).temporary_password = temporaryPassword;
@@ -432,7 +441,6 @@ export default function MultipleDispatchesScreen() {
 
           usersWithPasswords.push({ user: insertedUser as any, resident, temporaryPassword });
           successCount++;
-          
         } catch (userError) {
           errorCount++;
           const errorMessage = userError instanceof Error ? userError.message : 'Erro desconhecido';
@@ -449,7 +457,7 @@ export default function MultipleDispatchesScreen() {
         relationship: 'resident',
         is_primary: false,
       }));
-      
+
       const { data: insertedAssociations, error: associationsError } = await supabase
         .from('apartment_residents')
         .insert(apartmentAssociations as any)
@@ -469,15 +477,17 @@ export default function MultipleDispatchesScreen() {
                 relationship: 'resident',
                 is_primary: false,
               } as any);
-            
+
             if (individualAssocError) {
               throw individualAssocError;
             }
-            
+
             successfulUsers.push({ user, resident });
           } catch (indivError) {
             errorCount++;
-            errors.push(`${resident.name}: Erro ao associar apartamento - ${indivError instanceof Error ? indivError.message : 'Erro desconhecido'}`);
+            errors.push(
+              `${resident.name}: Erro ao associar apartamento - ${indivError instanceof Error ? indivError.message : 'Erro desconhecido'}`
+            );
           }
         }
       } else {
@@ -491,14 +501,14 @@ export default function MultipleDispatchesScreen() {
       // Quarta fase: Envio de WhatsApp em lote (sempre ativado)
       if (successfulUsers.length > 0) {
         setProcessingStatus('Preparando notificações WhatsApp em lote...');
-        
+
         try {
           for (const { user, resident } of successfulUsers) {
             setProcessingStatus(`Enviando WhatsApp para ${resident.name}...`);
-            
-            const apartment = apartments.find(apt => apt.id === resident.selectedApartmentId);
-            const building = buildings.find(b => b.id === resident.selectedBuildingId);
-            
+
+            const apartment = apartments.find((apt) => apt.id === resident.selectedApartmentId);
+            const building = buildings.find((b) => b.id === resident.selectedBuildingId);
+
             if (apartment && building) {
               const residentDataWithPassword: ResidentData = {
                 name: resident.name,
@@ -507,10 +517,11 @@ export default function MultipleDispatchesScreen() {
                 building: building.name,
                 apartment: apartment.number,
                 profile_id: user.id,
-                temporary_password: user.temporary_password
+                temporary_password: user.temporary_password,
               };
 
-              const whatsappResult = await notificationService.sendResidentWhatsApp(residentDataWithPassword);
+              const whatsappResult =
+                await whatsAppService.sendResidentWhatsApp(residentDataWithPassword);
               if (!whatsappResult.success) {
                 errors.push(`${resident.name}: WhatsApp - ${whatsappResult.error}`);
               }
@@ -524,11 +535,11 @@ export default function MultipleDispatchesScreen() {
 
       // Mostrar resultado detalhado
       setProcessingStatus('Processamento concluído!');
-      
+
       let message = `Processamento de ${multipleResidents.length} usuários concluído!\n\n`;
       message += `✅ Sucessos: ${successCount}\n`;
       message += `❌ Erros: ${errorCount}`;
-      
+
       if (errors.length > 0) {
         message += `\n\n📋 Detalhes dos erros:`;
         message += `\n${errors.slice(0, 5).join('\n')}`;
@@ -536,7 +547,7 @@ export default function MultipleDispatchesScreen() {
           message += `\n... e mais ${errors.length - 5} erros`;
         }
       }
-      
+
       // Determinar título e estilo do alerta
       let alertTitle = 'Processamento Concluído';
       if (successCount === 0) {
@@ -544,7 +555,7 @@ export default function MultipleDispatchesScreen() {
       } else if (errorCount > 0) {
         alertTitle = 'Processamento Parcial';
       }
-      
+
       Alert.alert(alertTitle, message, [{ text: 'OK' }]);
 
       if (successCount > 0) {
@@ -555,7 +566,10 @@ export default function MultipleDispatchesScreen() {
       }
     } catch (error) {
       console.error('Erro geral:', error);
-      Alert.alert('Erro', `Erro ao processar cadastros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      Alert.alert(
+        'Erro',
+        `Erro ao processar cadastros: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      );
     } finally {
       setLoading(false);
       setIsProcessing(false);
@@ -576,19 +590,19 @@ export default function MultipleDispatchesScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#007AFF" />
+          <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>👥 Múltiplos Disparos</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerTextContent}>
+          <Text style={styles.title}>👥 Múltiplos Disparos</Text>
+          <Text style={styles.subtitle}>Cadastre vários moradores de uma vez</Text>
+        </View>
+        <View style={styles.backButtonPlaceholder} />
       </View>
 
       <ScrollView
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}>
-
-
-
         {/* Lista de moradores */}
         {multipleResidents.map((resident, index) => (
           <View key={index} style={styles.residentCard}>
@@ -641,15 +655,18 @@ export default function MultipleDispatchesScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Prédio *</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.dropdownButton}
-                onPress={() => openBuildingModal(index)}
-              >
-                <Text style={[styles.dropdownText, !resident.selectedBuildingId && styles.placeholderText]}>
-                  {resident.selectedBuildingId 
-                    ? buildings.find(b => b.id === resident.selectedBuildingId)?.name || 'Selecione um prédio'
-                    : 'Selecione um prédio'
-                  }
+                onPress={() => openBuildingModal(index)}>
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !resident.selectedBuildingId && styles.placeholderText,
+                  ]}>
+                  {resident.selectedBuildingId
+                    ? buildings.find((b) => b.id === resident.selectedBuildingId)?.name ||
+                      'Selecione um prédio'
+                    : 'Selecione um prédio'}
                 </Text>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
@@ -658,15 +675,18 @@ export default function MultipleDispatchesScreen() {
             {resident.selectedBuildingId && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Apartamento *</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.dropdownButton}
-                  onPress={() => openApartmentModal(index)}
-                >
-                  <Text style={[styles.dropdownText, !resident.selectedApartmentId && styles.placeholderText]}>
-                    {resident.selectedApartmentId 
-                      ? apartments.find(a => a.id === resident.selectedApartmentId)?.number || 'Selecione um apartamento'
-                      : 'Selecione um apartamento'
-                    }
+                  onPress={() => openApartmentModal(index)}>
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      !resident.selectedApartmentId && styles.placeholderText,
+                    ]}>
+                    {resident.selectedApartmentId
+                      ? apartments.find((a) => a.id === resident.selectedApartmentId)?.number ||
+                        'Selecione um apartamento'
+                      : 'Selecione um apartamento'}
                   </Text>
                   <Ionicons name="chevron-down" size={20} color="#666" />
                 </TouchableOpacity>
@@ -708,14 +728,13 @@ export default function MultipleDispatchesScreen() {
             <Text style={styles.modalTitle}>Selecionar Prédio</Text>
             <View style={{ width: 60 }} />
           </View>
-          
+
           <ScrollView style={styles.modalContent}>
             {buildings.map((building) => (
               <TouchableOpacity
                 key={building.id}
                 style={styles.buildingOption}
-                onPress={() => handleBuildingSelect(building.id)}
-              >
+                onPress={() => handleBuildingSelect(building.id)}>
                 <Text style={styles.buildingOptionText}>{building.name}</Text>
                 <Ionicons name="chevron-forward" size={20} color="#666" />
               </TouchableOpacity>
@@ -734,28 +753,26 @@ export default function MultipleDispatchesScreen() {
             <Text style={styles.modalTitle}>Selecionar Apartamento</Text>
             <View style={{ width: 60 }} />
           </View>
-          
+
           <ScrollView style={styles.modalContent}>
-            {apartmentModalContext && apartments
-              .filter(apartment => {
-                const resident = multipleResidents[apartmentModalContext.residentIndex];
-                return apartment.building_id === resident.selectedBuildingId;
-              })
-              .map((apartment) => (
-                <TouchableOpacity
-                  key={apartment.id}
-                  style={styles.buildingOption}
-                  onPress={() => handleApartmentSelect(apartment.id)}
-                >
-                  <Text style={styles.buildingOptionText}>Apartamento {apartment.number}</Text>
-                  <Ionicons name="chevron-forward" size={20} color="#666" />
-                </TouchableOpacity>
-              ))
-            }
+            {apartmentModalContext &&
+              apartments
+                .filter((apartment) => {
+                  const resident = multipleResidents[apartmentModalContext.residentIndex];
+                  return apartment.building_id === resident.selectedBuildingId;
+                })
+                .map((apartment) => (
+                  <TouchableOpacity
+                    key={apartment.id}
+                    style={styles.buildingOption}
+                    onPress={() => handleApartmentSelect(apartment.id)}>
+                    <Text style={styles.buildingOptionText}>Apartamento {apartment.number}</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                  </TouchableOpacity>
+                ))}
           </ScrollView>
         </View>
       </Modal>
-
     </View>
   );
 }
@@ -781,18 +798,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingVertical: 24,
+    backgroundColor: '#FF9800',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
   },
   content: {
     flex: 1,

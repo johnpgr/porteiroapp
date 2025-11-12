@@ -383,7 +383,7 @@ export default function FirstLoginScreen() {
             <Text style={styles.stepDescription}>Tire uma foto para seu perfil</Text>
 
             <PhotoUpload
-              currentPhotoUri={formData.photoUri}
+              photoUri={formData.photoUri}
               onPhotoSelected={handlePhotoSelected}
               style={styles.photoUpload}
             />

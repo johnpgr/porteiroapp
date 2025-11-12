@@ -1046,7 +1046,7 @@ export default function VisitantesTab() {
             {
               text: 'OK',
               onPress: () => {
-                setShowPreRegistrationModal(false);
+                router.back();
                 fetchVisitors(); // Recarregar lista
               },
             },
@@ -1222,7 +1222,7 @@ export default function VisitantesTab() {
         {
           text: 'OK',
           onPress: () => {
-            setShowPreRegistrationModal(false);
+            router.back();
             fetchVisitors(); // Atualizar lista
           },
         },
@@ -1357,7 +1357,10 @@ export default function VisitantesTab() {
   // ========== FUNÇÕES PARA MÚLTIPLOS VISITANTES ==========
 
   // Função para processar múltiplos visitantes
-  const handleMultiplePreRegistration = async (preRegistrationData: any, multipleVisitors: MultipleVisitor[]) => {
+  const handleMultiplePreRegistration = async (
+    preRegistrationData: any,
+    multipleVisitors: MultipleVisitor[]
+  ) => {
     const results = {
       success: 0,
       errors: [] as string[],
@@ -1472,7 +1475,9 @@ export default function VisitantesTab() {
           results.success++;
         } catch (error) {
           console.error(`Erro ao processar visitante ${visitor.name}:`, error);
-          results.errors.push(`${visitor.name}: ${(error as Error).message || 'Erro desconhecido'}`);
+          results.errors.push(
+            `${visitor.name}: ${(error as Error).message || 'Erro desconhecido'}`
+          );
         }
       }
 
@@ -1487,7 +1492,7 @@ export default function VisitantesTab() {
         {
           text: 'OK',
           onPress: () => {
-            setShowPreRegistrationModal(false);
+            router.back();
             fetchVisitors();
           },
         },
@@ -1514,7 +1519,9 @@ export default function VisitantesTab() {
             <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.vehicleButton} onPress={() => router.push('/morador/vehicle')}>
+          <TouchableOpacity
+            style={styles.vehicleButton}
+            onPress={() => router.push('/morador/vehicle')}>
             <Text style={styles.buttonEmoji}>🚗</Text>
             <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
@@ -1771,7 +1778,6 @@ export default function VisitantesTab() {
             </>
           )}
         </View>
-
       </ScrollView>
 
       <FiltersBottomSheet

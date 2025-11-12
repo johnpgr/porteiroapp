@@ -31,8 +31,7 @@ export default function AdminTabsLayout() {
       }}
       screenListeners={{
         tabPress: handleTabPress,
-      }}
-    >
+      }}>
       <Tabs.Screen
         name="index"
         options={{
@@ -70,6 +69,7 @@ export default function AdminTabsLayout() {
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
+      <Tabs.Screen name="comunicados/(modals)" options={{ href: null }} />
     </Tabs>
   );
 }

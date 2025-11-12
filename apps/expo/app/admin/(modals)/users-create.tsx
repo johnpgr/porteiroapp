@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import notificationService from '~/services/whatsappService';
+import { whatsAppService } from '~/services/whatsappService';
 import * as Crypto from 'expo-crypto';
 import { supabaseAdmin } from '~/utils/supabase-admin';
+import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 
 // Funções auxiliares para validação (copiadas do arquivo original)
 const validateBrazilianPhone = (phone: string): boolean => {
@@ -36,10 +38,10 @@ const formatBrazilianPhone = (phone: string): string => {
 const validateCPF = (cpf: string): boolean => {
   const cleanCPF = cpf.replace(/\D/g, '');
   if (cleanCPF.length !== 11) return false;
-  
+
   // Verifica se todos os dígitos são iguais
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
-  
+
   // Validação dos dígitos verificadores
   let sum = 0;
   for (let i = 0; i < 9; i++) {
@@ -48,7 +50,7 @@ const validateCPF = (cpf: string): boolean => {
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
-  
+
   sum = 0;
   for (let i = 0; i < 10; i++) {
     sum += parseInt(cleanCPF.charAt(i)) * (11 - i);
@@ -56,7 +58,7 @@ const validateCPF = (cpf: string): boolean => {
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
-  
+
   return true;
 };
 
@@ -80,15 +82,15 @@ const formatDate = (date: string): string => {
 const validateDate = (date: string): boolean => {
   const cleanDate = date.replace(/\D/g, '');
   if (cleanDate.length !== 8) return false;
-  
+
   const day = parseInt(cleanDate.slice(0, 2));
   const month = parseInt(cleanDate.slice(2, 4));
   const year = parseInt(cleanDate.slice(4, 8));
-  
+
   if (day < 1 || day > 31) return false;
   if (month < 1 || month > 12) return false;
   if (year < 1900 || year > new Date().getFullYear()) return false;
-  
+
   return true;
 };
 
@@ -123,33 +125,34 @@ const generateTemporaryPassword = (): string => {
 // Função para criar hash da senha usando expo-crypto
 const hashPassword = async (password: string): Promise<string> => {
   // Usar SHA-256 para criar hash da senha
-  const hash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    password,
-    { encoding: Crypto.CryptoEncoding.HEX }
-  );
+  const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password, {
+    encoding: Crypto.CryptoEncoding.HEX,
+  });
   return hash;
 };
 
 // Função para armazenar senha temporária no banco de dados
-const storeTemporaryPassword = async (profileId: string, plainPassword: string, hashedPassword: string, phoneNumber: string): Promise<void> => {
+const storeTemporaryPassword = async (
+  profileId: string,
+  plainPassword: string,
+  hashedPassword: string,
+  phoneNumber: string
+): Promise<void> => {
   try {
-    const { error } = await supabase
-      .from('temporary_passwords')
-      .insert({
-        profile_id: profileId,
-        password_hash: hashedPassword,
-        plain_password: plainPassword,
-        phone_number: phoneNumber,
-        used: false,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 dias
-      } as any);
-    
+    const { error } = await supabase.from('temporary_passwords').insert({
+      profile_id: profileId,
+      password_hash: hashedPassword,
+      plain_password: plainPassword,
+      phone_number: phoneNumber,
+      used: false,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 dias
+    } as any);
+
     if (error) {
       console.error('Erro ao armazenar senha temporária:', error);
       throw error;
     }
-    
+
     console.log('✅ Senha temporária armazenada com sucesso para o perfil:', profileId);
   } catch (error) {
     console.error('❌ Erro ao armazenar senha temporária:', error);
@@ -174,11 +177,20 @@ export default function UsersCreate() {
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(false);
   const [showBuildingModal, setShowBuildingModal] = useState(false);
-  
+
   // Estados para WhatsApp
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
-  const [whatsappLoading, setWhatsappLoading] = useState(false);
-  
+
+  // Bottom sheet refs and state
+  const buildingSheetRef = useRef<BottomSheetModalRef>(null);
+  const workDaysSheetRef = useRef<BottomSheetModalRef>(null);
+  const workTimeSheetRef = useRef<BottomSheetModalRef>(null);
+
+  const [buildingSheetVisible, setBuildingSheetVisible] = useState(false);
+  const [workDaysSheetVisible, setWorkDaysSheetVisible] = useState(false);
+  const [workTimeSheetVisible, setWorkTimeSheetVisible] = useState(false);
+  const [timePickerMode, setTimePickerMode] = useState<'start' | 'end'>('start');
+
   const [newUser, setNewUser] = useState({
     name: '',
     type: 'morador' as 'morador' | 'porteiro',
@@ -208,6 +220,31 @@ export default function UsersCreate() {
   useEffect(() => {
     fetchBuildings();
     fetchApartments();
+    // Reset form fields on mount
+    setNewUser({
+      name: '',
+      type: 'morador',
+      phone: '',
+      cpf: '',
+      email: '',
+      birthDate: '',
+      address: '',
+      workSchedule: '',
+      workDays: {
+        monday: false,
+        tuesday: false,
+        wednesday: false,
+        thursday: false,
+        friday: false,
+        saturday: false,
+        sunday: false,
+      },
+      workStartTime: '',
+      workEndTime: '',
+      photoUri: '',
+      selectedBuildingId: '',
+      selectedApartmentIds: [],
+    });
   }, []);
 
   useEffect(() => {
@@ -264,7 +301,7 @@ export default function UsersCreate() {
       Alert.alert('Erro', 'Nome é obrigatório');
       return false;
     }
-    
+
     // Validação de e-mail obrigatório para todos os tipos
     if (!newUser.email.trim()) {
       Alert.alert('Erro', 'E-mail é obrigatório');
@@ -274,7 +311,7 @@ export default function UsersCreate() {
       Alert.alert('Erro', 'E-mail inválido');
       return false;
     }
-    
+
     if (newUser.type === 'porteiro') {
       // Validações específicas para porteiro
       if (!newUser.cpf.trim()) {
@@ -299,12 +336,12 @@ export default function UsersCreate() {
         return false;
       }
       // Validar dias da semana
-      const selectedDays = Object.values(newUser.workDays).some(day => day);
+      const selectedDays = Object.values(newUser.workDays).some((day) => day);
       if (!selectedDays) {
         Alert.alert('Erro', 'Pelo menos um dia da semana deve ser selecionado para porteiros');
         return false;
       }
-      
+
       // Validar horários de trabalho
       if (!newUser.workStartTime.trim()) {
         Alert.alert('Erro', 'Horário de início é obrigatório para porteiros');
@@ -314,7 +351,7 @@ export default function UsersCreate() {
         Alert.alert('Erro', 'Horário de fim é obrigatório para porteiros');
         return false;
       }
-      
+
       // Validar formato dos horários (HH:MM)
       const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
       if (!timeRegex.test(newUser.workStartTime)) {
@@ -344,7 +381,7 @@ export default function UsersCreate() {
         return false;
       }
     }
-    
+
     return true;
   };
 
@@ -356,19 +393,17 @@ export default function UsersCreate() {
     }
 
     try {
-      setWhatsappLoading(true);
-
       console.log('Enviando WhatsApp para:', residentData);
 
       // Usar o notificationService para enviar WhatsApp
-      const result = await notificationService.sendResidentWhatsApp({
+      const result = await whatsAppService.sendResidentWhatsApp({
         name: residentData.name,
         phone: residentData.phone,
         email: residentData.email,
         building: residentData.building,
         apartment: residentData.apartment,
         profile_id: residentData.profile_id,
-        temporary_password: residentData.temporary_password || ''
+        temporary_password: residentData.temporary_password || '',
       });
 
       if (result.success) {
@@ -379,8 +414,6 @@ export default function UsersCreate() {
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
       Alert.alert('Erro', 'Falha ao enviar WhatsApp');
-    } finally {
-      setWhatsappLoading(false);
     }
   };
 
@@ -391,9 +424,8 @@ export default function UsersCreate() {
       return;
     }
 
-    setWhatsappLoading(true);
     try {
-      const result = await notificationService.sendPorteiroWhatsApp({
+      const result = await whatsAppService.sendPorteiroWhatsApp({
         name: porteiroData.name,
         phone: porteiroData.phone,
         email: porteiroData.email,
@@ -401,7 +433,7 @@ export default function UsersCreate() {
         cpf: porteiroData.cpf,
         work_schedule: porteiroData.work_schedule,
         profile_id: porteiroData.profile_id,
-        temporary_password: porteiroData.temporary_password
+        temporary_password: porteiroData.temporary_password,
       });
 
       if (result.success) {
@@ -412,8 +444,6 @@ export default function UsersCreate() {
     } catch (error) {
       console.error('Erro ao enviar WhatsApp:', error);
       Alert.alert('Erro', 'Erro ao enviar mensagem WhatsApp');
-    } finally {
-      setWhatsappLoading(false);
     }
   };
 
@@ -436,14 +466,19 @@ export default function UsersCreate() {
         role: newUser.type,
         user_type: newUser.type,
         cpf: newUser.type === 'porteiro' ? newUser.cpf.replace(/\D/g, '') : null,
-        birth_date: newUser.type === 'porteiro' && newUser.birthDate ? 
-          `${newUser.birthDate.slice(6, 10)}-${newUser.birthDate.slice(3, 5)}-${newUser.birthDate.slice(0, 2)}` : null,
+        birth_date:
+          newUser.type === 'porteiro' && newUser.birthDate
+            ? `${newUser.birthDate.slice(6, 10)}-${newUser.birthDate.slice(3, 5)}-${newUser.birthDate.slice(0, 2)}`
+            : null,
         address: newUser.type === 'porteiro' ? newUser.address.trim() : null,
-        work_schedule: newUser.type === 'porteiro' ? JSON.stringify({
-          days: newUser.workDays,
-          startTime: newUser.workStartTime,
-          endTime: newUser.workEndTime
-        }) : null,
+        work_schedule:
+          newUser.type === 'porteiro'
+            ? JSON.stringify({
+                days: newUser.workDays,
+                startTime: newUser.workStartTime,
+                endTime: newUser.workEndTime,
+              })
+            : null,
         building_id: newUser.selectedBuildingId || null,
         temporary_password_used: false,
       };
@@ -472,8 +507,8 @@ export default function UsersCreate() {
         email_confirm: true,
         user_metadata: {
           full_name: userData.full_name,
-          user_type: userData.user_type
-        }
+          user_type: userData.user_type,
+        },
       });
 
       if (authError) {
@@ -515,13 +550,18 @@ export default function UsersCreate() {
       }
 
       // Armazenar senha temporária
-      await storeTemporaryPassword((insertedUser as any).id, temporaryPassword, hashedPassword, userData.phone || '');
+      await storeTemporaryPassword(
+        (insertedUser as any).id,
+        temporaryPassword,
+        hashedPassword,
+        userData.phone || ''
+      );
 
       // Se for morador, associar aos apartamentos selecionados
       if (newUser.type === 'morador' && newUser.selectedApartmentIds.length > 0) {
-        const apartmentAssociations = newUser.selectedApartmentIds.map(apartmentId => ({
+        const apartmentAssociations = newUser.selectedApartmentIds.map((apartmentId) => ({
           profile_id: (insertedUser as any).id,
-          apartment_id: apartmentId
+          apartment_id: apartmentId,
         }));
 
         const { error: apartmentError } = await supabase
@@ -538,11 +578,11 @@ export default function UsersCreate() {
       if (sendWhatsApp && newUser.phone) {
         if (newUser.type === 'morador') {
           // Encontrar os nomes do prédio e apartamento para envio
-          const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-          const selectedApartments = apartments.filter(apt => 
+          const building = buildings.find((b) => b.id === newUser.selectedBuildingId);
+          const selectedApartments = apartments.filter((apt) =>
             newUser.selectedApartmentIds.includes(apt.id)
           );
-          
+
           if (building && selectedApartments.length > 0) {
             // Preparar dados para WhatsApp
             const residentData: ResidentData = {
@@ -550,17 +590,17 @@ export default function UsersCreate() {
               phone: newUser.phone,
               email: newUser.email,
               building: building.name,
-              apartment: selectedApartments.map(apt => apt.number).join(', '),
+              apartment: selectedApartments.map((apt) => apt.number).join(', '),
               profile_id: insertedUser.id,
-              temporary_password: temporaryPassword
+              temporary_password: temporaryPassword,
             };
 
             await handleSingleUserWhatsApp(residentData);
           }
         } else if (newUser.type === 'porteiro') {
           // Encontrar o nome do prédio para envio
-          const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-          
+          const building = buildings.find((b) => b.id === newUser.selectedBuildingId);
+
           if (building) {
             // Preparar dados para WhatsApp do porteiro
             const porteiroData: PorteiroData = {
@@ -571,7 +611,7 @@ export default function UsersCreate() {
               cpf: newUser.cpf,
               work_schedule: `${newUser.workStartTime} - ${newUser.workEndTime}`,
               profile_id: insertedUser.id,
-              temporary_password: temporaryPassword
+              temporary_password: temporaryPassword,
             };
 
             await handlePorteiroWhatsApp(porteiroData);
@@ -642,85 +682,88 @@ export default function UsersCreate() {
               });
               // Voltar para a tela de usuários
               router.back();
-            }
+            },
           },
-          ...(newUser.phone ? [{
-            text: 'Enviar WhatsApp',
-            onPress: async () => {
-              if (newUser.type === 'morador') {
-                // Encontrar os nomes do prédio e apartamento para envio
-                const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-                const selectedApartments = apartments.filter(apt => 
-                  newUser.selectedApartmentIds.includes(apt.id)
-                );
-                
-                if (building && selectedApartments.length > 0) {
-                  // Preparar dados para WhatsApp
-                  const residentData: ResidentData = {
-                    name: newUser.name,
-                    phone: newUser.phone,
-                    email: newUser.email,
-                    building: building.name,
-                    apartment: selectedApartments.map(apt => apt.number).join(', '),
-                    profile_id: insertedUser.id,
-                    temporary_password: temporaryPassword
-                  };
+          ...(newUser.phone
+            ? [
+                {
+                  text: 'Enviar WhatsApp',
+                  onPress: async () => {
+                    if (newUser.type === 'morador') {
+                      // Encontrar os nomes do prédio e apartamento para envio
+                      const building = buildings.find((b) => b.id === newUser.selectedBuildingId);
+                      const selectedApartments = apartments.filter((apt) =>
+                        newUser.selectedApartmentIds.includes(apt.id)
+                      );
 
-                  await handleSingleUserWhatsApp(residentData);
-                }
-              } else if (newUser.type === 'porteiro') {
-                // Encontrar o nome do prédio para envio
-                const building = buildings.find(b => b.id === newUser.selectedBuildingId);
-                
-                if (building) {
-                  // Preparar dados para WhatsApp do porteiro
-                  const porteiroData: PorteiroData = {
-                    name: newUser.name,
-                    phone: newUser.phone,
-                    email: newUser.email,
-                    building: building.name,
-                    cpf: newUser.cpf,
-                    work_schedule: `${newUser.workStartTime} - ${newUser.workEndTime}`,
-                    profile_id: insertedUser.id,
-                    temporary_password: temporaryPassword
-                  };
+                      if (building && selectedApartments.length > 0) {
+                        // Preparar dados para WhatsApp
+                        const residentData: ResidentData = {
+                          name: newUser.name,
+                          phone: newUser.phone,
+                          email: newUser.email,
+                          building: building.name,
+                          apartment: selectedApartments.map((apt) => apt.number).join(', '),
+                          profile_id: insertedUser.id,
+                          temporary_password: temporaryPassword,
+                        };
 
-                  await handlePorteiroWhatsApp(porteiroData);
-                }
-              }
+                        await handleSingleUserWhatsApp(residentData);
+                      }
+                    } else if (newUser.type === 'porteiro') {
+                      // Encontrar o nome do prédio para envio
+                      const building = buildings.find((b) => b.id === newUser.selectedBuildingId);
 
-              // Resetar formulário
-              setNewUser({
-                name: '',
-                type: 'morador',
-                phone: '',
-                cpf: '',
-                email: '',
-                birthDate: '',
-                address: '',
-                workSchedule: '',
-                workDays: {
-                  monday: false,
-                  tuesday: false,
-                  wednesday: false,
-                  thursday: false,
-                  friday: false,
-                  saturday: false,
-                  sunday: false,
+                      if (building) {
+                        // Preparar dados para WhatsApp do porteiro
+                        const porteiroData: PorteiroData = {
+                          name: newUser.name,
+                          phone: newUser.phone,
+                          email: newUser.email,
+                          building: building.name,
+                          cpf: newUser.cpf,
+                          work_schedule: `${newUser.workStartTime} - ${newUser.workEndTime}`,
+                          profile_id: insertedUser.id,
+                          temporary_password: temporaryPassword,
+                        };
+
+                        await handlePorteiroWhatsApp(porteiroData);
+                      }
+                    }
+
+                    // Resetar formulário
+                    setNewUser({
+                      name: '',
+                      type: 'morador',
+                      phone: '',
+                      cpf: '',
+                      email: '',
+                      birthDate: '',
+                      address: '',
+                      workSchedule: '',
+                      workDays: {
+                        monday: false,
+                        tuesday: false,
+                        wednesday: false,
+                        thursday: false,
+                        friday: false,
+                        saturday: false,
+                        sunday: false,
+                      },
+                      workStartTime: '',
+                      workEndTime: '',
+                      photoUri: '',
+                      selectedBuildingId: '',
+                      selectedApartmentIds: [],
+                    });
+                    // Voltar para a tela de usuários
+                    router.back();
+                  },
                 },
-                workStartTime: '',
-                workEndTime: '',
-                photoUri: '',
-                selectedBuildingId: '',
-                selectedApartmentIds: [],
-              });
-              // Voltar para a tela de usuários
-              router.back();
-            }
-          }] : [])
+              ]
+            : []),
         ]
       );
-
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
       Alert.alert('Erro', 'Falha ao criar usuário. Tente novamente.');
@@ -759,17 +802,19 @@ export default function UsersCreate() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.title}>✨ Novo Usuário</Text>
-        <View style={{ width: 24 }} />
+        <View style={styles.headerTextContent}>
+          <Text style={styles.title}>✨ Novo Usuário</Text>
+          <Text style={styles.subtitle}>Cadastre moradores e porteiros rapidamente</Text>
+        </View>
+        <View style={styles.backButtonPlaceholder} />
       </View>
 
       <ScrollView
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}>
-        
         <View style={styles.roleSelector}>
           <Text style={styles.roleLabel}>Tipo de usuário:</Text>
           <View style={styles.roleButtons}>
@@ -787,7 +832,8 @@ export default function UsersCreate() {
                     styles.roleButtonText,
                     newUser.type === role && { color: getRoleColor(role) },
                   ]}>
-                  {getRoleIcon(role)} {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Indefinido'}
+                  {getRoleIcon(role)}{' '}
+                  {role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Indefinido'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -806,7 +852,9 @@ export default function UsersCreate() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Telefone {newUser.type === 'morador' ? 'WhatsApp ' : ''}*</Text>
+          <Text style={styles.label}>
+            Telefone {newUser.type === 'morador' ? 'WhatsApp ' : ''}*
+          </Text>
           <TextInput
             style={styles.input}
             placeholder="(11) 99999-9999"
@@ -833,17 +881,20 @@ export default function UsersCreate() {
           <>
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Prédio *</Text>
-              <TouchableOpacity 
-                style={styles.dropdownButton}
-                onPress={() => setShowBuildingModal(true)}
-              >
-                <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
-                  {newUser.selectedBuildingId 
-                    ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
-                    : 'Selecione um prédio'
-                  }
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setBuildingSheetVisible(true)}>
+                <Text
+                  style={[
+                    styles.pickerButtonText,
+                    !newUser.selectedBuildingId && styles.placeholderText,
+                  ]}>
+                  {newUser.selectedBuildingId
+                    ? buildings.find((b) => b.id === newUser.selectedBuildingId)?.name ||
+                      'Selecione um prédio'
+                    : 'Selecione um prédio'}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color="#666" />
+                <Text style={styles.pickerChevron}>▼</Text>
               </TouchableOpacity>
             </View>
 
@@ -946,135 +997,116 @@ export default function UsersCreate() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Dias da Semana *</Text>
               <Text style={styles.sublabel}>Selecione os dias de trabalho</Text>
-              <View style={styles.daysContainer}>
-                {[
-                  { key: 'monday', label: 'Segunda' },
-                  { key: 'tuesday', label: 'Terça' },
-                  { key: 'wednesday', label: 'Quarta' },
-                  { key: 'thursday', label: 'Quinta' },
-                  { key: 'friday', label: 'Sexta' },
-                  { key: 'saturday', label: 'Sábado' },
-                  { key: 'sunday', label: 'Domingo' },
-                ].map((day) => (
-                  <TouchableOpacity
-                    key={day.key}
-                    style={[
-                      styles.dayOption,
-                      newUser.workDays[day.key as keyof typeof newUser.workDays] &&
-                        styles.dayOptionSelected,
-                    ]}
-                    onPress={() => {
-                      setNewUser((prev) => ({
-                        ...prev,
-                        workDays: {
-                          ...prev.workDays,
-                          [day.key]: !prev.workDays[day.key as keyof typeof prev.workDays],
-                        },
-                      }));
-                    }}>
-                    <Text
-                      style={[
-                        styles.dayOptionText,
-                        newUser.workDays[day.key as keyof typeof newUser.workDays] &&
-                          styles.dayOptionTextSelected,
-                      ]}>
-                      {newUser.workDays[day.key as keyof typeof newUser.workDays] ? '✅' : '⭕'}{' '}
-                      {day.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setWorkDaysSheetVisible(true)}>
+                <Text
+                  style={[
+                    styles.pickerButtonText,
+                    !Object.values(newUser.workDays).some((day) => day) && styles.placeholderText,
+                  ]}>
+                  {Object.values(newUser.workDays).some((day) => day)
+                    ? Object.entries(newUser.workDays)
+                        .filter(([_, selected]) => selected)
+                        .map(([day]) => {
+                          const dayLabels: Record<string, string> = {
+                            monday: 'Seg',
+                            tuesday: 'Ter',
+                            wednesday: 'Qua',
+                            thursday: 'Qui',
+                            friday: 'Sex',
+                            saturday: 'Sáb',
+                            sunday: 'Dom',
+                          };
+                          return dayLabels[day];
+                        })
+                        .join(', ')
+                    : 'Selecione os dias'}
+                </Text>
+                <Text style={styles.pickerChevron}>▼</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Horário de Trabalho *</Text>
-              <View style={styles.timeContainer}>
-                <View style={styles.timeInputContainer}>
-                  <Text style={styles.timeLabel}>Início</Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    placeholder="08:00"
-                    value={newUser.workStartTime}
-                    onChangeText={(text) => {
-                      const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
-                      if (formatted.length === 2 && !formatted.includes(':')) {
-                        setNewUser((prev) => ({ ...prev, workStartTime: formatted + ':' }));
-                      } else {
-                        setNewUser((prev) => ({ ...prev, workStartTime: formatted }));
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={5}
-                  />
-                </View>
+              <View style={styles.dateTimePickerContainer}>
+                <TouchableOpacity
+                  style={[styles.pickerButton, styles.dateButtonHalf]}
+                  onPress={() => {
+                    setTimePickerMode('start');
+                    setWorkTimeSheetVisible(true);
+                  }}>
+                  <Text
+                    style={[
+                      styles.pickerButtonText,
+                      !newUser.workStartTime && styles.placeholderText,
+                    ]}>
+                    {newUser.workStartTime || 'Início'}
+                  </Text>
+                  <Text style={styles.pickerChevron}>▼</Text>
+                </TouchableOpacity>
+
                 <Text style={styles.timeSeparator}>às</Text>
-                <View style={styles.timeInputContainer}>
-                  <Text style={styles.timeLabel}>Fim</Text>
-                  <TextInput
-                    style={styles.timeInput}
-                    placeholder="18:00"
-                    value={newUser.workEndTime}
-                    onChangeText={(text) => {
-                      const formatted = text.replace(/[^0-9:]/g, '').substring(0, 5);
-                      if (formatted.length === 2 && !formatted.includes(':')) {
-                        setNewUser((prev) => ({ ...prev, workEndTime: formatted + ':' }));
-                      } else {
-                        setNewUser((prev) => ({ ...prev, workEndTime: formatted }));
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={5}
-                  />
-                </View>
+
+                <TouchableOpacity
+                  style={[styles.pickerButton, styles.dateButtonHalf]}
+                  onPress={() => {
+                    setTimePickerMode('end');
+                    setWorkTimeSheetVisible(true);
+                  }}>
+                  <Text
+                    style={[
+                      styles.pickerButtonText,
+                      !newUser.workEndTime && styles.placeholderText,
+                    ]}>
+                    {newUser.workEndTime || 'Fim'}
+                  </Text>
+                  <Text style={styles.pickerChevron}>▼</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
             {/* Campo de prédio para porteiros */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Prédio *</Text>
-              <TouchableOpacity 
-                style={styles.dropdownButton}
-                onPress={() => setShowBuildingModal(true)}
-              >
-                <Text style={[styles.dropdownText, !newUser.selectedBuildingId && styles.placeholderText]}>
-                  {newUser.selectedBuildingId 
-                    ? buildings.find(b => b.id === newUser.selectedBuildingId)?.name || 'Selecione um prédio'
-                    : 'Selecione um prédio'
-                  }
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setBuildingSheetVisible(true)}>
+                <Text
+                  style={[
+                    styles.pickerButtonText,
+                    !newUser.selectedBuildingId && styles.placeholderText,
+                  ]}>
+                  {newUser.selectedBuildingId
+                    ? buildings.find((b) => b.id === newUser.selectedBuildingId)?.name ||
+                      'Selecione um prédio'
+                    : 'Selecione um prédio'}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color="#666" />
+                <Text style={styles.pickerChevron}>▼</Text>
               </TouchableOpacity>
             </View>
           </>
         )}
-      </ScrollView>
 
-      {/* Checkbox para envio de WhatsApp (apenas para moradores) */}
-      {newUser.type === 'morador' && newUser.phone && (
-        <View style={styles.whatsappContainer}>
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => setSendWhatsApp(!sendWhatsApp)}
-          >
-            <View style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}>
-              {sendWhatsApp && <Ionicons name="checkmark" size={16} color="white" />}
-            </View>
-            <Text style={styles.checkboxLabel}>
-              Enviar dados de acesso via WhatsApp automaticamente
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {/* Checkbox para envio de WhatsApp (apenas para moradores) */}
+        {newUser.type === 'morador' && newUser.phone && (
+          <View style={styles.whatsappCheckboxContainer}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setSendWhatsApp(!sendWhatsApp)}>
+              <View style={[styles.checkbox, sendWhatsApp && styles.checkboxChecked]}>
+                {sendWhatsApp && <Ionicons name="checkmark" size={16} color="white" />}
+              </View>
+              <Text style={styles.checkboxLabel}>
+                Enviar dados de acesso via WhatsApp automaticamente
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      <View style={styles.footer}>
+        {/* Botão de ação */}
         <TouchableOpacity
-          style={[styles.button, styles.cancelButton]}
-          onPress={() => router.back()}>
-          <Text style={styles.cancelButtonText}>Cancelar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.saveButton, loading && styles.disabledButton]}
+          style={[styles.saveButton, loading && styles.disabledButton]}
           onPress={handleAddUser}
           disabled={loading}>
           {loading ? (
@@ -1083,7 +1115,7 @@ export default function UsersCreate() {
             <Text style={styles.saveButtonText}>✅ Criar Usuário</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {/* Modal de Seleção de Prédios */}
       <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
@@ -1095,14 +1127,13 @@ export default function UsersCreate() {
             <Text style={styles.modalTitle}>Selecionar Prédio</Text>
             <View style={{ width: 60 }} />
           </View>
-          
+
           <ScrollView style={styles.modalContent}>
             {buildings.map((building) => (
               <TouchableOpacity
                 key={building.id}
                 style={styles.buildingOption}
-                onPress={() => handleBuildingSelect(building.id)}
-              >
+                onPress={() => handleBuildingSelect(building.id)}>
                 <Text style={styles.buildingOptionText}>{building.name}</Text>
                 <Ionicons name="chevron-forward" size={20} color="#666" />
               </TouchableOpacity>
@@ -1110,6 +1141,147 @@ export default function UsersCreate() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Building Selection Bottom Sheet */}
+      <BottomSheetModal
+        ref={buildingSheetRef}
+        visible={buildingSheetVisible}
+        onClose={() => setBuildingSheetVisible(false)}
+        snapPoints={60}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Selecione um Prédio</Text>
+          <Text style={styles.sheetSubtitle}>Escolha o prédio do usuário</Text>
+        </View>
+        <ScrollView style={styles.modalScrollView}>
+          {buildings.length > 0 ? (
+            buildings.map((building) => (
+              <TouchableOpacity
+                key={building.id}
+                style={[
+                  styles.modalOption,
+                  newUser.selectedBuildingId === building.id && styles.modalOptionSelected,
+                ]}
+                onPress={() => {
+                  setNewUser((prev) => ({ ...prev, selectedBuildingId: building.id }));
+                  setBuildingSheetVisible(false);
+                }}>
+                <Text
+                  style={[
+                    styles.modalOptionText,
+                    newUser.selectedBuildingId === building.id && styles.modalOptionTextSelected,
+                  ]}>
+                  {building.name}
+                </Text>
+                {newUser.selectedBuildingId === building.id && (
+                  <Text style={styles.modalCheckmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.bottomSheetEmpty}>
+              <Text style={styles.bottomSheetEmptyText}>Nenhum prédio disponível</Text>
+            </View>
+          )}
+        </ScrollView>
+      </BottomSheetModal>
+
+      {/* Work Days Selection Bottom Sheet */}
+      <BottomSheetModal
+        ref={workDaysSheetRef}
+        visible={workDaysSheetVisible}
+        onClose={() => setWorkDaysSheetVisible(false)}
+        snapPoints={65}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Dias de Trabalho</Text>
+          <Text style={styles.sheetSubtitle}>Selecione os dias da semana</Text>
+        </View>
+        <ScrollView style={styles.modalScrollView}>
+          {[
+            { key: 'monday', label: 'Segunda-feira', emoji: '📅' },
+            { key: 'tuesday', label: 'Terça-feira', emoji: '📅' },
+            { key: 'wednesday', label: 'Quarta-feira', emoji: '📅' },
+            { key: 'thursday', label: 'Quinta-feira', emoji: '📅' },
+            { key: 'friday', label: 'Sexta-feira', emoji: '📅' },
+            { key: 'saturday', label: 'Sábado', emoji: '📅' },
+            { key: 'sunday', label: 'Domingo', emoji: '📅' },
+          ].map((day) => (
+            <TouchableOpacity
+              key={day.key}
+              style={[
+                styles.modalOption,
+                newUser.workDays[day.key as keyof typeof newUser.workDays] &&
+                  styles.modalOptionSelected,
+              ]}
+              onPress={() => {
+                setNewUser((prev) => ({
+                  ...prev,
+                  workDays: {
+                    ...prev.workDays,
+                    [day.key]: !prev.workDays[day.key as keyof typeof prev.workDays],
+                  },
+                }));
+              }}>
+              <Text
+                style={[
+                  styles.modalOptionText,
+                  newUser.workDays[day.key as keyof typeof newUser.workDays] &&
+                    styles.modalOptionTextSelected,
+                ]}>
+                {day.emoji} {day.label}
+              </Text>
+              {newUser.workDays[day.key as keyof typeof newUser.workDays] && (
+                <Text style={styles.modalCheckmark}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </BottomSheetModal>
+
+      {/* Work Time Selection Bottom Sheet */}
+      <BottomSheetModal
+        ref={workTimeSheetRef}
+        visible={workTimeSheetVisible}
+        onClose={() => setWorkTimeSheetVisible(false)}
+        snapPoints={70}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>
+            {timePickerMode === 'start' ? 'Horário de Início' : 'Horário de Término'}
+          </Text>
+          <Text style={styles.sheetSubtitle}>
+            Selecione o horário de {timePickerMode === 'start' ? 'início' : 'término'} do trabalho
+          </Text>
+        </View>
+        <ScrollView style={styles.modalScrollView}>
+          {Array.from({ length: 18 }, (_, i) => i + 6).map((hour) =>
+            [0, 15, 30, 45].map((minute) => {
+              const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+              const isSelected =
+                timePickerMode === 'start'
+                  ? newUser.workStartTime === timeString
+                  : newUser.workEndTime === timeString;
+
+              return (
+                <TouchableOpacity
+                  key={timeString}
+                  style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                  onPress={() => {
+                    if (timePickerMode === 'start') {
+                      setNewUser((prev) => ({ ...prev, workStartTime: timeString }));
+                    } else {
+                      setNewUser((prev) => ({ ...prev, workEndTime: timeString }));
+                    }
+                    setWorkTimeSheetVisible(false);
+                  }}>
+                  <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
+                    🕐 {timeString}
+                  </Text>
+                  {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -1121,21 +1293,40 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 26,
-    paddingVertical: 10,
-    backgroundColor: '#9C27B0',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    backgroundColor: '#FF9800',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center',
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
     textAlign: 'center',
   },
   content: {
@@ -1308,44 +1499,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 15,
     fontWeight: '500',
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
-    gap: 15,
-  },
-  button: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#dee2e6',
-  },
-  cancelButtonText: {
-    color: '#6c757d',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  saveButton: {
-    backgroundColor: '#007AFF',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  disabledButton: {
-    backgroundColor: '#ccc',
-  },
   // Estilos para o modal de seleção de prédios
   modalContainer: {
     flex: 1,
@@ -1388,12 +1541,14 @@ const styles = StyleSheet.create({
     color: '#333',
     flex: 1,
   },
-  whatsappContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+  whatsappCheckboxContainer: {
+    marginTop: 20,
+    marginBottom: 10,
+    padding: 15,
     backgroundColor: '#f8f9fa',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -1416,5 +1571,106 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     flex: 1,
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  // Picker button styles (from comunicados.tsx)
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 44,
+    marginBottom: 15,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  pickerChevron: {
+    fontSize: 16,
+    color: '#666',
+    marginLeft: 8,
+  },
+  dateTimePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateButtonHalf: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  // Bottom Sheet styles (from comunicados.tsx)
+  sheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  modalCheckmark: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: 'bold',
+  },
+  bottomSheetEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  bottomSheetEmptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
   },
 });

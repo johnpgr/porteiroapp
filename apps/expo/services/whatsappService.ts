@@ -256,10 +256,8 @@ export const sendVisitorWhatsApp = async (
 /**
  * Objeto compatível com a interface antiga de notificationService
  */
-export const notificationService = {
+export const whatsAppService = {
   sendResidentWhatsApp,
   sendPorteiroWhatsApp,
   sendVisitorWhatsApp
 };
-
-export default notificationService;

@@ -47,6 +47,15 @@ export default function MoradorTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="cadastro/index"
+        options={{
+          title: 'Cadastro',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="edit" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="calls"
         options={{
           title: 'Chamadas',
@@ -67,12 +76,6 @@ export default function MoradorTabsLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/index"
         options={{
           href: null,
         }}

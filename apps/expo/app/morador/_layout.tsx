@@ -1,16 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Stack, usePathname, router, Redirect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Stack, usePathname, Redirect } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import type { Subscription } from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '~/hooks/useAuth';
 import { agoraService } from '~/services/agora/AgoraService';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
-
-import { Ionicons } from '@expo/vector-icons';
-import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
-import { useUserApartment } from '~/hooks/useUserApartment';
+import MoradorTabsHeader from '~/components/morador/MoradorTabsHeader';
 import { supabase } from '~/utils/supabase';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import { callKeepService } from '~/services/calling/CallKeepService';
@@ -19,10 +15,9 @@ export default function MoradorLayout() {
   const pathname = usePathname();
   const previousPathRef = useRef<string | null>(null);
   const [shouldAnimate, setShouldAnimate] = useState(true);
-  const { user, signOut } = useAuth();
-  const { apartment, loading: apartmentLoading } = useUserApartment();
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const { user } = useAuth();
   const { isFirstLogin } = useFirstLogin();
+  const renderTabsHeader = useCallback(() => <MoradorTabsHeader />, []);
 
   const shouldHideHeader =
     pathname === '/morador/login' ||
@@ -30,52 +25,9 @@ export default function MoradorLayout() {
     pathname.startsWith('/morador/cadastro/') ||
     pathname.startsWith('/morador/visitantes/');
 
-  // Blocking redirect for first login
-  if (isFirstLogin && pathname !== '/morador/first-login' && user) {
-    return <Redirect href="/morador/first-login" />;
-  }
-
-  const handleLogout = () => {
-    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut();
-            router.replace('/');
-          } catch (error) {
-            console.error('Erro ao realizar logout:', error);
-          }
-        },
-      },
-    ]);
-  };
-
-  const profileMenuItems: ProfileMenuItem[] = [
-    {
-      label: 'Ver/Editar Perfil',
-      iconName: 'person',
-      onPress: () => router.push('/morador/profile'),
-    },
-    {
-      label: 'Cadastro',
-      iconName: 'create',
-      onPress: () => router.push('/morador/cadastro'),
-    },
-    {
-      label: 'Logout',
-      iconName: 'log-out',
-      iconColor: '#f44336',
-      destructive: true,
-      onPress: handleLogout,
-    },
-  ];
-
   // Refs para listeners
-  const notificationListener = useRef<Subscription | null>(null);
-  const responseListener = useRef<Subscription | null>(null);
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   // Normalize incoming payload (supports Expo payloads that wrap JSON in strings)
   const normalizeIntercomPayload = (raw: Record<string, unknown> | null | undefined): Record<string, unknown> | null => {
@@ -168,7 +120,7 @@ export default function MoradorLayout() {
     };
 
     void initializeCallSystem();
-  }, [user?.id]);
+  }, [user]);
 
   // NOTE: Call UI is handled globally in root _layout.tsx
   // The coordinator subscription and FullScreenCallUI rendering happens there
@@ -371,95 +323,64 @@ export default function MoradorLayout() {
     };
   }, [user?.id]);
 
-  // Remove old app state listener - not needed with new architecture
+  // Blocking redirect for first login
+  if (isFirstLogin && pathname !== '/morador/first-login' && user) {
+    return <Redirect href="/morador/first-login" />;
+  }
 
   return (
     <View style={styles.container}>
-      {!shouldHideHeader && (
-        <>
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.alertButton}
-              onPress={() => router.push('/emergency')}
-            >
-              <Ionicons name="warning" size={24} color="#fff" />
-            </TouchableOpacity>
+      <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: !shouldHideHeader,
+            header: renderTabsHeader,
+          }}
+        />
+        <Stack.Screen name="EnquetesTab" />
+        <Stack.Screen name="authorize" />
+        <Stack.Screen name="avisos" />
+        <Stack.Screen name="configuracoes" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="logs" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="preregister" />
+        <Stack.Screen name="testes" />
 
-            <View style={styles.headerCenter}>
-              <Text style={styles.title}>🏠 Morador</Text>
-              <Text style={styles.subtitle}>
-                {apartmentLoading
-                  ? 'Carregando...'
-                  : apartment?.number
-                    ? `Apartamento ${apartment?.number}`
-                    : 'Apartamento não encontrado'}
-              </Text>
-            </View>
+        {/* First login modal screen */}
+        <Stack.Screen
+          name="first-login"
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+            gestureEnabled: false,
+          }}
+        />
 
-            <TouchableOpacity
-              style={styles.avatarButton}
-              onPress={() => setShowProfileMenu(true)}
-            >
-              <Ionicons name='person-circle' size={32} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          <ProfileMenu
-            visible={showProfileMenu}
-            onClose={() => setShowProfileMenu(false)}
-            items={profileMenuItems}
-            placement="top-right"
-          />
-        </>
-      )}
-
-      <View style={styles.stackContainer}>
-        <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="EnquetesTab" />
-          <Stack.Screen name="authorize" />
-          <Stack.Screen name="avisos" />
-          <Stack.Screen name="configuracoes" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="logs" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="preregister" />
-          <Stack.Screen name="testes" />
-
-          {/* First login modal screen */}
-          <Stack.Screen
-            name="first-login"
-            options={{
-              presentation: 'fullScreenModal',
-              headerShown: false,
-              gestureEnabled: false,
-            }}
-          />
-
-          {/* Visitor management modals */}
-          <Stack.Screen
-            name="edit-visitor"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="vehicle"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="pre-registration"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-            }}
-          />
-        </Stack>
-      </View>
+        {/* Visitor management modals */}
+        <Stack.Screen
+          name="edit-visitor"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="vehicle"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="pre-registration"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+      </Stack>
 
       {/* 📞 CHAMADA DE INTERFONE
           Call UI is rendered globally in root _layout.tsx to avoid duplicates
@@ -472,42 +393,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4CAF50',
-    paddingTop: 20,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 3,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  alertButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  avatarButton: {
-    padding: 4,
-  },
-  stackContainer: {
-    flex: 1,
   },
 });

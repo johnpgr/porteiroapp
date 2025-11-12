@@ -363,7 +363,7 @@ export default function NotificationDashboard() {
         
         {filteredLogs.length === 0 && (
           <View style={styles.emptyState}>
-            <Bell size={48} color="#9CA3AF" />
+            <IconSymbol name='bell.fill' size={48} color="#9CA3AF" />
             <Text style={styles.emptyStateText}>Nenhum log encontrado</Text>
           </View>
         )}

@@ -21,17 +21,18 @@ export default function AdminLayout() {
   return (
     <View style={styles.container}>
       <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-        <Stack.Screen
-          name="(tabs)"
-          options={{
-            headerShown: true,
-            header: renderTabsHeader,
+      <Stack.Screen
+        name="(tabs)"
+        options={{
+          headerShown: true,
+          header: renderTabsHeader,
           }}
         />
         <Stack.Screen name="polls" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="buildings" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="(modals)" />
       </Stack>
     </View>
   );
