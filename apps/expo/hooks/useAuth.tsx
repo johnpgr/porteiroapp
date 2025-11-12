@@ -8,7 +8,6 @@ import {
   ReactNode,
   useRef,
 } from 'react';
-import { router } from 'expo-router';
 import { Alert, AppState } from 'react-native';
 import { supabase } from '../utils/supabase';
 import { TokenStorage } from '../services/TokenStorage';
@@ -42,7 +41,6 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
   isSessionValid: () => Promise<boolean>;
-  checkAndRedirectUser: () => Promise<void>;
   updatePushToken: (token: string) => Promise<void>;
   ensureFreshToken: () => Promise<string | null>;
   refreshUserProfile: () => Promise<void>;
@@ -619,53 +617,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [INACTIVITY_TIMEOUT, logError, user]);
 
-  // Função para verificar sessão ativa e redirecionar automaticamente
-  const checkAndRedirectUser = useCallback(async () => {
-    try {
-      // Verifica se há uma sessão válida
-      const sessionValid = await isSessionValid();
-
-      if (!sessionValid) {
-        return;
-      }
-
-      // Verifica se já temos os dados do usuário carregados
-      if (!user) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          await loadUserProfile(session.user);
-          // Não chama recursivamente - deixa o useEffect lidar com a atualização do estado
-          return;
-        } else {
-          return;
-        }
-      }
-
-      AnalyticsTracker.trackEvent('auth_user_valid', { role: user.user_type });
-
-      // Verifica o tipo de usuário e redireciona para as páginas index corretas
-      if (isAdminUser(user)) {
-        router.replace('/admin/(tabs)' as any);
-      } else if (user.user_type === 'porteiro') {
-        router.replace('/porteiro');
-      } else if (user.user_type === 'morador') {
-        router.replace('/morador/(tabs)' as any);
-      } else {
-        logError('Tipo de usuário não reconhecido:', user.user_type);
-        await signOut();
-        router.replace('/');
-      }
-    } catch (error) {
-      logError('Erro ao verificar e redirecionar usuário:', error);
-      // Em caso de erro, redireciona para a página inicial
-      router.replace('/');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSessionValid, loadUserProfile, logError, user]);
-
   // Função melhorada para verificar sessão
   const checkSession = useCallback(async () => {
     try {
@@ -1008,7 +959,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     refreshSession,
     isSessionValid,
-    checkAndRedirectUser,
     updatePushToken,
     ensureFreshToken,
     refreshUserProfile,

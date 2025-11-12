@@ -2,7 +2,6 @@ import * as Device from 'expo-device';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -20,13 +19,9 @@ import { callCoordinator } from '~/services/calling/CallCoordinator';
 import type { CallSession } from '~/services/calling/CallSession';
 import FullScreenCallUI from '~/components/FullScreenCallUI';
 import { callKeepService } from '~/services/calling/CallKeepService';
+import { SplashScreenController } from '../splash';
 // Removed old notification service - using Edge Functions for push notifications
 // import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync().catch((error) => {
-  console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
-});
 
 // Background Notifee handler is registered at root (index.js) for headless support
 
@@ -275,17 +270,12 @@ export default function RootLayout() {
       try {
         console.log('🚀 Iniciando preparação do app...');
 
-        console.log('✅ App pronto, escondendo splash screen');
+        console.log('✅ App pronto, assets carregados');
         setAppReady(true);
-
-        // Esconde a splash screen
-        await SplashScreen.hideAsync();
-        console.log('✅ Splash screen escondida');
       } catch (error) {
         console.error('❌ Erro ao preparar app:', error);
-        // Mesmo com erro, esconde a splash screen
+        // Mesmo com erro, marcamos appReady para não travar a splash
         setAppReady(true);
-        SplashScreen.hideAsync().catch((e) => console.error('❌ Erro ao esconder splash:', e));
       }
     }
 
@@ -323,7 +313,7 @@ export default function RootLayout() {
     (async () => {
       try {
         console.log('[_layout] 🚀 Initializing notification system and call coordinator...');
-        
+
         // Initialize notification handler first (sets up handler + channels)
         await initializeNotificationHandler();
 
@@ -333,7 +323,9 @@ export default function RootLayout() {
         // Defer CallKeep and CallCoordinator initialization until user login
         // CallKeep and CallCoordinator are initialized in morador/_layout.tsx after authentication
 
-        console.log('[_layout] ✅ Notification system initialized (CallKeep/Coordinator deferred until login)');
+        console.log(
+          '[_layout] ✅ Notification system initialized (CallKeep/Coordinator deferred until login)'
+        );
       } catch (error) {
         console.error('[_layout] ❌ Failed to initialize:', error);
       }
@@ -388,20 +380,20 @@ export default function RootLayout() {
 
           if (actionId === 'ANSWER_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
             console.log('✅ [Click] User wants to answer call');
-            
+
             // If there's an active call, answer it
             if (callCoordinator.hasActiveCall()) {
               await callCoordinator.answerActiveCall();
             } else {
               console.log('⚠️ [Click] No active call - will be recovered on morador screen');
             }
-            
+
             // Navigate to morador home (UI will appear via state subscription or pending call recovery)
-            router.push('/morador/(tabs)');
+            router.push('/morador');
             return;
           } else if (actionId === 'DECLINE_CALL') {
             console.log('❌ [Click] User declined call');
-            
+
             // Coordinator handles decline logic + API call
             await callCoordinator.endActiveCall('decline');
             return;
@@ -434,51 +426,62 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SafeAreaView style={{ flex: 1 }}>
         <AuthProvider>
+          <SplashScreenController isAppReady={appReady} />
           <PushTokenManager />
           <DeepLinkManager />
           <ReadOnlyGuard>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="admin" options={{ headerShown: false }} />
-              <Stack.Screen name="porteiro" options={{ headerShown: false }} />
-              <Stack.Screen name="morador" options={{ headerShown: false }} />
-              <Stack.Screen name="visitante" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-
-              {/* Camera modal (fullScreenModal presentation) */}
-              <Stack.Screen
-                name="camera"
-                options={{
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                }}
-              />
-
-              {/* Emergency screen (shared across all user types) */}
-              <Stack.Screen
-                name="emergency"
-                options={{
-                  headerShown: false,
-                }}
-              />
-            </Stack>
+            <RootNavigator />
             <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
           </ReadOnlyGuard>
+          {incomingCall && (
+            <FullScreenCallUI
+              session={incomingCall}
+              onAnswer={() => {
+                console.log('[_layout] User tapped Answer');
+                callCoordinator.answerActiveCall();
+              }}
+              onDecline={() => {
+                console.log('[_layout] User tapped Decline');
+                callCoordinator.endActiveCall('decline');
+              }}
+            />
+          )}
         </AuthProvider>
-        {incomingCall && (
-          <FullScreenCallUI
-            session={incomingCall}
-            onAnswer={() => {
-              console.log('[_layout] User tapped Answer');
-              callCoordinator.answerActiveCall();
-            }}
-            onDecline={() => {
-              console.log('[_layout] User tapped Decline');
-              callCoordinator.endActiveCall('decline');
-            }}
-          />
-        )}
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+function RootNavigator() {
+  const { user } = useAuth();
+
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="visitante" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
+      <Stack.Screen
+        name="emergency"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        <Stack.Screen name="avisos" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="camera"
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+          }}
+        />
+      </Stack.Protected>
+
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
   );
 }

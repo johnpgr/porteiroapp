@@ -19,13 +19,13 @@ export default function Home() {
     if (user) {
       switch (user.user_type) {
         case 'admin':
-          router.replace('/admin/(tabs)' as any);
+          router.replace('/admin');
           break;
         case 'porteiro':
           router.replace('/porteiro');
           break;
         case 'morador':
-          router.replace('/morador/(tabs)' as any);
+          router.replace('/morador');
           break;
         default:
           break;
