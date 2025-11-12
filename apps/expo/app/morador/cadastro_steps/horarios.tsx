@@ -92,7 +92,7 @@ export function HorariosCadastro() {
         [
           {
             text: 'Ver Lista',
-            onPress: () => router.push('/morador/(tabs)/cadastro' as any),
+            onPress: () => router.push('/morador/(tabs)/cadastro'),
           },
           {
             text: 'Novo Cadastro',

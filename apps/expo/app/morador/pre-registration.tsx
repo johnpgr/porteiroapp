@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import type { MultipleVisitor, PreRegistrationData } from '~/components/morador/visitantes/types';
 import { formatDate, formatTime } from '~/components/morador/visitantes/utils';
 
@@ -131,17 +132,27 @@ export default function PreRegistrationScreen() {
   }, [router]);
 
   return (
-    <View style={styles.modalOverlay}>
-      <View
-        style={[styles.modalContent, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Pré-cadastro de Visitantes</Text>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleClose}>
+          <IconSymbol name="chevron.left" size={24} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.headerTextContent}>
+          <Text style={styles.headerTitle}>👥 Pré-cadastro</Text>
+          <Text style={styles.headerSubtitle}>Cadastrar visitantes</Text>
         </View>
+        <View style={styles.backButtonPlaceholder} />
+      </View>
 
-        <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Dica no topo */}
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
+              entrar a qualquer hora do dia)
+            </Text>
+          </View>
+
           {/* Toggle para modo de cadastro */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Modo de Cadastro</Text>
@@ -486,12 +497,6 @@ export default function PreRegistrationScreen() {
                 </View>
               </View>
 
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                  💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
-                  entrar a qualquer hora do dia)
-                </Text>
-              </View>
             </>
           )}
 
@@ -585,12 +590,6 @@ export default function PreRegistrationScreen() {
                 </View>
               </View>
 
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                  💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
-                  entrar a qualquer hora do dia)
-                </Text>
-              </View>
             </>
           )}
 
@@ -660,21 +659,11 @@ export default function PreRegistrationScreen() {
                 </View>
               </View>
 
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>
-                  💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
-                  entrar a qualquer hora do dia)
-                </Text>
-              </View>
             </>
           )}
-        </ScrollView>
 
-        <View style={styles.modalFooter}>
-          <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </TouchableOpacity>
-
+        {/* Submit Button */}
+        <View style={styles.submitContainer}>
           <TouchableOpacity
             style={[
               styles.submitButton,
@@ -695,57 +684,57 @@ export default function PreRegistrationScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  container: {
     flex: 1,
-    backgroundColor: '#fff',
-    justifyContent: 'flex-start',
-  },
-  modalContent: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 0,
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
     backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  closeButtonText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: 'bold',
-  },
-  modalBody: {
+  header: {
+    backgroundColor: '#4CAF50',
     paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerTextContent: {
     flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
   inputGroup: {
     marginTop: 12,
@@ -893,11 +882,11 @@ const styles = StyleSheet.create({
   },
   infoBox: {
     padding: 12,
-    backgroundColor: '#f0f8f0',
+    backgroundColor: '#fff',
     borderRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',
-    marginBottom: 20,
+    marginTop: 20,
   },
   infoText: {
     fontSize: 12,
@@ -939,33 +928,12 @@ const styles = StyleSheet.create({
   dayButtonTextActive: {
     color: '#fff',
   },
-  modalFooter: {
-    flexDirection: 'row',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#f9f9f9',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
+  submitContainer: {
+    marginBottom: 48,
   },
   submitButton: {
-    flex: 2,
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     backgroundColor: '#4CAF50',
     alignItems: 'center',
   },

@@ -26,8 +26,7 @@ export default function MoradorTabsLayout() {
         headerShown: false,
         tabBarHideOnKeyboard: true,
       }}
-      screenListeners={{ tabPress: handleTabPress }}
-    >
+      screenListeners={{ tabPress: handleTabPress }}>
       <Tabs.Screen
         name="index"
         options={{
@@ -38,7 +37,7 @@ export default function MoradorTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="visitantes/index"
+        name="visitantes"
         options={{
           title: 'Visitantes',
           tabBarIcon: ({ color, focused }) => (
@@ -47,7 +46,7 @@ export default function MoradorTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="cadastro/index"
+        name="cadastro"
         options={{
           title: 'Cadastro',
           tabBarIcon: ({ color, focused }) => (
@@ -72,60 +71,6 @@ export default function MoradorTabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="bell" color={color} focused={focused} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/novo"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/relacionamento"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/telefone"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/placa"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/acesso"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/foto"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/dias"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="cadastro/horarios"
-        options={{
-          href: null,
         }}
       />
       <Tabs.Screen

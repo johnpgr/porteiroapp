@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import { supabase } from '~/utils/supabase';
+import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 
 const formatLicensePlate = (input: string): string => {
   const cleanInput = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -30,6 +31,9 @@ export default function VehicleFormModal() {
     type: 'car',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+
+  const typeSheetRef = useRef<BottomSheetModalRef>(null);
 
   const handleAddVehicle = async () => {
     const normalizedPlate = vehicle.license_plate.trim().toUpperCase();
@@ -80,19 +84,9 @@ export default function VehicleFormModal() {
     }
   };
 
-  const handleVehicleTypeSelection = () => {
-    Alert.alert('Selecione o Tipo do Veículo', 'Escolha uma das opções abaixo:', [
-      { text: '🚗 Carro', onPress: () => setVehicle((prev) => ({ ...prev, type: 'car' })) },
-      {
-        text: '🏍️ Moto',
-        onPress: () => setVehicle((prev) => ({ ...prev, type: 'motorcycle' })),
-      },
-      { text: '🚛 Caminhão', onPress: () => setVehicle((prev) => ({ ...prev, type: 'truck' })) },
-      { text: '🚐 Van', onPress: () => setVehicle((prev) => ({ ...prev, type: 'van' })) },
-      { text: '🚌 Ônibus', onPress: () => setVehicle((prev) => ({ ...prev, type: 'bus' })) },
-      { text: '🚙 Outro', onPress: () => setVehicle((prev) => ({ ...prev, type: 'other' })) },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
+  const handleSelectType = (type: string) => {
+    setVehicle((prev) => ({ ...prev, type }));
+    setShowTypePicker(false);
   };
 
   return (
@@ -184,7 +178,7 @@ export default function VehicleFormModal() {
           </View>
           <TouchableOpacity
             style={[styles.dropdownButton, vehicle.type ? styles.dropdownFilled : null]}
-            onPress={handleVehicleTypeSelection}>
+            onPress={() => setShowTypePicker(true)}>
             <View style={styles.dropdownContent}>
               <Text style={[styles.dropdownText, !vehicle.type && styles.placeholderText]}>
                 {vehicle.type === 'car'
@@ -234,6 +228,55 @@ export default function VehicleFormModal() {
           )}
         </View>
       </ScrollView>
+
+      <BottomSheetModal
+        ref={typeSheetRef}
+        visible={showTypePicker}
+        onClose={() => setShowTypePicker(false)}
+        snapPoints={50}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Tipo do Veículo</Text>
+          <Text style={styles.sheetSubtitle}>Escolha uma das opções abaixo</Text>
+        </View>
+        <ScrollView style={styles.modalScrollView}>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('car')}>
+            <Text style={styles.modalOptionText}>🚗 Carro</Text>
+            {vehicle.type === 'car' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('motorcycle')}>
+            <Text style={styles.modalOptionText}>🏍️ Moto</Text>
+            {vehicle.type === 'motorcycle' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('truck')}>
+            <Text style={styles.modalOptionText}>🚛 Caminhão</Text>
+            {vehicle.type === 'truck' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('van')}>
+            <Text style={styles.modalOptionText}>🚐 Van</Text>
+            {vehicle.type === 'van' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('bus')}>
+            <Text style={styles.modalOptionText}>🚌 Ônibus</Text>
+            {vehicle.type === 'bus' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => handleSelectType('other')}>
+            <Text style={styles.modalOptionText}>🚙 Outro</Text>
+            {vehicle.type === 'other' && <Text style={styles.modalCheckmark}>✓</Text>}
+          </TouchableOpacity>
+        </ScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -377,6 +420,42 @@ const styles = StyleSheet.create({
   loadingButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  modalCheckmark: {
+    fontSize: 18,
+    color: '#2196F3',
+    fontWeight: '700',
   },
 });
 

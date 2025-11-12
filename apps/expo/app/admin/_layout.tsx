@@ -29,8 +29,6 @@ export default function AdminLayout() {
           }}
         />
         <Stack.Screen name="polls" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="buildings" />
         <Stack.Screen name="login" />
         <Stack.Screen name="(modals)" />
       </Stack>

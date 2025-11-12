@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,12 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { Modal } from '~/components/Modal';
+import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
 import { adminAuth, supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -51,10 +52,16 @@ export default function NovoLembrete() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showTipoPicker, setShowTipoPicker] = useState(false);
   const [showPrioridadePicker, setShowPrioridadePicker] = useState(false);
-
   const [showBuildingPicker, setShowBuildingPicker] = useState(false);
   const [buildingAdmins, setBuildingAdmins] = useState<BuildingAdmin[]>([]);
   const [errors, setErrors] = useState<Partial<FormData>>({});
+
+  // Bottom sheet refs
+  const dateSheetRef = useRef<BottomSheetModalRef>(null);
+  const timeSheetRef = useRef<BottomSheetModalRef>(null);
+  const tipoSheetRef = useRef<BottomSheetModalRef>(null);
+  const prioridadeSheetRef = useRef<BottomSheetModalRef>(null);
+  const buildingSheetRef = useRef<BottomSheetModalRef>(null);
 
   useEffect(() => {
     checkAdminAuth();
@@ -72,7 +79,8 @@ export default function NovoLembrete() {
       // Load building_admins for the admin
       const { data: buildingAdminsData, error } = await supabase
         .from('building_admins')
-        .select(`
+        .select(
+          `
           id,
           building_id,
           admin_profile_id,
@@ -80,7 +88,8 @@ export default function NovoLembrete() {
             name,
             address
           )
-        `)
+        `
+        )
         .eq('admin_profile_id', currentAdmin.id);
 
       if (error) {
@@ -88,18 +97,19 @@ export default function NovoLembrete() {
         return;
       }
 
-      const buildingAdminsFormatted = buildingAdminsData?.map((item: any) => ({
-        id: item.id,
-        building_id: item.building_id,
-        admin_profile_id: item.admin_profile_id,
-        building: item.buildings
-      })) || [];
+      const buildingAdminsFormatted =
+        buildingAdminsData?.map((item: any) => ({
+          id: item.id,
+          building_id: item.building_id,
+          admin_profile_id: item.admin_profile_id,
+          building: item.buildings,
+        })) || [];
 
       setBuildingAdmins(buildingAdminsFormatted);
-      
+
       // Set the first building_admin as default if available
       if (buildingAdminsFormatted.length > 0) {
-        setFormData(prev => ({ ...prev, building_admin_id: buildingAdminsFormatted[0].id }));
+        setFormData((prev) => ({ ...prev, building_admin_id: buildingAdminsFormatted[0].id }));
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
@@ -121,8 +131,6 @@ export default function NovoLembrete() {
     if (formData.data_vencimento <= new Date()) {
       newErrors.data_vencimento = new Date('Data deve ser futura');
     }
-
-
 
     if (!formData.building_admin_id) {
       newErrors.building_admin_id = 'Prédio é obrigatório';
@@ -149,11 +157,9 @@ export default function NovoLembrete() {
       };
 
       await createLembrete(lembreteData);
-      Alert.alert(
-        'Sucesso',
-        'Nota criado com sucesso!',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      Alert.alert('Sucesso', 'Nota criado com sucesso!', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
     } catch (error) {
       console.error('Erro ao criar nota:', error);
       Alert.alert('Erro', 'Falha ao criar nota. Tente novamente.');
@@ -171,14 +177,14 @@ export default function NovoLembrete() {
   const generateDateOptions = () => {
     const options = [];
     const today = new Date();
-    
+
     for (let i = 0; i < 30; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       options.push({
         label: format(date, 'dd/MM/yyyy - EEEE', { locale: ptBR }),
         value: date,
-        shortLabel: format(date, 'dd/MM/yyyy', { locale: ptBR })
+        shortLabel: format(date, 'dd/MM/yyyy', { locale: ptBR }),
       });
     }
     return options;
@@ -191,7 +197,7 @@ export default function NovoLembrete() {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         options.push({
           label: timeString,
-          value: { hour, minute }
+          value: { hour, minute },
         });
       }
     }
@@ -203,7 +209,7 @@ export default function NovoLembrete() {
     newDate.setFullYear(selectedDate.getFullYear());
     newDate.setMonth(selectedDate.getMonth());
     newDate.setDate(selectedDate.getDate());
-    setFormData(prev => ({ ...prev, data_vencimento: newDate }));
+    setFormData((prev) => ({ ...prev, data_vencimento: newDate }));
     setShowDatePicker(false);
   };
 
@@ -211,28 +217,26 @@ export default function NovoLembrete() {
     const newDate = new Date(formData.data_vencimento);
     newDate.setHours(time.hour);
     newDate.setMinutes(time.minute);
-    setFormData(prev => ({ ...prev, data_vencimento: newDate }));
+    setFormData((prev) => ({ ...prev, data_vencimento: newDate }));
     setShowTimePicker(false);
   };
 
-
-
   const getTipoLabel = (tipo: string) => {
-    const tipos: {[key: string]: string} = {
+    const tipos: { [key: string]: string } = {
       manutencao: 'Manutenção',
       reuniao: 'Reunião',
       pagamento: 'Pagamento',
       assembleia: 'Assembleia',
-      outros: 'Outros'
+      outros: 'Outros',
     };
     return tipos[tipo] || 'Outros';
   };
 
   const getPrioridadeLabel = (prioridade: string) => {
-    const prioridades: {[key: string]: string} = {
+    const prioridades: { [key: string]: string } = {
       baixa: 'Baixa',
       media: 'Média',
-      alta: 'Alta'
+      alta: 'Alta',
     };
     return prioridades[prioridade] || 'Média';
   };
@@ -245,14 +249,14 @@ export default function NovoLembrete() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nova Nota</Text>
-        <View style={styles.headerSpacer} />
+        <View style={styles.headerTextContent}>
+          <Text style={styles.headerTitle}>📝 Nova Nota</Text>
+          <Text style={styles.headerSubtitle}>Criar lembrete</Text>
+        </View>
+        <View style={styles.backButtonPlaceholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -262,7 +266,7 @@ export default function NovoLembrete() {
             <TextInput
               style={[styles.input, errors.titulo && styles.inputError]}
               value={formData.titulo}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, titulo: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, titulo: text }))}
               placeholder="Digite o título da Nota"
               maxLength={100}
             />
@@ -274,7 +278,7 @@ export default function NovoLembrete() {
             <TextInput
               style={[styles.textArea, errors.descricao && styles.inputError]}
               value={formData.descricao}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, descricao: text }))}
               placeholder="Descreva os detalhes da Nota"
               multiline
               numberOfLines={4}
@@ -288,26 +292,22 @@ export default function NovoLembrete() {
             <Text style={styles.label}>Prédio *</Text>
             <TouchableOpacity
               style={[styles.pickerButton, errors.building_admin_id && styles.inputError]}
-              onPress={() => setShowBuildingPicker(true)}
-            >
+              onPress={() => setShowBuildingPicker(true)}>
               <Text style={styles.pickerButtonText}>
                 {getBuildingName(formData.building_admin_id)}
               </Text>
               <Ionicons name="chevron-down" size={20} color="#6b7280" />
             </TouchableOpacity>
-            {errors.building_admin_id && <Text style={styles.errorText}>{errors.building_admin_id}</Text>}
+            {errors.building_admin_id && (
+              <Text style={styles.errorText}>{errors.building_admin_id}</Text>
+            )}
           </View>
 
           <View style={styles.formRow}>
             <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
               <Text style={styles.label}>Tipo</Text>
-              <TouchableOpacity
-                style={styles.pickerButton}
-                onPress={() => setShowTipoPicker(true)}
-              >
-                <Text style={styles.pickerButtonText}>
-                  {getTipoLabel(formData.tipo)}
-                </Text>
+              <TouchableOpacity style={styles.pickerButton} onPress={() => setShowTipoPicker(true)}>
+                <Text style={styles.pickerButtonText}>{getTipoLabel(formData.tipo)}</Text>
                 <Ionicons name="chevron-down" size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
@@ -316,8 +316,7 @@ export default function NovoLembrete() {
               <Text style={styles.label}>Prioridade</Text>
               <TouchableOpacity
                 style={styles.pickerButton}
-                onPress={() => setShowPrioridadePicker(true)}
-              >
+                onPress={() => setShowPrioridadePicker(true)}>
                 <Text style={styles.pickerButtonText}>
                   {getPrioridadeLabel(formData.prioridade)}
                 </Text>
@@ -331,277 +330,191 @@ export default function NovoLembrete() {
             <View style={styles.dateTimeContainer}>
               <TouchableOpacity
                 style={[styles.dateTimeButton, { flex: 1, marginRight: 8 }]}
-                onPress={showDatePickerModal}
-              >
+                onPress={showDatePickerModal}>
                 <Ionicons name="calendar-outline" size={20} color="#6b7280" />
                 <Text style={styles.dateTimeText}>
                   {format(formData.data_vencimento, 'dd/MM/yyyy', { locale: ptBR })}
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.dateTimeButton, { flex: 1, marginLeft: 8 }]}
-                onPress={showTimePickerModal}
-              >
+                onPress={showTimePickerModal}>
                 <Ionicons name="time-outline" size={20} color="#6b7280" />
                 <Text style={styles.dateTimeText}>
                   {format(formData.data_vencimento, 'HH:mm', { locale: ptBR })}
                 </Text>
               </TouchableOpacity>
             </View>
-            {errors.data_vencimento && (
-              <Text style={styles.errorText}>Data deve ser futura</Text>
-            )}
+            {errors.data_vencimento && <Text style={styles.errorText}>Data deve ser futura</Text>}
           </View>
 
-
+          <TouchableOpacity
+            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}>
+            <Text style={styles.submitButtonText}>{loading ? 'Criando...' : 'Criar Nota'}</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.cancelButtonText}>Cancelar</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={styles.submitButtonText}>
-            {loading ? 'Criando...' : 'Criar Nota'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Modal para Data */}
-      <Modal
+      {/* Bottom Sheet Modals */}
+      <BottomSheetModal
+        ref={dateSheetRef}
         visible={showDatePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDatePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Data</Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScrollView}>
-              {generateDateOptions().map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.modalOption,
-                    format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && styles.modalOptionSelected
-                  ]}
-                  onPress={() => updateDate(item.value)}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && styles.modalOptionTextSelected
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+        onClose={() => setShowDatePicker(false)}
+        snapPoints={65}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Selecionar Data</Text>
         </View>
-      </Modal>
+        <ScrollView style={styles.modalScrollView}>
+          {generateDateOptions().map((item, index) => {
+            const isSelected = format(formData.data_vencimento, 'dd/MM/yyyy') === item.shortLabel;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                onPress={() => updateDate(item.value)}>
+                <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
+                  {item.label}
+                </Text>
+                {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
 
-      {/* Modal para Hora */}
-      <Modal
+      <BottomSheetModal
+        ref={timeSheetRef}
         visible={showTimePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowTimePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Hora</Text>
-              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScrollView}>
-              {generateTimeOptions().map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.modalOption,
-                    format(formData.data_vencimento, 'HH:mm') === item.label && styles.modalOptionSelected
-                  ]}
-                  onPress={() => updateTime(item.value)}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    format(formData.data_vencimento, 'HH:mm') === item.label && styles.modalOptionTextSelected
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {format(formData.data_vencimento, 'HH:mm') === item.label && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+        onClose={() => setShowTimePicker(false)}
+        snapPoints={70}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Selecionar Hora</Text>
         </View>
-      </Modal>
+        <ScrollView style={styles.modalScrollView}>
+          {generateTimeOptions().map((item, index) => {
+            const isSelected = format(formData.data_vencimento, 'HH:mm') === item.label;
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                onPress={() => updateTime(item.value)}>
+                <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
+                  {item.label}
+                </Text>
+                {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
 
-      {/* Modal para Tipo */}
-      <Modal
+      <BottomSheetModal
+        ref={tipoSheetRef}
         visible={showTipoPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowTipoPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Tipo</Text>
-              <TouchableOpacity onPress={() => setShowTipoPicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {[
-                { label: 'Manutenção', value: 'manutencao' },
-                { label: 'Reunião', value: 'reuniao' },
-                { label: 'Pagamento', value: 'pagamento' },
-                { label: 'Assembleia', value: 'assembleia' },
-                { label: 'Outros', value: 'outros' }
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.modalOption,
-                    formData.tipo === item.value && styles.modalOptionSelected
-                  ]}
-                  onPress={() => {
-                    setFormData(prev => ({ ...prev, tipo: item.value as any }));
-                    setShowTipoPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    formData.tipo === item.value && styles.modalOptionTextSelected
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {formData.tipo === item.value && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+        onClose={() => setShowTipoPicker(false)}
+        snapPoints={45}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Tipo da Nota</Text>
+          <Text style={styles.sheetSubtitle}>Escolha a categoria</Text>
         </View>
-      </Modal>
+        <ScrollView style={styles.modalScrollView}>
+          {[
+            { label: 'Manutenção', value: 'manutencao' },
+            { label: 'Reunião', value: 'reuniao' },
+            { label: 'Pagamento', value: 'pagamento' },
+            { label: 'Assembleia', value: 'assembleia' },
+            { label: 'Outros', value: 'outros' },
+          ].map((item) => {
+            const isSelected = formData.tipo === item.value;
+            return (
+              <TouchableOpacity
+                key={item.value}
+                style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                onPress={() => {
+                  setFormData((prev) => ({ ...prev, tipo: item.value as any }));
+                  setShowTipoPicker(false);
+                }}>
+                <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
+                  {item.label}
+                </Text>
+                {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
 
-      {/* Modal para Prioridade */}
-      <Modal
+      <BottomSheetModal
+        ref={prioridadeSheetRef}
         visible={showPrioridadePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPrioridadePicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Prioridade</Text>
-              <TouchableOpacity onPress={() => setShowPrioridadePicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {[
-                { label: 'Baixa', value: 'baixa' },
-                { label: 'Média', value: 'media' },
-                { label: 'Alta', value: 'alta' }
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={[
-                    styles.modalOption,
-                    formData.prioridade === item.value && styles.modalOptionSelected
-                  ]}
-                  onPress={() => {
-                    setFormData(prev => ({ ...prev, prioridade: item.value as any }));
-                    setShowPrioridadePicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    formData.prioridade === item.value && styles.modalOptionTextSelected
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {formData.prioridade === item.value && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+        onClose={() => setShowPrioridadePicker(false)}
+        snapPoints={40}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Prioridade</Text>
+          <Text style={styles.sheetSubtitle}>Defina a urgência</Text>
         </View>
-      </Modal>
-
-
-
-      {/* Modal para Prédio */}
-      <Modal
-        visible={showBuildingPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowBuildingPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Prédio</Text>
-              <TouchableOpacity onPress={() => setShowBuildingPicker(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
+        <ScrollView style={styles.modalScrollView}>
+          {[
+            { label: 'Baixa', value: 'baixa' },
+            { label: 'Média', value: 'media' },
+            { label: 'Alta', value: 'alta' },
+          ].map((item) => {
+            const isSelected = formData.prioridade === item.value;
+            return (
+              <TouchableOpacity
+                key={item.value}
+                style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                onPress={() => {
+                  setFormData((prev) => ({ ...prev, prioridade: item.value as any }));
+                  setShowPrioridadePicker(false);
+                }}>
+                <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
+                  {item.label}
+                </Text>
+                {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
               </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
+
+      <BottomSheetModal
+        ref={buildingSheetRef}
+        visible={showBuildingPicker}
+        onClose={() => setShowBuildingPicker(false)}
+        snapPoints={60}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Prédio da Nota</Text>
+        </View>
+        <ScrollView style={styles.modalScrollView}>
+          {buildingAdmins.length === 0 ? (
+            <View style={styles.bottomSheetEmpty}>
+              <Text style={styles.bottomSheetEmptyText}>Nenhum prédio disponível.</Text>
             </View>
-            <ScrollView>
-              {buildingAdmins.map((buildingAdmin) => (
+          ) : (
+            buildingAdmins.map((buildingAdmin) => {
+              const isSelected = formData.building_admin_id === buildingAdmin.id;
+              return (
                 <TouchableOpacity
                   key={buildingAdmin.id}
-                  style={[
-                    styles.modalOption,
-                    formData.building_admin_id === buildingAdmin.id && styles.modalOptionSelected
-                  ]}
+                  style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
                   onPress={() => {
-                    setFormData(prev => ({ ...prev, building_admin_id: buildingAdmin.id }));
+                    setFormData((prev) => ({ ...prev, building_admin_id: buildingAdmin.id }));
                     setShowBuildingPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    formData.building_admin_id === buildingAdmin.id && styles.modalOptionTextSelected
-                  ]}>
+                  }}>
+                  <Text style={[styles.modalOptionText, isSelected && styles.modalOptionTextSelected]}>
                     {buildingAdmin.building.name}
                   </Text>
-                  {formData.building_admin_id === buildingAdmin.id && (
-                    <Ionicons name="checkmark" size={20} color="#3b82f6" />
-                  )}
+                  {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+              );
+            })
+          )}
+        </ScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -612,29 +525,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
   },
   header: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FF9800',
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+  },
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: '#fff',
-    flex: 1,
     textAlign: 'center',
   },
-  headerSpacer: {
-    width: 40,
+  headerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
   },
   content: {
     flex: 1,
@@ -735,32 +658,10 @@ const styles = StyleSheet.create({
   switchThumbActive: {
     alignSelf: 'flex-end',
   },
-  footer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-  },
   submitButton: {
-    flex: 1,
-    paddingVertical: 16,
+    backgroundColor: '#4CAF50',
+    padding: 15,
     borderRadius: 8,
-    backgroundColor: '#3b82f6',
     alignItems: 'center',
   },
   submitButtonDisabled: {
@@ -770,11 +671,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: 'white',
-  },
-  datePickerContainer: {
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
   },
   pickerButton: {
     flexDirection: 'row',
@@ -791,34 +687,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 12,
-    maxHeight: '70%',
-    minWidth: '80%',
-  },
   modalScrollView: {
-    maxHeight: 300,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
+    flex: 1,
   },
   modalOption: {
     flexDirection: 'row',
@@ -839,5 +709,33 @@ const styles = StyleSheet.create({
   modalOptionTextSelected: {
     color: '#3b82f6',
     fontWeight: '600',
+  },
+  modalCheckmark: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: 'bold',
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  bottomSheetEmpty: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  bottomSheetEmptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
   },
 });

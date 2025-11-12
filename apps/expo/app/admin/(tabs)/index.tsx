@@ -67,12 +67,12 @@ export default function AdminDashboardTab() {
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{buildings.length}</Text>
           <Text style={styles.statLabel}>Prédios gerenciados</Text>
-          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/admin/buildings')}>
+          <TouchableOpacity style={styles.addButton} onPress={() => router.push('/admin/(modals)/buildings')}>
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.statCard} onPress={() => router.push('/admin/lembretes')}>
+        <TouchableOpacity style={styles.statCard} onPress={() => router.push('/admin/(modals)/lembretes')}>
           <Text style={styles.statIcon}>📝</Text>
           <Text style={styles.statLabel}>Notas</Text>
           <Text style={styles.statDescription}>Gerenciar Notas</Text>

@@ -338,7 +338,6 @@ export default function MoradorLayout() {
             header: renderTabsHeader,
           }}
         />
-        <Stack.Screen name="EnquetesTab" />
         <Stack.Screen name="authorize" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="configuracoes" />
@@ -347,8 +346,6 @@ export default function MoradorLayout() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="preregister" />
         <Stack.Screen name="testes" />
-
-        {/* First login modal screen */}
         <Stack.Screen
           name="first-login"
           options={{
@@ -357,8 +354,6 @@ export default function MoradorLayout() {
             gestureEnabled: false,
           }}
         />
-
-        {/* Visitor management modals */}
         <Stack.Screen
           name="edit-visitor"
           options={{
@@ -380,11 +375,84 @@ export default function MoradorLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="profile"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="person-form"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="owner-vehicle"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/index"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/acesso"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/dias"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/foto"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/horarios"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/placa"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/relacionamento"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="cadastro_steps/telefone"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
       </Stack>
-
-      {/* 📞 CHAMADA DE INTERFONE
-          Call UI is rendered globally in root _layout.tsx to avoid duplicates
-      */}
     </View>
   );
 }

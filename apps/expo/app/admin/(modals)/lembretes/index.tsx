@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useLembretes } from '~/hooks/useLembretes';
 import { adminAuth, supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -39,13 +40,13 @@ interface BuildingAdmin {
 }
 
 export default function LembretesAdmin() {
-  const { 
-    lembretes, 
-    loading, 
-    error, 
-    refreshLembretes, 
-    deleteLembrete, 
-    updateLembrete 
+  const {
+    lembretes,
+    loading,
+    error,
+    refreshLembretes,
+    deleteLembrete,
+    updateLembrete
   } = useLembretes();
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -76,10 +77,10 @@ export default function LembretesAdmin() {
         console.error('Administrador não encontrado');
         return;
       }
-      
+
       // Usar adminAuth.getAdminBuildings() como nas outras páginas
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
-      
+
       if (adminBuildings && adminBuildings.length > 0) {
         // Buscar os building_admins correspondentes para obter os IDs corretos
         const { data: buildingAdminsData, error } = await supabase
@@ -96,7 +97,7 @@ export default function LembretesAdmin() {
         const buildingAdminsFormatted = adminBuildings.map((building: any) => {
           // Encontrar o building_admin correspondente
           const buildingAdmin = buildingAdminsData?.find(ba => ba.building_id === building.id);
-          
+
           return {
             id: buildingAdmin?.id || building.id, // ID do building_admin para filtrar lembretes
             building_id: building.id,
@@ -109,7 +110,7 @@ export default function LembretesAdmin() {
         });
 
         setBuildingAdmins(buildingAdminsFormatted);
-        
+
         // Armazenar IDs dos building_admins para filtrar lembretes
         const buildingAdminIds = buildingAdminsFormatted.map(ba => ba.id);
         setAdminBuildings(buildingAdminIds);
@@ -189,7 +190,7 @@ export default function LembretesAdmin() {
 
   const showDatePickerModal = () => {
     if (!formData) return;
-    
+
     if (Platform.OS === 'android') {
       setShowDatePicker(true);
     } else {
@@ -199,7 +200,7 @@ export default function LembretesAdmin() {
 
   const showTimePickerModal = () => {
     if (!formData) return;
-    
+
     if (Platform.OS === 'android') {
       setShowTimePicker(true);
     } else {
@@ -230,12 +231,12 @@ export default function LembretesAdmin() {
       if (filters.status !== 'all' && lembrete.status !== filters.status) return false;
       if (filters.prioridade !== 'all' && lembrete.prioridade !== filters.prioridade) return false;
       if (filters.tipo !== 'all' && lembrete.categoria !== filters.tipo) return false;
-      
+
       // Filtro por prédio usando building_admin_id
       if (filters.predio !== 'all') {
         return lembrete.building_admin_id === filters.predio;
       }
-      
+
       return true;
     });
   };
@@ -283,7 +284,7 @@ export default function LembretesAdmin() {
             {format(new Date(item.data_vencimento), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
           </Text>
         </View>
-       
+
         <View style={styles.detailRow}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
             <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
@@ -299,7 +300,7 @@ export default function LembretesAdmin() {
           <Ionicons name="create-outline" size={20} color="#2196F3" />
           <Text style={[styles.actionButtonText, { color: '#2196F3' }]}>Editar</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleDeleteLembrete(item.id)}
@@ -451,21 +452,16 @@ export default function LembretesAdmin() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="white" />
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notas</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setShowFilters(true)}
-          >
-            <Ionicons name="filter" size={24} color="white" />
-          </TouchableOpacity>
+        <View style={styles.headerTextContent}>
+          <Text style={styles.headerTitle}>📝 Lembretes</Text>
+          <Text style={styles.headerSubtitle}>Gerenciar lembretes</Text>
         </View>
+        <TouchableOpacity style={styles.backButtonPlaceholder} onPress={() => setShowFilters(true)}>
+          <Ionicons name="filter" size={24} color="white" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -491,8 +487,8 @@ export default function LembretesAdmin() {
 
         {/* Building Filter */}
         <View style={styles.buildingFilterContainer}>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.buildingFilterScroll}
           >
@@ -670,7 +666,7 @@ export default function LembretesAdmin() {
                       {format(formData.data_vencimento, 'dd/MM/yyyy', { locale: ptBR })}
                     </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.dateTimeButton, { flex: 1, marginLeft: 8 }]}
                     onPress={showTimePickerModal}
@@ -691,7 +687,7 @@ export default function LembretesAdmin() {
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleSaveEdit}
@@ -701,7 +697,7 @@ export default function LembretesAdmin() {
             </View>
           </View>
         </View>
-        
+
         {showDatePicker && (
           <DateTimePicker
             value={formData.data_vencimento}
@@ -710,7 +706,7 @@ export default function LembretesAdmin() {
             onChange={onDateChange}
           />
         )}
-        
+
         {showTimePicker && (
           <DateTimePicker
             value={formData.data_vencimento}
@@ -730,33 +726,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomEndRadius: 15,
-    borderBottomStartRadius: 15,
-    paddingVertical: 12,
-    backgroundColor: '#FF9800',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+  },
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: 'white',
-    flex: 1,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
     textAlign: 'center',
   },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerButton: {
-    padding: 8,
-    marginLeft: 8,
+  headerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
   },
   content: {
     flex: 1,

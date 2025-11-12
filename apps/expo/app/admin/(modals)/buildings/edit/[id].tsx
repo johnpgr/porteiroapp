@@ -9,9 +9,9 @@ import {
   Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-// Container removido para eliminar margens laterais
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface Building {
   id: string;
@@ -299,10 +299,13 @@ export default function EditBuilding() {
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Text style={styles.backButtonText}>← Voltar</Text>
+              <IconSymbol name="chevron.left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.title}>Editar Prédio</Text>
-            <View style={styles.placeholder} />
+            <View style={styles.headerTextContent}>
+              <Text style={styles.headerTitle}>✏️ Editar Prédio</Text>
+              <Text style={styles.headerSubtitle}>Editar informações do edifício</Text>
+            </View>
+            <View style={styles.backButtonPlaceholder} />
           </View>
 
           <ScrollView style={styles.content}>
@@ -558,28 +561,38 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingTop: 50,
-    paddingBottom: 15,
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
   },
-  backButtonText: {
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    textAlign: 'center',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
     color: '#fff',
-  },
-  placeholder: {
-    width: 60,
+    opacity: 0.9,
+    textAlign: 'center',
   },
   content: {
     flex: 1,

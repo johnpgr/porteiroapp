@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { flattenStyles } from '~/utils/styles';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface Building {
   id: string;
@@ -191,15 +192,22 @@ export default function BuildingsManagement() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
+            <IconSymbol name="chevron.left" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.title}>Gerenciar Prédios</Text>
-          <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
-            <Text style={styles.addButtonText}>{showAddForm ? 'Cancelar' : '+ Novo'}</Text>
-          </TouchableOpacity>
+          <View style={styles.headerTextContent}>
+            <Text style={styles.headerTitle}>🏢 Edifícios</Text>
+            <Text style={styles.headerSubtitle}>Gerenciar edifícios</Text>
+          </View>
+          <View style={styles.backButtonPlaceholder} />
         </View>
 
         <ScrollView style={styles.content}>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.addButton} onPress={() => setShowAddForm(!showAddForm)}>
+              <Text style={styles.addButtonText}>{showAddForm ? 'Cancelar' : '+ Novo'}</Text>
+            </TouchableOpacity>
+          </View>
+
           {showAddForm && (
             <View style={styles.addForm}>
               <Text style={styles.formTitle}>Novo Prédio</Text>
@@ -288,31 +296,51 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingBottom: 20,
-    paddingTop: 20,
     paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 16,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
+  },
+  content: {
+    flex: 1,
+  },
+  headerActions: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    alignItems: 'flex-end',
   },
   addButton: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 20,
   },
   addButtonText: {
@@ -320,12 +348,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  content: {
-    flex: 1,
-  },
   addForm: {
     backgroundColor: '#fff',
     margin: 20,
+    marginTop: 0,
     padding: 20,
     borderRadius: 12,
     elevation: 3,

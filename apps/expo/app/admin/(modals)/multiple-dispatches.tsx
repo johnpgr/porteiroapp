@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Modal } from '~/components/Modal';
+import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { router } from 'expo-router';
 import { supabase, adminAuth } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -131,6 +132,10 @@ export default function MultipleDispatchesScreen() {
   const [apartmentModalContext, setApartmentModalContext] = useState<{
     residentIndex: number;
   } | null>(null);
+
+  // Bottom sheet refs
+  const buildingSheetRef = useRef<BottomSheetModalRef>(null);
+  const apartmentSheetRef = useRef<BottomSheetModalRef>(null);
 
   useEffect(() => {
     fetchBuildings();
@@ -719,60 +724,68 @@ export default function MultipleDispatchesScreen() {
       </Modal>
 
       {/* Modal de Seleção de Prédios */}
-      <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowBuildingModal(false)}>
-              <Text style={styles.closeButton}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Selecionar Prédio</Text>
-            <View style={{ width: 60 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {buildings.map((building) => (
+      <BottomSheetModal
+        ref={buildingSheetRef}
+        visible={showBuildingModal}
+        onClose={() => setShowBuildingModal(false)}
+        snapPoints={60}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Selecionar Prédio</Text>
+          <Text style={styles.sheetSubtitle}>Escolha o prédio do morador</Text>
+        </View>
+        <ScrollView style={styles.sheetContent}>
+          {buildings.map((building) => {
+            const isSelected =
+              buildingModalContext &&
+              multipleResidents[buildingModalContext.residentIndex]?.selectedBuildingId ===
+                building.id;
+            return (
               <TouchableOpacity
                 key={building.id}
-                style={styles.buildingOption}
+                style={styles.sheetOption}
                 onPress={() => handleBuildingSelect(building.id)}>
-                <Text style={styles.buildingOptionText}>{building.name}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
+                <Text style={styles.sheetOptionText}>{building.name}</Text>
+                {isSelected && <Text style={styles.sheetCheckmark}>✓</Text>}
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
+            );
+          })}
+        </ScrollView>
+      </BottomSheetModal>
 
       {/* Modal de Seleção de Apartamentos */}
-      <Modal visible={showApartmentModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowApartmentModal(false)}>
-              <Text style={styles.closeButton}>Cancelar</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Selecionar Apartamento</Text>
-            <View style={{ width: 60 }} />
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {apartmentModalContext &&
-              apartments
-                .filter((apartment) => {
-                  const resident = multipleResidents[apartmentModalContext.residentIndex];
-                  return apartment.building_id === resident.selectedBuildingId;
-                })
-                .map((apartment) => (
+      <BottomSheetModal
+        ref={apartmentSheetRef}
+        visible={showApartmentModal}
+        onClose={() => setShowApartmentModal(false)}
+        snapPoints={60}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Selecionar Apartamento</Text>
+          <Text style={styles.sheetSubtitle}>Escolha o apartamento do morador</Text>
+        </View>
+        <ScrollView style={styles.sheetContent}>
+          {apartmentModalContext &&
+            apartments
+              .filter((apartment) => {
+                const resident = multipleResidents[apartmentModalContext.residentIndex];
+                return apartment.building_id === resident.selectedBuildingId;
+              })
+              .map((apartment) => {
+                const isSelected =
+                  apartmentModalContext &&
+                  multipleResidents[apartmentModalContext.residentIndex]?.selectedApartmentId ===
+                    apartment.id;
+                return (
                   <TouchableOpacity
                     key={apartment.id}
-                    style={styles.buildingOption}
+                    style={styles.sheetOption}
                     onPress={() => handleApartmentSelect(apartment.id)}>
-                    <Text style={styles.buildingOptionText}>Apartamento {apartment.number}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                    <Text style={styles.sheetOptionText}>Apartamento {apartment.number}</Text>
+                    {isSelected && <Text style={styles.sheetCheckmark}>✓</Text>}
                   </TouchableOpacity>
-                ))}
-          </ScrollView>
-        </View>
-      </Modal>
+                );
+              })}
+        </ScrollView>
+      </BottomSheetModal>
     </View>
   );
 }
@@ -990,5 +1003,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     fontWeight: '500',
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  sheetContent: {
+    maxHeight: 400,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  sheetOptionText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  sheetCheckmark: {
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: '700',
   },
 });

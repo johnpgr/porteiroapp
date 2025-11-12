@@ -1,20 +1,29 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
+  TextInput,
   Alert,
 } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
-import type { VehicleFormState, VehicleType } from '~/components/morador/visitantes/types';
+
+type VehicleType = 'car' | 'motorcycle' | 'truck' | 'van' | 'bus' | 'other';
+
+interface VehicleForm {
+  license_plate: string;
+  brand: string;
+  model: string;
+  color: string;
+  type: VehicleType | '';
+}
 
 const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   car: 'Carro',
@@ -25,156 +34,148 @@ const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   other: 'Outro',
 };
 
-const formatVehicleLicensePlate = (input: string): string => {
+// Função utilitária para formatação de placa de veículo
+const formatLicensePlate = (input: string): string => {
   const cleanInput = input.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
   if (cleanInput.length === 0) return '';
 
   if (cleanInput.length <= 3) {
     return cleanInput.replace(/[^A-Z]/g, '');
-  }
-
-  if (cleanInput.length === 4) {
+  } else if (cleanInput.length === 4) {
     const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
     const fourthChar = cleanInput.slice(3, 4);
     return `${letters}-${fourthChar}`;
-  }
-
-  if (cleanInput.length === 5) {
+  } else if (cleanInput.length === 5) {
     const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
     const fourthChar = cleanInput.slice(3, 4);
     const fifthChar = cleanInput.slice(4, 5);
-    return `${letters}-${fourthChar}${fifthChar}`;
-  }
 
-  if (cleanInput.length === 6) {
+    if (/[A-Z]/.test(fifthChar)) {
+      return `${letters}-${fourthChar}${fifthChar}`;
+    } else {
+      return `${letters}-${fourthChar}${fifthChar}`;
+    }
+  } else if (cleanInput.length === 6) {
     const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
     const numbers = cleanInput.slice(3, 6);
 
     if (/^[0-9][A-Z][0-9]$/.test(numbers)) {
       return `${letters}-${numbers}`;
+    } else {
+      return `${letters}-${numbers.replace(/[^0-9]/g, '')}`;
     }
+  } else if (cleanInput.length >= 7) {
+    const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
+    const remaining = cleanInput.slice(3);
 
-    return `${letters}-${numbers.replace(/[^0-9]/g, '')}`;
+    if (/^[0-9][A-Z][0-9]{2}/.test(remaining)) {
+      return `${letters}-${remaining.slice(0, 4)}`;
+    } else {
+      const numbers = remaining.replace(/[^0-9]/g, '').slice(0, 4);
+      return `${letters}-${numbers}`;
+    }
   }
 
-  const letters = cleanInput.slice(0, 3).replace(/[^A-Z]/g, '');
-  const remaining = cleanInput.slice(3);
-
-  if (/^[0-9][A-Z][0-9]{2}/.test(remaining)) {
-    return `${letters}-${remaining.slice(0, 4)}`;
-  }
-
-  const numbers = remaining.replace(/[^0-9]/g, '').slice(0, 4);
-  return `${letters}-${numbers}`;
+  return cleanInput;
 };
 
-const getVehicleTypeLabel = (type: VehicleFormState['type']) => {
+// Função para validar placa brasileira
+const isValidLicensePlate = (plate: string): boolean => {
+  const cleanPlate = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  // Formato antigo: AAA1111
+  const oldFormat = /^[A-Z]{3}[0-9]{4}$/.test(cleanPlate);
+
+  // Formato Mercosul: AAA1A11
+  const mercosulFormat = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(cleanPlate);
+
+  return oldFormat || mercosulFormat;
+};
+
+const getVehicleTypeLabel = (type: VehicleForm['type']) => {
   if (!type) {
     return 'Selecione o tipo do veículo';
   }
 
-  return VEHICLE_TYPE_LABELS[type];
+  return VEHICLE_TYPE_LABELS[type as VehicleType];
 };
 
-export default function VehicleScreen() {
-  const router = useRouter();
+export default function OwnerVehicleScreen() {
   const { user } = useAuth();
-  const [form, setForm] = useState<VehicleFormState>({
+  const [loading, setLoading] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const typeSheetRef = useRef<BottomSheetModalRef>(null);
+
+  const [formData, setFormData] = useState<VehicleForm>({
     license_plate: '',
     brand: '',
     model: '',
     color: '',
     type: '',
   });
-  const [loading, setLoading] = useState(false);
-  const [showTypePicker, setShowTypePicker] = useState(false);
-
-  const typeSheetRef = useRef<BottomSheetModalRef>(null);
-
-  const resetForm = useCallback(() => {
-    setForm({
-      license_plate: '',
-      brand: '',
-      model: '',
-      color: '',
-      type: '',
-    });
-  }, []);
 
   const handleClose = useCallback(() => {
-    resetForm();
     router.back();
-  }, [resetForm, router]);
-
-  const handleChangeField = useCallback((field: keyof VehicleFormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
   const handleSelectType = useCallback((type: VehicleType) => {
-    setForm((prev) => ({ ...prev, type }));
+    setFormData((prev) => ({ ...prev, type }));
     setShowTypePicker(false);
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    if (loading) return;
-
-    const sanitizedPlate = form.license_plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
-    if (!sanitizedPlate || sanitizedPlate.length !== 7) {
-      Alert.alert('Erro', 'Informe uma placa válida com 7 caracteres.');
+  const handleSubmit = async () => {
+    if (!user?.id) {
+      Alert.alert('Erro', 'Informações do usuário não encontradas');
       return;
     }
 
-    if (!form.type) {
-      Alert.alert('Erro', 'Selecione o tipo do veículo.');
+    if (!formData.license_plate.trim()) {
+      Alert.alert('Erro', 'Placa do veículo é obrigatória');
       return;
     }
 
-    setLoading(true);
+    if (!isValidLicensePlate(formData.license_plate)) {
+      Alert.alert('Erro', 'Placa do veículo inválida. Use o formato ABC-1234 ou ABC-1A23');
+      return;
+    }
+
+    if (!formData.type) {
+      Alert.alert('Erro', 'Tipo do veículo é obrigatório');
+      return;
+    }
+
     try {
-      // Get user's apartment_id
-      if (!user?.id) {
-        Alert.alert('Erro', 'Usuário não autenticado.');
-        return;
-      }
+      setLoading(true);
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (profileError || !profileData) {
-        Alert.alert('Erro', 'Erro ao buscar perfil do usuário.');
-        return;
-      }
-
-      const { data: apartmentData, error: apartmentError } = await supabase
+      // Buscar apartment_id do usuário
+      const { data: userResident, error: residentError } = await supabase
         .from('apartment_residents')
         .select('apartment_id')
-        .eq('profile_id', profileData.id)
+        .eq('profile_id', user.id)
         .maybeSingle();
 
-      if (apartmentError || !apartmentData?.apartment_id) {
-        Alert.alert('Erro', 'Não foi possível encontrar o apartamento do usuário.');
+      if (residentError || !userResident?.apartment_id) {
+        Alert.alert('Erro', 'Não foi possível encontrar o apartamento do usuário');
         return;
       }
 
-      const { error } = await supabase.from('vehicles').insert({
-        license_plate: form.license_plate,
-        brand: form.brand.trim() || null,
-        model: form.model.trim() || null,
-        color: form.color.trim() || null,
-        type: form.type,
-        apartment_id: apartmentData.apartment_id,
-        ownership_type: 'visita',
-      });
+      const { error } = await supabase
+        .from('vehicles')
+        .insert({
+          license_plate: formData.license_plate.trim().toUpperCase(),
+          brand: formData.brand.trim() || null,
+          model: formData.model.trim() || null,
+          color: formData.color.trim() || null,
+          type: formData.type,
+          apartment_id: userResident.apartment_id,
+          ownership_type: 'proprietario'
+        });
 
       if (error) {
         console.error('Erro ao cadastrar veículo:', error);
         if (error.code === '23505') {
-          Alert.alert('Erro', 'Esta placa já está cadastrada no sistema.');
+          Alert.alert('Erro', 'Esta placa já está cadastrada no sistema');
         } else {
           Alert.alert('Erro', 'Não foi possível cadastrar o veículo. Tente novamente.');
         }
@@ -184,21 +185,16 @@ export default function VehicleScreen() {
       Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!', [
         {
           text: 'OK',
-          onPress: () => {
-            handleClose();
-          },
+          onPress: () => router.back(),
         },
       ]);
     } catch (error) {
       console.error('Erro ao cadastrar veículo:', error);
-      Alert.alert('Erro', 'Erro interno. Tente novamente.');
+      Alert.alert('Erro', 'Erro ao cadastrar veículo. Tente novamente.');
     } finally {
       setLoading(false);
     }
-  }, [form, loading, handleClose, user]);
-
-  const sanitizedVehiclePlate = form.license_plate.replace(/[^A-Za-z0-9]/g, '');
-  const isSubmitDisabled = sanitizedVehiclePlate.length !== 7 || !Boolean(form.type) || loading;
+  };
 
   return (
     <View style={styles.container}>
@@ -207,8 +203,8 @@ export default function VehicleScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>🚗 Cadastrar Veículo</Text>
-          <Text style={styles.headerSubtitle}>Adicionar novo veículo</Text>
+          <Text style={styles.headerTitle}>🚗 Novo Veículo</Text>
+          <Text style={styles.headerSubtitle}>Cadastrar veículo</Text>
         </View>
         <View style={styles.backButtonPlaceholder} />
       </View>
@@ -222,9 +218,9 @@ export default function VehicleScreen() {
           <Text style={styles.label}>Placa do Veículo *</Text>
           <TextInput
             style={styles.input}
-            value={form.license_plate}
+            value={formData.license_plate}
             onChangeText={(text) =>
-              handleChangeField('license_plate', formatVehicleLicensePlate(text))
+              setFormData((prev) => ({ ...prev, license_plate: formatLicensePlate(text) }))
             }
             placeholder="ABC-1234 ou ABC-1A23"
             placeholderTextColor="#999"
@@ -238,8 +234,8 @@ export default function VehicleScreen() {
           <Text style={styles.label}>Marca do Veículo</Text>
           <TextInput
             style={styles.input}
-            value={form.brand}
-            onChangeText={(text) => handleChangeField('brand', text)}
+            value={formData.brand}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, brand: text }))}
             placeholder="Ex: Toyota, Honda, Ford"
             placeholderTextColor="#999"
             editable={!loading}
@@ -250,8 +246,8 @@ export default function VehicleScreen() {
           <Text style={styles.label}>Modelo do Veículo</Text>
           <TextInput
             style={styles.input}
-            value={form.model}
-            onChangeText={(text) => handleChangeField('model', text)}
+            value={formData.model}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, model: text }))}
             placeholder="Ex: Corolla, Civic, Focus"
             placeholderTextColor="#999"
             editable={!loading}
@@ -262,8 +258,8 @@ export default function VehicleScreen() {
           <Text style={styles.label}>Cor do Veículo</Text>
           <TextInput
             style={styles.input}
-            value={form.color}
-            onChangeText={(text) => handleChangeField('color', text)}
+            value={formData.color}
+            onChangeText={(text) => setFormData((prev) => ({ ...prev, color: text }))}
             placeholder="Ex: Branco, Preto, Prata"
             placeholderTextColor="#999"
             editable={!loading}
@@ -277,19 +273,19 @@ export default function VehicleScreen() {
             onPress={() => setShowTypePicker(true)}
             disabled={loading}
           >
-            <Text style={form.type ? styles.dropdownText : styles.placeholderText}>
-              {getVehicleTypeLabel(form.type)}
+            <Text style={formData.type ? styles.dropdownText : styles.placeholderText}>
+              {getVehicleTypeLabel(formData.type)}
             </Text>
             <Ionicons name="chevron-down" size={20} color="#666" />
           </TouchableOpacity>
         </View>
 
-        {/* Submit Button */}
         <View style={styles.submitContainer}>
           <TouchableOpacity
-            style={[styles.submitButton, isSubmitDisabled && styles.disabledButton]}
-            onPress={() => handleSubmit()}
-            disabled={isSubmitDisabled}>
+            style={[styles.submitButton, loading && styles.disabledButton]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
             <Text style={styles.submitButtonText}>
               {loading ? 'Salvando...' : 'Salvar Veículo'}
             </Text>
@@ -311,37 +307,37 @@ export default function VehicleScreen() {
             style={styles.sheetOption}
             onPress={() => handleSelectType('car')}>
             <Text style={styles.sheetOptionText}>🚗 Carro</Text>
-            {form.type === 'car' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'car' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('motorcycle')}>
             <Text style={styles.sheetOptionText}>🏍️ Moto</Text>
-            {form.type === 'motorcycle' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'motorcycle' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('truck')}>
             <Text style={styles.sheetOptionText}>🚛 Caminhão</Text>
-            {form.type === 'truck' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'truck' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('van')}>
             <Text style={styles.sheetOptionText}>🚐 Van</Text>
-            {form.type === 'van' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'van' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('bus')}>
             <Text style={styles.sheetOptionText}>🚌 Ônibus</Text>
-            {form.type === 'bus' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'bus' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('other')}>
             <Text style={styles.sheetOptionText}>🚙 Outro</Text>
-            {form.type === 'other' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            {formData.type === 'other' && <Text style={styles.sheetCheckmark}>✓</Text>}
           </TouchableOpacity>
         </ScrollView>
       </BottomSheetModal>

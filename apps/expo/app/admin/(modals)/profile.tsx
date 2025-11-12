@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import ProtectedRoute from '~/components/ProtectedRoute';
 import { supabase } from '~/utils/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -46,31 +47,31 @@ export default function AdminProfilePage() {
     const maxRetries = 3;
     const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔄 [AdminProfile] Tentativa ${attempt}/${maxRetries} de upload da foto`);
-        
+
         // Obter usuário atual
         const { data: { user } } = await supabase.auth.getUser();
         if (!user?.id) {
           throw new Error('Usuário não autenticado');
         }
-        
+
         // Gerar nome único para o arquivo
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 15);
         const fileName = `${user.id}/${timestamp}_${randomId}.jpeg`;
-        
+
         console.log('🔄 [AdminProfile] Nome do arquivo:', fileName);
         console.log('🔄 [AdminProfile] URI da foto:', photoUri);
 
         // Upload direto com FileSystem.uploadAsync
         console.log('🔄 [AdminProfile] Tentando upload direto com FileSystem.uploadAsync...');
-        
+
         const uploadUrl = `${supabaseUrl}/storage/v1/object/user-photos/${fileName}`;
         console.log('🔄 [AdminProfile] URL de upload:', uploadUrl);
-        
+
         const uploadResult = await FileSystem.uploadAsync(uploadUrl, photoUri, {
           httpMethod: 'POST',
           uploadType: FileSystem.FileSystemUploadType.MULTIPART,
@@ -94,52 +95,52 @@ export default function AdminProfilePage() {
 
       } catch (error) {
         console.error(`❌ [AdminProfile] Erro na tentativa ${attempt}:`, error);
-        
+
         if (attempt === maxRetries) {
           throw new Error(`Falha no upload após ${maxRetries} tentativas: ${(error as any)?.message || 'Erro desconhecido'}`);
         }
-        
+
         // Aguardar antes da próxima tentativa
         const delay = 1000 * attempt;
         console.log(`⏳ [AdminProfile] Aguardando ${delay}ms antes da próxima tentativa...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
-    
+
     return null;
   };
 
   const fetchProfile = useCallback(async () => {
     console.log('🔄 [AdminProfile] Iniciando busca do perfil...');
     setLoading(true);
-    
+
     try {
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
-      
+
       if (authError) {
         console.error('❌ [AdminProfile] Erro de autenticação:', authError);
         throw new Error('Erro de autenticação');
       }
-      
+
       if (!user) {
         console.warn('⚠️ [AdminProfile] Usuário não encontrado');
         Alert.alert('Erro', 'Usuário não autenticado');
         router.replace('/');
         return;
       }
-      
+
       console.log('✅ [AdminProfile] Usuário autenticado:', user.id);
-      
+
       const { data, error } = await supabase
         .from('admin_profiles')
         .select('*')
         .eq('user_id', user.id as any)
         .eq('role', 'admin' as any)
         .single();
-      
+
       if (error) {
         console.error('❌ [AdminProfile] Erro ao buscar perfil:', error);
         if (error.code === 'PGRST116' || error.message?.includes('JSON object')) {
@@ -149,10 +150,10 @@ export default function AdminProfilePage() {
         }
         return;
       }
-      
+
       // Perfil encontrado
       setProfile(data);
-      
+
       setFormData({
         full_name: (data as any).full_name || '',
         email: (data as any).email || '',
@@ -164,7 +165,7 @@ export default function AdminProfilePage() {
         emergency_contact_name: (data as any).emergency_contact_name || '',
         emergency_contact_phone: (data as any).emergency_contact_phone || '',
       });
-      
+
     } catch (error: any) {
       console.error('❌ [AdminProfile] Erro geral:', error);
       Alert.alert('Erro', error.message || 'Falha ao carregar dados do perfil');
@@ -172,7 +173,7 @@ export default function AdminProfilePage() {
       setLoading(false);
     }
   }, []);
-  
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -186,7 +187,7 @@ export default function AdminProfilePage() {
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
-  
+
   // Função para formatar data de nascimento automaticamente
   const formatBirthDate = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -194,7 +195,7 @@ export default function AdminProfilePage() {
     if (numbers.length <= 4) return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
     return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
   };
-  
+
   // Função para formatar telefone
   const formatPhone = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -203,7 +204,7 @@ export default function AdminProfilePage() {
     if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
     return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
   };
-  
+
   // Função para formatar CPF
   const formatCPF = (text: string): string => {
     const numbers = text.replace(/\D/g, '');
@@ -212,17 +213,17 @@ export default function AdminProfilePage() {
     if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
     return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
   };
-  
+
   // Validações
   const validateFullName = (name: string): boolean => {
     return name.trim().length >= 2 && /^[a-zA-ZÀ-ÿ\s]+$/.test(name.trim());
   };
-  
+
   const validatePhone = (phone: string): boolean => {
     const numbers = phone.replace(/\D/g, '');
     return numbers.length === 10 || numbers.length === 11;
   };
-  
+
   const validateBirthDate = (date: string): boolean => {
     if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date)) return false;
     const [day, month, year] = date.split('/').map(Number);
@@ -230,7 +231,7 @@ export default function AdminProfilePage() {
     const today = new Date();
     return birthDate < today && year > 1900;
   };
-  
+
   const validateCPF = (cpf: string): boolean => {
     const numbers = cpf.replace(/\D/g, '');
     return numbers.length === 11;
@@ -239,7 +240,7 @@ export default function AdminProfilePage() {
   // Validação de senha
   const validatePassword = (password: string): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
-    
+
     if (password.length < 8) {
       errors.push('Deve ter pelo menos 8 caracteres');
     }
@@ -255,55 +256,55 @@ export default function AdminProfilePage() {
     if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
       errors.push('Deve conter pelo menos um caractere especial');
     }
-    
+
     return { isValid: errors.length === 0, errors };
   };
 
   const handleSave = async () => {
     console.log('💾 [AdminProfile] Iniciando salvamento do perfil...');
-    
+
     if (!profile) {
       console.error('❌ [AdminProfile] Perfil não encontrado');
       Alert.alert('Erro', 'Perfil não encontrado');
       return;
     }
-    
+
     // Validações
     if (!validateFullName(formData.full_name)) {
       Alert.alert('Erro de Validação', 'Nome deve ter pelo menos 2 caracteres e conter apenas letras');
       return;
     }
-    
+
     if (formData.phone && !validatePhone(formData.phone)) {
       Alert.alert('Erro de Validação', 'Telefone deve ter 10 ou 11 dígitos');
       return;
     }
-    
+
     if (formData.birth_date && !validateBirthDate(formData.birth_date)) {
       Alert.alert('Erro de Validação', 'Data de nascimento inválida. Use o formato DD/MM/AAAA');
       return;
     }
-    
+
     if (formData.cpf && !validateCPF(formData.cpf)) {
       Alert.alert('Erro de Validação', 'CPF deve ter 11 dígitos');
       return;
     }
-    
+
     if (formData.emergency_contact_phone && !validatePhone(formData.emergency_contact_phone)) {
       Alert.alert('Erro de Validação', 'Telefone de emergência deve ter 10 ou 11 dígitos');
       return;
     }
-    
+
     try {
       console.log('📝 [AdminProfile] Dados para atualização:', formData);
-      
+
       // Converter data de nascimento para formato ISO
       let birthDateISO = null;
       if (formData.birth_date) {
         const [day, month, year] = formData.birth_date.split('/');
         birthDateISO = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toISOString().split('T')[0];
       }
-      
+
       const updateData = {
         full_name: formData.full_name.trim(),
         email: formData.email.trim(),
@@ -316,19 +317,19 @@ export default function AdminProfilePage() {
         emergency_contact_phone: formData.emergency_contact_phone.replace(/\D/g, ''),
         updated_at: new Date().toISOString(),
       };
-      
+
       console.log('🔄 [AdminProfile] Executando update no Supabase...');
-      
+
       const { data, error } = await supabase
         .from('admin_profiles')
         .update(updateData as any)
         .eq('user_id', profile.user_id)
         .select()
         .single();
-      
+
       if (error) {
         console.error('❌ [AdminProfile] Erro no update:', error);
-        
+
         if (error.code === '23505') {
           Alert.alert('Erro', 'Dados duplicados. Verifique CPF e e-mail.');
         } else if (error.code === 'PGRST116') {
@@ -338,12 +339,12 @@ export default function AdminProfilePage() {
         }
         return;
       }
-      
+
       console.log('✅ [AdminProfile] Perfil atualizado com sucesso:', data);
       Alert.alert('Sucesso', 'Perfil atualizado com sucesso');
       setIsEditing(false);
       await fetchProfile();
-      
+
     } catch (error: any) {
       console.error('❌ [AdminProfile] Erro geral no salvamento:', error);
       Alert.alert('Erro', error.message || 'Falha ao salvar alterações');
@@ -352,7 +353,7 @@ export default function AdminProfilePage() {
 
   const handleImagePicker = async () => {
     console.log('📷 [AdminProfile] Iniciando seleção de foto...');
-    
+
     // Obter usuário atual
     const { data: { user } } = await supabase.auth.getUser();
     if (!user?.id) {
@@ -364,7 +365,7 @@ export default function AdminProfilePage() {
     try {
       // Verificar permissões
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert(
           'Permissão Necessária',
@@ -387,11 +388,11 @@ export default function AdminProfilePage() {
       }
 
       const photoUri = result.assets[0].uri;
-      console.log('� [AdminProfile] Foto selecionada:', photoUri);
+      console.log('📸 [AdminProfile] Foto selecionada:', photoUri);
 
       // Fazer upload da imagem
       const uploadedUrl = await uploadPhotoToStorage(photoUri);
-      
+
       if (uploadedUrl) {
         // Atualizar o avatar_url no banco de dados
         const { error } = await supabase
@@ -459,10 +460,10 @@ export default function AdminProfilePage() {
       ]
     );
   };
-  
+
   const handleDeleteProfile = async () => {
     console.log('🗑️ [AdminProfile] Solicitação de exclusão de perfil...');
-    
+
     Alert.alert(
       'Confirmar Exclusão',
       'Tem certeza que deseja excluir permanentemente seu perfil? Esta ação não pode ser desfeita.',
@@ -495,31 +496,31 @@ export default function AdminProfilePage() {
       ]
     );
   };
-  
+
   const confirmDeleteProfile = async () => {
     if (!profile) {
       Alert.alert('Erro', 'Perfil não encontrado');
       return;
     }
-    
+
     try {
       console.log('🔄 [AdminProfile] Executando exclusão do perfil...');
-      
+
       const { error } = await supabase
         .from('admin_profiles')
         .delete()
         .eq('user_id', profile.user_id);
-      
+
       if (error) {
         console.error('❌ [AdminProfile] Erro ao excluir perfil:', error);
         throw error;
       }
-      
+
       console.log('✅ [AdminProfile] Perfil excluído com sucesso');
-      
+
       // Fazer logout após exclusão
       await supabase.auth.signOut();
-      
+
       Alert.alert(
         'Perfil Excluído',
         'Seu perfil foi excluído permanentemente.',
@@ -530,7 +531,7 @@ export default function AdminProfilePage() {
           },
         ]
       );
-      
+
     } catch (error: any) {
       console.error('❌ [AdminProfile] Erro geral na exclusão:', error);
       Alert.alert('Erro', error.message || 'Falha ao excluir perfil');
@@ -539,83 +540,83 @@ export default function AdminProfilePage() {
 
   const handleChangePassword = async () => {
     console.log('🔐 [AdminProfile] Iniciando alteração de senha...');
-    
+
     // Validações
     if (!passwordData.currentPassword) {
       Alert.alert('Erro', 'Digite sua senha atual');
       return;
     }
-    
+
     if (!passwordData.newPassword) {
       Alert.alert('Erro', 'Digite sua nova senha');
       return;
     }
-    
+
     if (!passwordData.confirmPassword) {
       Alert.alert('Erro', 'Confirme sua nova senha');
       return;
     }
-    
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       Alert.alert('Erro', 'As senhas não coincidem');
       return;
     }
-    
+
     const passwordValidation = validatePassword(passwordData.newPassword);
     if (!passwordValidation.isValid) {
       Alert.alert('Erro', 'A nova senha não atende aos requisitos:\n\n' + passwordValidation.errors.join('\n'));
       return;
     }
-    
+
     if (passwordData.currentPassword === passwordData.newPassword) {
       Alert.alert('Erro', 'A nova senha deve ser diferente da senha atual');
       return;
     }
-    
+
     setPasswordLoading(true);
-    
+
     try {
       // Primeiro, verificar a senha atual fazendo login
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !user) {
         throw new Error('Usuário não autenticado');
       }
-      
+
       // Tentar fazer login com a senha atual para verificar se está correta
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email!,
         password: passwordData.currentPassword,
       });
-      
+
       if (signInError) {
         Alert.alert('Erro', 'Senha atual incorreta');
         return;
       }
-      
+
       // Atualizar a senha
       const { error: updateError } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       });
-      
+
       if (updateError) {
         console.error('❌ [AdminProfile] Erro ao atualizar senha:', updateError);
         throw updateError;
       }
-      
+
       console.log('✅ [AdminProfile] Senha alterada com sucesso');
-      
+
       // Limpar os campos
       setPasswordData({
         currentPassword: '',
         newPassword: '',
         confirmPassword: '',
       });
-      
+
       setShowPasswordSection(false);
-      
+
       Alert.alert('Sucesso', 'Senha alterada com sucesso!');
-      
+
     } catch (error: any) {
       console.error('❌ [AdminProfile] Erro geral na alteração de senha:', error);
       Alert.alert('Erro', error.message || 'Falha ao alterar senha');
@@ -626,7 +627,7 @@ export default function AdminProfilePage() {
 
   const handleLogout = async () => {
     console.log('🚪 [AdminProfile] Iniciando logout...');
-    
+
     Alert.alert(
       'Confirmar Saída',
       'Deseja realmente sair da sua conta?',
@@ -668,10 +669,13 @@ export default function AdminProfilePage() {
       <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>← Voltar</Text>
+            <IconSymbol name="chevron.left" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.title}>Meu Perfil</Text>
-          <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(!isEditing)}>
+          <View style={styles.headerTextContent}>
+            <Text style={styles.headerTitle}>👤 Meu Perfil</Text>
+            <Text style={styles.headerSubtitle}>Configurações do perfil</Text>
+          </View>
+          <TouchableOpacity style={styles.backButtonPlaceholder} onPress={() => setIsEditing(!isEditing)}>
             <Text style={styles.editButtonText}>{isEditing ? 'Cancelar' : 'Editar'}</Text>
           </TouchableOpacity>
         </View>
@@ -691,8 +695,8 @@ export default function AdminProfilePage() {
               )}
               {isEditing && (
                 <>
-                  <TouchableOpacity 
-                    style={[styles.changePhotoButton, photoUploading && styles.disabledButton]} 
+                  <TouchableOpacity
+                    style={[styles.changePhotoButton, photoUploading && styles.disabledButton]}
                     onPress={handleImagePicker}
                     disabled={photoUploading}
                   >
@@ -702,10 +706,10 @@ export default function AdminProfilePage() {
                       <Text style={styles.changePhotoText}>📷 Alterar Foto</Text>
                     )}
                   </TouchableOpacity>
-                  
+
                   {formData.avatar_url && (
-                    <TouchableOpacity 
-                      style={[styles.removePhotoButton, photoUploading && styles.disabledButton]} 
+                    <TouchableOpacity
+                      style={[styles.removePhotoButton, photoUploading && styles.disabledButton]}
                       onPress={handleRemovePhoto}
                       disabled={photoUploading}
                     >
@@ -901,7 +905,7 @@ export default function AdminProfilePage() {
             {showPasswordSection && (
               <View style={styles.passwordSection}>
                 <Text style={styles.passwordSectionTitle}>Alteração de Senha</Text>
-                
+
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Senha Atual</Text>
                   <TextInput
@@ -949,8 +953,8 @@ export default function AdminProfilePage() {
                   )}
                 </View>
 
-                <TouchableOpacity 
-                  style={[styles.changePasswordButton, passwordLoading && styles.disabledButton]} 
+                <TouchableOpacity
+                  style={[styles.changePasswordButton, passwordLoading && styles.disabledButton]}
                   onPress={handleChangePassword}
                   disabled={passwordLoading}
                 >
@@ -1001,35 +1005,44 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FF9800',
-    paddingBottom: 15,
-    paddingTop: 15,
     paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  editButton: {
-    padding: 8,
-    flexDirection: 'row',
+  backButtonPlaceholder: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
   },
   editButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   content: {
@@ -1158,41 +1171,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
     marginBottom: 10,
     gap: 10,
-  },
-  dangerItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 15,
-    backgroundColor: '#ffebee',
-    marginBottom: 10,
-    gap: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
-  },
-  dangerText: {
-    fontSize: 16,
-    color: '#f44336',
-    fontWeight: '500',
-    flex: 1,
-  },
-  emergencySection: {
-    backgroundColor: '#fff8e1',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
-  },
-  systemSection: {
-    backgroundColor: '#f5f5f5',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
   },
   actionButtonText: {
     fontSize: 16,

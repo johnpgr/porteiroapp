@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import ProtectedRoute from '~/components/ProtectedRoute';
@@ -36,7 +37,7 @@ interface MoradorProfileData {
   updated_at: string;
 }
 
-export default function MoradorProfile() {
+export default function MoradorProfileScreen() {
   const { user, signOut } = useAuth();
   const [, setProfile] = useState<MoradorProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -135,26 +136,26 @@ export default function MoradorProfile() {
     try {
       console.log('🔍 DEBUG - User obtido:', user?.id);
       
-      if (!user?.id) {
+      if (!user || !user.user_id) {
         console.log('❌ DEBUG - Usuário não autenticado');
         return;
       }
 
       // Log para debug - verificar todos os perfis existentes
-      console.log('🔍 DEBUG - Buscando todos os perfis para debug...');
-      const { data: allProfiles, error: allProfilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email');
-      
-      console.log('📊 DEBUG - Todos os perfis na tabela:', allProfiles);
-      console.log('📊 DEBUG - Erro ao buscar todos os perfis:', allProfilesError);
+      // console.log('🔍 DEBUG - Buscando todos os perfis para debug...');
+      // const { data: allProfiles, error: allProfilesError } = await supabase
+      //   .from('profiles')
+      //   .select('id, full_name, email');
+      //
+      // console.log('📊 DEBUG - Todos os perfis na tabela:', allProfiles);
+      // console.log('📊 DEBUG - Erro ao buscar todos os perfis:', allProfilesError);
 
       // First get profile by user_id
-      console.log('🔍 DEBUG - Executando query para buscar perfil do usuário:', user.id);
+      console.log('🔍 DEBUG - Executando query para buscar perfil do usuário:', user.user_id);
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user.user_id)
         .maybeSingle();
 
       console.log('📊 DEBUG - Dados do perfil retornados:', profileData);
@@ -755,19 +756,22 @@ export default function MoradorProfile() {
   return (
     <ProtectedRoute redirectTo="/morador/login" userType="morador">
       <View style={styles.container}>
-        <View style={styles.container}>
-          <ScrollView style={styles.content}>
-            <View style={styles.topSection}>
-              <View style={styles.headerRow}>
-                <Text style={styles.title}>👤 Meu Perfil</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
-                  <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#4CAF50" />
-                  <Text style={styles.editButtonText}>{isEditing ? 'Salvar' : 'Editar'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <IconSymbol name="chevron.left" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerTextContent}>
+            <Text style={styles.headerTitle}>👤 Meu Perfil</Text>
+            <Text style={styles.headerSubtitle}>Gerenciar informações pessoais</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
+            <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.content}>
             <View style={styles.photoSection}>
               <TouchableOpacity
                 style={styles.photoContainer}
@@ -1021,8 +1025,7 @@ export default function MoradorProfile() {
                 <Text style={styles.logoutButtonText}>Sair da Conta</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
-        </View>
+        </ScrollView>
       </View>
     </ProtectedRoute>
   );
@@ -1042,39 +1045,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  content: {
-    flex: 1,
-  },
-  topSection: {
-    backgroundColor: '#fff',
-    padding: 20,
-    paddingTop: 20,
-    marginBottom: 10,
-  },
-  headerRow: {
+  header: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextContent: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#fff',
+    opacity: 0.9,
+    textAlign: 'center',
   },
   editButton: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    justifyContent: 'center',
   },
-  editButtonText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    marginLeft: 6,
-    fontWeight: '600',
+  content: {
+    flex: 1,
   },
   photoSection: {
     alignItems: 'center',
@@ -1163,6 +1176,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     backgroundColor: '#f44336',
     borderRadius: 12,
+    marginBottom: 24,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
