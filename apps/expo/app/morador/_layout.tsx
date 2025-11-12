@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Stack, usePathname, router } from 'expo-router';
+import { Stack, usePathname, router, Redirect } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import type { Subscription } from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '~/hooks/useAuth';
 import { agoraService } from '~/services/agora/AgoraService';
+import { useFirstLogin } from '~/hooks/useFirstLogin';
 
 import { Ionicons } from '@expo/vector-icons';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
@@ -21,11 +22,18 @@ export default function MoradorLayout() {
   const { user, signOut } = useAuth();
   const { apartment, loading: apartmentLoading } = useUserApartment();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const { isFirstLogin } = useFirstLogin();
 
   const shouldHideHeader =
     pathname === '/morador/login' ||
+    pathname === '/morador/first-login' ||
     pathname.startsWith('/morador/cadastro/') ||
     pathname.startsWith('/morador/visitantes/');
+
+  // Blocking redirect for first login
+  if (isFirstLogin && pathname !== '/morador/first-login' && user) {
+    return <Redirect href="/morador/first-login" />;
+  }
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair?', [
@@ -372,7 +380,7 @@ export default function MoradorLayout() {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.alertButton}
-              onPress={() => router.push('/morador/emergency')}
+              onPress={() => router.push('/emergency')}
             >
               <Ionicons name="warning" size={24} color="#fff" />
             </TouchableOpacity>
@@ -417,6 +425,39 @@ export default function MoradorLayout() {
           <Stack.Screen name="notifications" />
           <Stack.Screen name="preregister" />
           <Stack.Screen name="testes" />
+
+          {/* First login modal screen */}
+          <Stack.Screen
+            name="first-login"
+            options={{
+              presentation: 'fullScreenModal',
+              headerShown: false,
+              gestureEnabled: false,
+            }}
+          />
+
+          {/* Visitor management modals */}
+          <Stack.Screen
+            name="edit-visitor"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="vehicle"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="pre-registration"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
         </Stack>
       </View>
 

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
-import { router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AuthForm from '~/components/AuthForm';
 import { useAuth } from '~/hooks/useAuth';
 
-export default function PorteiroLogin() {
+export default function PorteiroLoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);

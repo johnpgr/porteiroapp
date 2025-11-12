@@ -6,7 +6,6 @@ export default function VisitanteLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="register" />
       <Stack.Screen name="help" />
-      <Stack.Screen name="emergency" />
     </Stack>
   );
 }

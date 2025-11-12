@@ -1,18 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { Modal } from '~/components/Modal';
-import { supabase } from '~/utils/supabase';
-import { useAuth } from '~/hooks/useAuth';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAgora } from '~/hooks/useAgora';
+import { useAuth } from '~/hooks/useAuth';
+import { supabase } from '~/utils/supabase';
 
-const supabaseClient = supabase as any;
-
-interface IntercomModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
-
-export default function IntercomModal({ visible, onClose }: IntercomModalProps) {
+export default function PorteiroIntercomScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [apartmentNumber, setApartmentNumber] = useState('');
   const [buildingName, setBuildingName] = useState('');
@@ -62,7 +56,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
 
     try {
       // Buscar informações do prédio do porteiro
-      const { data: profile, error: profileError } = await supabaseClient
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select(
           `
@@ -165,7 +159,7 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       // Reset UI state after a short delay
       setTimeout(() => {
         setApartmentNumber('');
-        onClose();
+        router.back();
       }, 2000);
     } catch (error) {
       console.error('Erro ao encerrar chamada:', error);
@@ -174,7 +168,23 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
       stopCallTimer();
       setCallDuration(0);
       setApartmentNumber('');
-      onClose();
+      router.back();
+    }
+  };
+
+  // Handle close button
+  const handleClose = () => {
+    if (callState === 'idle') {
+      router.back();
+    } else {
+      Alert.alert('Encerrar chamada?', 'Deseja encerrar a chamada e fechar o interfone?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Encerrar',
+          style: 'destructive',
+          onPress: handleEndCall,
+        },
+      ]);
     }
   };
 
@@ -365,45 +375,35 @@ export default function IntercomModal({ visible, onClose }: IntercomModalProps) 
     );
   };
 
-  // Effect para carregar informações quando modal abre
+  // Effect para carregar informações quando screen mounts
   useEffect(() => {
-    if (visible && callState === 'idle') {
+    if (callState === 'idle') {
       loadBuildingInfo();
     }
-  }, [visible, callState, loadBuildingInfo]);
+  }, [callState, loadBuildingInfo]);
 
-  // Effect para limpeza quando modal fecha
+  // Effect para limpeza quando screen unmounts
   useEffect(() => {
-    if (!visible) {
+    return () => {
       // Limpar timers
       stopCallTimer();
-
-      // Reset apartment number
-      setApartmentNumber('');
-      setCallDuration(0);
-    }
-  }, [visible]);
+    };
+  }, []);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="fullScreen"
-      onRequestClose={onClose}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Interfone</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        <View style={styles.content}>
-          {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
-        </View>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+          <Text style={styles.closeButtonText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Interfone</Text>
+        <View style={styles.headerSpacer} />
       </View>
-    </Modal>
+
+      <View style={styles.content}>
+        {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
+      </View>
+    </View>
   );
 }
 
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingVertical: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -612,14 +612,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
   },
   keypadButtonText: {
     fontSize: 28,

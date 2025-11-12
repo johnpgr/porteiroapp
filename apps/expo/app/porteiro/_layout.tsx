@@ -423,14 +423,36 @@ export default function PorteiroLayout() {
             header: renderTabsHeader,
           }}
         />
-        <Stack.Screen name="AutorizacoesTab" />
+        <Stack.Screen name="autorizacoes" />
         <Stack.Screen name="avisos" />
         <Stack.Screen name="delivery" />
-        <Stack.Screen name="emergency" />
         <Stack.Screen name="login" />
         <Stack.Screen name="logs" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="visitor" />
+
+        {/* Modal screens */}
+        <Stack.Screen
+          name="shift"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="photo"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="intercom"
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+          }}
+        />
       </Stack>
     </PorteiroDashboardProvider>
   );

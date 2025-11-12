@@ -20,7 +20,7 @@ import type {Database} from "@porteiroapp/common/supabase"
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
-export default function PorteiroProfile() {
+export default function PorteiroProfileScreen() {
   const { signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isEditing, setIsEditing] = useState(false);

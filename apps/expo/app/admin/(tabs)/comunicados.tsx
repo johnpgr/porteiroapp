@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-  View,
+  Alert,
+  FlatList,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
-  StyleSheet,
-  FlatList,
-  Image,
-  Platform,
+  View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Modal } from '~/components/Modal';
-import { router } from 'expo-router';
-import { supabase, adminAuth } from '~/utils/supabase';
+import { adminAuth, supabase } from '~/utils/supabase';
 
 interface Building {
   id: string;
@@ -74,18 +72,21 @@ export default function Communications() {
     building_id: '',
     created_by: '',
   });
-  const [pollOptions, setPollOptions] = useState<PollOption[]>([{ id: '1', text: '' }, { id: '2', text: '' }]);
+  const [pollOptions, setPollOptions] = useState<PollOption[]>([
+    { id: '1', text: '' },
+    { id: '2', text: '' },
+  ]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [dateError, setDateError] = useState('');
-  
+
   // Estados dos modais dos pickers
   const [showCommunicationTypePicker, setShowCommunicationTypePicker] = useState(false);
   const [showCommunicationPriorityPicker, setShowCommunicationPriorityPicker] = useState(false);
   const [showCommunicationBuildingPicker, setShowCommunicationBuildingPicker] = useState(false);
   const [showPollBuildingPicker, setShowPollBuildingPicker] = useState(false);
-  
+
   // Modal states
   const [showCommunicationsModal, setShowCommunicationsModal] = useState(false);
   const [showPollsModal, setShowPollsModal] = useState(false);
@@ -103,9 +104,9 @@ export default function Communications() {
   const getCommunicationTypeLabel = (type: string) => {
     const types = {
       notice: 'Aviso',
-      emergency: 'Emergência', 
+      emergency: 'Emergência',
       maintenance: 'Manutenção',
-      event: 'Evento'
+      event: 'Evento',
     };
     return types[type as keyof typeof types] || 'Aviso';
   };
@@ -115,13 +116,13 @@ export default function Communications() {
       low: 'Baixa',
       normal: 'Normal',
       high: 'Alta',
-      urgent: 'Urgente'
+      urgent: 'Urgente',
     };
     return priorities[priority as keyof typeof priorities] || 'Normal';
   };
 
   const getBuildingLabel = (buildingId: string) => {
-    const building = buildings.find(b => b.id === buildingId);
+    const building = buildings.find((b) => b.id === buildingId);
     return building?.name || 'Selecione o Prédio';
   };
 
@@ -129,104 +130,104 @@ export default function Communications() {
   const generateDateOptions = () => {
     const options = [];
     const today = new Date();
-    
+
     // Adicionar "Hoje" se ainda há tempo
     const todayEndOfDay = new Date(today);
     todayEndOfDay.setHours(23, 59, 59, 999);
     if (today.getHours() < 22) {
       options.push({
         label: 'Hoje',
-        value: today
+        value: today,
       });
     }
-    
+
     // Adicionar "Amanhã"
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     options.push({
       label: 'Amanhã',
-      value: tomorrow
+      value: tomorrow,
     });
-    
+
     // Adicionar próximos 7 dias da semana
     for (let i = 2; i <= 8; i++) {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
-      
+
       options.push({
         label: date.toLocaleDateString('pt-BR', {
           weekday: 'long',
           day: '2-digit',
-          month: '2-digit'
+          month: '2-digit',
         }),
-        value: date
+        value: date,
       });
     }
-    
+
     // Adicionar próximas 4 semanas
     for (let week = 2; week <= 5; week++) {
       for (let day = 1; day <= 7; day++) {
         const date = new Date(today);
-        date.setDate(today.getDate() + (week * 7) + day);
-        
+        date.setDate(today.getDate() + week * 7 + day);
+
         options.push({
           label: date.toLocaleDateString('pt-BR', {
             weekday: 'short',
             day: '2-digit',
             month: '2-digit',
-            year: 'numeric'
+            year: 'numeric',
           }),
-          value: date
+          value: date,
         });
       }
     }
-    
+
     // Adicionar próximos 3 meses (primeiros dias de cada mês)
     for (let month = 1; month <= 3; month++) {
       const date = new Date(today);
       date.setMonth(today.getMonth() + month, 1);
-      
+
       options.push({
         label: `1° de ${date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-        value: date
+        value: date,
       });
-      
+
       // Meio do mês
       const midMonth = new Date(date);
       midMonth.setDate(15);
       options.push({
         label: `15 de ${midMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-        value: midMonth
+        value: midMonth,
       });
-      
+
       // Final do mês
       const endMonth = new Date(date);
       endMonth.setMonth(endMonth.getMonth() + 1, 0); // Último dia do mês
       options.push({
         label: `${endMonth.getDate()} de ${endMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`,
-        value: endMonth
+        value: endMonth,
       });
     }
-    
+
     return options;
   };
 
   const generateTimeOptions = () => {
     const options = [];
-    
+
     // Todas as opções de 5 em 5 minutos das 6h às 23h55
     for (let hour = 6; hour <= 23; hour++) {
       for (let minute = 0; minute < 60; minute += 5) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        
+
         options.push({
           label: timeString,
           value: { hour, minute },
-          isCommon: false
+          isCommon: false,
         });
       }
     }
-    
+
     return options;
   };
 
@@ -234,22 +235,22 @@ export default function Communications() {
   const updatePollDate = (newDate: Date) => {
     const currentTime = poll.expires_at ? new Date(poll.expires_at) : new Date();
     const updatedDate = new Date(newDate);
-    
+
     if (poll.expires_at) {
       updatedDate.setHours(currentTime.getHours(), currentTime.getMinutes());
     } else {
       updatedDate.setHours(23, 59);
     }
-    
-    setPoll(prev => ({ ...prev, expires_at: updatedDate.toISOString() }));
+
+    setPoll((prev) => ({ ...prev, expires_at: updatedDate.toISOString() }));
     setShowDatePicker(false);
   };
 
   const updatePollTime = (timeValue: { hour: number; minute: number }) => {
     const currentDate = poll.expires_at ? new Date(poll.expires_at) : new Date();
     currentDate.setHours(timeValue.hour, timeValue.minute, 0, 0);
-    
-    setPoll(prev => ({ ...prev, expires_at: currentDate.toISOString() }));
+
+    setPoll((prev) => ({ ...prev, expires_at: currentDate.toISOString() }));
     setShowTimePicker(false);
   };
 
@@ -291,7 +292,7 @@ export default function Communications() {
       }
 
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
-      const buildingIds = adminBuildings?.map(building => building.id) || [];
+      const buildingIds = adminBuildings?.map((building) => building.id) || [];
 
       if (buildingIds.length === 0) {
         setCommunicationsList([]);
@@ -300,7 +301,8 @@ export default function Communications() {
 
       const { data, error } = await supabase
         .from('communications')
-        .select(`
+        .select(
+          `
           id,
           title,
           content,
@@ -308,7 +310,8 @@ export default function Communications() {
           priority,
           created_at,
           building:buildings(name)
-        `)
+        `
+        )
         .in('building_id', buildingIds)
         .order('created_at', { ascending: false });
 
@@ -332,7 +335,7 @@ export default function Communications() {
       }
 
       const adminBuildings = await adminAuth.getAdminBuildings(currentAdmin.id);
-      const buildingIds = adminBuildings?.map(building => building.id) || [];
+      const buildingIds = adminBuildings?.map((building) => building.id) || [];
 
       if (buildingIds.length === 0) {
         setPollsList([]);
@@ -341,7 +344,8 @@ export default function Communications() {
 
       const { data, error } = await supabase
         .from('polls')
-        .select(`
+        .select(
+          `
           id,
           title,
           description,
@@ -349,7 +353,8 @@ export default function Communications() {
           created_at,
           building_id,
           poll_options(id, option_text)
-        `)
+        `
+        )
         .in('building_id', buildingIds)
         .order('created_at', { ascending: false });
 
@@ -377,21 +382,23 @@ export default function Communications() {
 
           // Calcular total de votos e porcentagens
           const totalVotes = optionsWithVotes.reduce((sum, opt) => sum + opt.votes_count, 0);
-          const optionsWithPercentages = optionsWithVotes.map(option => ({
+          const optionsWithPercentages = optionsWithVotes.map((option) => ({
             ...option,
-            percentage: totalVotes > 0 ? Math.round((option.votes_count / totalVotes) * 100) : 0
+            percentage: totalVotes > 0 ? Math.round((option.votes_count / totalVotes) * 100) : 0,
           }));
 
           return {
             ...poll,
             poll_options: optionsWithPercentages,
-            total_votes: totalVotes
+            total_votes: totalVotes,
           };
         })
       );
 
       // Mapear nome do prédio manualmente para evitar dependência de relacionamento PostgREST
-      const buildingNameMap = Object.fromEntries((adminBuildings || []).map((b: any) => [b.id, (b as any).name]));
+      const buildingNameMap = Object.fromEntries(
+        (adminBuildings || []).map((b: any) => [b.id, (b as any).name])
+      );
       const normalized = pollsWithVotes.map((p: any) => ({
         ...p,
         building: { name: buildingNameMap[p.building_id] || '' },
@@ -413,14 +420,12 @@ export default function Communications() {
 
   const removePollOption = (id: string) => {
     if (pollOptions.length > 2) {
-      setPollOptions(pollOptions.filter(option => option.id !== id));
+      setPollOptions(pollOptions.filter((option) => option.id !== id));
     }
   };
 
   const updatePollOption = (id: string, text: string) => {
-    setPollOptions(pollOptions.map(option => 
-      option.id === id ? { ...option, text } : option
-    ));
+    setPollOptions(pollOptions.map((option) => (option.id === id ? { ...option, text } : option)));
   };
 
   const formatDateForDisplay = (date: Date) => {
@@ -441,17 +446,17 @@ export default function Communications() {
     if (Platform.OS === 'ios') {
       setShowDatePicker(false);
     }
-    
+
     if (selectedDate) {
       const now = new Date();
       if (selectedDate <= now) {
         Alert.alert('Data inválida', 'Por favor, selecione uma data futura.');
         return;
       }
-      
-      setPoll(prev => ({
+
+      setPoll((prev) => ({
         ...prev,
-        expires_at: selectedDate.toISOString()
+        expires_at: selectedDate.toISOString(),
       }));
     }
   };
@@ -463,11 +468,17 @@ export default function Communications() {
 
   // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
   // Função para enviar notificações push para moradores e porteiros
-  const sendPushNotifications = async (buildingId: string, title: string, body: string, type: 'communication' | 'poll', itemId?: string) => {
+  const sendPushNotifications = async (
+    buildingId: string,
+    title: string,
+    body: string,
+    type: 'communication' | 'poll',
+    itemId?: string
+  ) => {
     // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS - retorna 0 usuários notificados
     console.log('📱 Push notifications desativadas - comunicado/enquete criado sem notificação');
     return 0;
-    
+
     // try {
     //   // Buscar moradores do prédio
     //   const { data: residents, error: residentsError } = await supabase
@@ -527,7 +538,12 @@ export default function Communications() {
   };
 
   const handleSendCommunication = async () => {
-    if (!communication.title || !communication.content || !communication.building_id || !communication.created_by) {
+    if (
+      !communication.title ||
+      !communication.content ||
+      !communication.building_id ||
+      !communication.created_by
+    ) {
       Alert.alert('Erro', 'Título, conteúdo, prédio e criador são obrigatórios');
       return;
     }
@@ -612,8 +628,17 @@ export default function Communications() {
   };
 
   const handleCreatePoll = async () => {
-    if (!poll.title || !poll.description || !poll.building_id || !poll.created_by || !poll.expires_at) {
-      Alert.alert('Erro', 'Título, descrição, prédio, data de expiração e criador são obrigatórios');
+    if (
+      !poll.title ||
+      !poll.description ||
+      !poll.building_id ||
+      !poll.created_by ||
+      !poll.expires_at
+    ) {
+      Alert.alert(
+        'Erro',
+        'Título, descrição, prédio, data de expiração e criador são obrigatórios'
+      );
       return;
     }
 
@@ -625,7 +650,7 @@ export default function Communications() {
       return;
     }
 
-    const validOptions = pollOptions.filter(option => option.text.trim() !== '');
+    const validOptions = pollOptions.filter((option) => option.text.trim() !== '');
     if (validOptions.length < 2) {
       Alert.alert('Erro', 'É necessário pelo menos 2 opções de resposta');
       return;
@@ -649,14 +674,12 @@ export default function Communications() {
       if (pollError) throw pollError;
 
       // Inserir as opções da enquete
-      const optionsToInsert = validOptions.map(option => ({
+      const optionsToInsert = validOptions.map((option) => ({
         poll_id: pollData.id,
         option_text: option.text,
       }));
 
-      const { error: optionsError } = await supabase
-        .from('poll_options')
-        .insert(optionsToInsert);
+      const { error: optionsError } = await supabase.from('poll_options').insert(optionsToInsert);
 
       if (optionsError) throw optionsError;
 
@@ -681,20 +704,26 @@ export default function Communications() {
         building_id: '',
         created_by: poll.created_by, // Keep created_by for subsequent polls
       });
-      setPollOptions([{ id: '1', text: '' }, { id: '2', text: '' }]);
+      setPollOptions([
+        { id: '1', text: '' },
+        { id: '2', text: '' },
+      ]);
       setSelectedDate(new Date());
       setDateError('');
     } catch (error) {
-      Alert.alert('Erro', 'Falha ao criar enquete: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+      Alert.alert(
+        'Erro',
+        'Falha ao criar enquete: ' + (error instanceof Error ? error.message : 'Erro desconhecido')
+      );
     }
   };
 
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-      <Text style={styles.title}>
-        {activeTab === 'communications' ? '📢 Comunicados' : '📊 Enquetes'}
-      </Text>
+        <Text style={styles.title}>
+          {activeTab === 'communications' ? '📢 Comunicados' : '📊 Enquetes'}
+        </Text>
       </View>
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -749,8 +778,7 @@ export default function Communications() {
 
         <TouchableOpacity
           style={styles.pickerButton}
-          onPress={() => setShowCommunicationTypePicker(true)}
-        >
+          onPress={() => setShowCommunicationTypePicker(true)}>
           <Text style={styles.pickerButtonText}>
             {getCommunicationTypeLabel(communication.type)}
           </Text>
@@ -759,8 +787,7 @@ export default function Communications() {
 
         <TouchableOpacity
           style={styles.pickerButton}
-          onPress={() => setShowCommunicationPriorityPicker(true)}
-        >
+          onPress={() => setShowCommunicationPriorityPicker(true)}>
           <Text style={styles.pickerButtonText}>
             {getCommunicationPriorityLabel(communication.priority)}
           </Text>
@@ -769,11 +796,8 @@ export default function Communications() {
 
         <TouchableOpacity
           style={styles.pickerButton}
-          onPress={() => setShowCommunicationBuildingPicker(true)}
-        >
-          <Text style={styles.pickerButtonText}>
-            {getBuildingLabel(communication.building_id)}
-          </Text>
+          onPress={() => setShowCommunicationBuildingPicker(true)}>
+          <Text style={styles.pickerButtonText}>{getBuildingLabel(communication.building_id)}</Text>
           <Text style={styles.pickerChevron}>▼</Text>
         </TouchableOpacity>
 
@@ -785,141 +809,135 @@ export default function Communications() {
   );
 
   const renderCommunicationsModal = () => (
-    <Modal
-      visible={showCommunicationsModal}
-      animationType="slide"
-      presentationStyle="fullScreen">
-        <View style={styles.modalHeader}>
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setShowCommunicationsModal(false)}>
-            <Text style={styles.modalCloseText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>📋 Comunicados</Text>
+    <Modal visible={showCommunicationsModal} animationType="slide" presentationStyle="fullScreen">
+      <View style={styles.modalHeader}>
+        <TouchableOpacity
+          style={styles.modalCloseButton}
+          onPress={() => setShowCommunicationsModal(false)}>
+          <Text style={styles.modalCloseText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>📋 Comunicados</Text>
+      </View>
+
+      {loadingCommunications ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Carregando comunicados...</Text>
         </View>
-        
-        {loadingCommunications ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando comunicados...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={communicationsList}
-            keyExtractor={(item) => item.id}
-            style={styles.modalContent}
-            renderItem={({ item }) => (
-              <View style={styles.communicationItem}>
-                <View style={styles.communicationHeader}>
-                  <Text style={styles.communicationTitle}>{item.title}</Text>
-                  <View style={styles.communicationMeta}>
-                    <Text style={styles.communicationType}>
-                      {item.type === 'notice' ? '📢 Aviso' :
-                       item.type === 'emergency' ? '🚨 Emergência' :
-                       item.type === 'maintenance' ? '🔧 Manutenção' : '🎉 Evento'}
-                    </Text>
-                    <Text style={styles.communicationPriority}>
-                      {item.priority === 'high' ? '🔴 Alta' :
-                       item.priority === 'low' ? '🟢 Baixa' : '🟡 Normal'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.communicationContent}>{item.content}</Text>
-                <View style={styles.communicationFooter}>
-                  <Text style={styles.communicationBuilding}>🏢 {item.building?.name}</Text>
-                  <Text style={styles.communicationDate}>
-                    {new Date(item.created_at).toLocaleString('pt-BR')}
+      ) : (
+        <FlatList
+          data={communicationsList}
+          keyExtractor={(item) => item.id}
+          style={styles.modalContent}
+          renderItem={({ item }) => (
+            <View style={styles.communicationItem}>
+              <View style={styles.communicationHeader}>
+                <Text style={styles.communicationTitle}>{item.title}</Text>
+                <View style={styles.communicationMeta}>
+                  <Text style={styles.communicationType}>
+                    {item.type === 'notice'
+                      ? '📢 Aviso'
+                      : item.type === 'emergency'
+                        ? '🚨 Emergência'
+                        : item.type === 'maintenance'
+                          ? '🔧 Manutenção'
+                          : '🎉 Evento'}
+                  </Text>
+                  <Text style={styles.communicationPriority}>
+                    {item.priority === 'high'
+                      ? '🔴 Alta'
+                      : item.priority === 'low'
+                        ? '🟢 Baixa'
+                        : '🟡 Normal'}
                   </Text>
                 </View>
               </View>
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Nenhum comunicado encontrado</Text>
+              <Text style={styles.communicationContent}>{item.content}</Text>
+              <View style={styles.communicationFooter}>
+                <Text style={styles.communicationBuilding}>🏢 {item.building?.name}</Text>
+                <Text style={styles.communicationDate}>
+                  {new Date(item.created_at).toLocaleString('pt-BR')}
+                </Text>
               </View>
-            }
-          />
-        )}
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Nenhum comunicado encontrado</Text>
+            </View>
+          }
+        />
+      )}
     </Modal>
   );
 
   const renderPollsModal = () => (
-    <Modal
-      visible={showPollsModal}
-      animationType="slide"
-      presentationStyle="fullScreen">
-        <View style={styles.modalHeader}>
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setShowPollsModal(false)}>
-            <Text style={styles.modalCloseText}>✕</Text>
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>📊 Enquetes</Text>
+    <Modal visible={showPollsModal} animationType="slide" presentationStyle="fullScreen">
+      <View style={styles.modalHeader}>
+        <TouchableOpacity style={styles.modalCloseButton} onPress={() => setShowPollsModal(false)}>
+          <Text style={styles.modalCloseText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={styles.modalTitle}>📊 Enquetes</Text>
+      </View>
+
+      {loadingPolls ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Carregando enquetes...</Text>
         </View>
-        
-        {loadingPolls ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Carregando enquetes...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={pollsList}
-            keyExtractor={(item) => item.id}
-            style={styles.modalContent}
-            renderItem={({ item }) => (
-              <View style={styles.pollItem}>
-                <View style={styles.pollHeader}>
-                  <Text style={styles.pollTitle}>{item.title}</Text>
-                  <Text style={styles.pollStatus}>
-                    {new Date(item.expires_at) > new Date() ? '🟢 Ativa' : '🔴 Expirada'}
-                  </Text>
-                </View>
-                <Text style={styles.pollDescription}>{item.description}</Text>
-                
-                <View style={styles.pollOptions}>
-                  <Text style={styles.pollOptionsTitle}>Opções e Resultados:</Text>
-                  {item.poll_options?.map((option, index) => (
-                    <View key={option.id} style={styles.pollOptionContainer}>
-                      <Text style={styles.pollOption}>
-                        {index + 1}. {option.option_text}
+      ) : (
+        <FlatList
+          data={pollsList}
+          keyExtractor={(item) => item.id}
+          style={styles.modalContent}
+          renderItem={({ item }) => (
+            <View style={styles.pollItem}>
+              <View style={styles.pollHeader}>
+                <Text style={styles.pollTitle}>{item.title}</Text>
+                <Text style={styles.pollStatus}>
+                  {new Date(item.expires_at) > new Date() ? '🟢 Ativa' : '🔴 Expirada'}
+                </Text>
+              </View>
+              <Text style={styles.pollDescription}>{item.description}</Text>
+
+              <View style={styles.pollOptions}>
+                <Text style={styles.pollOptionsTitle}>Opções e Resultados:</Text>
+                {item.poll_options?.map((option, index) => (
+                  <View key={option.id} style={styles.pollOptionContainer}>
+                    <Text style={styles.pollOption}>
+                      {index + 1}. {option.option_text}
+                    </Text>
+                    <View style={styles.pollVoteInfo}>
+                      <Text style={styles.pollVoteCount}>
+                        {option.votes_count} votos ({option.percentage}%)
                       </Text>
-                      <View style={styles.pollVoteInfo}>
-                        <Text style={styles.pollVoteCount}>
-                          {option.votes_count} votos ({option.percentage}%)
-                        </Text>
-                        <View style={styles.pollProgressBar}>
-                          <View 
-                            style={[
-                              styles.pollProgressFill, 
-                              { width: `${option.percentage}%` }
-                            ]} 
-                          />
-                        </View>
+                      <View style={styles.pollProgressBar}>
+                        <View
+                          style={[styles.pollProgressFill, { width: `${option.percentage}%` }]}
+                        />
                       </View>
                     </View>
-                  ))}
-                </View>
-                
-                <View style={styles.pollTotalVotes}>
-                  <Text style={styles.pollTotalVotesText}>
-                    📊 Total de votos: {item.total_votes}
-                  </Text>
-                </View>
-                
-                <View style={styles.pollFooter}>
-                  <Text style={styles.pollBuilding}>🏢 {item.building?.name}</Text>
-                  <Text style={styles.pollDate}>
-                    Expira: {new Date(item.expires_at).toLocaleString('pt-BR')}
-                  </Text>
-                </View>
+                  </View>
+                ))}
               </View>
-            )}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Nenhuma enquete encontrada</Text>
+
+              <View style={styles.pollTotalVotes}>
+                <Text style={styles.pollTotalVotesText}>📊 Total de votos: {item.total_votes}</Text>
               </View>
-            }
-          />
-        )}
+
+              <View style={styles.pollFooter}>
+                <Text style={styles.pollBuilding}>🏢 {item.building?.name}</Text>
+                <Text style={styles.pollDate}>
+                  Expira: {new Date(item.expires_at).toLocaleString('pt-BR')}
+                </Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Nenhuma enquete encontrada</Text>
+            </View>
+          }
+        />
+      )}
     </Modal>
   );
 
@@ -958,44 +976,38 @@ export default function Communications() {
         <View style={styles.datePickerContainer}>
           <Text style={styles.dateLabel}>Data de Expiração:</Text>
           <View style={styles.dateTimePickerContainer}>
-            <TouchableOpacity 
-              style={[styles.pickerButton, { flex: 1, marginRight: 8 }]} 
-              onPress={() => setShowDatePicker(true)}
-            >
+            <TouchableOpacity
+              style={[styles.pickerButton, { flex: 1, marginRight: 8 }]}
+              onPress={() => setShowDatePicker(true)}>
               <Text style={styles.pickerButtonText}>
-                {poll.expires_at 
-                  ? new Date(poll.expires_at).toLocaleDateString('pt-BR') 
-                  : 'Selecionar data'
-                }
+                {poll.expires_at
+                  ? new Date(poll.expires_at).toLocaleDateString('pt-BR')
+                  : 'Selecionar data'}
               </Text>
               <Text style={styles.pickerChevron}>▼</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.pickerButton, { flex: 1, marginLeft: 8 }]} 
-              onPress={() => setShowTimePicker(true)}
-            >
+
+            <TouchableOpacity
+              style={[styles.pickerButton, { flex: 1, marginLeft: 8 }]}
+              onPress={() => setShowTimePicker(true)}>
               <Text style={styles.pickerButtonText}>
-                {poll.expires_at 
-                  ? new Date(poll.expires_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) 
-                  : 'Selecionar hora'
-                }
+                {poll.expires_at
+                  ? new Date(poll.expires_at).toLocaleTimeString('pt-BR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : 'Selecionar hora'}
               </Text>
               <Text style={styles.pickerChevron}>▼</Text>
             </TouchableOpacity>
           </View>
-          {dateError ? (
-            <Text style={styles.errorText}>{dateError}</Text>
-          ) : null}
+          {dateError ? <Text style={styles.errorText}>{dateError}</Text> : null}
         </View>
 
         <TouchableOpacity
           style={styles.pickerButton}
-          onPress={() => setShowPollBuildingPicker(true)}
-        >
-          <Text style={styles.pickerButtonText}>
-            {getBuildingLabel(poll.building_id)}
-          </Text>
+          onPress={() => setShowPollBuildingPicker(true)}>
+          <Text style={styles.pickerButtonText}>{getBuildingLabel(poll.building_id)}</Text>
           <Text style={styles.pickerChevron}>▼</Text>
         </TouchableOpacity>
 
@@ -1035,14 +1047,13 @@ export default function Communications() {
       {activeTab === 'communications' ? renderCommunications() : renderPolls()}
       {renderCommunicationsModal()}
       {renderPollsModal()}
-      
+
       {/* Modal para Tipo de Comunicação */}
       <Modal
         visible={showCommunicationTypePicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowCommunicationTypePicker(false)}
-      >
+        onRequestClose={() => setShowCommunicationTypePicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1056,23 +1067,23 @@ export default function Communications() {
                 { label: 'Aviso', value: 'notice' },
                 { label: 'Emergência', value: 'emergency' },
                 { label: 'Manutenção', value: 'maintenance' },
-                { label: 'Evento', value: 'event' }
+                { label: 'Evento', value: 'event' },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.value}
                   style={[
                     styles.modalOption,
-                    communication.type === item.value && styles.modalOptionSelected
+                    communication.type === item.value && styles.modalOptionSelected,
                   ]}
                   onPress={() => {
-                    setCommunication(prev => ({ ...prev, type: item.value }));
+                    setCommunication((prev) => ({ ...prev, type: item.value }));
                     setShowCommunicationTypePicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    communication.type === item.value && styles.modalOptionTextSelected
-                  ]}>
+                  }}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      communication.type === item.value && styles.modalOptionTextSelected,
+                    ]}>
                     {item.label}
                   </Text>
                   {communication.type === item.value && (
@@ -1090,8 +1101,7 @@ export default function Communications() {
         visible={showCommunicationPriorityPicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowCommunicationPriorityPicker(false)}
-      >
+        onRequestClose={() => setShowCommunicationPriorityPicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1105,23 +1115,23 @@ export default function Communications() {
                 { label: 'Baixa', value: 'low' },
                 { label: 'Normal', value: 'normal' },
                 { label: 'Alta', value: 'high' },
-                { label: 'Urgente', value: 'urgent' }
+                { label: 'Urgente', value: 'urgent' },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.value}
                   style={[
                     styles.modalOption,
-                    communication.priority === item.value && styles.modalOptionSelected
+                    communication.priority === item.value && styles.modalOptionSelected,
                   ]}
                   onPress={() => {
-                    setCommunication(prev => ({ ...prev, priority: item.value }));
+                    setCommunication((prev) => ({ ...prev, priority: item.value }));
                     setShowCommunicationPriorityPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    communication.priority === item.value && styles.modalOptionTextSelected
-                  ]}>
+                  }}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      communication.priority === item.value && styles.modalOptionTextSelected,
+                    ]}>
                     {item.label}
                   </Text>
                   {communication.priority === item.value && (
@@ -1139,8 +1149,7 @@ export default function Communications() {
         visible={showCommunicationBuildingPicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowCommunicationBuildingPicker(false)}
-      >
+        onRequestClose={() => setShowCommunicationBuildingPicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1155,17 +1164,17 @@ export default function Communications() {
                   key={building.id}
                   style={[
                     styles.modalOption,
-                    communication.building_id === building.id && styles.modalOptionSelected
+                    communication.building_id === building.id && styles.modalOptionSelected,
                   ]}
                   onPress={() => {
-                    setCommunication(prev => ({ ...prev, building_id: building.id }));
+                    setCommunication((prev) => ({ ...prev, building_id: building.id }));
                     setShowCommunicationBuildingPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    communication.building_id === building.id && styles.modalOptionTextSelected
-                  ]}>
+                  }}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      communication.building_id === building.id && styles.modalOptionTextSelected,
+                    ]}>
                     {building.name}
                   </Text>
                   {communication.building_id === building.id && (
@@ -1183,8 +1192,7 @@ export default function Communications() {
         visible={showPollBuildingPicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowPollBuildingPicker(false)}
-      >
+        onRequestClose={() => setShowPollBuildingPicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1199,22 +1207,20 @@ export default function Communications() {
                   key={building.id}
                   style={[
                     styles.modalOption,
-                    poll.building_id === building.id && styles.modalOptionSelected
+                    poll.building_id === building.id && styles.modalOptionSelected,
                   ]}
                   onPress={() => {
-                    setPoll(prev => ({ ...prev, building_id: building.id }));
+                    setPoll((prev) => ({ ...prev, building_id: building.id }));
                     setShowPollBuildingPicker(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    poll.building_id === building.id && styles.modalOptionTextSelected
-                  ]}>
+                  }}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      poll.building_id === building.id && styles.modalOptionTextSelected,
+                    ]}>
                     {building.name}
                   </Text>
-                  {poll.building_id === building.id && (
-                    <Text style={styles.modalCheckmark}>✓</Text>
-                  )}
+                  {poll.building_id === building.id && <Text style={styles.modalCheckmark}>✓</Text>}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1227,8 +1233,7 @@ export default function Communications() {
         visible={showDatePicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowDatePicker(false)}
-      >
+        onRequestClose={() => setShowDatePicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1243,19 +1248,24 @@ export default function Communications() {
                   key={index}
                   style={[
                     styles.modalOption,
-                    poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && styles.modalOptionSelected
+                    poll.expires_at &&
+                      new Date(poll.expires_at).toDateString() === item.value.toDateString() &&
+                      styles.modalOptionSelected,
                   ]}
-                  onPress={() => updatePollDate(item.value)}
-                >
-                  <Text style={[
-                    styles.modalOptionText,
-                    poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && styles.modalOptionTextSelected
-                  ]}>
+                  onPress={() => updatePollDate(item.value)}>
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      poll.expires_at &&
+                        new Date(poll.expires_at).toDateString() === item.value.toDateString() &&
+                        styles.modalOptionTextSelected,
+                    ]}>
                     {item.label}
                   </Text>
-                  {poll.expires_at && new Date(poll.expires_at).toDateString() === item.value.toDateString() && (
-                    <Text style={styles.modalCheckmark}>✓</Text>
-                  )}
+                  {poll.expires_at &&
+                    new Date(poll.expires_at).toDateString() === item.value.toDateString() && (
+                      <Text style={styles.modalCheckmark}>✓</Text>
+                    )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1268,8 +1278,7 @@ export default function Communications() {
         visible={showTimePicker}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowTimePicker(false)}
-      >
+        onRequestClose={() => setShowTimePicker(false)}>
         <View style={styles.pickerModalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -1281,28 +1290,24 @@ export default function Communications() {
             <ScrollView style={styles.modalScrollView}>
               {generateTimeOptions().map((item, index) => {
                 const currentTime = poll.expires_at ? new Date(poll.expires_at) : null;
-                const isSelected = currentTime && 
-                  currentTime.getHours() === item.value.hour && 
+                const isSelected =
+                  currentTime &&
+                  currentTime.getHours() === item.value.hour &&
                   currentTime.getMinutes() === item.value.minute;
-                
+
                 return (
                   <TouchableOpacity
                     key={index}
-                    style={[
-                      styles.modalOption,
-                      isSelected && styles.modalOptionSelected
-                    ]}
-                    onPress={() => updatePollTime(item.value)}
-                  >
-                    <Text style={[
-                      styles.modalOptionText,
-                      isSelected && styles.modalOptionTextSelected
-                    ]}>
+                    style={[styles.modalOption, isSelected && styles.modalOptionSelected]}
+                    onPress={() => updatePollTime(item.value)}>
+                    <Text
+                      style={[
+                        styles.modalOptionText,
+                        isSelected && styles.modalOptionTextSelected,
+                      ]}>
                       {item.label}
                     </Text>
-                    {isSelected && (
-                      <Text style={styles.modalCheckmark}>✓</Text>
-                    )}
+                    {isSelected && <Text style={styles.modalCheckmark}>✓</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -1329,8 +1334,8 @@ const styles = StyleSheet.create({
   headerContent: {
     display: 'flex',
     justifyContent: 'center',
-    alignItems: "center",
-    flexDirection: "row",
+    alignItems: 'center',
+    flexDirection: 'row',
     paddingTop: 20,
     gap: 34,
   },

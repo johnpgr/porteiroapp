@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { Tabs } from 'expo-router';
+import React from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import TabIcon from '~/components/TabIcon';
-import IntercomModal from '../components/modals/IntercomModal';
 
 export default function PorteiroTabsLayout() {
-  const [isIntercomModalVisible, setIsIntercomModalVisible] = useState(false);
+  const router = useRouter();
 
   const handleTabPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -14,7 +13,7 @@ export default function PorteiroTabsLayout() {
 
   const handleIntercomPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsIntercomModalVisible(true);
+    router.push('/porteiro/intercom');
   };
 
   return (
@@ -57,7 +56,7 @@ export default function PorteiroTabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="intercom"
+          name="dummy-intercom"
           options={{
             title: '',
             tabBarIcon: () => null,
@@ -101,10 +100,6 @@ export default function PorteiroTabsLayout() {
           }}
         />
       </Tabs>
-      <IntercomModal
-        visible={isIntercomModalVisible}
-        onClose={() => setIsIntercomModalVisible(false)}
-      />
     </>
   );
 }

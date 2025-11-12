@@ -6,7 +6,6 @@ import { useAuth } from '~/hooks/useAuth';
 import { usePendingNotifications } from '~/hooks/usePendingNotifications';
 import { NotificationCard } from '~/components/NotificationCard';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
-import { FirstLoginModal } from '~/components/FirstLoginModal';
 import { supabase } from '~/utils/supabase';
 
 interface VisitorHistory {
@@ -329,8 +328,6 @@ export default function MoradorInicioTab() {
               ))}
           </View>
         </ScrollView>
-
-        <FirstLoginModal visible={isFirstLogin} onClose={() => {}} onComplete={checkFirstLoginStatus} />
       </View>
     </ProtectedRoute>
   );

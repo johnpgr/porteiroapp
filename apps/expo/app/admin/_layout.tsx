@@ -28,11 +28,9 @@ export default function AdminLayout() {
             header: renderTabsHeader,
           }}
         />
-        <Stack.Screen name="communications-create" />
         <Stack.Screen name="polls" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="buildings" />
-        <Stack.Screen name="emergency" />
         <Stack.Screen name="login" />
       </Stack>
     </View>

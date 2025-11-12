@@ -88,7 +88,7 @@ export default function AdminTabsHeader() {
   }, [authLoading, loadAdminData, user?.id]);
 
   const handleEmergency = () => {
-    router.push('/admin/emergency');
+    router.push('/emergency');
   };
 
   const handleLogout = async () => {

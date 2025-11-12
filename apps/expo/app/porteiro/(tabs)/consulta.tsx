@@ -1,21 +1,19 @@
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import {
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  RefreshControl,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
 import {
-  useVisitorSearch,
   formatCPFValue,
   formatPlateValue,
+  useVisitorSearch,
 } from '~/hooks/porteiro/useVisitorSearch';
-import PhotoModal from '~/components/porteiro/PhotoModal';
 
 const searchTypeLabels: Record<'cpf' | 'placa', string> = {
   cpf: 'CPF',
@@ -23,6 +21,7 @@ const searchTypeLabels: Record<'cpf' | 'placa', string> = {
 };
 
 export default function PorteiroConsultaTab() {
+  const router = useRouter();
   const {
     searchType,
     setSearchType,
@@ -37,18 +36,11 @@ export default function PorteiroConsultaTab() {
     resetResults,
   } = useVisitorSearch();
 
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
-
   useFocusEffect(
     useCallback(() => {
       // reset results when tab gains focus to avoid stale data
       resetResults();
       setSearchQuery('');
-      setShowPhotoModal(false);
-      setShowImageModal(false);
-      setSelectedImageUrl(null);
     }, [resetResults, setSearchQuery])
   );
 
@@ -184,7 +176,13 @@ export default function PorteiroConsultaTab() {
               <View style={styles.actionRow}>
                 <TouchableOpacity
                   style={styles.photoButton}
-                  onPress={() => setShowPhotoModal(true)}>
+                  onPress={() => {
+                    const title = encodeURIComponent(profileResult?.full_name || 'Morador');
+                    const uri = profileResult?.avatar_url
+                      ? encodeURIComponent(profileResult.avatar_url)
+                      : '';
+                    router.push(`/porteiro/photo?title=${title}&uri=${uri}`);
+                  }}>
                   <Text style={styles.photoButtonIcon}>📷</Text>
                   <Text style={styles.photoButtonText}>Ver Foto</Text>
                 </TouchableOpacity>
@@ -234,25 +232,6 @@ export default function PorteiroConsultaTab() {
           )}
         </ScrollView>
       </View>
-
-      <PhotoModal
-        visible={showPhotoModal}
-        onRequestClose={() => setShowPhotoModal(false)}
-        title={profileResult?.full_name || 'Morador'}
-        imageUri={profileResult?.avatar_url}
-      />
-
-      <PhotoModal
-        visible={showImageModal}
-        onRequestClose={() => {
-          setShowImageModal(false);
-          setSelectedImageUrl(null);
-        }}
-        title="Imagem"
-        imageUri={selectedImageUrl}
-        placeholderIcon="🖼️"
-        placeholderText="Imagem não disponível"
-      />
     </>
   );
 }

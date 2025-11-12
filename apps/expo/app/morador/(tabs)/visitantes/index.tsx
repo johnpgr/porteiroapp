@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { sendVisitorWhatsApp } from '~/services/whatsappService';
 import { supabase } from '~/utils/supabase';
@@ -18,9 +18,6 @@ import { useAuth } from '~/hooks/useAuth';
 import { validateBrazilianPhone, formatBrazilianPhone } from '~/utils/whatsapp';
 // Removed old notification service - using Edge Functions for push notifications
 import { BottomSheetModalRef } from '~/components/BottomSheetModal';
-import { PreRegistrationModal } from '~/components/morador/visitantes/components/PreRegistrationModal';
-import { EditVisitorModal } from '~/components/morador/visitantes/components/EditVisitorModal';
-import { VehicleModal } from '~/components/morador/visitantes/components/VehicleModal';
 import { FiltersBottomSheet } from '~/components/morador/visitantes/components/FiltersBottomSheet';
 import type {
   MultipleVisitor,
@@ -37,27 +34,22 @@ const parseDate = (dateString: string): Date => {
 
 export default function VisitantesTab() {
   const { user } = useAuth();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const filterModalRef = useRef<BottomSheetModalRef>(null);
-  
+
   // Main screen state - only data and UI state
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Pagination and UI expansion
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
-  
-  // Modal visibility state
-  const [showPreRegistrationModal, setShowPreRegistrationModal] = useState(false);
-  const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Filter modal visibility
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  
-  // Edit modal specific state
-  const [editingVisitor, setEditingVisitor] = useState<Visitor | null>(null);
 
   // Estado para armazenar apartment_id e evitar múltiplas consultas
   const [apartmentId, setApartmentId] = useState<string | null>(null);
@@ -1271,8 +1263,15 @@ export default function VisitantesTab() {
       );
       return;
     }
-    setEditingVisitor(visitor);
-    setShowEditModal(true);
+    // Navigate to edit visitor modal with visitor data
+    router.push({
+      pathname: '/morador/edit-visitor',
+      params: {
+        visitorId: visitor.id,
+        name: visitor.name,
+        phone: visitor.phone,
+      },
+    });
   };
 
   // Função para excluir visitante com confirmação
@@ -1510,12 +1509,12 @@ export default function VisitantesTab() {
 
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => setShowPreRegistrationModal(true)}>
+            onPress={() => router.push('/morador/pre-registration')}>
             <Text style={styles.buttonEmoji}>👤</Text>
             <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.vehicleButton} onPress={() => setShowVehicleModal(true)}>
+          <TouchableOpacity style={styles.vehicleButton} onPress={() => router.push('/morador/vehicle')}>
             <Text style={styles.buttonEmoji}>🚗</Text>
             <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
@@ -1773,109 +1772,6 @@ export default function VisitantesTab() {
           )}
         </View>
 
-        <VehicleModal
-          visible={showVehicleModal}
-          onClose={() => setShowVehicleModal(false)}
-          onSubmit={async (form) => {
-            // Vehicle submission logic - will be moved to modal
-            try {
-              const currentApartmentId = await loadApartmentId();
-              if (!currentApartmentId) {
-                Alert.alert('Erro', 'Não foi possível encontrar o apartamento do usuário.');
-                return;
-              }
-
-              const { error } = await supabase.from('vehicles').insert({
-                license_plate: form.license_plate,
-                brand: form.brand.trim() || null,
-                model: form.model.trim() || null,
-                color: form.color.trim() || null,
-                type: form.type,
-                apartment_id: currentApartmentId,
-                ownership_type: 'visita',
-              });
-
-              if (error) {
-                console.error('Erro ao cadastrar veículo:', error);
-                if (error.code === '23505') {
-                  Alert.alert('Erro', 'Esta placa já está cadastrada no sistema.');
-                } else {
-                  Alert.alert('Erro', 'Não foi possível cadastrar o veículo. Tente novamente.');
-                }
-                return;
-              }
-
-              Alert.alert('Sucesso', 'Veículo cadastrado com sucesso!', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    setShowVehicleModal(false);
-                    fetchVisitors();
-                  },
-                },
-              ]);
-            } catch (error) {
-              console.error('Erro ao cadastrar veículo:', error);
-              Alert.alert('Erro', 'Erro interno. Tente novamente.');
-            }
-          }}
-        />
-
-        <PreRegistrationModal
-          visible={showPreRegistrationModal}
-          insets={insets}
-          onSubmitIndividual={async (preRegistrationData) => {
-            // Individual registration logic
-            await handlePreRegistration(preRegistrationData);
-          }}
-          onSubmitMultiple={async (preRegistrationData, multipleVisitors) => {
-            // Multiple registration logic
-            await handleMultiplePreRegistration(preRegistrationData, multipleVisitors);
-          }}
-          onClose={() => setShowPreRegistrationModal(false)}
-        />
-
-        <EditVisitorModal
-          visible={showEditModal}
-          visitor={editingVisitor}
-          onClose={() => setShowEditModal(false)}
-          onSubmit={async (editData) => {
-            // Edit visitor logic - will delegate the submit logic to EditVisitorModal
-            if (!editingVisitor) return;
-            
-            try {
-              // Update logic
-              const { error: updateError } = await supabase
-                .from('visitors')
-                .update({
-                  name: editData.name,
-                  phone: editData.phone.replace(/\D/g, ''),
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', editingVisitor.id);
-
-              if (updateError) {
-                console.error('Erro ao atualizar visitante:', updateError);
-                Alert.alert('Erro', `Erro ao atualizar visitante: ${updateError.message}`);
-                return;
-              }
-
-              Alert.alert('Sucesso!', 'Visitante atualizado com sucesso!', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    setShowEditModal(false);
-                    setEditingVisitor(null);
-                    fetchVisitors();
-                  },
-                },
-              ]);
-            } catch (error) {
-              console.error('Erro ao salvar alterações:', error);
-              Alert.alert('Erro', 'Erro ao salvar alterações. Tente novamente.');
-            }
-          }}
-        />
       </ScrollView>
 
       <FiltersBottomSheet

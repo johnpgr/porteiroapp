@@ -444,6 +444,23 @@ export default function RootLayout() {
               <Stack.Screen name="morador" options={{ headerShown: false }} />
               <Stack.Screen name="visitante" options={{ headerShown: false }} />
               <Stack.Screen name="+not-found" />
+
+              {/* Camera modal (fullScreenModal presentation) */}
+              <Stack.Screen
+                name="camera"
+                options={{
+                  presentation: 'fullScreenModal',
+                  headerShown: false,
+                }}
+              />
+
+              {/* Emergency screen (shared across all user types) */}
+              <Stack.Screen
+                name="emergency"
+                options={{
+                  headerShown: false,
+                }}
+              />
             </Stack>
             <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
           </ReadOnlyGuard>

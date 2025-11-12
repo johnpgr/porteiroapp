@@ -5,7 +5,7 @@ import RegistrarEncomenda from '~/components/porteiro/RegistrarEncomenda';
 import RegistrarVeiculo from '~/components/porteiro/RegistrarVeiculo';
 import RegistrarVisitante from '~/components/porteiro/RegistrarVisitante';
 import { usePorteiroDashboard } from '~/providers/PorteiroDashboardProvider';
-import {ConfirmActionModal} from '~/components/porteiro/ConfirmActionModal';
+import { ConfirmActionModal } from '~/components/porteiro/ConfirmActionModal';
 import { flattenStyles } from '~/utils/styles';
 
 type ActiveFlow = 'visitante' | 'encomenda' | 'veiculo' | null;
@@ -23,10 +23,7 @@ export default function PorteiroChegadaScreen() {
 
   const checkShiftBeforeAction = (action: () => void, actionName: string = 'esta ação') => {
     if (!currentShift) {
-      Alert.alert(
-        'Turno Inativo',
-        `Você precisa iniciar seu turno para realizar ${actionName}.`
-      );
+      Alert.alert('Turno Inativo', `Você precisa iniciar seu turno para realizar ${actionName}.`);
       return;
     }
     action();
@@ -60,8 +57,7 @@ export default function PorteiroChegadaScreen() {
         style={flattenStyles([styles.actionButton, styles.visitorButton])}
         onPress={() =>
           checkShiftBeforeAction(() => setActiveFlow('visitante'), 'registrar visitantes')
-        }
-      >
+        }>
         <Text style={styles.buttonIcon}>👋</Text>
         <Text style={styles.buttonTitle}>Registrar Visitante</Text>
         <Text style={styles.buttonDescription}>Cadastrar nova visita</Text>
@@ -71,8 +67,7 @@ export default function PorteiroChegadaScreen() {
         style={flattenStyles([styles.actionButton, styles.deliveryButton])}
         onPress={() =>
           checkShiftBeforeAction(() => setActiveFlow('encomenda'), 'registrar encomendas')
-        }
-      >
+        }>
         <Text style={styles.buttonIcon}>📦</Text>
         <Text style={styles.buttonTitle}>Registrar Encomenda</Text>
         <Text style={styles.buttonDescription}>Receber entrega</Text>
@@ -82,8 +77,7 @@ export default function PorteiroChegadaScreen() {
         style={flattenStyles([styles.actionButton, styles.vehicleButton])}
         onPress={() =>
           checkShiftBeforeAction(() => setActiveFlow('veiculo'), 'registrar veículos')
-        }
-      >
+        }>
         <Text style={styles.buttonIcon}>🚗</Text>
         <Text style={styles.buttonTitle}>Registrar Veículo</Text>
         <Text style={styles.buttonDescription}>Autorizar entrada</Text>

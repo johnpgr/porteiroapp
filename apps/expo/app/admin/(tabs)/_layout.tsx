@@ -61,9 +61,9 @@ export default function AdminTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="avisos"
+        name="comunicados"
         options={{
-          title: 'Avisos',
+          title: 'Comunicados',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="bell" color={color} focused={focused} />
           ),

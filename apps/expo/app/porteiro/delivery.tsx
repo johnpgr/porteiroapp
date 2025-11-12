@@ -34,7 +34,7 @@ interface Delivery {
   };
 }
 
-export default function DeliveryManagement() {
+export default function PorteiroDeliveryScreen() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);

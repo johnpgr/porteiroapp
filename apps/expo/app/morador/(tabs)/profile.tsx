@@ -18,7 +18,6 @@ import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { flattenStyles } from '~/utils/styles';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
-import { FirstLoginModal } from '~/components/FirstLoginModal';
 
 interface MoradorProfileData {
   id: string;
@@ -1024,18 +1023,6 @@ export default function MoradorProfile() {
             </View>
           </ScrollView>
         </View>
-        {/* Modal de Primeiro Login */}
-        <FirstLoginModal 
-          visible={isFirstLogin} 
-          onClose={() => {
-            // Não permitir fechar o modal até completar o primeiro login
-            console.log('Tentativa de fechar modal de primeiro login bloqueada');
-          }}
-          onComplete={() => {
-            checkFirstLoginStatus();
-            fetchProfile();
-          }}
-        />
       </View>
     </ProtectedRoute>
   );

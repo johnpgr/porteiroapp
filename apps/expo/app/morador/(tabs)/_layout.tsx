@@ -59,6 +59,7 @@ export default function MoradorTabsLayout() {
         name="avisos"
         options={{
           title: 'Avisos',
+          href: '/avisos',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="bell" color={color} focused={focused} />
           ),
@@ -66,12 +67,6 @@ export default function MoradorTabsLayout() {
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="emergency"
         options={{
           href: null,
         }}

@@ -49,7 +49,7 @@ export default function VisitanteDashboard() {
             </TouchableOpacity>
           </Link>
 
-          <Link href="/visitante/emergency" asChild>
+          <Link href="/emergency" asChild>
             <TouchableOpacity style={flattenStyles([styles.card, styles.emergencyCard])}>
               <Text style={styles.cardIcon}>🚨</Text>
               <Text style={styles.cardTitle}>Emergência</Text>

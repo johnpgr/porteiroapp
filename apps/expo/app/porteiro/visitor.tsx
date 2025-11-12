@@ -35,7 +35,7 @@ interface Visitor {
   };
 }
 
-export default function VisitorManagement() {
+export default function PorteiroVisitorScreen() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
