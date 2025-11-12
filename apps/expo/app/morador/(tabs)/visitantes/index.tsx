@@ -2192,7 +2192,7 @@ const styles = StyleSheet.create({
   filterModalButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,

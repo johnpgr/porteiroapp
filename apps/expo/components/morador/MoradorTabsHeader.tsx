@@ -88,6 +88,10 @@ export default function MoradorTabsHeader() {
     router.push('/emergency');
   };
 
+  const handleNotifications = () => {
+    router.push('/avisos');
+  };
+
   const handleLogout = async () => {
     Alert.alert('Confirmar Logout', 'Deseja realmente sair do sistema?', [
       {
@@ -117,6 +121,8 @@ export default function MoradorTabsHeader() {
       connectionError={connectionError}
       onLogout={handleLogout}
       onEmergencyPress={handleEmergency}
+      onNotificationsPress={handleNotifications}
+      unreadNotifications={0}
     />
   );
 }

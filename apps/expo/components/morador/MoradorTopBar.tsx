@@ -15,6 +15,8 @@ interface MoradorTopBarProps {
   connectionError: boolean;
   onLogout: () => void;
   onEmergencyPress: () => void;
+  onNotificationsPress: () => void;
+  unreadNotifications?: number;
 }
 
 export default function MoradorTopBar({
@@ -23,6 +25,8 @@ export default function MoradorTopBar({
   connectionError,
   onLogout,
   onEmergencyPress,
+  onNotificationsPress,
+  unreadNotifications = 0,
 }: MoradorTopBarProps) {
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -90,6 +94,21 @@ export default function MoradorTopBar({
           <Text style={styles.emergencyButtonText}>🚨</Text>
         </TouchableOpacity>
 
+        {/* Botão de Notificações */}
+        <TouchableOpacity
+          style={styles.notificationButton}
+          onPress={onNotificationsPress}
+        >
+          <Text style={styles.notificationIcon}>🔔</Text>
+          {unreadNotifications > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadNotifications > 99 ? '99+' : unreadNotifications}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         {/* Avatar do Usuário */}
         <TouchableOpacity
           style={styles.userAvatar}
@@ -154,6 +173,42 @@ const styles = StyleSheet.create({
   },
   emergencyButtonText: {
     fontSize: 20,
+  },
+  notificationButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2196F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    position: 'relative',
+  },
+  notificationIcon: {
+    fontSize: 20,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#f44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   userAvatar: {
     width: 42,

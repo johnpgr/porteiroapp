@@ -1313,13 +1313,13 @@ export default function CadastroScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    // backgroundColor: '#f5f5f5',
   },
   content: {
     flex: 1,
   },
   section: {
-    backgroundColor: '#fff',
+    // backgroundColor: '#fff',
     padding: 20,
   },
   sectionTitle: {
