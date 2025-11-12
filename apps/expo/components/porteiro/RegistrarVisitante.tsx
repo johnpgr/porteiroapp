@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Crypto from 'expo-crypto';
@@ -153,6 +154,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
   const [isCheckingPreAuthorized, setIsCheckingPreAuthorized] = useState(false);
   const [hasPreAuthorizedGuests, setHasPreAuthorizedGuests] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  
+  // Visitor destination state
+  const [showDestinationModal, setShowDestinationModal] = useState(false);
+  const [visitorDestination, setVisitorDestination] = useState<'portaria' | 'subir' | null>(null);
 
   // Função para solicitar permissão da câmera
   const requestCameraPermission = async () => {
@@ -646,6 +651,36 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
       </View>
     );
   };
+  
+  const handleDestinationConfirm = () => {
+    if (!visitorDestination) {
+      Alert.alert('Atenção', 'Por favor, selecione o destino do visitante.');
+      return;
+    }
+    
+    const destinationText = visitorDestination === 'portaria' ? 'Aguardar na Portaria' : 'Subir para o Apartamento';
+    const message = `✅ Visitante registrado!\n\n${nomeVisitante}\nApartamento: ${selectedApartment?.number}\nDestino: ${destinationText}\n\nO morador foi notificado.`;
+
+    setShowDestinationModal(false);
+    
+    // Reset form after success
+    setTimeout(() => {
+      setCurrentStep('apartamento');
+      setApartamento('');
+      setSelectedApartment(null);
+      setNomeVisitante('');
+      setCpfVisitante('');
+      setObservacoes('');
+      setFotoTirada(false);
+      setVisitorDestination(null);
+      
+      if (onConfirm) {
+        onConfirm(message);
+      } else {
+        Alert.alert('Sucesso', message, [{ text: 'OK', onPress: onClose }]);
+      }
+    }, 300);
+  };
 
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
@@ -939,17 +974,10 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
           console.log('🚫 [RegistrarVisitante] WhatsApp JÁ ENVIADO - bloqueando reenvio');
         }
 
-        const message = `${nomeVisitante} foi registrado com entrada no apartamento ${selectedApartment.number}.`;
+        // Show destination selection modal instead of immediate success
+        console.log('✅ [RegistrarVisitante] Visitante registrado - mostrando modal de destino');
+        setShowDestinationModal(true);
 
-        // Reset form after successful registration
-        resetForm();
-
-        if (onConfirm) {
-          onConfirm(message);
-        } else {
-          Alert.alert('✅ Visitante Registrado!', message, [{ text: 'OK' }]);
-          onClose();
-        }
       } catch (error) {
         console.error('Erro geral ao registrar visitante:', error);
         Alert.alert(
@@ -1232,6 +1260,80 @@ export default function RegistrarVisitante({ onClose, onConfirm }: RegistrarVisi
         uploadFunction={uploadVisitorPhoto}
         title="Foto do Visitante"
       />
+
+      {/* Destination Selection Modal */}
+      <Modal
+        visible={showDestinationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDestinationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.destinationModalContainer}>
+            <Text style={styles.destinationModalTitle}>👤 Destino do Visitante</Text>
+            <Text style={styles.destinationModalSubtitle}>
+              Para onde o visitante deve ir?
+            </Text>
+
+            <View style={styles.destinationOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.destinationButton,
+                  visitorDestination === 'portaria' && styles.destinationButtonSelected
+                ]}
+                onPress={() => setVisitorDestination('portaria')}
+              >
+                <Text style={styles.destinationButtonIcon}>🏢</Text>
+                <Text style={[
+                  styles.destinationButtonText,
+                  visitorDestination === 'portaria' && styles.destinationButtonTextSelected
+                ]}>
+                  Aguardar na Portaria
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.destinationButton,
+                  visitorDestination === 'subir' && styles.destinationButtonSelected
+                ]}
+                onPress={() => setVisitorDestination('subir')}
+              >
+                <Text style={styles.destinationButtonIcon}>🏠</Text>
+                <Text style={[
+                  styles.destinationButtonText,
+                  visitorDestination === 'subir' && styles.destinationButtonTextSelected
+                ]}>
+                  Subir para o Apartamento
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.destinationModalActions}>
+              <TouchableOpacity
+                style={styles.destinationCancelButton}
+                onPress={() => {
+                  setShowDestinationModal(false);
+                  setVisitorDestination(null);
+                }}
+              >
+                <Text style={styles.destinationCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.destinationConfirmButton,
+                  !visitorDestination && styles.destinationConfirmButtonDisabled
+                ]}
+                onPress={handleDestinationConfirm}
+                disabled={!visitorDestination}
+              >
+                <Text style={styles.destinationConfirmButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1726,5 +1828,101 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
+  },
+  // Destination Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  destinationModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  destinationModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  destinationModalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  destinationOptions: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  destinationButton: {
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  destinationButtonSelected: {
+    borderColor: '#2196F3',
+    backgroundColor: '#e3f2fd',
+  },
+  destinationButtonIcon: {
+    fontSize: 32,
+  },
+  destinationButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  destinationButtonTextSelected: {
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  destinationModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  destinationCancelButton: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  destinationCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  destinationConfirmButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  destinationConfirmButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  destinationConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });

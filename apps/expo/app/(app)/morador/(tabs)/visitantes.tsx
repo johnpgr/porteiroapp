@@ -1263,9 +1263,9 @@ export default function VisitantesTab() {
       );
       return;
     }
-    // Navigate to edit visitor modal with visitor data
+    // Navigate to visitante screen with visitor data for editing
     router.push({
-      pathname: '/morador/edit-visitor',
+      pathname: '/morador/visitor-form',
       params: {
         visitorId: visitor.id,
         name: visitor.name,
@@ -1344,6 +1344,66 @@ export default function VisitantesTab() {
             } catch (error) {
               console.error('Erro ao excluir visitante:', error);
               Alert.alert('Erro', 'Erro ao excluir visitante. Tente novamente.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Função para abrir modal de edição com dados do veículo
+  const handleEditVehicle = (vehicle: Vehicle) => {
+    // Navigate to edit vehicle modal with vehicle data
+    router.push({
+      pathname: '/morador/vehicle-form',
+      params: {
+        vehicleId: vehicle.id,
+        licensePlate: vehicle.license_plate,
+        brand: vehicle.brand,
+        model: vehicle.model,
+        color: vehicle.color,
+        type: vehicle.type || '',
+      },
+    });
+  };
+
+  // Função para excluir veículo com confirmação
+  const handleDeleteVehicle = (vehicle: Vehicle) => {
+    Alert.alert(
+      'Confirmar Exclusão',
+      `Tem certeza que deseja excluir o veículo "${vehicle.license_plate}"?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.from('vehicles').delete().eq('id', vehicle.id);
+
+              if (error) {
+                console.error('Erro ao excluir veículo:', error);
+
+                // Tratamento específico para foreign key constraint
+                if (error.code === '23503') {
+                  Alert.alert(
+                    'Erro de Dependência',
+                    'Este veículo possui registros associados que impedem sua exclusão. Entre em contato com o suporte.'
+                  );
+                } else {
+                  Alert.alert('Erro', `Erro ao excluir veículo: ${error.message}`);
+                }
+                return;
+              }
+
+              Alert.alert('Sucesso', 'Veículo excluído com sucesso!');
+              fetchVisitors(); // Atualizar lista
+            } catch (error) {
+              console.error('Erro ao excluir veículo:', error);
+              Alert.alert('Erro', 'Erro ao excluir veículo. Tente novamente.');
             }
           },
         },
@@ -1514,14 +1574,14 @@ export default function VisitantesTab() {
 
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => router.push('/morador/pre-registration')}>
+            onPress={() => router.push('/morador/visitor-form')}>
             <Text style={styles.buttonEmoji}>👤</Text>
             <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.vehicleButton}
-            onPress={() => router.push('/morador/vehicle')}>
+            onPress={() => router.push('/morador/vehicle-form')}>
             <Text style={styles.buttonEmoji}>🚗</Text>
             <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
@@ -1619,8 +1679,32 @@ export default function VisitantesTab() {
                       <View style={styles.vehicleBadge}>
                         <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
                       </View>
+
+                      <TouchableOpacity
+                        style={styles.menuButton}
+                        onPress={() => toggleCardExpansion(`vehicle-${vehicle.id}`)}>
+                        <Text style={styles.menuButtonText}>⋮</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
+
+                  {expandedCardId === `vehicle-${vehicle.id}` && (
+                    <View style={styles.expandedActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleEditVehicle(vehicle)}>
+                        <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.actionButtonDanger]}
+                        onPress={() => handleDeleteVehicle(vehicle)}>
+                        <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
+                          🗑️ Excluir
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))}
 

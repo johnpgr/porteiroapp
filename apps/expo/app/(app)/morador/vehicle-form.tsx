@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { supabase } from '~/utils/supabase';
@@ -79,7 +79,16 @@ const getVehicleTypeLabel = (type: VehicleFormState['type']) => {
 
 export default function VehicleScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    vehicleId?: string;
+    licensePlate?: string;
+    brand?: string;
+    model?: string;
+    color?: string;
+    type?: string;
+  }>();
   const { user } = useAuth();
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [form, setForm] = useState<VehicleFormState>({
     license_plate: '',
     brand: '',
@@ -91,6 +100,21 @@ export default function VehicleScreen() {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
   const typeSheetRef = useRef<BottomSheetModalRef>(null);
+
+  // Load vehicle data from params if editing
+  useEffect(() => {
+    if (params.vehicleId) {
+      setVehicleId(params.vehicleId);
+      setForm({
+        license_plate: params.licensePlate || '',
+        brand: params.brand || '',
+        model: params.model || '',
+        color: params.color || '',
+        type: (params.type as VehicleType) || '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.vehicleId]);
 
   const resetForm = useCallback(() => {
     setForm({
@@ -133,6 +157,41 @@ export default function VehicleScreen() {
 
     setLoading(true);
     try {
+      // If editing, update the existing vehicle
+      if (vehicleId) {
+        const { error } = await supabase
+          .from('vehicles')
+          .update({
+            license_plate: form.license_plate,
+            brand: form.brand.trim() || null,
+            model: form.model.trim() || null,
+            color: form.color.trim() || null,
+            type: form.type,
+          })
+          .eq('id', vehicleId);
+
+        if (error) {
+          console.error('Erro ao atualizar veículo:', error);
+          if (error.code === '23505') {
+            Alert.alert('Erro', 'Esta placa já está cadastrada no sistema.');
+          } else {
+            Alert.alert('Erro', 'Não foi possível atualizar o veículo. Tente novamente.');
+          }
+          return;
+        }
+
+        Alert.alert('Sucesso', 'Veículo atualizado com sucesso!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              handleClose();
+            },
+          },
+        ]);
+        return;
+      }
+
+      // Creating a new vehicle
       // Get user's apartment_id
       if (!user?.id) {
         Alert.alert('Erro', 'Usuário não autenticado.');
@@ -190,12 +249,12 @@ export default function VehicleScreen() {
         },
       ]);
     } catch (error) {
-      console.error('Erro ao cadastrar veículo:', error);
+      console.error('Erro ao processar veículo:', error);
       Alert.alert('Erro', 'Erro interno. Tente novamente.');
     } finally {
       setLoading(false);
     }
-  }, [form, loading, handleClose, user]);
+  }, [form, loading, handleClose, user, vehicleId]);
 
   const sanitizedVehiclePlate = form.license_plate.replace(/[^A-Za-z0-9]/g, '');
   const isSubmitDisabled = sanitizedVehiclePlate.length !== 7 || !Boolean(form.type) || loading;
@@ -207,8 +266,12 @@ export default function VehicleScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>🚗 Cadastrar Veículo</Text>
-          <Text style={styles.headerSubtitle}>Adicionar novo veículo</Text>
+          <Text style={styles.headerTitle}>
+            {vehicleId ? '✏️ Editar Veículo' : '🚗 Cadastrar Veículo'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {vehicleId ? 'Atualizar dados do veículo' : 'Adicionar novo veículo'}
+          </Text>
         </View>
         <View style={styles.backButtonPlaceholder} />
       </View>
@@ -291,7 +354,13 @@ export default function VehicleScreen() {
             onPress={() => handleSubmit()}
             disabled={isSubmitDisabled}>
             <Text style={styles.submitButtonText}>
-              {loading ? 'Salvando...' : 'Salvar Veículo'}
+              {loading
+                ? vehicleId
+                  ? 'Atualizando...'
+                  : 'Salvando...'
+                : vehicleId
+                  ? 'Atualizar Veículo'
+                  : 'Salvar Veículo'}
             </Text>
           </TouchableOpacity>
         </View>

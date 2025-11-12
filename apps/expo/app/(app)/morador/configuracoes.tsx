@@ -63,7 +63,7 @@ export default function ConfiguracoesScreen() {
 
             <TouchableOpacity
               style={styles.settingItem}
-              onPress={() => router.push('/morador/testes')}
+              onPress={() => router.push('/morador/tests')}
             >
               <View style={styles.settingItemLeft}>
                 <Ionicons name="bug-outline" size={24} color="#FF6B35" />

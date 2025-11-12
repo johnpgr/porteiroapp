@@ -343,7 +343,6 @@ export default function MoradorLayout() {
           <Stack.Screen name="configuracoes" />
           <Stack.Screen name="logs" />
           <Stack.Screen name="notifications" />
-          <Stack.Screen name="preregister" />
           <Stack.Screen name="testes" />
           <Stack.Screen
             name="first-login"
@@ -354,21 +353,14 @@ export default function MoradorLayout() {
             }}
           />
           <Stack.Screen
-            name="edit-visitor"
+            name="vehicle-form"
             options={{
               presentation: 'modal',
               headerShown: false,
             }}
           />
           <Stack.Screen
-            name="vehicle"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="pre-registration"
+            name="visitor-form"
             options={{
               presentation: 'modal',
               headerShown: false,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,18 +10,24 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import type { MultipleVisitor, PreRegistrationData } from '~/components/morador/visitantes/types';
 import { formatDate, formatTime } from '~/components/morador/visitantes/utils';
 
 type RegistrationMode = 'individual' | 'multiple';
 
-export default function PreRegistrationScreen() {
+export default function VisitanteFormScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    visitorId?: string;
+    name?: string;
+    phone?: string;
+  }>();
 
   // State management moved from parent
+  const [visitorId, setVisitorId] = useState<string | null>(null);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode>('individual');
   const [preRegistrationData, setPreRegistrationData] = useState<PreRegistrationData>({
     name: '',
@@ -40,6 +46,28 @@ export default function PreRegistrationScreen() {
     { name: '', phone: '' },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load visitor data from params if editing
+  useEffect(() => {
+    if (params.visitorId) {
+      setVisitorId(params.visitorId);
+      setRegistrationMode('individual'); // Force individual mode when editing
+      setPreRegistrationData({
+        name: params.name || '',
+        phone: params.phone || '',
+        visit_type: 'pontual',
+        access_type: 'com_aprovacao',
+        visit_date: '',
+        visit_start_time: '',
+        visit_end_time: '',
+        allowed_days: [],
+        max_simultaneous_visits: 1,
+        validity_start: '',
+        validity_end: '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.visitorId]);
 
   // Handler functions moved from parent
   const handleSelectRegistrationMode = useCallback((mode: RegistrationMode) => {
@@ -75,6 +103,10 @@ export default function PreRegistrationScreen() {
     setIsSubmitting(true);
     try {
       // TODO: Submit logic will be handled by parent screen via callback or hook
+      // This is where you would call handlePreRegistration or update visitor
+      // For editing: use visitorId to update the existing visitor
+      // For creating: create a new visitor
+      
       // Reset form on success
       setPreRegistrationData({
         name: '',
@@ -96,7 +128,7 @@ export default function PreRegistrationScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [preRegistrationData, isSubmitting, router]);
+  }, [isSubmitting, router]);
 
   const handleSubmitMultiple = useCallback(async () => {
     if (isSubmitting) return;
@@ -125,7 +157,7 @@ export default function PreRegistrationScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [preRegistrationData, multipleVisitors, isSubmitting, router]);
+  }, [isSubmitting, router]);
 
   const handleClose = useCallback(() => {
     router.back();
@@ -138,8 +170,12 @@ export default function PreRegistrationScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>👥 Pré-cadastro</Text>
-          <Text style={styles.headerSubtitle}>Cadastrar visitantes</Text>
+          <Text style={styles.headerTitle}>
+            {visitorId ? '✏️ Editar Visitante' : '👥 Pré-cadastro'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {visitorId ? 'Atualizar dados do visitante' : 'Cadastrar visitantes'}
+          </Text>
         </View>
         <View style={styles.backButtonPlaceholder} />
       </View>
@@ -153,51 +189,53 @@ export default function PreRegistrationScreen() {
             </Text>
           </View>
 
-          {/* Toggle para modo de cadastro */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Modo de Cadastro</Text>
-            <View style={styles.registrationModeSelector}>
-              <TouchableOpacity
-                style={[
-                  styles.registrationModeButton,
-                  registrationMode === 'individual' && styles.registrationModeButtonActive,
-                ]}
-                onPress={() => handleSelectRegistrationMode('individual')}>
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color={registrationMode === 'individual' ? '#fff' : '#4CAF50'}
-                />
-                <Text
+          {/* Toggle para modo de cadastro - only show when not editing */}
+          {!visitorId && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Modo de Cadastro</Text>
+              <View style={styles.registrationModeSelector}>
+                <TouchableOpacity
                   style={[
-                    styles.registrationModeButtonText,
-                    registrationMode === 'individual' && styles.registrationModeButtonTextActive,
-                  ]}>
-                  Individual
-                </Text>
-              </TouchableOpacity>
+                    styles.registrationModeButton,
+                    registrationMode === 'individual' && styles.registrationModeButtonActive,
+                  ]}
+                  onPress={() => handleSelectRegistrationMode('individual')}>
+                  <Ionicons
+                    name="person"
+                    size={20}
+                    color={registrationMode === 'individual' ? '#fff' : '#4CAF50'}
+                  />
+                  <Text
+                    style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'individual' && styles.registrationModeButtonTextActive,
+                    ]}>
+                    Individual
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.registrationModeButton,
-                  registrationMode === 'multiple' && styles.registrationModeButtonActive,
-                ]}
-                onPress={() => handleSelectRegistrationMode('multiple')}>
-                <Ionicons
-                  name="people"
-                  size={20}
-                  color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'}
-                />
-                <Text
+                <TouchableOpacity
                   style={[
-                    styles.registrationModeButtonText,
-                    registrationMode === 'multiple' && styles.registrationModeButtonTextActive,
-                  ]}>
-                  Múltiplos
-                </Text>
-              </TouchableOpacity>
+                    styles.registrationModeButton,
+                    registrationMode === 'multiple' && styles.registrationModeButtonActive,
+                  ]}
+                  onPress={() => handleSelectRegistrationMode('multiple')}>
+                  <Ionicons
+                    name="people"
+                    size={20}
+                    color={registrationMode === 'multiple' ? '#fff' : '#4CAF50'}
+                  />
+                  <Text
+                    style={[
+                      styles.registrationModeButtonText,
+                      registrationMode === 'multiple' && styles.registrationModeButtonTextActive,
+                    ]}>
+                    Múltiplos
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Campos para cadastro individual */}
           {registrationMode === 'individual' && (
@@ -679,8 +717,12 @@ export default function PreRegistrationScreen() {
               {isSubmitting
                 ? registrationMode === 'multiple'
                   ? 'Processando...'
-                  : 'Enviando...'
-                : 'Cadastrar'}
+                  : visitorId
+                    ? 'Atualizando...'
+                    : 'Enviando...'
+                : visitorId
+                  ? 'Atualizar Visitante'
+                  : 'Cadastrar'}
             </Text>
           </TouchableOpacity>
         </View>

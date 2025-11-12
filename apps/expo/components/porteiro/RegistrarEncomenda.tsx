@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { IconSymbol } from '~/components/ui/IconSymbol';
@@ -67,6 +68,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [showCameraModal, setShowCameraModal] = useState(false);
+  
+  // Destination and code state
+  const [showDestinationModal, setShowDestinationModal] = useState(false);
+  const [deliveryDestination, setDeliveryDestination] = useState<'portaria' | 'elevador' | null>(null);
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [currentDeliveryId, setCurrentDeliveryId] = useState<string | null>(null);
 
   // Obter building_id do porteiro
   useEffect(() => {
@@ -445,6 +452,59 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
       </View>
     );
   };
+  
+  const handleDestinationConfirm = async () => {
+    if (!deliveryDestination) {
+      Alert.alert('Atenção', 'Por favor, selecione o destino da encomenda.');
+      return;
+    }
+    
+    // Update delivery record with delivery_code if we have one
+    if (currentDeliveryId && deliveryCode) {
+      try {
+        const { error: updateError } = await supabase
+          .from('deliveries')
+          .update({ delivery_code: deliveryCode })
+          .eq('id', currentDeliveryId);
+          
+        if (updateError) {
+          console.error('Erro ao atualizar código da encomenda:', updateError);
+          // Don't block the flow if update fails
+        } else {
+          console.log('✅ Código da encomenda salvo:', deliveryCode);
+        }
+      } catch (error) {
+        console.error('Erro ao atualizar código:', error);
+      }
+    }
+    
+    const destinationText = deliveryDestination === 'portaria' ? 'Portaria' : 'Elevador';
+    const codeText = deliveryCode ? `\nCódigo: ${deliveryCode}` : '';
+    const message = `✅ Encomenda registrada!\n\nApartamento: ${selectedApartment?.number}\nDestino: ${destinationText}${codeText}\n\nO morador foi notificado.`;
+
+    setShowDestinationModal(false);
+    
+    // Reset form after success
+    setTimeout(() => {
+      setCurrentStep('apartamento');
+      setApartamento('');
+      setSelectedApartment(null);
+      setEmpresaSelecionada(null);
+      setNomeDestinatario('');
+      setDescricaoEncomenda('');
+      setObservacoes('');
+      setFotoTirada(false);
+      setDeliveryDestination(null);
+      setDeliveryCode('');
+      setCurrentDeliveryId(null);
+      
+      if (onConfirm) {
+        onConfirm(message);
+      } else {
+        Alert.alert('Sucesso', message, [{ text: 'OK', onPress: onClose }]);
+      }
+    }, 300);
+  };
 
   const renderConfirmacaoStep = () => {
     const handleConfirm = async () => {
@@ -531,7 +591,12 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           return;
         }
 
-        console.log('Entrega inserida com sucesso');
+        console.log('Entrega inserida com sucesso:', deliveryData);
+        
+        // Store delivery ID for later update with delivery_code
+        if (deliveryData?.id) {
+          setCurrentDeliveryId(deliveryData.id);
+        }
 
         // Inserir dados na tabela visitor_logs (sem criar visitante) e capturar o ID
         const { data: visitorLogData, error: logError } = await supabase
@@ -694,28 +759,15 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
           }
         }
 
-        const message = `Encomenda registrada com sucesso para o apartamento ${selectedApartment.number}. O morador foi notificado e deve escolher o destino da entrega.`;
-
-        if (onConfirm) {
-          onConfirm(message);
-        } else {
-          Alert.alert('✅ Encomenda Registrada!', message, [{ text: 'OK' }]);
-          onClose();
-        }
+        // Show destination selection modal instead of immediate success
+        console.log('✅ [RegistrarEncomenda] Encomenda registrada - mostrando modal de destino');
+        setShowDestinationModal(true);
+        
       } catch (error) {
         console.error('Erro ao registrar encomenda:', error);
         Alert.alert('Erro', 'Ocorreu um erro inesperado. Tente novamente.');
       } finally {
         setIsLoading(false);
-        // Reset form
-        setCurrentStep('apartamento');
-        setApartamento('');
-        setSelectedApartment(null);
-        setEmpresaSelecionada(null);
-        setNomeDestinatario('');
-        setDescricaoEncomenda('');
-        setObservacoes('');
-        setFotoTirada(false);
       }
     };
 
@@ -851,6 +903,95 @@ export default function RegistrarEncomenda({ onClose, onConfirm }: RegistrarEnco
         uploadFunction={uploadDeliveryPhoto}
         title="Foto da Encomenda"
       />
+
+      {/* Destination Selection Modal */}
+      <Modal
+        visible={showDestinationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDestinationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.destinationModalContainer}>
+            <Text style={styles.destinationModalTitle}>📦 Destino da Encomenda</Text>
+            <Text style={styles.destinationModalSubtitle}>
+              Onde a encomenda deve ser colocada?
+            </Text>
+
+            <View style={styles.destinationOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.destinationButton,
+                  deliveryDestination === 'portaria' && styles.destinationButtonSelected
+                ]}
+                onPress={() => setDeliveryDestination('portaria')}
+              >
+                <Text style={styles.destinationButtonIcon}>🏢</Text>
+                <Text style={[
+                  styles.destinationButtonText,
+                  deliveryDestination === 'portaria' && styles.destinationButtonTextSelected
+                ]}>
+                  Deixar na Portaria
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.destinationButton,
+                  deliveryDestination === 'elevador' && styles.destinationButtonSelected
+                ]}
+                onPress={() => setDeliveryDestination('elevador')}
+              >
+                <Text style={styles.destinationButtonIcon}>🛗</Text>
+                <Text style={[
+                  styles.destinationButtonText,
+                  deliveryDestination === 'elevador' && styles.destinationButtonTextSelected
+                ]}>
+                  Colocar no Elevador
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.deliveryCodeSection}>
+              <Text style={styles.deliveryCodeLabel}>Código da Encomenda (Opcional)</Text>
+              <TextInput
+                style={styles.deliveryCodeInput}
+                placeholder="Ex: 1234, palavra-chave..."
+                value={deliveryCode}
+                onChangeText={setDeliveryCode}
+                maxLength={50}
+              />
+              <Text style={styles.deliveryCodeHint}>
+                💡 Informe um código se o morador solicitou
+              </Text>
+            </View>
+
+            <View style={styles.destinationModalActions}>
+              <TouchableOpacity
+                style={styles.destinationCancelButton}
+                onPress={() => {
+                  setShowDestinationModal(false);
+                  setDeliveryDestination(null);
+                  setDeliveryCode('');
+                }}
+              >
+                <Text style={styles.destinationCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.destinationConfirmButton,
+                  !deliveryDestination && styles.destinationConfirmButtonDisabled
+                ]}
+                onPress={handleDestinationConfirm}
+                disabled={!deliveryDestination}
+              >
+                <Text style={styles.destinationConfirmButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1357,6 +1498,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#666',
+    marginBottom: 24,
   },
   backToPhotoButtonText: {
     color: '#666',
@@ -1538,5 +1680,125 @@ const styles = StyleSheet.create({
   floorButtonIcon: {
     fontSize: 16,
     color: '#666',
+  },
+  // Destination Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  destinationModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  destinationModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  destinationModalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  destinationOptions: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  destinationButton: {
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  destinationButtonSelected: {
+    borderColor: '#2196F3',
+    backgroundColor: '#e3f2fd',
+  },
+  destinationButtonIcon: {
+    fontSize: 32,
+  },
+  destinationButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  destinationButtonTextSelected: {
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  deliveryCodeSection: {
+    marginBottom: 24,
+  },
+  deliveryCodeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  deliveryCodeInput: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 8,
+  },
+  deliveryCodeHint: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  destinationModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  destinationCancelButton: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  destinationCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  destinationConfirmButton: {
+    flex: 1,
+    backgroundColor: '#4CAF50',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  destinationConfirmButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  destinationConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });
