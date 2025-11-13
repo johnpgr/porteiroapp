@@ -103,7 +103,7 @@ export default function AdminTabsHeader() {
         onPress: async () => {
           try {
             await signOut();
-            router.replace('/admin/login');
+            router.replace('/login');
           } catch (error) {
             console.error('Erro ao fazer logout:', error);
             Alert.alert('Erro', 'Não foi possível fazer logout. Tente novamente.');

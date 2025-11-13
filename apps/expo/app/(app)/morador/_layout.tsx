@@ -20,7 +20,6 @@ export default function MoradorLayout() {
   const renderTabsHeader = useCallback(() => <MoradorTabsHeader />, []);
 
   const shouldHideHeader =
-    pathname === '/morador/login' ||
     pathname === '/morador/first-login' ||
     pathname.startsWith('/morador/cadastro_steps/') ||
     pathname.startsWith('/morador/visitante_steps/');

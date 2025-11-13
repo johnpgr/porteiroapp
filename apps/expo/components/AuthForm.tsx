@@ -5,14 +5,12 @@ interface AuthFormProps {
   onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loading?: boolean;
   submitText?: string;
-  userType?: 'admin' | 'porteiro' | 'morador';
 }
 
 export default function AuthForm({
   onSubmit,
   loading = false,
   submitText = 'Entrar',
-  userType,
 }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

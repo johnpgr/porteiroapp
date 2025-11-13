@@ -1,15 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Redirect } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Image,
+} from 'react-native';
 import AuthForm from '~/components/AuthForm';
 import { useAuth } from '~/hooks/useAuth';
 
-export default function MoradorLogin() {
+export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const loginTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMountedRef = useRef(true);
-  const hasNavigatedRef = useRef(false);
   const { signIn, user, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -21,21 +28,19 @@ export default function MoradorLogin() {
     };
   }, []);
 
-  useEffect(() => {
-    // Redireciona diretamente para /morador se o usuário já estiver logado
-    if (!authLoading && user?.user_type === 'morador') {
-      if (!hasNavigatedRef.current) {
-        hasNavigatedRef.current = true;
-        if (loginTimeoutRef.current) {
-          clearTimeout(loginTimeoutRef.current);
-          loginTimeoutRef.current = null;
-        }
-        router.replace('/morador');
-      }
-    } else if (!authLoading && !user) {
-      hasNavigatedRef.current = false;
+  // Redirect if user is already logged in
+  if (!authLoading && user) {
+    switch (user.user_type) {
+      case 'admin':
+        return <Redirect href="/admin" />;
+      case 'porteiro':
+        return <Redirect href="/porteiro" />;
+      case 'morador':
+        return <Redirect href="/morador" />;
+      default:
+        break;
     }
-  }, [authLoading, user]);
+  }
 
   const handleLogin = async (
     email: string,
@@ -46,7 +51,6 @@ export default function MoradorLogin() {
     }
 
     try {
-      hasNavigatedRef.current = false;
       setIsLoading(true);
 
       loginTimeoutRef.current = setTimeout(() => {
@@ -62,11 +66,10 @@ export default function MoradorLogin() {
         return { success: false, error: result.error };
       }
 
-      // O redirecionamento será feito automaticamente pelo useEffect
-      // que já tem o delay de 1.5s para melhor experiência visual
+      // The redirect will be done automatically by the useEffect above
       return { success: true };
     } catch (error) {
-      console.error('Erro durante login do morador:', error);
+      console.error('Erro durante login:', error);
       const errorMessage = 'Ocorreu um erro inesperado';
       Alert.alert('Erro', errorMessage);
       return { success: false, error: errorMessage };
@@ -83,30 +86,27 @@ export default function MoradorLogin() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.push('/')}
-          disabled={isLoading}>
-          <Ionicons name="arrow-back" size={24} color={isLoading ? '#ccc' : '#2196F3'} />
-        </TouchableOpacity>
-
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>🏠 Login Morador</Text>
-            <Text style={styles.subtitle}>Acesse sua área de morador</Text>
+            <Image
+              source={require('~/assets/logo-james.png')}
+              style={styles.logo}
+              alt="James Logo"
+            />
+            <Text style={styles.title}>James Avisa</Text>
+            <Text style={styles.subtitle}>Faça login para continuar</Text>
             {isLoading && <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>}
           </View>
 
-          <AuthForm onSubmit={handleLogin} submitText="Entrar como Morador" loading={isLoading} />
+          <AuthForm onSubmit={handleLogin} submitText="Entrar" loading={isLoading} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -121,40 +121,36 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
-    minHeight: '100%',
+    paddingVertical: 20,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 1,
-    padding: 10,
+    paddingHorizontal: 20,
   },
   header: {
     alignItems: 'center',
     marginBottom: 40,
   },
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+  },
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#2196F3',
-    marginBottom: 16,
+    color: '#333',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
+    marginBottom: 8,
   },
   loadingIndicator: {
-    fontSize: 16,
-    color: '#FF9800',
-    fontWeight: '600',
-    marginTop: 10,
-    textAlign: 'center',
+    fontSize: 14,
+    color: '#2196F3',
+    marginTop: 8,
   },
 });

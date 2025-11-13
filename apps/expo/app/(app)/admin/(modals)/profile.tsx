@@ -643,7 +643,7 @@ export default function AdminProfilePage() {
               console.log('🔄 [AdminProfile] Executando logout...');
               await supabase.auth.signOut();
               console.log('✅ [AdminProfile] Logout realizado com sucesso');
-              router.replace('/admin/login');
+              router.replace('/login');
             } catch (error: any) {
               console.error('❌ [AdminProfile] Erro no logout:', error);
               Alert.alert('Erro', error.message || 'Falha ao sair da conta');

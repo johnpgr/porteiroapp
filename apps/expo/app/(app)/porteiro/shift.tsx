@@ -72,7 +72,7 @@ export default function PorteiroShiftScreen() {
         onPress: async () => {
           try {
             await signOut();
-            router.replace('/porteiro/login');
+            router.replace('/login');
           } catch (error) {
             console.error('Erro ao fazer logout:', error);
             Alert.alert('Erro', 'Não foi possível fazer logout. Tente novamente.');

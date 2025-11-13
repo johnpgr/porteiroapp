@@ -551,7 +551,7 @@ export default function PorteiroProfileScreen() {
                   text: 'OK',
                   onPress: async () => {
                     await signOut();
-                    router.replace('/porteiro/login');
+                    router.replace('/login');
                   },
                 },
               ]);

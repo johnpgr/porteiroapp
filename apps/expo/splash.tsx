@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { SplashScreen } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { usePathname } from 'expo-router';
 
 import { useAuth } from './hooks/useAuth';
 
@@ -14,16 +15,32 @@ interface SplashScreenControllerProps {
 
 export function SplashScreenController({ isAppReady }: SplashScreenControllerProps) {
   const { initialized, loading } = useAuth();
+  const pathname = usePathname();
+
+  // Consider the initial navigation finished when we are no longer on the root index route
+  // This avoids a brief blank frame during the Redirect from / to the target route
+  const hasNavigatedAwayFromIndex = pathname != null && pathname !== '/' && pathname !== '/index';
 
   useEffect(() => {
-    if (!isAppReady || !initialized || loading) {
+    // Keep splash visible until all conditions are met
+    const shouldHideSplash = isAppReady && initialized && !loading && hasNavigatedAwayFromIndex;
+    
+    if (!shouldHideSplash) {
       return;
     }
 
-    SplashScreen.hideAsync().catch((error) => {
-      console.warn('[SplashScreenController] Failed to hide splash screen:', error);
+    // Hide splash screen when everything is ready
+    // Use a rAF to ensure the target screen has committed before hiding to reduce flicker
+    const id = requestAnimationFrame(() => {
+      try {
+        SplashScreen.hide();
+      } catch (error) {
+        console.warn('[SplashScreenController] Failed to hide splash screen:', error);
+      }
     });
-  }, [initialized, isAppReady]);
+
+    return () => cancelAnimationFrame(id);
+  }, [hasNavigatedAwayFromIndex, initialized, isAppReady, loading]);
 
   return null;
 }
