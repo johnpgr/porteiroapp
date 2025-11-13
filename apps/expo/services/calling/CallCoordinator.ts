@@ -3,7 +3,11 @@ import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
-import { callKeepService, consumePendingCallKeepAnswer, consumePendingCallKeepEnd } from './CallKeepService';
+import {
+  callKeepService,
+  consumePendingCallKeepAnswer,
+  consumePendingCallKeepEnd,
+} from './CallKeepService';
 import { MyCallDataManager } from './MyCallDataManager';
 
 export interface VoipPushData {
@@ -844,7 +848,11 @@ export class CallCoordinator {
    * Ensures a session exists for the given callId
    * Returns true if session is ready, false if all attempts failed
    */
-  private async ensureSessionExists(callId: string, sessionWaitTimeout = 10000, sessionCreateTimeout = 10000): Promise<boolean> {
+  private async ensureSessionExists(
+    callId: string,
+    sessionWaitTimeout = 10000,
+    sessionCreateTimeout = 10000
+  ): Promise<boolean> {
     // Quick check: already exists?
     if (this.activeSession?.id === callId) {
       console.log('[CallCoordinator] Session already exists');
@@ -936,6 +944,11 @@ export class CallCoordinator {
   private async handleCallKeepAnswer(callId: string): Promise<void> {
     console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
 
+    // Android: bring app to foreground
+    if (Platform.OS === 'android') {
+      callKeepService.backToForeground();
+    }
+
     try {
       // Ensure session exists (wait or create)
       const sessionReady = await this.ensureSessionExists(callId);
@@ -948,11 +961,6 @@ export class CallCoordinator {
       // Answer the call
       console.log('[CallCoordinator] Session ready, answering');
       await this.answerActiveCall();
-
-      // Android: bring app to foreground
-      if (Platform.OS === 'android') {
-        callKeepService.backToForeground();
-      }
     } catch (error) {
       console.error('[CallCoordinator] CallKeep answer error:', error);
     }
@@ -980,7 +988,8 @@ export class CallCoordinator {
 
     for (const event of events) {
       const data = event?.data || {};
-      const normalizedId: string | undefined = (data.callUUID || data.callId || data.uuid || data.id) ?? undefined;
+      const normalizedId: string | undefined =
+        (data.callUUID || data.callId || data.uuid || data.id) ?? undefined;
       if (event.name === 'RNCallKeepPerformAnswerCallAction' && normalizedId) {
         await this.handleCallKeepAnswer(String(normalizedId));
       } else if (event.name === 'RNCallKeepPerformEndCallAction' && normalizedId) {

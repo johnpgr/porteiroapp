@@ -88,14 +88,14 @@ class PushNotificationService {
       to: params.pushToken,
       contentAvailable: true,
       _contentAvailable: true,
-      sound: 'telephone_toque_interfone.mp3',
+      // sound: 'telephone_toque_interfone.mp3',
       priority: 'high',
-      channelId: 'intercom_call',
+      // channelId: 'intercom_call',
       data: {
         type: 'intercom_call',
         callId: params.callId,
         from: params.from,
-        fromName: params.fromName || 'Doorman',
+        fromName: params.fromName || 'Porteiro',
         apartmentNumber: params.apartmentNumber || '',
         buildingName: params.buildingName || '',
         channelName: params.channelName,
@@ -114,8 +114,8 @@ class PushNotificationService {
         from: params.from,
         contentAvailable: true,
         _contentAvailable: true,
-        channelId: payload.channelId,
-        sound: payload.sound,
+        // channelId: payload.channelId,
+        // sound: payload.sound,
         channelName: params.channelName,
         apartmentNumber: params.apartmentNumber,
         buildingName: params.buildingName,
@@ -191,7 +191,7 @@ class PushNotificationService {
     console.log('📣 [push] Sending call invites to multiple recipients', {
       recipients: recipients.length,
       callId: baseParams.callId,
-      channelId: 'intercom_call',
+      // channelId: 'intercom_call',
       sound: 'telephone_toque_interfone.mp3',
     });
     const promises = recipients.map((recipient) =>
