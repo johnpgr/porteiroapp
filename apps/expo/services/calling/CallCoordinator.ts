@@ -3,7 +3,7 @@ import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
-import { callKeepService } from './CallKeepService';
+import { callKeepService, consumePendingCallKeepAnswer, consumePendingCallKeepEnd } from './CallKeepService';
 import { MyCallDataManager } from './MyCallDataManager';
 
 export interface VoipPushData {
@@ -94,6 +94,24 @@ export class CallCoordinator {
 
     // Try to recover any persisted session
     void this.recoverPersistedSession();
+
+    // Consume any pending CallKeep actions that happened before initialization
+    // Accept first, then end (if both somehow exist we prioritize answer)
+    try {
+      const pendingAnswer = await consumePendingCallKeepAnswer();
+      if (pendingAnswer) {
+        console.log('[CallCoordinator] 🔄 Consuming pending CallKeep answer for', pendingAnswer);
+        void this.handleCallKeepAnswer(pendingAnswer);
+      } else {
+        const pendingEnd = await consumePendingCallKeepEnd();
+        if (pendingEnd) {
+          console.log('[CallCoordinator] 🔄 Consuming pending CallKeep end for', pendingEnd);
+          void this.handleCallKeepEnd(pendingEnd);
+        }
+      }
+    } catch (e) {
+      console.warn('[CallCoordinator] Failed to consume pending CallKeep actions:', e);
+    }
 
     this.isInitialized = true;
     console.log('[CallCoordinator] ✅ Initialized');

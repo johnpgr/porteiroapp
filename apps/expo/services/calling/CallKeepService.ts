@@ -2,15 +2,17 @@ import RNCallKeep from 'react-native-callkeep';
 import { Platform } from 'react-native';
 import { EventEmitter } from 'expo-modules-core';
 import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const EndCallReason = {
-  FAILED: "FAILED",
-  REMOTE_ENDED: "REMOTE_ENDED",
-  DECLINED: "DECLINED",
-  BUSY: "BUSY",
+  FAILED: 'FAILED',
+  REMOTE_ENDED: 'REMOTE_ENDED',
+  DECLINED: 'DECLINED',
+  BUSY: 'BUSY',
 } as const;
 
-export type EndCallReason = (typeof EndCallReason)[keyof typeof EndCallReason];
+// Use distinct type alias name to avoid no-redeclare lint rule
+export type EndCallReasonType = (typeof EndCallReason)[keyof typeof EndCallReason];
 
 // Define event map for type-safe EventEmitter
 export type CallKeepEventMap = {
@@ -230,6 +232,9 @@ class CallKeepService {
         }
         return;
       }
+      // Persist pending answer so coordinator can consume after initialization
+      // This is critical for cold start / background accept actions
+      AsyncStorage.setItem('@pending_callkeep_answer_call_id', String(normalizedId)).catch(() => {});
       this.eventEmitter.emit('answerCall', { callId: String(normalizedId) });
     });
 
@@ -245,6 +250,8 @@ class CallKeepService {
         }
         return;
       }
+      // Persist pending end so coordinator can consume if not ready yet
+      AsyncStorage.setItem('@pending_callkeep_end_call_id', String(normalizedId)).catch(() => {});
       this.eventEmitter.emit('endCall', { callId: String(normalizedId) });
     });
 
@@ -271,3 +278,44 @@ class CallKeepService {
 }
 
 export const callKeepService = new CallKeepService();
+
+/**
+ * Helper functions to consume pending CallKeep actions that occurred before
+ * the CallCoordinator was initialized. These are used during initialization
+ * to bridge early accept/decline actions taken from native UI while JS was cold.
+ */
+export async function consumePendingCallKeepAnswer(): Promise<string | null> {
+  try {
+    const callId = await AsyncStorage.getItem('@pending_callkeep_answer_call_id');
+    if (callId) {
+      await AsyncStorage.removeItem('@pending_callkeep_answer_call_id').catch(() => {});
+      if (__DEV__) {
+        console.log('[CallKeepService] Consumed pending answer for callId:', callId);
+      }
+      return callId;
+    }
+  } catch (e) {
+    if (__DEV__) {
+      console.warn('[CallKeepService] Failed to consume pending answer:', e);
+    }
+  }
+  return null;
+}
+
+export async function consumePendingCallKeepEnd(): Promise<string | null> {
+  try {
+    const callId = await AsyncStorage.getItem('@pending_callkeep_end_call_id');
+    if (callId) {
+      await AsyncStorage.removeItem('@pending_callkeep_end_call_id').catch(() => {});
+      if (__DEV__) {
+        console.log('[CallKeepService] Consumed pending end for callId:', callId);
+      }
+      return callId;
+    }
+  } catch (e) {
+    if (__DEV__) {
+      console.warn('[CallKeepService] Failed to consume pending end:', e);
+    }
+  }
+  return null;
+}
