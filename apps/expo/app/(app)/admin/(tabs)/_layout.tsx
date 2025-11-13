@@ -69,7 +69,6 @@ export default function AdminTabsLayout() {
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
-      <Tabs.Screen name="comunicados/(modals)" options={{ href: null }} />
     </Tabs>
   );
 }
