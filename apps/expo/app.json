@@ -95,8 +95,7 @@
         "android.permission.WAKE_LOCK",
         "android.permission.USE_FULL_SCREEN_INTENT",
         "android.permission.CALL_PHONE",
-        "android.permission.READ_PHONE_STATE",
-        "android.permission.READ_PHONE_NUMBERS"
+        "android.permission.READ_PHONE_STATE"
       ],
       "foregroundService": {
         "type": ["camera", "microphone", "phoneCall"]

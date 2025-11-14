@@ -12,17 +12,14 @@ interface FullScreenCallUIProps {
   session: CallSession;
   onAnswer: () => void;
   onDecline: () => void;
-  onRetryRtm?: () => void;
 }
 
-const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, onDecline, onRetryRtm }) => {
+const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, onDecline }) => {
   // Track session state changes to trigger re-renders
   const [sessionState, setSessionState] = useState<CallLifecycleState>(session.state);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const isEnding = sessionState === 'ending';
-  const isRetryableState = sessionState === 'rtm_failed';
-  const disableAnswer = isEnding || isRetryableState;
 
   // Subscribe to session state changes
   useEffect(() => {
@@ -47,7 +44,7 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
   }, []);
 
   const handleAnswer = () => {
-    if (disableAnswer) return;
+    if (isEnding) return;
     agoraAudioService.stopIntercomRingtone();  // Stop immediately
     onAnswer();                                // Trigger coordinator
     // Keep UI open - transitions to in-call controls
@@ -58,11 +55,6 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
     agoraAudioService.stopIntercomRingtone();  // Stop immediately
     onDecline();                               // Trigger coordinator
     // UI closes via state change
-  };
-
-  const handleRetry = () => {
-    if (isEnding || !onRetryRtm) return;
-    onRetryRtm();
   };
 
   const handleToggleMute = async () => {
@@ -109,7 +101,6 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
           <Text style={styles.statusText}>
             {sessionState === 'ringing' && 'Recebendo...'}
             {sessionState === 'rtm_ready' && 'Recebendo...'}
-            {sessionState === 'rtm_failed' && 'Falha de conexão'}
             {sessionState === 'connecting' && 'Conectando...'}
             {sessionState === 'connected' && 'Conectado'}
             {sessionState === 'native_answered' && 'Atendendo...'}
@@ -185,24 +176,9 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
               <Text style={styles.buttonLabel}>Recusar</Text>
             </TouchableOpacity>
 
-            {isRetryableState && (
-              <TouchableOpacity
-                disabled={isEnding}
-                style={[styles.actionButton, styles.retryButton, isEnding && styles.buttonDisabled]}
-                onPress={handleRetry}
-              >
-                <IconSymbol name="arrow.clockwise" size={30} color="#fff" />
-                <Text style={styles.buttonLabel}>Tentar novamente</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              disabled={disableAnswer}
-              style={[styles.actionButton, styles.acceptButton, disableAnswer && styles.buttonDisabled]}
-              onPress={handleAnswer}
-            >
+            <TouchableOpacity disabled={isEnding} style={[styles.actionButton, styles.acceptButton, isEnding && styles.buttonDisabled]} onPress={handleAnswer}>
               <IconSymbol name="phone.fill" size={30} color="#fff" />
-              <Text style={styles.buttonLabel}>{isRetryableState ? 'Aguardando' : 'Atender'}</Text>
+              <Text style={styles.buttonLabel}>Atender</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -284,9 +260,6 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     backgroundColor: '#ef4444',
-  },
-  retryButton: {
-    backgroundColor: '#3b82f6',
   },
   callControls: {
     flexDirection: 'row',

@@ -1,6 +1,5 @@
 import RNCallKeep from 'react-native-callkeep';
-import { PermissionsAndroid, Platform, Linking } from 'react-native';
-import type { Permission as AndroidPermission } from 'react-native/Libraries/PermissionsAndroid/PermissionsAndroid';
+import { Platform } from 'react-native';
 import { EventEmitter } from 'expo-modules-core';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,10 +20,6 @@ export type CallKeepEventMap = {
   endCall: (payload: { callId: string }) => void;
   didLoadWithEvents: (events: any[]) => void;
   didActivateAudioSession: () => void;
-  showIncomingCallUi: (payload: { callId: string; handle: string; name?: string }) => void;
-  silenceIncomingCall: (payload: { callId: string; handle: string; name?: string }) => void;
-  createIncomingConnectionFailed: (payload: { callId: string; handle: string; name?: string }) => void;
-  onHasActiveCall: () => void;
 };
 
 class CallKeepService {
@@ -52,17 +47,6 @@ class CallKeepService {
       return false;
     }
 
-    // Android requires READ_PHONE permissions for self-managed ConnectionService
-    if (Platform.OS === 'android') {
-      const telecomPermissionsGranted = await this.ensureTelecomPermissions();
-      if (!telecomPermissionsGranted) {
-        this.isAvailable = false;
-        this.hasAttempted = true;
-        console.warn('[CallKeepService] ⚠️ Missing telecom permissions - using custom call UI instead');
-        return false;
-      }
-    }
-
     // Allow retry if previous attempt failed
     try {
       const options = {
@@ -75,7 +59,6 @@ class CallKeepService {
           cancelButton: 'Cancelar',
           okButton: 'OK',
           additionalPermissions: [],
-          selfManaged: true,
           foregroundService: {
             channelId: 'com.porteiroapp.callkeep',
             channelName: 'Serviço de Chamadas',
@@ -86,15 +69,6 @@ class CallKeepService {
       };
 
       await RNCallKeep.setup(options);
-
-      if (Platform.OS === 'android') {
-        try {
-          RNCallKeep.registerPhoneAccount(options);
-          RNCallKeep.registerAndroidEvents();
-        } catch (registerError) {
-          console.warn('[CallKeepService] ⚠️ Failed to register Android phone account/events', registerError);
-        }
-      }
 
       this.setAvailable(true);
       this.isSetup = true;
@@ -114,95 +88,6 @@ class CallKeepService {
     }
   }
 
-  private async ensureTelecomPermissions(): Promise<boolean> {
-    const requiredPermissions: AndroidPermission[] = [];
-    if (PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE) {
-      requiredPermissions.push(PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE);
-    }
-    if (PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS) {
-      requiredPermissions.push(PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS);
-    }
-
-    if (requiredPermissions.length === 0) {
-      return true;
-    }
-
-    const missingPermissions: AndroidPermission[] = [];
-    for (const permission of requiredPermissions) {
-      const granted = await PermissionsAndroid.check(permission);
-      if (!granted) {
-        missingPermissions.push(permission);
-      }
-    }
-
-    if (missingPermissions.length === 0) {
-      console.log('[CallKeepService] ✅ All telecom permissions already granted');
-      return true;
-    }
-
-    console.log('[CallKeepService] 📋 Requesting telecom permissions:', missingPermissions.join(', '));
-    console.log('[CallKeepService] ⚠️  MIUI users: You may see multiple permission dialogs - accept ALL of them');
-
-    const results = await PermissionsAndroid.requestMultiple(missingPermissions);
-
-    // Log detailed results for debugging
-    console.log('[CallKeepService] Permission results:', results);
-
-    const denied = missingPermissions.filter(
-      (permission) => results[permission] !== PermissionsAndroid.RESULTS.GRANTED
-    );
-
-    const neverAskAgain = missingPermissions.filter(
-      (permission) => results[permission] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
-    );
-
-    if (denied.length > 0) {
-      console.warn('[CallKeepService] ❌ Telecom permissions denied:', denied.join(', '));
-
-      // Check if this is MIUI/Xiaomi where permissions often need manual granting
-      const isMIUI = Device.manufacturer?.toLowerCase().includes('xiaomi') ||
-                     Device.brand?.toLowerCase().includes('xiaomi') ||
-                     Device.brand?.toLowerCase().includes('redmi');
-
-      if (neverAskAgain.length > 0) {
-        console.warn(
-          '[CallKeepService] 🚫 Permission permanently denied (NEVER_ASK_AGAIN)\n' +
-          '   Affected permissions:', neverAskAgain.join(', ')
-        );
-      }
-
-      const instructions = isMIUI
-        ? '[CallKeepService] 🔧 MIUI/Xiaomi device detected\n' +
-          '   READ_PHONE_STATE permission requires manual granting in Settings.\n' +
-          '\n' +
-          '   📱 TO FIX:\n' +
-          '   1. Open Settings → Apps → James Avisa → Permissions\n' +
-          '   2. Find and enable "Phone" permission\n' +
-          '   3. Force stop and reopen the app\n' +
-          '\n' +
-          '   ℹ️  App works normally without this - will use custom call UI instead.'
-        : '[CallKeepService] ℹ️  Telecom permissions not granted\n' +
-          '   App will use custom call UI instead of native Android call screen.\n' +
-          '\n' +
-          '   📱 TO ENABLE NATIVE UI:\n' +
-          '   Settings → Apps → James Avisa → Permissions → Enable "Phone"';
-
-      console.warn(instructions);
-
-      // Store this state so we can show an in-app alert/banner later
-      AsyncStorage.setItem('@callkeep_permission_denied', 'true').catch(() => {});
-
-      return false;
-    }
-
-    console.log('[CallKeepService] ✅ Telecom permissions granted');
-
-    // Clear any previous denial flag
-    await AsyncStorage.removeItem('@callkeep_permission_denied').catch(() => {});
-
-    return true;
-  }
-
   /**
    * Force retry setup (useful after permissions change)
    */
@@ -211,39 +96,6 @@ class CallKeepService {
     this.isSetup = false;
     this.isAvailable = false;
     return this.setup();
-  }
-
-  /**
-   * Open app settings to manually grant permissions (Android only)
-   */
-  openAppSettings(): void {
-    if (Platform.OS === 'android') {
-      Linking.openSettings().catch((err) => {
-        console.error('[CallKeepService] Failed to open settings:', err);
-      });
-    }
-  }
-
-  /**
-   * Check if CallKeep permission was previously denied
-   * Useful for showing in-app guidance to users
-   */
-  async wasPermissionDenied(): Promise<boolean> {
-    try {
-      const denied = await AsyncStorage.getItem('@callkeep_permission_denied');
-      return denied === 'true';
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Clear the permission denied flag (call after user grants permission in Settings)
-   */
-  async clearPermissionDeniedFlag(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem('@callkeep_permission_denied');
-    } catch {}
   }
 
   /**
@@ -358,7 +210,7 @@ class CallKeepService {
   private setupEventListeners(): void {
     // Answer call event (normalize payload: callUUID | callId | uuid | id)
     RNCallKeep.addEventListener('answerCall', (payload: any) => {
-      const normalizedId = this.normalizeCallId(payload);
+      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
       console.log('[CallKeepService] Answer call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
@@ -374,7 +226,7 @@ class CallKeepService {
 
     // End call event (normalize payload)
     RNCallKeep.addEventListener('endCall', (payload: any) => {
-      const normalizedId = this.normalizeCallId(payload);
+      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
       console.log('[CallKeepService] End call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
@@ -397,48 +249,7 @@ class CallKeepService {
       this.eventEmitter.emit('didActivateAudioSession');
     });
 
-    if (Platform.OS === 'android') {
-      RNCallKeep.addEventListener('showIncomingCallUi', (payload: any) => {
-        const normalizedId = this.normalizeCallId(payload);
-        if (!normalizedId) return;
-        this.eventEmitter.emit('showIncomingCallUi', {
-          callId: normalizedId,
-          handle: payload?.handle ?? '',
-          name: payload?.name,
-        });
-      });
-
-      RNCallKeep.addEventListener('silenceIncomingCall', (payload: any) => {
-        const normalizedId = this.normalizeCallId(payload);
-        if (!normalizedId) return;
-        this.eventEmitter.emit('silenceIncomingCall', {
-          callId: normalizedId,
-          handle: payload?.handle ?? '',
-          name: payload?.name,
-        });
-      });
-
-      RNCallKeep.addEventListener('createIncomingConnectionFailed', (payload: any) => {
-        const normalizedId = this.normalizeCallId(payload);
-        if (!normalizedId) return;
-        this.eventEmitter.emit('createIncomingConnectionFailed', {
-          callId: normalizedId,
-          handle: payload?.handle ?? '',
-          name: payload?.name,
-        });
-      });
-
-      RNCallKeep.addEventListener('onHasActiveCall', () => {
-        this.eventEmitter.emit('onHasActiveCall');
-      });
-    }
-
     console.log('[CallKeepService] Event listeners registered');
-  }
-
-  private normalizeCallId(payload: any): string | null {
-    const id = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
-    return id ? String(id) : null;
   }
 }
 

@@ -4,9 +4,11 @@ import { agoraService } from '~/services/agora/AgoraService';
 import agoraAudioService from '~/services/audioService';
 import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
 import { CALL_STATE_MACHINE, type CallLifecycleState } from './stateMachine';
-import {supabase} from "~/utils/supabase";
+import { supabase } from '~/utils/supabase';
 
 const STORAGE_KEY = '@active_call_session';
+const CALL_DATA_PREFIX = 'call_data_';
+const CURRENT_CALL_KEY = 'current_call_id';
 
 interface CallSessionData {
   id: string;
@@ -29,13 +31,13 @@ interface CallSessionOptions {
   buildingId?: string | null;
 }
 
-interface IncomingCallSessionInit {
-  callId: string;
+interface StoredCallData {
   channelName: string;
-  participants?: CallParticipantSnapshot[];
-  callerName?: string | null;
-  apartmentNumber?: string | null;
-  buildingId?: string | null;
+  rtcToken: string;
+  callerName: string;
+  apartmentNumber?: string;
+  from: string;
+  callId: string;
 }
 
 type SessionEvent = 'stateChanged' | 'error' | 'nativeSyncRequired';
@@ -134,7 +136,7 @@ export class CallSession {
     // Listen for remote user joining the channel
     const unsubUserJoined = agoraService.on('rtcUserJoined', ({ remoteUid }) => {
       console.log(`[CallSession] Remote user joined: ${remoteUid}`);
-      
+
       // Transition from connecting → connected when first user joins
       if (this._state === 'connecting') {
         this.setState('connected');
@@ -144,7 +146,7 @@ export class CallSession {
     // Listen for remote user leaving the channel
     const unsubUserOffline = agoraService.on('rtcUserOffline', ({ remoteUid, reason }) => {
       console.log(`[CallSession] Remote user offline: ${remoteUid}, reason: ${reason}`);
-      
+
       // If we're connected and other party leaves, end the call
       if (this._state === 'connected') {
         console.log(`[CallSession] Other party left, ending call`);
@@ -168,7 +170,7 @@ export class CallSession {
    */
   private cleanupRtcEventListeners(): void {
     console.log(`[CallSession] Cleaning up RTC event listeners`);
-    this.rtcUnsubscribers.forEach(unsub => unsub());
+    this.rtcUnsubscribers.forEach((unsub) => unsub());
     this.rtcUnsubscribers = [];
   }
 
@@ -182,23 +184,23 @@ export class CallSession {
   async initialize(): Promise<void> {
     console.log(`[CallSession] Initializing...`);
 
-    if (this._state === 'idle') {
-      this.setState('rtm_warming');
+    this.setState('rtm_warming');
+
+    // Verify RTM is connected (should be from warmup)
+    const rtmStatus = agoraService.getStatus();
+    if (rtmStatus !== 'connected') {
+      console.error('[CallSession] RTM not connected during init');
+      this.setState('failed');
+      throw new Error('RTM connection not ready');
     }
 
-    // Verify RTM status – but don't fail if still warming up.
-    const rtmStatus = agoraService.getStatus();
-    if (rtmStatus === 'connected') {
-      this._rtmReady = true;
-      this.setState('rtm_ready');
-    } else {
-      console.log(`[CallSession] RTM status is ${rtmStatus}, waiting for warmup...`);
-    }
+    this._rtmReady = true;
+    this.setState('rtm_ready');
 
     // Subscribe to RTC events for call state management
     this.setupRtcEventListeners();
 
-    console.log(`[CallSession] ✅ Initialized (RTM ${this._rtmReady ? 'ready' : 'warming'})`);
+    console.log(`[CallSession] ✅ Initialized`);
   }
 
   /**
@@ -236,17 +238,14 @@ export class CallSession {
         hasToken: !!accessToken,
       });
 
-      const response = await fetch(
-        `${this.getApiBaseUrl()}/api/calls/${this.id}/answer`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
+      const response = await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/answer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(requestBody),
+      });
 
       if (!response.ok) {
         // Get detailed error message from API
@@ -323,12 +322,14 @@ export class CallSession {
           timestamp: Date.now(),
         };
 
-        const participantIds = this.participants.map(p => p.userId).filter(Boolean);
+        const participantIds = this.participants.map((p) => p.userId).filter(Boolean);
         console.log(`[CallSession] Participant IDs:`, participantIds);
-        
+
         if (participantIds.length > 0) {
           await agoraService.sendPeerMessage(participantIds, answerSignal);
-          console.log(`[CallSession] ✅ ANSWER signal sent to ${participantIds.length} participants`);
+          console.log(
+            `[CallSession] ✅ ANSWER signal sent to ${participantIds.length} participants`
+          );
         } else {
           console.warn(`[CallSession] ⚠️ No valid participant IDs to send ANSWER signal`);
         }
@@ -366,7 +367,7 @@ export class CallSession {
           timestamp: Date.now(),
         };
 
-        const participantIds = this.participants.map(p => p.userId);
+        const participantIds = this.participants.map((p) => p.userId);
         if (participantIds.length > 0) {
           await agoraService.sendPeerMessage(participantIds, endSignal);
           console.log(`[CallSession] ✅ END signal sent to ${participantIds.length} participants`);
@@ -399,7 +400,7 @@ export class CallSession {
           userType: 'resident',
           cause: reason,
         }),
-      }).catch(err => console.warn('[CallSession] End API failed:', err));
+      }).catch((err) => console.warn('[CallSession] End API failed:', err));
 
       this.setState('ended');
 
@@ -434,10 +435,12 @@ export class CallSession {
           timestamp: Date.now(),
         };
 
-        const participantIds = this.participants.map(p => p.userId);
+        const participantIds = this.participants.map((p) => p.userId);
         if (participantIds.length > 0) {
           await agoraService.sendPeerMessage(participantIds, declineSignal);
-          console.log(`[CallSession] ✅ DECLINE signal sent to ${participantIds.length} participants`);
+          console.log(
+            `[CallSession] ✅ DECLINE signal sent to ${participantIds.length} participants`
+          );
         }
       } catch (signalError) {
         console.warn(`[CallSession] ⚠️ Failed to send DECLINE signal:`, signalError);
@@ -458,7 +461,7 @@ export class CallSession {
           userType: 'resident',
           reason,
         }),
-      }).catch(err => console.warn('[CallSession] Decline API failed:', err));
+      }).catch((err) => console.warn('[CallSession] Decline API failed:', err));
 
       this.setState('declined');
 
@@ -544,6 +547,61 @@ export class CallSession {
   }
 
   // ========================================
+  // Legacy Call Data Helpers (formerly MyCallDataManager)
+  // ========================================
+
+  static async storeCallData(callId: string, data: StoredCallData): Promise<void> {
+    try {
+      await AsyncStorage.setItem(CALL_DATA_PREFIX + callId, JSON.stringify(data));
+    } catch (error) {
+      console.error('[CallSession] Failed to store call data:', error);
+    }
+  }
+
+  static async getCallData(callId: string): Promise<StoredCallData | null> {
+    try {
+      const json = await AsyncStorage.getItem(CALL_DATA_PREFIX + callId);
+      return json ? (JSON.parse(json) as StoredCallData) : null;
+    } catch (error) {
+      console.error('[CallSession] Failed to load call data:', error);
+      return null;
+    }
+  }
+
+  static async clearCallData(callId: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(CALL_DATA_PREFIX + callId);
+    } catch (error) {
+      console.error('[CallSession] Failed to clear call data:', error);
+    }
+  }
+
+  static async setCurrentCallId(callId: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(CURRENT_CALL_KEY, callId);
+    } catch (error) {
+      console.error('[CallSession] Failed to set current call ID:', error);
+    }
+  }
+
+  static async getCurrentCallId(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(CURRENT_CALL_KEY);
+    } catch (error) {
+      console.error('[CallSession] Failed to get current call ID:', error);
+      return null;
+    }
+  }
+
+  static async clearCurrentCallId(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(CURRENT_CALL_KEY);
+    } catch (error) {
+      console.error('[CallSession] Failed to clear current call ID:', error);
+    }
+  }
+
+  // ========================================
   // Events
   // ========================================
 
@@ -564,7 +622,7 @@ export class CallSession {
     const handlers = this.eventHandlers.get(event);
     if (!handlers) return;
 
-    handlers.forEach(handler => {
+    handlers.forEach((handler) => {
       try {
         handler(payload);
       } catch (error) {
@@ -616,47 +674,5 @@ export class CallSession {
       rtcJoined: this._rtcJoined,
       age: Date.now() - this.initiatedAt,
     };
-  }
-
-  markRtmReady(): void {
-    if (this._rtmReady) {
-      return;
-    }
-    this._rtmReady = true;
-    this.setState('rtm_ready');
-  }
-
-  markRtmRetrying(): void {
-    if (this._state === 'ended' || this._state === 'declined') {
-      return;
-    }
-    this._rtmReady = false;
-    this.setState('rtm_warming');
-  }
-
-  markRtmFailed(error?: Error): void {
-    if (this._state === 'ended' || this._state === 'declined') {
-      return;
-    }
-    this._rtmReady = false;
-    this.setState('rtm_failed');
-    if (error) {
-      this.emit('error', { error, operation: 'rtm_warmup' });
-    }
-  }
-
-  static async createFromIncomingPush(init: IncomingCallSessionInit): Promise<CallSession> {
-    const session = new CallSession({
-      id: init.callId,
-      channelName: init.channelName,
-      participants: init.participants || [],
-      isOutgoing: false,
-      callerName: init.callerName,
-      apartmentNumber: init.apartmentNumber,
-      buildingId: init.buildingId,
-    });
-
-    await session.save();
-    return session;
   }
 }

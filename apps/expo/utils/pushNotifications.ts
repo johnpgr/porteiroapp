@@ -1,41 +1,7 @@
 import { supabase } from './supabase';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
 import voipPushService from './voipPushNotifications';
-
-// Retry configuration
-const MAX_TOKEN_RETRIES = 3;
-const TOKEN_RETRY_DELAY = 2000;
-
-/**
- * Get push token with retry logic
- */
-async function getTokenWithRetry(projectId: string, retryCount = 0): Promise<string | null> {
-  try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    return tokenData.data;
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error);
-    const isServiceUnavailable = errorMessage.includes('SERVICE_NOT_AVAILABLE');
-    const isNetworkError = errorMessage.includes('network') || errorMessage.includes('timeout');
-
-    console.error(`❌ [registerPushToken] Token fetch attempt ${retryCount + 1} failed:`, {
-      error: errorMessage,
-      platform: Platform.OS,
-      manufacturer: Device.manufacturer,
-    });
-
-    if (retryCount < MAX_TOKEN_RETRIES && (isServiceUnavailable || isNetworkError)) {
-      const delay = TOKEN_RETRY_DELAY * Math.pow(2, retryCount);
-      console.log(`🔄 [registerPushToken] Retrying in ${delay}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return getTokenWithRetry(projectId, retryCount + 1);
-    }
-
-    throw error;
-  }
-}
 
 export interface SendPushNotificationParams {
   title: string;
@@ -274,11 +240,15 @@ export async function registerPushTokenAfterLogin(
 
     // Note: CallKeep removed - using custom full-screen call UI instead
 
-    // Obter push token with retry logic
-    const token = await getTokenWithRetry('74e123bc-f565-44ba-92f0-86fc00cbe0b1');
+    // Obter push token
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '74e123bc-f565-44ba-92f0-86fc00cbe0b1',
+    });
+
+    const token = tokenData.data;
 
     if (!token) {
-      console.error('❌ [registerPushToken] Falha ao obter push token após tentativas');
+      console.error('❌ [registerPushToken] Falha ao obter push token');
       return false;
     }
 
@@ -422,37 +392,8 @@ export async function registerPushTokenAfterLogin(
       );
       return true;
     }
-  } catch (error: any) {
-    const errorMessage = error?.message || String(error);
-
-    // Categorize error
-    const errorType = errorMessage.includes('SERVICE_NOT_AVAILABLE')
-      ? 'service_unavailable'
-      : errorMessage.includes('permission')
-        ? 'permission_denied'
-        : errorMessage.includes('network')
-          ? 'network_error'
-          : 'unknown';
-
-    console.error('❌ [registerPushToken] Erro ao registrar push token:', {
-      error: errorMessage,
-      errorType,
-      platform: Platform.OS,
-      manufacturer: Device.manufacturer,
-      userId,
-      userType,
-    });
-
-    // Show MIUI-specific guidance
-    if (errorType === 'service_unavailable' && Platform.OS === 'android') {
-      console.warn(
-        '⚠️ [registerPushToken] Google Play Services indisponível. Se usar Xiaomi/MIUI:\n' +
-          '   1. Ative Autostart para este app\n' +
-          '   2. Defina Economia de Bateria como "Sem restrições"\n' +
-          '   3. Permita "Exibir janelas pop-up ao executar em segundo plano"'
-      );
-    }
-
+  } catch (error) {
+    console.error('❌ [registerPushToken] Erro ao registrar push token:', error);
     return false;
   }
 }

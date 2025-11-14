@@ -14,16 +14,14 @@ export type CallLifecycleState =
   | BaseCallLifecycleState
   | 'rtm_warming'
   | 'rtm_ready'
-  | 'rtm_failed'
   | 'native_answered'
   | 'token_fetching'
   | 'rtc_joining';
 
 export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]> = {
   idle: ['rtm_warming', 'dialing'],
-  rtm_warming: ['rtm_ready', 'rtm_failed', 'failed'],
+  rtm_warming: ['rtm_ready', 'failed'],
   rtm_ready: ['native_answered', 'declined', 'missed', 'ending', 'ended'],
-  rtm_failed: ['rtm_warming', 'declined', 'ending', 'failed'],
   native_answered: ['token_fetching', 'failed'],
   token_fetching: ['rtc_joining', 'failed'],
   rtc_joining: ['connecting', 'failed'],
