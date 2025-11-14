@@ -63,8 +63,9 @@ export class CallCoordinator {
   /**
    * Initialize coordinator
    * Call this on app start after user is authenticated
+   * @param skipCallKeepSetup - Skip CallKeep setup (will be done separately after login)
    */
-  async initialize(): Promise<void> {
+  async initialize(skipCallKeepSetup: boolean = false): Promise<void> {
     if (this.isInitialized) {
       console.log('[CallCoordinator] Already initialized');
       return;
@@ -72,8 +73,13 @@ export class CallCoordinator {
 
     console.log('[CallCoordinator] Initializing...');
 
-    // Initialize CallKeep before setting up listeners
-    this.callKeepAvailable = await callKeepService.setup();
+    // Initialize CallKeep before setting up listeners (unless explicitly skipped)
+    if (!skipCallKeepSetup) {
+      this.callKeepAvailable = await callKeepService.setup();
+    } else {
+      console.log('[CallCoordinator] Skipping CallKeep setup - will be initialized after login');
+      this.callKeepAvailable = false;
+    }
 
     // Subscribe to CallKeep events
     callKeepService.addEventListener('answerCall', ({ callId }: { callId: string }) => {
@@ -138,6 +144,26 @@ export class CallCoordinator {
 
     this.isInitialized = true;
     console.log('[CallCoordinator] ✅ Initialized');
+  }
+
+  /**
+   * Setup CallKeep after login (if not already setup)
+   * Call this separately after user authentication to request permissions
+   */
+  async setupCallKeep(): Promise<void> {
+    if (this.callKeepAvailable) {
+      console.log('[CallCoordinator] CallKeep already setup');
+      return;
+    }
+
+    console.log('[CallCoordinator] Setting up CallKeep after login...');
+    this.callKeepAvailable = await callKeepService.setup();
+
+    if (this.callKeepAvailable) {
+      console.log('[CallCoordinator] ✅ CallKeep setup successful');
+    } else {
+      console.log('[CallCoordinator] ⚠️ CallKeep unavailable - using custom call UI');
+    }
   }
 
   /**

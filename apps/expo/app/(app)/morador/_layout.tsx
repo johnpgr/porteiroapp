@@ -103,13 +103,13 @@ export default function MoradorLayout() {
           // RTM will be retried on-demand when call arrives
         }
 
-        // Initialize CallKeep before CallCoordinator
-        await callKeepService.setup();
-        console.log('[MoradorLayout] ✅ CallKeep initialized');
+        // Setup CallKeep (requests permissions after login)
+        await callCoordinator.setupCallKeep();
+        console.log('[MoradorLayout] ✅ CallKeep setup complete');
 
-        // Initialize CallCoordinator
+        // Ensure CallCoordinator is initialized
         await callCoordinator.initialize();
-        console.log('[MoradorLayout] ✅ CallCoordinator initialized');
+        console.log('[MoradorLayout] ✅ CallCoordinator ready');
 
         console.log('[MoradorLayout] ✅ Call system ready');
       } catch (error) {
