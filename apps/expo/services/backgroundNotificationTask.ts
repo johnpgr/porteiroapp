@@ -147,6 +147,7 @@ TaskManager.defineTask(
               try {
                 console.log('[BackgroundTask] 🔧 Setting up CallKeep for Android...');
                 await RNCallKeep.setup(callKeepOptions);
+                RNCallKeep.setAvailable(true);
                 callKeepAvailable = true;
                 console.log('[BackgroundTask] ✅ CallKeep setup successful');
               } catch (callKeepError) {

@@ -71,8 +71,9 @@ class CallKeepService {
       };
 
       await RNCallKeep.setup(options);
+
+      this.setAvailable(true);
       this.isSetup = true;
-      this.isAvailable = true;
       this.hasAttempted = true;
 
       // Setup event listeners
@@ -176,6 +177,9 @@ class CallKeepService {
    */
   setAvailable(available: boolean): void {
     this.isAvailable = available;
+    if (Platform.OS === 'android') {
+      RNCallKeep.setAvailable(available);
+    }
   }
 
   /**
@@ -234,7 +238,9 @@ class CallKeepService {
       }
       // Persist pending answer so coordinator can consume after initialization
       // This is critical for cold start / background accept actions
-      AsyncStorage.setItem('@pending_callkeep_answer_call_id', String(normalizedId)).catch(() => {});
+      AsyncStorage.setItem('@pending_callkeep_answer_call_id', String(normalizedId)).catch(
+        () => {}
+      );
       this.eventEmitter.emit('answerCall', { callId: String(normalizedId) });
     });
 

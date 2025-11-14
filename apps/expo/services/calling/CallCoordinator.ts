@@ -9,6 +9,7 @@ import {
   consumePendingCallKeepEnd,
 } from './CallKeepService';
 import { MyCallDataManager } from './MyCallDataManager';
+import RNCallKeep from 'react-native-callkeep';
 
 export interface VoipPushData {
   callId: string;
@@ -942,11 +943,17 @@ export class CallCoordinator {
    * We need to wait for the session or create it from stored data.
    */
   private async handleCallKeepAnswer(callId: string): Promise<void> {
-    console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
-
     // Android: bring app to foreground
     if (Platform.OS === 'android') {
       callKeepService.backToForeground();
+    }
+
+    console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
+
+    try {
+      RNCallKeep.setCurrentCallActive(callId);
+    } catch (error) {
+      console.error('[CallCoordinator] Failed to set call active:', error);
     }
 
     try {
@@ -965,6 +972,7 @@ export class CallCoordinator {
       console.error('[CallCoordinator] CallKeep answer error:', error);
     }
   }
+
   /**
    * Handle CallKeep end event
    */
