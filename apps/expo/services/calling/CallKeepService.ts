@@ -43,9 +43,7 @@ class CallKeepService {
     if (!Device.isDevice) {
       this.isAvailable = false;
       this.hasAttempted = true;
-      if (__DEV__) {
-        console.log('[CallKeepService] ⚠️ Skipping setup on emulator - CallKeep unavailable');
-      }
+      console.log('[CallKeepService] ⚠️ Skipping setup on emulator - CallKeep unavailable');
       return false;
     }
 
@@ -79,17 +77,13 @@ class CallKeepService {
       // Setup event listeners
       this.setupEventListeners();
 
-      if (__DEV__) {
-        console.log('[CallKeepService] ✅ Setup successful');
-      }
+      console.log('[CallKeepService] ✅ Setup successful');
       return true;
     } catch (error) {
       this.isAvailable = false;
       this.hasAttempted = true;
       // Don't set isSetup=true on failure - allows retry
-      if (__DEV__) {
-        console.error('[CallKeepService] ❌ Setup failed:', error);
-      }
+      console.error('[CallKeepService] ❌ Setup failed:', error);
       return false;
     }
   }
@@ -114,21 +108,15 @@ class CallKeepService {
     hasVideo: boolean = false
   ): void {
     if (!this.isAvailable) {
-      if (__DEV__) {
-        console.warn('[CallKeepService] Cannot display call - CallKeep unavailable');
-      }
+      console.warn('[CallKeepService] Cannot display call - CallKeep unavailable');
       return;
     }
 
     try {
       RNCallKeep.displayIncomingCall(callId, handle, callerName, 'generic', hasVideo);
-      if (__DEV__) {
-        console.log(`[CallKeepService] ✅ Incoming call displayed: ${callId}`);
-      }
+      console.log(`[CallKeepService] ✅ Incoming call displayed: ${callId}`);
     } catch (error) {
-      if (__DEV__) {
-        console.error('[CallKeepService] ❌ Failed to display incoming call:', error);
-      }
+      console.error('[CallKeepService] ❌ Failed to display incoming call:', error);
     }
   }
 
@@ -142,13 +130,9 @@ class CallKeepService {
 
     try {
       RNCallKeep.endCall(callId);
-      if (__DEV__) {
-        console.log(`[CallKeepService] ✅ Call ended: ${callId}`);
-      }
+      console.log(`[CallKeepService] ✅ Call ended: ${callId}`);
     } catch (error) {
-      if (__DEV__) {
-        console.error('[CallKeepService] ❌ Failed to end call:', error);
-      }
+      console.error('[CallKeepService] ❌ Failed to end call:', error);
     }
   }
 
@@ -162,13 +146,9 @@ class CallKeepService {
 
     try {
       RNCallKeep.reportEndCallWithUUID(callId, reason);
-      if (__DEV__) {
-        console.log(`[CallKeepService] ✅ Reported end call: ${callId}, reason: ${reason}`);
-      }
+      console.log(`[CallKeepService] ✅ Reported end call: ${callId}, reason: ${reason}`);
     } catch (error) {
-      if (__DEV__) {
-        console.error('[CallKeepService] ❌ Failed to report end call:', error);
-      }
+      console.error('[CallKeepService] ❌ Failed to report end call:', error);
     }
   }
 
@@ -189,14 +169,18 @@ class CallKeepService {
     if (Platform.OS === 'android' && this.isAvailable) {
       try {
         RNCallKeep.backToForeground();
-        if (__DEV__) {
-          console.log('[CallKeepService] ✅ Brought app to foreground');
-        }
+        console.log('[CallKeepService] ✅ Brought app to foreground');
       } catch (error) {
-        if (__DEV__) {
-          console.error('[CallKeepService] ❌ Failed to bring app to foreground:', error);
-        }
+        console.error('[CallKeepService] ❌ Failed to bring app to foreground:', error);
       }
+    }
+  }
+
+  setCurrentCall(callId: string): void {
+    try {
+      RNCallKeep.setCurrentCallActive(callId);
+    } catch (error) {
+      console.error('[CallKeep] Failed to set call active:', error);
     }
   }
 
@@ -227,13 +211,9 @@ class CallKeepService {
     // Answer call event (normalize payload: callUUID | callId | uuid | id)
     RNCallKeep.addEventListener('answerCall', (payload: any) => {
       const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
-      if (__DEV__) {
-        console.log('[CallKeepService] Answer call event:', normalizedId);
-      }
+      console.log('[CallKeepService] Answer call event:', normalizedId);
       if (!normalizedId) {
-        if (__DEV__) {
-          console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
-        }
+        console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
         return;
       }
       // Persist pending answer so coordinator can consume after initialization
@@ -247,13 +227,9 @@ class CallKeepService {
     // End call event (normalize payload)
     RNCallKeep.addEventListener('endCall', (payload: any) => {
       const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
-      if (__DEV__) {
-        console.log('[CallKeepService] End call event:', normalizedId);
-      }
+      console.log('[CallKeepService] End call event:', normalizedId);
       if (!normalizedId) {
-        if (__DEV__) {
-          console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
-        }
+        console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
         return;
       }
       // Persist pending end so coordinator can consume if not ready yet
@@ -263,23 +239,17 @@ class CallKeepService {
 
     // Early events (iOS - when user taps answer before JS loads)
     RNCallKeep.addEventListener('didLoadWithEvents', (events: any[]) => {
-      if (__DEV__) {
-        console.log('[CallKeepService] Early events loaded:', events.length);
-      }
+      console.log('[CallKeepService] Early events loaded:', events.length);
       this.eventEmitter.emit('didLoadWithEvents', events);
     });
 
     // Audio session activated (iOS)
     RNCallKeep.addEventListener('didActivateAudioSession', () => {
-      if (__DEV__) {
-        console.log('[CallKeepService] Audio session activated');
-      }
+      console.log('[CallKeepService] Audio session activated');
       this.eventEmitter.emit('didActivateAudioSession');
     });
 
-    if (__DEV__) {
-      console.log('[CallKeepService] Event listeners registered');
-    }
+    console.log('[CallKeepService] Event listeners registered');
   }
 }
 
@@ -295,15 +265,11 @@ export async function consumePendingCallKeepAnswer(): Promise<string | null> {
     const callId = await AsyncStorage.getItem('@pending_callkeep_answer_call_id');
     if (callId) {
       await AsyncStorage.removeItem('@pending_callkeep_answer_call_id').catch(() => {});
-      if (__DEV__) {
-        console.log('[CallKeepService] Consumed pending answer for callId:', callId);
-      }
+      console.log('[CallKeepService] Consumed pending answer for callId:', callId);
       return callId;
     }
   } catch (e) {
-    if (__DEV__) {
-      console.warn('[CallKeepService] Failed to consume pending answer:', e);
-    }
+    console.warn('[CallKeepService] Failed to consume pending answer:', e);
   }
   return null;
 }
@@ -313,15 +279,11 @@ export async function consumePendingCallKeepEnd(): Promise<string | null> {
     const callId = await AsyncStorage.getItem('@pending_callkeep_end_call_id');
     if (callId) {
       await AsyncStorage.removeItem('@pending_callkeep_end_call_id').catch(() => {});
-      if (__DEV__) {
-        console.log('[CallKeepService] Consumed pending end for callId:', callId);
-      }
+      console.log('[CallKeepService] Consumed pending end for callId:', callId);
       return callId;
     }
   } catch (e) {
-    if (__DEV__) {
-      console.warn('[CallKeepService] Failed to consume pending end:', e);
-    }
+    console.warn('[CallKeepService] Failed to consume pending end:', e);
   }
   return null;
 }

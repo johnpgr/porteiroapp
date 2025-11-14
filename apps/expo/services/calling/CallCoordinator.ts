@@ -605,6 +605,7 @@ export class CallCoordinator {
 
     console.log(`[CallCoordinator] Ending active call (${reason})`);
 
+    const session = this.activeSession;
     const callId = this.activeSession.id;
 
     // Before leaving channel, end CallKeep if available
@@ -612,23 +613,26 @@ export class CallCoordinator {
       callKeepService.endCall(callId);
     }
 
-    if (reason === 'decline') {
-      await this.activeSession.decline();
-    } else {
-      await this.activeSession.end(reason);
+    try {
+      if (reason === 'decline') {
+        await this.activeSession.decline();
+      } else {
+        await this.activeSession.end(reason);
+      }
+    } catch (error) {
+      console.warn('[CallCoordinator] Error during graceful end:', error);
+    } finally {
+      if (this.activeSession === session) {
+        console.log('[CallCoordinator] Forcing cleanup of active session');
+        this.activeSession = null;
+        this.emit('sessionEnded', { session: null, finalState: 'ended' });
+      }
+      // Clear call data
+      await MyCallDataManager.clearCallData(callId);
+      await MyCallDataManager.clearCurrentCallId();
+      console.log('[CallCoordinator] ✅ Call cleaned up');
     }
-
-    // Clear call data
-    await MyCallDataManager.clearCallData(callId);
-    await MyCallDataManager.clearCurrentCallId();
-
-    this.activeSession = null;
-    console.log('[CallCoordinator] ✅ Call ended');
   }
-
-  // ========================================
-  // Helper Methods
-  // ========================================
 
   /**
    * Fetch call details from API
@@ -943,18 +947,10 @@ export class CallCoordinator {
    * We need to wait for the session or create it from stored data.
    */
   private async handleCallKeepAnswer(callId: string): Promise<void> {
-    // Android: bring app to foreground
-    if (Platform.OS === 'android') {
-      callKeepService.backToForeground();
-    }
-
     console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
 
-    try {
-      RNCallKeep.setCurrentCallActive(callId);
-    } catch (error) {
-      console.error('[CallCoordinator] Failed to set call active:', error);
-    }
+    callKeepService.backToForeground();
+    callKeepService.setCurrentCall(callId);
 
     try {
       // Ensure session exists (wait or create)
