@@ -1,6 +1,5 @@
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect } from 'react';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 
@@ -33,22 +32,6 @@ export function NotificationProvider() {
         // Handle intercom call notification actions
         if (data?.type === 'intercom_call') {
           console.log('📞 [Click] Intercom call notification action');
-
-          // Store call data if not already stored (backup for when background task didn't run)
-          if (data?.callId) {
-            console.log('💾 [Click] Storing call data as backup...');
-            await AsyncStorage.setItem(
-              '@pending_intercom_call',
-              JSON.stringify({
-                callId: data.callId,
-                callerName: data.fromName || data.callerName || 'Porteiro',
-                apartmentNumber: data.apartmentNumber || '',
-                channelName: data.channelName || data.channel || `call-${data.callId}`,
-                from: data.from,
-                timestamp: Date.now(),
-              })
-            ).catch((err) => console.error('[Click] Failed to store call data:', err));
-          }
 
           if (actionId === 'ANSWER_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
             console.log('✅ [Click] User wants to answer call');

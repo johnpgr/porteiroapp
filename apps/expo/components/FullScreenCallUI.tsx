@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { IconSymbol } from '~/components/ui/IconSymbol';
-import agoraAudioService from '~/services/audioService';
 import { agoraService } from '~/services/agora/AgoraService';
 import type { CallSession } from '~/services/calling/CallSession';
 import type { CallLifecycleState } from '~/services/calling/stateMachine';
@@ -33,27 +32,15 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
     };
   }, [session]);
 
-  // Play ringtone when component mounts
-  useEffect(() => {
-    agoraAudioService.playIntercomRingtone();
-
-    // Stop ringtone when component unmounts
-    return () => {
-      agoraAudioService.stopIntercomRingtone();
-    };
-  }, []);
-
   const handleAnswer = () => {
     if (isEnding) return;
-    agoraAudioService.stopIntercomRingtone();  // Stop immediately
-    onAnswer();                                // Trigger coordinator
+    onAnswer(); // Trigger coordinator
     // Keep UI open - transitions to in-call controls
   };
 
   const handleDecline = () => {
     if (isEnding) return;
-    agoraAudioService.stopIntercomRingtone();  // Stop immediately
-    onDecline();                               // Trigger coordinator
+    onDecline(); // Trigger coordinator
     // UI closes via state change
   };
 

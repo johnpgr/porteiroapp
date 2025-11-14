@@ -2,7 +2,6 @@ import RNCallKeep from 'react-native-callkeep';
 import { Platform } from 'react-native';
 import { EventEmitter } from 'expo-modules-core';
 import * as Device from 'expo-device';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const EndCallReason = {
   FAILED: 'FAILED',
@@ -168,7 +167,9 @@ class CallKeepService {
   backToForeground(): void {
     if (Platform.OS === 'android' && this.isAvailable) {
       try {
-        RNCallKeep.backToForeground();
+        for (var i = 0; i < 10; i++) {
+          RNCallKeep.backToForeground();
+        }
         console.log('[CallKeepService] ✅ Brought app to foreground');
       } catch (error) {
         console.error('[CallKeepService] ❌ Failed to bring app to foreground:', error);
@@ -216,11 +217,6 @@ class CallKeepService {
         console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
         return;
       }
-      // Persist pending answer so coordinator can consume after initialization
-      // This is critical for cold start / background accept actions
-      AsyncStorage.setItem('@pending_callkeep_answer_call_id', String(normalizedId)).catch(
-        () => {}
-      );
       this.eventEmitter.emit('answerCall', { callId: String(normalizedId) });
     });
 
@@ -232,8 +228,6 @@ class CallKeepService {
         console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
         return;
       }
-      // Persist pending end so coordinator can consume if not ready yet
-      AsyncStorage.setItem('@pending_callkeep_end_call_id', String(normalizedId)).catch(() => {});
       this.eventEmitter.emit('endCall', { callId: String(normalizedId) });
     });
 
@@ -254,36 +248,3 @@ class CallKeepService {
 }
 
 export const callKeepService = new CallKeepService();
-
-/**
- * Helper functions to consume pending CallKeep actions that occurred before
- * the CallCoordinator was initialized. These are used during initialization
- * to bridge early accept/decline actions taken from native UI while JS was cold.
- */
-export async function consumePendingCallKeepAnswer(): Promise<string | null> {
-  try {
-    const callId = await AsyncStorage.getItem('@pending_callkeep_answer_call_id');
-    if (callId) {
-      await AsyncStorage.removeItem('@pending_callkeep_answer_call_id').catch(() => {});
-      console.log('[CallKeepService] Consumed pending answer for callId:', callId);
-      return callId;
-    }
-  } catch (e) {
-    console.warn('[CallKeepService] Failed to consume pending answer:', e);
-  }
-  return null;
-}
-
-export async function consumePendingCallKeepEnd(): Promise<string | null> {
-  try {
-    const callId = await AsyncStorage.getItem('@pending_callkeep_end_call_id');
-    if (callId) {
-      await AsyncStorage.removeItem('@pending_callkeep_end_call_id').catch(() => {});
-      console.log('[CallKeepService] Consumed pending end for callId:', callId);
-      return callId;
-    }
-  } catch (e) {
-    console.warn('[CallKeepService] Failed to consume pending end:', e);
-  }
-  return null;
-}

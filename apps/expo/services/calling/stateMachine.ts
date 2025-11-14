@@ -29,7 +29,7 @@ export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]
   ringing: ['connecting', 'declined', 'missed', 'failed', 'ending', 'ended'],
   connecting: ['connected', 'failed', 'ended'],
   connected: ['ending', 'ended', 'failed'],
-  ending: ['ended'],
+  ending: ['ended', 'declined', 'failed'],
   ended: ['idle'], // Allow transition back to idle for next call
   declined: ['idle'],
   failed: ['idle'],

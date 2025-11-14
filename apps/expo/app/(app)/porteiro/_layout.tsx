@@ -463,7 +463,7 @@ export default function PorteiroLayout() {
           <Stack.Screen
             name="intercom"
             options={{
-              presentation: 'fullScreenModal',
+              presentation: 'modal',
               headerShown: false,
             }}
           />

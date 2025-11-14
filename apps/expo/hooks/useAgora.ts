@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Platform, AppState } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { IRtcEngine } from 'react-native-agora';
 import RtmEngine, { RtmMessage } from 'agora-react-native-rtm';
 import type {
@@ -1200,88 +1199,12 @@ export const useAgora = (options?: UseAgoraOptions): UseAgoraReturn => {
     };
   }, [rtmMessageCallback]);
 
-  // Check for pending incoming calls stored by background task
-  useEffect(() => {
-    const checkPendingIncomingCall = async () => {
-      try {
-        const pendingCallData = await AsyncStorage.getItem('@pending_intercom_call');
-
-        if (pendingCallData) {
-          console.log('[useAgora] Found pending call from background task');
-          const callData = JSON.parse(pendingCallData);
-
-          // Check if call is still recent (not expired)
-          const age = Date.now() - (callData.timestamp || 0);
-          if (age < 60000) { // 60 seconds
-            console.log('[useAgora] Checking API status for pending call:', callData.callId);
-
-            // Check API status before restoring - only restore if call is still active
-            try {
-              const statusResponse = await fetchCallStatus(apiBaseUrlRef.current, callData.callId);
-              const callStatus = statusResponse?.call?.status?.toLowerCase();
-
-              // Only restore if call is still in calling or connecting state
-              if (callStatus === 'calling' || callStatus === 'connecting') {
-                console.log('[useAgora] Call still active, restoring:', callStatus);
-
-                // Create an incoming invite context to trigger the UI
-                const inviteSignal: RtmInviteSignal = {
-                  t: 'INVITE',
-                  v: schemaVersion,
-                  callId: callData.callId,
-                  channel: callData.channel ?? callData.channelName,
-                  from: callData.from,
-                  ts: callData.timestamp,
-                };
-
-                setIncomingInvite({
-                  signal: inviteSignal,
-                  from: callData.from,
-                  participants: toParticipantList(statusResponse?.participants),
-                  callSummary: {
-                    callId: callData.callId,
-                    apartmentNumber: callData.apartmentNumber,
-                    doormanName: callData.callerName,
-                    buildingId: null,
-                  },
-                });
-
-                console.log('[useAgora] ✅ Pending call restored from storage');
-              } else {
-                console.log('[useAgora] ⚠️ Call no longer active (status:', callStatus, '), skipping restore');
-              }
-            } catch (statusError) {
-              console.warn('[useAgora] Failed to check call status, skipping restore:', statusError);
-            }
-          } else {
-            console.log('[useAgora] ⚠️ Pending call expired (age:', age, 'ms)');
-          }
-
-          // Clear stored data regardless of restore outcome
-          await AsyncStorage.removeItem('@pending_intercom_call');
-        }
-      } catch (error) {
-        console.error('[useAgora] Error checking pending call:', error);
-      }
-    };
-
-    checkPendingIncomingCall();
-  }, [schemaVersion]); // Run once on mount
+  // Pending call persistence removed – rely on live RTM/push flows
 
   // NOTE: CallKeep event handlers are now registered in CallCoordinator
   // The old handler registration has been removed to prevent conflicts
   // CallCoordinator handles: answer, end, mute via event emitter pattern
   // This prevents re-registration on re-renders and stale closures
-
-  // Stop custom ringtone when our call becomes connected
-  useEffect(() => {
-    if (callState === 'connected') {
-      // NOTE: CallKeep removed - using custom full-screen call UI
-      // const uuid = activeCall?.callId ?? undefined;
-      // callKeepService.reportConnectedCall(uuid).catch(() => undefined);
-      try { void agoraAudioService.stopIntercomRingtone(); } catch {}
-    }
-  }, [callState, activeCall?.callId]);
 
   useEffect(() => {
     if (!incomingInvite || currentUser?.userType !== 'morador') {

@@ -10,11 +10,9 @@
 
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import RNCallKeep from 'react-native-callkeep';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
-import { CallSession } from './calling/CallSession';
 
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
@@ -156,18 +154,7 @@ TaskManager.defineTask(
               }
             }
 
-            // 2. Store call data for CallKeep
-            await CallSession.storeCallData(callData.callId, {
-              channelName: callData.channelName,
-              rtcToken: '', // Will be fetched from API
-              callerName: callData.callerName,
-              apartmentNumber: callData.apartmentNumber,
-              from: callData.from,
-              callId: callData.callId,
-            });
-            await CallSession.setCurrentCallId(callData.callId);
-
-            // 3. Display CallKeep UI if available (Android)
+            // 2. Display CallKeep UI if available (Android)
             if (callKeepAvailable && Platform.OS === 'android') {
               try {
                 RNCallKeep.displayIncomingCall(
@@ -184,7 +171,7 @@ TaskManager.defineTask(
               }
             }
 
-            // 4. CRITICAL: Create session in background via CallCoordinator
+            // 3. CRITICAL: Create session in background via CallCoordinator
             console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
             
             const pushData: VoipPushData = {
@@ -197,14 +184,6 @@ TaskManager.defineTask(
 
             await callCoordinator.handleIncomingPush(pushData);
             console.log('[BackgroundTask] ✅ Call session created');
-
-            // 5. Keep AsyncStorage backup as fallback
-            console.log('[BackgroundTask] 💾 Storing call data to AsyncStorage as fallback...');
-            await AsyncStorage.setItem(
-              '@pending_intercom_call',
-              JSON.stringify(callData)
-            );
-            console.log('[BackgroundTask] ✅ Call data stored to AsyncStorage');
 
           } catch (notificationError) {
             console.error('[BackgroundTask] ❌ Failed to process intercom call:', notificationError);

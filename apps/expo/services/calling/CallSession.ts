@@ -1,25 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { agoraService } from '~/services/agora/AgoraService';
-import agoraAudioService from '~/services/audioService';
 import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
 import { CALL_STATE_MACHINE, type CallLifecycleState } from './stateMachine';
 import { supabase } from '~/utils/supabase';
 
-const STORAGE_KEY = '@active_call_session';
-const CALL_DATA_PREFIX = 'call_data_';
-const CURRENT_CALL_KEY = 'current_call_id';
-
-interface CallSessionData {
-  id: string;
-  channelName: string;
-  participants: CallParticipantSnapshot[];
-  isOutgoing: boolean;
-  callerName?: string | null;
-  apartmentNumber?: string | null;
-  buildingId?: string | null;
-  initiatedAt: number;
-}
 
 interface CallSessionOptions {
   id: string;
@@ -29,15 +13,6 @@ interface CallSessionOptions {
   callerName?: string | null;
   apartmentNumber?: string | null;
   buildingId?: string | null;
-}
-
-interface StoredCallData {
-  channelName: string;
-  rtcToken: string;
-  callerName: string;
-  apartmentNumber?: string;
-  from: string;
-  callId: string;
 }
 
 type SessionEvent = 'stateChanged' | 'error' | 'nativeSyncRequired';
@@ -215,9 +190,6 @@ export class CallSession {
 
     try {
       this.setState('native_answered');
-
-      // Stop ringtone immediately
-      await agoraAudioService.stopIntercomRingtone().catch(() => {});
 
       // Fetch tokens
       console.log(`[CallSession] Fetching tokens...`);
@@ -404,9 +376,6 @@ export class CallSession {
 
       this.setState('ended');
 
-      // Clear from storage
-      await this.clear();
-
       console.log(`[CallSession] ✅ Call ended`);
     } catch (error) {
       console.error(`[CallSession] ❌ End failed:`, error);
@@ -423,6 +392,20 @@ export class CallSession {
     try {
       // Transition immediately so UI shows "Encerrando..."
       this.setState('ending');
+
+      // Ensure we leave the RTC channel if we had already joined
+      if (this._rtcJoined) {
+        try {
+          await agoraService.leaveRtcChannel();
+        } catch (leaveError) {
+          console.warn('[CallSession] ⚠️ Failed to leave RTC channel during decline:', leaveError);
+        } finally {
+          this._rtcJoined = false;
+        }
+      }
+
+      // Cleanup RTC listeners early so we don't leak subscriptions
+      this.cleanupRtcEventListeners();
 
       // Send RTM DECLINE signal to notify other participants (RTM is the source of truth)
       console.log(`[CallSession] Sending DECLINE signal to participants...`);
@@ -465,12 +448,6 @@ export class CallSession {
 
       this.setState('declined');
 
-      // Cleanup RTC event listeners
-      this.cleanupRtcEventListeners();
-
-      // Clear from storage
-      await this.clear();
-
       console.log(`[CallSession] ✅ Call declined`);
     } catch (error) {
       console.error(`[CallSession] ❌ Decline failed:`, error);
@@ -481,125 +458,6 @@ export class CallSession {
   // ========================================
   // Persistence
   // ========================================
-
-  /**
-   * Save session to storage
-   */
-  async save(): Promise<void> {
-    try {
-      const data: CallSessionData = {
-        id: this.id,
-        channelName: this.channelName,
-        participants: this.participants,
-        isOutgoing: this.isOutgoing,
-        callerName: this.callerName,
-        apartmentNumber: this.apartmentNumber,
-        buildingId: this.buildingId,
-        initiatedAt: this.initiatedAt,
-      };
-
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      console.log(`[CallSession] Saved to storage`);
-    } catch (error) {
-      console.error(`[CallSession] Save failed:`, error);
-    }
-  }
-
-  /**
-   * Load session from storage
-   */
-  static async load(): Promise<CallSession | null> {
-    try {
-      const json = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!json) return null;
-
-      const data: CallSessionData = JSON.parse(json);
-
-      const session = new CallSession({
-        id: data.id,
-        channelName: data.channelName,
-        participants: data.participants,
-        isOutgoing: data.isOutgoing,
-        callerName: data.callerName,
-        apartmentNumber: data.apartmentNumber,
-        buildingId: data.buildingId,
-      });
-
-      console.log(`[CallSession] Loaded from storage: ${session.id}`);
-
-      return session;
-    } catch (error) {
-      console.error(`[CallSession] Load failed:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Clear saved session
-   */
-  async clear(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-      console.log(`[CallSession] Cleared from storage`);
-    } catch (error) {
-      console.error(`[CallSession] Clear failed:`, error);
-    }
-  }
-
-  // ========================================
-  // Legacy Call Data Helpers (formerly MyCallDataManager)
-  // ========================================
-
-  static async storeCallData(callId: string, data: StoredCallData): Promise<void> {
-    try {
-      await AsyncStorage.setItem(CALL_DATA_PREFIX + callId, JSON.stringify(data));
-    } catch (error) {
-      console.error('[CallSession] Failed to store call data:', error);
-    }
-  }
-
-  static async getCallData(callId: string): Promise<StoredCallData | null> {
-    try {
-      const json = await AsyncStorage.getItem(CALL_DATA_PREFIX + callId);
-      return json ? (JSON.parse(json) as StoredCallData) : null;
-    } catch (error) {
-      console.error('[CallSession] Failed to load call data:', error);
-      return null;
-    }
-  }
-
-  static async clearCallData(callId: string): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(CALL_DATA_PREFIX + callId);
-    } catch (error) {
-      console.error('[CallSession] Failed to clear call data:', error);
-    }
-  }
-
-  static async setCurrentCallId(callId: string): Promise<void> {
-    try {
-      await AsyncStorage.setItem(CURRENT_CALL_KEY, callId);
-    } catch (error) {
-      console.error('[CallSession] Failed to set current call ID:', error);
-    }
-  }
-
-  static async getCurrentCallId(): Promise<string | null> {
-    try {
-      return await AsyncStorage.getItem(CURRENT_CALL_KEY);
-    } catch (error) {
-      console.error('[CallSession] Failed to get current call ID:', error);
-      return null;
-    }
-  }
-
-  static async clearCurrentCallId(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(CURRENT_CALL_KEY);
-    } catch (error) {
-      console.error('[CallSession] Failed to clear current call ID:', error);
-    }
-  }
 
   // ========================================
   // Events
