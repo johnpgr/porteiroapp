@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import { callKeepService } from '~/services/calling/CallKeepService';
 import type { CallSession } from '~/services/calling/CallSession';
@@ -59,6 +60,7 @@ export function CallManagerProvider() {
           session={incomingCall}
           onAnswer={() => callCoordinator.answerActiveCall()}
           onDecline={() => callCoordinator.endActiveCall('decline')}
+          onRetryRtm={() => callCoordinator.retryRtmWarmup()}
         />
       )}
     </>
@@ -71,10 +73,12 @@ const CallUIWrapper = ({
   session,
   onAnswer,
   onDecline,
+  onRetryRtm,
 }: {
   session: CallSession;
   onAnswer: () => void;
   onDecline: () => void;
+  onRetryRtm: () => void;
 }) => {
   const [state, setState] = useState<CallLifecycleState>(session.state);
 
@@ -84,6 +88,7 @@ const CallUIWrapper = ({
   }, [session]);
 
   const isCallKeepAvailable = callKeepService.checkAvailability();
+  const isAndroid = Platform.OS === 'android';
 
   // Logic: Should we show the React UI?
   // 1. If state is RINGING and CallKeep IS available -> NO (Native UI handles ringing)
@@ -91,11 +96,18 @@ const CallUIWrapper = ({
   // 3. If CallKeep IS NOT available -> YES (We need React UI for ringing)
 
   const isRinging = state === 'ringing' || state === 'rtm_ready';
-  const shouldHideForNativeUI = isCallKeepAvailable && isRinging;
+  const shouldHideForNativeUI = !isAndroid && isCallKeepAvailable && isRinging;
 
   if (shouldHideForNativeUI) {
     return null; // Render nothing, let Android Native Screen do the work
   }
 
-  return <FullScreenCallUI session={session} onAnswer={onAnswer} onDecline={onDecline} />;
+  return (
+    <FullScreenCallUI
+      session={session}
+      onAnswer={onAnswer}
+      onDecline={onDecline}
+      onRetryRtm={onRetryRtm}
+    />
+  );
 };

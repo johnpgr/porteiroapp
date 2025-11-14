@@ -10,34 +10,13 @@
 
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import RNCallKeep from 'react-native-callkeep';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
-import { MyCallDataManager } from './calling/MyCallDataManager';
+import { callKeepService } from './calling/CallKeepService';
+import { CallSession } from './calling/CallSession';
 
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
-
-type CallKeepOptions = Parameters<typeof RNCallKeep.setup>[0];
-
-// CallKeep options (defined at module level)
-const callKeepOptions: CallKeepOptions = {
-  ios: { appName: 'James Avisa' },
-  android: {
-    alertTitle: 'Permissions required',
-    alertDescription: 'This app needs phone account access',
-    cancelButton: 'Cancel',
-    okButton: 'OK',
-    foregroundService: {
-      channelId: 'com.porteiroapp.callkeep',
-      channelName: 'Incoming Call Service',
-      notificationTitle: 'Incoming call',
-      notificationIcon: 'ic_notification',
-    },
-    additionalPermissions: [],
-  },
-};
 
 interface IncomingCallData {
   callId: string;
@@ -146,9 +125,7 @@ TaskManager.defineTask(
             if (Platform.OS === 'android') {
               try {
                 console.log('[BackgroundTask] 🔧 Setting up CallKeep for Android...');
-                await RNCallKeep.setup(callKeepOptions);
-                RNCallKeep.setAvailable(true);
-                callKeepAvailable = true;
+                callKeepAvailable = await callKeepService.setup();
                 console.log('[BackgroundTask] ✅ CallKeep setup successful');
               } catch (callKeepError) {
                 console.warn('[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:', callKeepError);
@@ -156,25 +133,21 @@ TaskManager.defineTask(
               }
             }
 
-            // 2. Store call data for CallKeep
-            await MyCallDataManager.storeCallData(callData.callId, {
+            // 2. Persist lightweight call session snapshot for recovery
+            await CallSession.createFromIncomingPush({
+              callId: callData.callId,
               channelName: callData.channelName,
-              rtcToken: '', // Will be fetched from API
               callerName: callData.callerName,
               apartmentNumber: callData.apartmentNumber,
-              from: callData.from,
-              callId: callData.callId,
             });
-            await MyCallDataManager.setCurrentCallId(callData.callId);
 
             // 3. Display CallKeep UI if available (Android)
             if (callKeepAvailable && Platform.OS === 'android') {
               try {
-                RNCallKeep.displayIncomingCall(
+                callKeepService.displayIncomingCall(
                   callData.callId,
                   callData.from,
                   callData.callerName,
-                  'generic',
                   false
                 );
                 console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed');
@@ -197,14 +170,6 @@ TaskManager.defineTask(
 
             await callCoordinator.handleIncomingPush(pushData);
             console.log('[BackgroundTask] ✅ Call session created');
-
-            // 5. Keep AsyncStorage backup as fallback
-            console.log('[BackgroundTask] 💾 Storing call data to AsyncStorage as fallback...');
-            await AsyncStorage.setItem(
-              '@pending_intercom_call',
-              JSON.stringify(callData)
-            );
-            console.log('[BackgroundTask] ✅ Call data stored to AsyncStorage');
 
           } catch (notificationError) {
             console.error('[BackgroundTask] ❌ Failed to process intercom call:', notificationError);

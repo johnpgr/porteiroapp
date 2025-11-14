@@ -1,6 +1,7 @@
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
+import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
 import {
@@ -8,8 +9,6 @@ import {
   consumePendingCallKeepAnswer,
   consumePendingCallKeepEnd,
 } from './CallKeepService';
-import { MyCallDataManager } from './MyCallDataManager';
-import RNCallKeep from 'react-native-callkeep';
 
 export interface VoipPushData {
   callId: string;
@@ -92,6 +91,25 @@ export class CallCoordinator {
     callKeepService.addEventListener('didActivateAudioSession', () => {
       console.log('[CallCoordinator] CallKit audio session activated');
       // Audio session ready, Agora already handling audio
+    });
+
+    callKeepService.addEventListener('showIncomingCallUi', ({ callId, handle, name }) => {
+      void this.handleShowIncomingCallUi({ callId, handle, name });
+    });
+
+    callKeepService.addEventListener('silenceIncomingCall', ({ callId, handle, name }) => {
+      void this.handleSilenceIncomingCall({ callId, handle, name });
+    });
+
+    callKeepService.addEventListener(
+      'createIncomingConnectionFailed',
+      ({ callId, handle, name }) => {
+        void this.handleIncomingConnectionFailed({ callId, handle, name });
+      }
+    );
+
+    callKeepService.addEventListener('onHasActiveCall', () => {
+      void this.handleNativeCallActive();
     });
 
     // Set up RTM message listener for direct INVITE messages
@@ -355,46 +373,8 @@ export class CallCoordinator {
         console.warn('[CallCoordinator] ⚠️ No active session found');
       }
 
-      // NEW: Store call data for CallKeep (needed before RTM warmup)
-      await MyCallDataManager.storeCallData(data.callId, {
-        channelName: data.channelName,
-        rtcToken: '', // Will be fetched from API
-        callerName: data.callerName || 'Porteiro',
-        apartmentNumber: data.apartmentNumber,
-        from: data.from,
-        callId: data.callId,
-      });
-      await MyCallDataManager.setCurrentCallId(data.callId);
-
-      // Step 1: Warm up RTM FIRST (user chose: "warm up first")
-      // This ensures RTM is ready when user taps answer in CallKeep UI
-      console.log('[CallCoordinator] Step 1: Warming up RTM...');
-      const rtmReady = await this.warmupRTM();
-
-      if (!rtmReady) {
-        // User chose: "show error + retry"
-        console.error('[CallCoordinator] RTM warmup failed');
-        this.showRetryDialog(data);
-        return;
-      }
-
-      console.log('[CallCoordinator] ✅ RTM ready');
-
-      // NEW: Display CallKeep UI AFTER RTM warmup (if not already shown)
-      // Note: iOS AppDelegate already shows CallKit UI, Android background task shows ConnectionService UI
-      // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
-      // Only show if CallKeep is available and we haven't created a session yet
-      if (this.callKeepAvailable) {
-        callKeepService.displayIncomingCall(data.callId, data.from, data.callerName || 'Porteiro');
-        if (__DEV__) {
-          console.log(
-            '[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)'
-          );
-        }
-      }
-
-      // Step 2: Fetch call details from API
-      console.log('[CallCoordinator] Step 2: Fetching call details...');
+      // Step 1: Fetch call details from API
+      console.log('[CallCoordinator] Step 1: Fetching call details...');
       const callDetails = await this.fetchCallDetails(data.callId);
 
       if (!callDetails) {
@@ -412,8 +392,8 @@ export class CallCoordinator {
         })),
       });
 
-      // Step 3: Create CallSession
-      console.log('[CallCoordinator] Step 3: Creating session...');
+      // Step 2: Create CallSession immediately (RTM warmup runs in parallel)
+      console.log('[CallCoordinator] Step 2: Creating session...');
       const session = new CallSession({
         id: data.callId,
         channelName: data.channelName || callDetails.channelName || `call-${data.callId}`,
@@ -428,13 +408,24 @@ export class CallCoordinator {
       await session.initialize();
       this.activeSession = session;
 
-      // Step 4: Persist session (user chose: "yes, persist")
-      console.log('[CallCoordinator] Step 4: Persisting session...');
+      // Persist session so it can be recovered after crashes
+      console.log('[CallCoordinator] Step 3: Persisting session...');
       await session.save();
 
       console.log('[CallCoordinator] ✅ Call ready for answer');
 
       this.emit('sessionCreated', { session });
+
+      if (this.callKeepAvailable) {
+        callKeepService.displayIncomingCall(
+          data.callId,
+          data.from,
+          callDetails.doormanName || data.callerName || 'Porteiro'
+        );
+      }
+
+  // Warm up RTM asynchronously; update session state when finished
+  void this.prepareRtmForSession(session);
 
       // Listen to session events
       session.on('stateChanged', ({ newState }) => {
@@ -542,33 +533,37 @@ export class CallCoordinator {
     }
   }
 
-  /**
-   * Show retry dialog when RTM fails
-   * Based on user decision: "show error + retry"
-   */
-  private showRetryDialog(data: VoipPushData): void {
-    Alert.alert(
-      'Connection Error',
-      'Unable to connect to the call server. Would you like to retry?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => {
-            console.log('[CallCoordinator] User cancelled retry');
-            // Optionally decline the call
-            void this.declineCall(data.callId, 'connection_failed');
-          },
-        },
-        {
-          text: 'Retry',
-          onPress: () => {
-            console.log('[CallCoordinator] User requested retry');
-            void this.handleIncomingPush(data);
-          },
-        },
-      ]
-    );
+  private async prepareRtmForSession(session: CallSession): Promise<void> {
+    const ready = await this.warmupRTM();
+
+    if (!this.activeSession || this.activeSession.id !== session.id) {
+      return;
+    }
+
+    if (ready) {
+      session.markRtmReady();
+    } else {
+      session.markRtmFailed(new Error('RTM warmup failed'));
+      Alert.alert(
+        'Falha na conexão',
+        'Não foi possível conectar ao servidor. Toque em "Tentar novamente" para tentar de novo.'
+      );
+    }
+  }
+
+  async retryRtmWarmup(): Promise<void> {
+    if (!this.activeSession) {
+      return;
+    }
+
+    if (this.activeSession.state !== 'rtm_failed') {
+      console.log('[CallCoordinator] Ignoring RTM retry request because state is', this.activeSession.state);
+      return;
+    }
+
+    console.log('[CallCoordinator] Retrying RTM warmup');
+    this.activeSession.markRtmRetrying();
+    await this.prepareRtmForSession(this.activeSession);
   }
 
   // ========================================
@@ -627,10 +622,6 @@ export class CallCoordinator {
         this.activeSession = null;
         this.emit('sessionEnded', { session: null, finalState: 'ended' });
       }
-      // Clear call data
-      await MyCallDataManager.clearCallData(callId);
-      await MyCallDataManager.clearCurrentCallId();
-      console.log('[CallCoordinator] ✅ Call cleaned up');
     }
   }
 
@@ -897,39 +888,17 @@ export class CallCoordinator {
         return true;
       }
 
-      // Session didn't appear - try to create from stored data
-      console.log('[CallCoordinator] Session not found, attempting to create from stored data');
+      // Session didn't appear - try to recover from persisted CallSession storage
+      console.log('[CallCoordinator] Session not found, attempting to recover persisted session');
 
-      const callData = await MyCallDataManager.getCallData(callId);
-      if (!callData) {
-        console.error('[CallCoordinator] No stored call data found');
-        return false;
-      }
-
-      // Create session from stored data
-      const pushData: VoipPushData = {
-        callId: callData.callId,
-        from: callData.from,
-        callerName: callData.callerName,
-        apartmentNumber: callData.apartmentNumber,
-        channelName: callData.channelName,
-      };
-
-      await this.handleIncomingPush(pushData);
-
-      // Wait for newly created session
-      const createdSession = await this.waitForSession(
-        callId,
-        sessionCreateTimeout,
-        abortController.signal
-      );
-
-      if (createdSession?.id === callId) {
-        console.log('[CallCoordinator] Successfully created session from stored data');
+      const persisted = await CallSession.load();
+      if (persisted && persisted.id === callId) {
+        this.activeSession = persisted;
+        this.emit('sessionCreated', { session: persisted, recovered: true });
         return true;
       }
 
-      console.error('[CallCoordinator] Failed to create session from stored data');
+      console.error('[CallCoordinator] No persisted session available for call', callId);
       return false;
     } catch (error) {
       console.error('[CallCoordinator] Error ensuring session exists:', error);
@@ -977,8 +946,6 @@ export class CallCoordinator {
 
     try {
       await this.endActiveCall('decline');
-      await MyCallDataManager.clearCallData(callId);
-      await MyCallDataManager.clearCurrentCallId();
     } catch (error) {
       console.error('[CallCoordinator] CallKeep end error:', error);
     }
@@ -1000,6 +967,69 @@ export class CallCoordinator {
         await this.handleCallKeepEnd(String(normalizedId));
       }
     }
+  }
+
+  private async handleShowIncomingCallUi({
+    callId,
+    handle,
+    name,
+  }: {
+    callId: string;
+    handle: string;
+    name?: string;
+  }): Promise<void> {
+    console.log('[CallCoordinator] showIncomingCallUi event:', callId, handle, name);
+    callKeepService.backToForeground();
+
+    const sessionReady = await this.ensureSessionExists(callId);
+    if (!sessionReady || !this.activeSession) {
+      console.warn('[CallCoordinator] No session available for incoming UI');
+      return;
+    }
+
+    this.emit('sessionCreated', { session: this.activeSession, source: 'callkeep' });
+  }
+
+  private async handleSilenceIncomingCall({
+    callId,
+  }: {
+    callId: string;
+    handle: string;
+    name?: string;
+  }): Promise<void> {
+    console.log('[CallCoordinator] silenceIncomingCall event:', callId);
+    await agoraAudioService.stopIntercomRingtone().catch(() => {});
+  }
+
+  private async handleIncomingConnectionFailed({
+    callId,
+  }: {
+    callId: string;
+    handle: string;
+    name?: string;
+  }): Promise<void> {
+    console.warn('[CallCoordinator] createIncomingConnectionFailed event:', callId);
+    Alert.alert('Chamada falhou', 'Não foi possível conectar a chamada. Tente novamente.');
+
+    if (this.activeSession?.id === callId) {
+      try {
+        await this.activeSession.end('drop');
+      } catch (error) {
+        console.warn('[CallCoordinator] Failed to end session after connection failure:', error);
+      } finally {
+        this.activeSession = null;
+        this.emit('sessionEnded', { session: null, finalState: 'failed' });
+      }
+    }
+  }
+
+  private async handleNativeCallActive(): Promise<void> {
+    console.log('[CallCoordinator] onHasActiveCall fired - ending VoIP session');
+    if (!this.activeSession) {
+      return;
+    }
+
+    await this.endActiveCall('decline');
   }
 
   /**

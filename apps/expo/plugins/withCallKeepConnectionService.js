@@ -31,6 +31,7 @@ function ensureCallKeepService(androidManifest) {
       'android:exported': 'true',
       // Critical: set permission so only system telecom can bind; app does not "gain" this permission.
       'android:permission': 'android.permission.BIND_TELECOM_CONNECTION_SERVICE',
+      'android:foregroundServiceType': 'camera|microphone',
     },
     'intent-filter': [
       {

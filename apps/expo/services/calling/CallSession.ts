@@ -29,6 +29,15 @@ interface CallSessionOptions {
   buildingId?: string | null;
 }
 
+interface IncomingCallSessionInit {
+  callId: string;
+  channelName: string;
+  participants?: CallParticipantSnapshot[];
+  callerName?: string | null;
+  apartmentNumber?: string | null;
+  buildingId?: string | null;
+}
+
 type SessionEvent = 'stateChanged' | 'error' | 'nativeSyncRequired';
 type EventHandler = (payload: any) => void;
 
@@ -173,23 +182,23 @@ export class CallSession {
   async initialize(): Promise<void> {
     console.log(`[CallSession] Initializing...`);
 
-    this.setState('rtm_warming');
-
-    // Verify RTM is connected (should be from warmup)
-    const rtmStatus = agoraService.getStatus();
-    if (rtmStatus !== 'connected') {
-      console.error('[CallSession] RTM not connected during init');
-      this.setState('failed');
-      throw new Error('RTM connection not ready');
+    if (this._state === 'idle') {
+      this.setState('rtm_warming');
     }
 
-    this._rtmReady = true;
-    this.setState('rtm_ready');
+    // Verify RTM status – but don't fail if still warming up.
+    const rtmStatus = agoraService.getStatus();
+    if (rtmStatus === 'connected') {
+      this._rtmReady = true;
+      this.setState('rtm_ready');
+    } else {
+      console.log(`[CallSession] RTM status is ${rtmStatus}, waiting for warmup...`);
+    }
 
     // Subscribe to RTC events for call state management
     this.setupRtcEventListeners();
 
-    console.log(`[CallSession] ✅ Initialized`);
+    console.log(`[CallSession] ✅ Initialized (RTM ${this._rtmReady ? 'ready' : 'warming'})`);
   }
 
   /**
@@ -607,5 +616,47 @@ export class CallSession {
       rtcJoined: this._rtcJoined,
       age: Date.now() - this.initiatedAt,
     };
+  }
+
+  markRtmReady(): void {
+    if (this._rtmReady) {
+      return;
+    }
+    this._rtmReady = true;
+    this.setState('rtm_ready');
+  }
+
+  markRtmRetrying(): void {
+    if (this._state === 'ended' || this._state === 'declined') {
+      return;
+    }
+    this._rtmReady = false;
+    this.setState('rtm_warming');
+  }
+
+  markRtmFailed(error?: Error): void {
+    if (this._state === 'ended' || this._state === 'declined') {
+      return;
+    }
+    this._rtmReady = false;
+    this.setState('rtm_failed');
+    if (error) {
+      this.emit('error', { error, operation: 'rtm_warmup' });
+    }
+  }
+
+  static async createFromIncomingPush(init: IncomingCallSessionInit): Promise<CallSession> {
+    const session = new CallSession({
+      id: init.callId,
+      channelName: init.channelName,
+      participants: init.participants || [],
+      isOutgoing: false,
+      callerName: init.callerName,
+      apartmentNumber: init.apartmentNumber,
+      buildingId: init.buildingId,
+    });
+
+    await session.save();
+    return session;
   }
 }

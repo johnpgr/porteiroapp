@@ -1,5 +1,6 @@
 import RNCallKeep from 'react-native-callkeep';
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
+import type { Permission as AndroidPermission } from 'react-native/Libraries/PermissionsAndroid/PermissionsAndroid';
 import { EventEmitter } from 'expo-modules-core';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +21,10 @@ export type CallKeepEventMap = {
   endCall: (payload: { callId: string }) => void;
   didLoadWithEvents: (events: any[]) => void;
   didActivateAudioSession: () => void;
+  showIncomingCallUi: (payload: { callId: string; handle: string; name?: string }) => void;
+  silenceIncomingCall: (payload: { callId: string; handle: string; name?: string }) => void;
+  createIncomingConnectionFailed: (payload: { callId: string; handle: string; name?: string }) => void;
+  onHasActiveCall: () => void;
 };
 
 class CallKeepService {
@@ -47,6 +52,15 @@ class CallKeepService {
       return false;
     }
 
+    // Android 13+ requires runtime READ_PHONE permissions for self-managed ConnectionService
+    if (Platform.OS === 'android') {
+      const telecomPermissionsGranted = await this.ensureTelecomPermissions();
+      if (!telecomPermissionsGranted) {
+        console.warn('[CallKeepService] ⚠️ Missing telecom permissions, aborting setup');
+        return false;
+      }
+    }
+
     // Allow retry if previous attempt failed
     try {
       const options = {
@@ -59,6 +73,7 @@ class CallKeepService {
           cancelButton: 'Cancelar',
           okButton: 'OK',
           additionalPermissions: [],
+          selfManaged: true,
           foregroundService: {
             channelId: 'com.porteiroapp.callkeep',
             channelName: 'Serviço de Chamadas',
@@ -69,6 +84,15 @@ class CallKeepService {
       };
 
       await RNCallKeep.setup(options);
+
+      if (Platform.OS === 'android') {
+        try {
+          RNCallKeep.registerPhoneAccount(options);
+          RNCallKeep.registerAndroidEvents();
+        } catch (registerError) {
+          console.warn('[CallKeepService] ⚠️ Failed to register Android phone account/events', registerError);
+        }
+      }
 
       this.setAvailable(true);
       this.isSetup = true;
@@ -86,6 +110,44 @@ class CallKeepService {
       console.error('[CallKeepService] ❌ Setup failed:', error);
       return false;
     }
+  }
+
+  private async ensureTelecomPermissions(): Promise<boolean> {
+  const requiredPermissions: AndroidPermission[] = [];
+    if (PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE) {
+      requiredPermissions.push(PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE);
+    }
+    if (PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS) {
+      requiredPermissions.push(PermissionsAndroid.PERMISSIONS.READ_PHONE_NUMBERS);
+    }
+
+    if (requiredPermissions.length === 0) {
+      return true;
+    }
+
+  const missingPermissions: AndroidPermission[] = [];
+    for (const permission of requiredPermissions) {
+      const granted = await PermissionsAndroid.check(permission);
+      if (!granted) {
+        missingPermissions.push(permission);
+      }
+    }
+
+    if (missingPermissions.length === 0) {
+      return true;
+    }
+
+  const results = await PermissionsAndroid.requestMultiple(missingPermissions);
+    const denied = missingPermissions.filter(
+      (permission) => results[permission] !== PermissionsAndroid.RESULTS.GRANTED
+    );
+
+    if (denied.length > 0) {
+      console.warn('[CallKeepService] Telecom permissions denied:', denied.join(', '));
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -210,7 +272,7 @@ class CallKeepService {
   private setupEventListeners(): void {
     // Answer call event (normalize payload: callUUID | callId | uuid | id)
     RNCallKeep.addEventListener('answerCall', (payload: any) => {
-      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
+      const normalizedId = this.normalizeCallId(payload);
       console.log('[CallKeepService] Answer call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
@@ -226,7 +288,7 @@ class CallKeepService {
 
     // End call event (normalize payload)
     RNCallKeep.addEventListener('endCall', (payload: any) => {
-      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
+      const normalizedId = this.normalizeCallId(payload);
       console.log('[CallKeepService] End call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
@@ -249,7 +311,48 @@ class CallKeepService {
       this.eventEmitter.emit('didActivateAudioSession');
     });
 
+    if (Platform.OS === 'android') {
+      RNCallKeep.addEventListener('showIncomingCallUi', (payload: any) => {
+        const normalizedId = this.normalizeCallId(payload);
+        if (!normalizedId) return;
+        this.eventEmitter.emit('showIncomingCallUi', {
+          callId: normalizedId,
+          handle: payload?.handle ?? '',
+          name: payload?.name,
+        });
+      });
+
+      RNCallKeep.addEventListener('silenceIncomingCall', (payload: any) => {
+        const normalizedId = this.normalizeCallId(payload);
+        if (!normalizedId) return;
+        this.eventEmitter.emit('silenceIncomingCall', {
+          callId: normalizedId,
+          handle: payload?.handle ?? '',
+          name: payload?.name,
+        });
+      });
+
+      RNCallKeep.addEventListener('createIncomingConnectionFailed', (payload: any) => {
+        const normalizedId = this.normalizeCallId(payload);
+        if (!normalizedId) return;
+        this.eventEmitter.emit('createIncomingConnectionFailed', {
+          callId: normalizedId,
+          handle: payload?.handle ?? '',
+          name: payload?.name,
+        });
+      });
+
+      RNCallKeep.addEventListener('onHasActiveCall', () => {
+        this.eventEmitter.emit('onHasActiveCall');
+      });
+    }
+
     console.log('[CallKeepService] Event listeners registered');
+  }
+
+  private normalizeCallId(payload: any): string | null {
+    const id = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
+    return id ? String(id) : null;
   }
 }
 
