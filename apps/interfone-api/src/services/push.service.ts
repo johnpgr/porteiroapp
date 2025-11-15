@@ -60,8 +60,10 @@ class PushNotificationService {
   }
 
   /**
-   * Send a call invite push notification with background handling hints.
-   * We keep a visible notification for Android reliability while preserving TaskManager wake-up data.
+   * Send a call invite push notification.
+   *
+   * ANDROID: Sends data-only high-priority push to trigger background task and CallKeep UI
+   * iOS: Sends notification with title/body (VoIP push via PushKit recommended for future)
    */
   async sendCallInvite(params: CallInvitePushParams): Promise<SendPushResult> {
     if (!this.enabled) {
@@ -82,15 +84,16 @@ class PushNotificationService {
       };
     }
 
-    // Headless data-only push for Android reliability (full-screen handled by app via Notifee)
-    // Note: omit title/body to encourage background task delivery; include high priority + contentAvailable
-    const payload: PushNotificationPayload = {
+    // Determine if this is an iOS token (heuristic: iOS tokens are longer and different format)
+    // More reliable: track platform in DB, but this works for most cases
+    const isIOS = params.metadata?.platform === 'ios';
+
+    // Build base payload with data
+    const basePayload = {
       to: params.pushToken,
+      priority: 'high' as const,
       contentAvailable: true,
       _contentAvailable: true,
-      // sound: 'telephone_toque_interfone.mp3',
-      priority: 'high',
-      // channelId: 'intercom_call',
       data: {
         type: 'intercom_call',
         callId: params.callId,
@@ -105,17 +108,35 @@ class PushNotificationService {
       }
     };
 
+    // CRITICAL: Android requires data-only (no title/body) for background task to fire
+    // iOS can have title/body for notification banner (until VoIP push implemented)
+    const payload: PushNotificationPayload = isIOS
+      ? {
+          ...basePayload,
+          title: 'Chamada do interfone',
+          body: params.fromName
+            ? `${params.fromName} está chamando`
+            : 'Interfone chamando',
+          sound: 'default',
+          channelId: 'intercom_call',
+        }
+      : {
+          ...basePayload,
+          // Android: NO title, NO body, NO sound - data-only for background task
+          channelId: 'intercom_call',
+        };
+
     try {
       // Log sanitized payload info before sending
       const tokenPreview = `${params.pushToken?.slice(0, 12) ?? ''}...`;
-      console.log('📤 [push] Preparing Expo push (call invite - data only)', {
+      console.log('📤 [push] Preparing Expo push (call invite)', {
         to: tokenPreview,
+        platform: isIOS ? 'iOS' : 'Android',
+        dataOnly: !isIOS,
         callId: params.callId,
         from: params.from,
+        priority: 'high',
         contentAvailable: true,
-        _contentAvailable: true,
-        // channelId: payload.channelId,
-        // sound: payload.sound,
         channelName: params.channelName,
         apartmentNumber: params.apartmentNumber,
         buildingName: params.buildingName,

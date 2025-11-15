@@ -122,29 +122,44 @@ async function setupNotificationChannels(): Promise<void> {
   });
 
   console.log('✅ [NotificationHandler] Notification channels configured');
+}
 
-  // Setup notification categories (for action buttons)
-  console.log('🔧 [NotificationHandler] Setting up notification categories...');
-  
-  await Notifications.setNotificationCategoryAsync('call', [
-    {
-      identifier: 'ANSWER_CALL',
-      buttonTitle: 'Atender',
-      options: {
-        opensAppToForeground: true,
-      },
-    },
-    {
-      identifier: 'DECLINE_CALL',
-      buttonTitle: 'Recusar',
-      options: {
-        opensAppToForeground: false,
-        isDestructive: true,
-      },
-    },
-  ]);
+/**
+ * Setup notification categories (iOS only)
+ * Categories enable action buttons on notifications
+ * Android uses CallKeep for call UI, so categories not needed
+ */
+async function setupNotificationCategories(): Promise<void> {
+  if (Platform.OS !== 'ios') {
+    console.log('⏭️ [NotificationHandler] Skipping categories setup (iOS only)');
+    return;
+  }
 
-  console.log('✅ [NotificationHandler] Notification categories configured');
+  console.log('🔧 [NotificationHandler] Setting up notification categories (iOS)...');
+
+  try {
+    await Notifications.setNotificationCategoryAsync('call', [
+      {
+        identifier: 'ANSWER_CALL',
+        buttonTitle: 'Atender',
+        options: {
+          opensAppToForeground: true,
+        },
+      },
+      {
+        identifier: 'DECLINE_CALL',
+        buttonTitle: 'Recusar',
+        options: {
+          opensAppToForeground: false,
+          isDestructive: true,
+        },
+      },
+    ]);
+
+    console.log('✅ [NotificationHandler] Notification categories configured');
+  } catch (error) {
+    console.error('❌ [NotificationHandler] Failed to setup categories:', error);
+  }
 }
 
 /**
@@ -227,7 +242,10 @@ export async function initializeNotificationHandler(): Promise<void> {
   // 2. Setup expo notification channels (Android only)
   await setupNotificationChannels();
 
-  // 3. Setup token change listener
+  // 3. Setup notification categories (iOS only)
+  await setupNotificationCategories();
+
+  // 4. Setup token change listener
   setupTokenChangeListener();
 
   isInitialized = true;

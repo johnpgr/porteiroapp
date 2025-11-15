@@ -39,10 +39,14 @@ export function CallManagerProvider() {
     // 3. Initialize services
     (async () => {
       try {
+        console.log('[CallManagerProvider] Initializing notification services...');
         await initializeNotificationHandler();
+        console.log('[CallManagerProvider] About to register background task...');
         await registerBackgroundNotificationTask();
+        console.log('[CallManagerProvider] Background task registration completed');
       } catch (error) {
         console.error('[CallManagerProvider] Init failed:', error);
+        console.error('[CallManagerProvider] Error details:', error);
       }
     })();
 
