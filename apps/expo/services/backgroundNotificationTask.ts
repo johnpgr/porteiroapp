@@ -180,6 +180,7 @@ TaskManager.defineTask(
               apartmentNumber: callData.apartmentNumber,
               channelName: callData.channelName,
               from: callData.from,
+              source: 'background', // Mark as background source to prevent duplicate CallKeep UI
             };
 
             await callCoordinator.handleIncomingPush(pushData);

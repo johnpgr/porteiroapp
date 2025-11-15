@@ -63,6 +63,7 @@ export function IntercomNotificationListeners() {
           channelName:
             (payload.channelName as string) || (payload.channel as string) || `call-${payload.callId}`,
           timestamp: Date.now(),
+          source: 'foreground', // Foreground notification listener
         })
         .catch((error) => {
           console.error('❌ [MoradorLayout] CallCoordinator failed to handle push:', error);

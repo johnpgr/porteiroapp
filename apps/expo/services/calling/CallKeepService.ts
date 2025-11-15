@@ -26,6 +26,8 @@ class CallKeepService {
   private eventEmitter = new EventEmitter<CallKeepEventMap>();
   private hasAttempted: boolean = false;
   private isSetup: boolean = false;
+  // iOS: Map CallKit UUID to canonical callId
+  private uuidToCallId = new Map<string, string>();
 
   /**
    * Setup CallKeep with platform-specific options
@@ -130,6 +132,17 @@ class CallKeepService {
     try {
       RNCallKeep.endCall(callId);
       console.log(`[CallKeepService] ✅ Call ended: ${callId}`);
+      
+      // iOS: Clean up UUID mapping if this was the mapped UUID
+      if (Platform.OS === 'ios') {
+        // Check if callId is actually a UUID that was mapped
+        for (const [uuid, mappedCallId] of this.uuidToCallId.entries()) {
+          if (mappedCallId === callId || uuid === callId) {
+            this.uuidToCallId.delete(uuid);
+            console.log(`[CallKeepService] Cleared UUID mapping: ${uuid} → ${mappedCallId}`);
+          }
+        }
+      }
     } catch (error) {
       console.error('[CallKeepService] ❌ Failed to end call:', error);
     }
@@ -209,26 +222,48 @@ class CallKeepService {
    * Setup RNCallKeep event listeners and forward through EventEmitter
    */
   private setupEventListeners(): void {
+    // iOS: Listen for didDisplayIncomingCall to map callUUID ↔ callId
+    if (Platform.OS === 'ios') {
+      RNCallKeep.addEventListener('didDisplayIncomingCall', (event: any) => {
+        // Extract UUID from event (could be callUUID or uuid)
+        const callUUID = event?.callUUID || event?.uuid;
+        
+        // Extract callId from payload (could be nested in payload.payload or at payload level)
+        const callId = event?.payload?.callId || event?.payload?.payload?.callId || event?.callId;
+        
+        if (callUUID && callId) {
+          this.uuidToCallId.set(callUUID, callId);
+          console.log(`[CallKeepService] Mapped CallKit UUID ${callUUID} → callId ${callId}`);
+        } else {
+          console.warn('[CallKeepService] Missing UUID or callId in didDisplayIncomingCall:', {
+            callUUID,
+            callId,
+            event,
+          });
+        }
+      });
+    }
+
     // Answer call event (normalize payload: callUUID | callId | uuid | id)
     RNCallKeep.addEventListener('answerCall', (payload: any) => {
-      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
+      const normalizedId = this.normalizeCallId(payload);
       console.log('[CallKeepService] Answer call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in answerCall payload:', payload);
         return;
       }
-      this.eventEmitter.emit('answerCall', { callId: String(normalizedId) });
+      this.eventEmitter.emit('answerCall', { callId: normalizedId });
     });
 
     // End call event (normalize payload)
     RNCallKeep.addEventListener('endCall', (payload: any) => {
-      const normalizedId = payload?.callUUID || payload?.callId || payload?.uuid || payload?.id;
+      const normalizedId = this.normalizeCallId(payload);
       console.log('[CallKeepService] End call event:', normalizedId);
       if (!normalizedId) {
         console.warn('[CallKeepService] Missing call identifier in endCall payload:', payload);
         return;
       }
-      this.eventEmitter.emit('endCall', { callId: String(normalizedId) });
+      this.eventEmitter.emit('endCall', { callId: normalizedId });
     });
 
     // Early events (iOS - when user taps answer before JS loads)
@@ -244,6 +279,38 @@ class CallKeepService {
     });
 
     console.log('[CallKeepService] Event listeners registered');
+  }
+
+  /**
+   * Normalize call identifier from CallKeep payload
+   * iOS: Maps CallKit UUID to canonical callId if available
+   * Android: Uses callId directly
+   */
+  private normalizeCallId(payload: any): string | null {
+    if (!payload) {
+      return null;
+    }
+
+    // iOS: Check UUID mapping first
+    if (Platform.OS === 'ios') {
+      const callUUID = payload?.callUUID || payload?.uuid;
+      if (callUUID && this.uuidToCallId.has(callUUID)) {
+        const mappedCallId = this.uuidToCallId.get(callUUID);
+        console.log(`[CallKeepService] Using mapped callId for UUID ${callUUID}: ${mappedCallId}`);
+        return mappedCallId || null;
+      }
+    }
+
+    // Fallback: try payload.callId, then callUUID/uuid/id
+    const callId = payload?.callId || payload?.callUUID || payload?.uuid || payload?.id;
+    return callId ? String(callId) : null;
+  }
+
+  /**
+   * Clear UUID mapping (e.g., when call ends)
+   */
+  clearUuidMapping(callUUID: string): void {
+    this.uuidToCallId.delete(callUUID);
   }
 }
 

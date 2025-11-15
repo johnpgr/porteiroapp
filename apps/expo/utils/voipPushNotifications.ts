@@ -182,6 +182,7 @@ class VoipPushNotificationService {
         buildingName,
         channelName,
         timestamp: data.timestamp ? Number(data.timestamp) : Date.now(),
+        source: 'foreground', // VoIP push from JS (iOS) - CallKit already shown by native handler
       };
 
       console.log('[VoIP Push] 📞 Delegating to CallCoordinator...');

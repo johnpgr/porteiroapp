@@ -111,6 +111,7 @@ export function ActiveCallBootstrapper() {
             buildingName: call.building_name || '',
             channelName: call.channel_name || `call-${callId}`,
             timestamp: Date.now(),
+            source: 'foreground', // Active call recovery on app startup
           });
         }
       } catch (error) {

@@ -12,6 +12,8 @@ import { PushTokenProvider } from '../providers/PushTokenProvider';
 import { DeepLinkProvider } from '../providers/DeepLinkProvider';
 import { CallManagerProvider } from '../providers/CallManagerProvider';
 import { NotificationProvider } from '../providers/NotificationProvider';
+import { initializeNotificationHandler } from '../services/notificationHandler';
+import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
 
 function App() {
   const { user } = useAuth();
@@ -56,6 +58,10 @@ export default function RootLayout() {
     async function prepare() {
       try {
         console.log('🚀 Iniciando preparação do app...');
+
+        // Initialize notification handler and background task (must happen before any push is received)
+        await initializeNotificationHandler();
+        await registerBackgroundNotificationTask();
 
         console.log('✅ App pronto, assets carregados');
         setAppReady(true);

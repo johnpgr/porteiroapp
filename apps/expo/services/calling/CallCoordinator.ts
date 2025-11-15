@@ -15,6 +15,7 @@ export interface VoipPushData {
   buildingName?: string;
   channelName: string;
   timestamp?: number;
+  source?: 'background' | 'foreground' | 'rtm';
 }
 
 type CoordinatorEvent = 'sessionCreated' | 'sessionEnded' | 'error' | 'ready';
@@ -244,6 +245,7 @@ export class CallCoordinator {
         buildingName: parsed.buildingName,
         channelName: parsed.channel || `call-${parsed.callId}`,
         timestamp: Date.now(),
+        source: 'rtm', // Mark as RTM source (foreground)
       };
 
       console.log('[CallCoordinator] Converting RTM INVITE to session creation');
@@ -341,19 +343,31 @@ export class CallCoordinator {
       const rtmReady = await this.warmupRTM();
 
       if (!rtmReady) {
-        // User chose: "show error + retry"
         console.error('[CallCoordinator] RTM warmup failed');
+        
+        // In background/headless: decline call and end CallKeep UI (no Alert possible)
+        if (data.source === 'background') {
+          console.log('[CallCoordinator] Background context - declining call without Alert');
+          await this.declineCall(data.callId, 'connection_failed');
+          if (this.callKeepAvailable) {
+            callKeepService.endCall(data.callId);
+          }
+          return;
+        }
+        
+        // In foreground: show error + retry dialog
         this.showRetryDialog(data);
         return;
       }
 
       console.log('[CallCoordinator] ✅ RTM ready');
 
-      // NEW: Display CallKeep UI AFTER RTM warmup (if not already shown)
+      // Display CallKeep UI AFTER RTM warmup (if not already shown)
       // Note: iOS AppDelegate already shows CallKit UI, Android background task shows ConnectionService UI
       // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
       // Only show if CallKeep is available and we haven't created a session yet
-      if (this.callKeepAvailable) {
+      // Skip if source is 'background' (Android background task already showed UI)
+      if (this.callKeepAvailable && data.source !== 'background') {
         callKeepService.displayIncomingCall(data.callId, data.from, data.callerName || 'Porteiro');
         if (__DEV__) {
           console.log(
