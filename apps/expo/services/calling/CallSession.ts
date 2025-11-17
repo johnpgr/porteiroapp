@@ -361,18 +361,38 @@ export class CallSession {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
-      await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          userId: this.getCurrentUserId(),
-          userType: 'resident',
-          cause: reason,
-        }),
-      }).catch((err) => console.warn('[CallSession] End API failed:', err));
+      try {
+        const response = await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/end`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            userId: this.getCurrentUserId(),
+            userType: 'resident',
+            cause: reason,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[CallSession] End API failed (${response.status}):`, errorText);
+          throw new Error(`Failed to end call: ${response.status} ${errorText}`);
+        }
+
+        const result = await response.json().catch(() => null);
+        if (result && !result.success) {
+          console.error('[CallSession] End API returned error:', result.error);
+          throw new Error(result.error || 'Failed to end call');
+        }
+
+        console.log('[CallSession] ✅ Backend confirmed call ended');
+      } catch (apiError) {
+        console.error('[CallSession] ❌ End API call failed:', apiError);
+        // Don't throw - we still want to update local state even if API fails
+        // But log it so we can debug
+      }
 
       this.setState('ended');
 
@@ -433,18 +453,38 @@ export class CallSession {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
 
-      await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/decline`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          userId: this.getCurrentUserId(),
-          userType: 'resident',
-          reason,
-        }),
-      }).catch((err) => console.warn('[CallSession] Decline API failed:', err));
+      try {
+        const response = await fetch(`${this.getApiBaseUrl()}/api/calls/${this.id}/decline`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            userId: this.getCurrentUserId(),
+            userType: 'resident',
+            reason,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error(`[CallSession] Decline API failed (${response.status}):`, errorText);
+          throw new Error(`Failed to decline call: ${response.status} ${errorText}`);
+        }
+
+        const result = await response.json().catch(() => null);
+        if (result && !result.success) {
+          console.error('[CallSession] Decline API returned error:', result.error);
+          throw new Error(result.error || 'Failed to decline call');
+        }
+
+        console.log('[CallSession] ✅ Backend confirmed call declined');
+      } catch (apiError) {
+        console.error('[CallSession] ❌ Decline API call failed:', apiError);
+        // Don't throw - we still want to update local state even if API fails
+        // But log it so we can debug
+      }
 
       this.setState('declined');
 

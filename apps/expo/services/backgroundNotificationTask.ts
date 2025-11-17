@@ -10,7 +10,7 @@
 
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import RNCallKeep from 'react-native-callkeep';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
 
@@ -57,6 +57,17 @@ TaskManager.defineTask(
     console.log('[BackgroundTask] 🎯 TASK TRIGGERED');
     console.log('[BackgroundTask] Platform:', Platform.OS);
     console.log('[BackgroundTask] Timestamp:', new Date().toISOString());
+
+    // On Android, skip if app is in foreground (foreground listener will handle it)
+    // This prevents duplicate call handling
+    if (Platform.OS === 'android') {
+      const appState = AppState.currentState;
+      if (appState === 'active') {
+        console.log('[BackgroundTask] ⏭️ App is in foreground, skipping background task (foreground listener will handle)');
+        return;
+      }
+      console.log('[BackgroundTask] App state:', appState, '- proceeding with background handling');
+    }
 
     if (error) {
       console.error('[BackgroundTask] ❌ Task received error:', error);
@@ -124,7 +135,8 @@ TaskManager.defineTask(
 
           const callData: IncomingCallData = {
             callId: notificationData.callId,
-            callerName: notificationData.fromName || 'Doorman',
+            // Prioritize fromName, then callerName, fallback to 'Porteiro' (not 'Doorman' to match other code)
+            callerName: notificationData.fromName || notificationData.callerName || 'Porteiro',
             apartmentNumber: notificationData.apartmentNumber || '',
             channelName: notificationData.channelName || notificationData.channel,
             from: notificationData.from,
@@ -155,19 +167,39 @@ TaskManager.defineTask(
             }
 
             // 2. Display CallKeep UI if available (Android)
+            // Check if call is already active before showing UI (prevents duplicate UI)
+            const hasActiveCall = callCoordinator.hasActiveCall();
+            const activeSession = callCoordinator.getActiveSession();
+            
             if (callKeepAvailable && Platform.OS === 'android') {
-              try {
-                RNCallKeep.displayIncomingCall(
-                  callData.callId,
-                  callData.from,
-                  callData.callerName,
-                  'generic',
-                  false
-                );
-                console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed');
-              } catch (displayError) {
-                console.error('[BackgroundTask] ❌ Failed to display CallKeep UI:', displayError);
-                callKeepAvailable = false;
+              if (hasActiveCall && activeSession?.id === callData.callId) {
+                console.log('[BackgroundTask] Call already active, skipping CallKeep UI');
+              } else {
+                try {
+                  // Use caller name for handle (not UUID) to ensure consistent display
+                  // If callerName is not available or is the fallback, use a formatted string instead of UUID
+                  const displayHandle = callData.callerName && callData.callerName !== 'Porteiro' 
+                    ? callData.callerName 
+                    : callData.apartmentNumber 
+                      ? `Apt ${callData.apartmentNumber}`
+                      : 'Interfone';
+                  
+                  RNCallKeep.displayIncomingCall(
+                    callData.callId,
+                    displayHandle, // Use name/apartment instead of UUID
+                    callData.callerName || 'Porteiro', // Ensure we always have a name
+                    'generic',
+                    false
+                  );
+                  console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed:', {
+                    callId: callData.callId,
+                    handle: displayHandle,
+                    callerName: callData.callerName || 'Porteiro',
+                  });
+                } catch (displayError) {
+                  console.error('[BackgroundTask] ❌ Failed to display CallKeep UI:', displayError);
+                  callKeepAvailable = false;
+                }
               }
             }
 
@@ -180,7 +212,8 @@ TaskManager.defineTask(
               apartmentNumber: callData.apartmentNumber,
               channelName: callData.channelName,
               from: callData.from,
-              source: 'background', // Mark as background source to prevent duplicate CallKeep UI
+              source: 'background', // Mark as background source
+              shouldShowNativeUI: false, // Background task already shows CallKeep UI directly
             };
 
             await callCoordinator.handleIncomingPush(pushData);
@@ -188,6 +221,8 @@ TaskManager.defineTask(
 
           } catch (notificationError) {
             console.error('[BackgroundTask] ❌ Failed to process intercom call:', notificationError);
+            console.error('[BackgroundTask] Error stack:', notificationError instanceof Error ? notificationError.stack : 'No stack trace');
+            console.error('[BackgroundTask] Error details:', JSON.stringify(notificationError, Object.getOwnPropertyNames(notificationError)));
           }
         } else {
           console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);
@@ -199,7 +234,9 @@ TaskManager.defineTask(
         console.log('[BackgroundTask] ℹ️ Unknown event type, ignoring');
       }
     } catch (error) {
-      console.error('[BackgroundTask] Error processing notification:', error);
+      console.error('[BackgroundTask] ❌ Fatal error processing notification:', error);
+      console.error('[BackgroundTask] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('[BackgroundTask] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     }
   }
 );

@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useAuth } from '~/hooks/useAuth';
 import { isRegularUser } from '~/types/auth.types';
@@ -21,18 +20,18 @@ interface CommunicationItem {
   authorName?: string;
 }
 
-const iconByType: Record<string, string> = {
-  manutencao: '🔧',
-  maintenance: '🔧',
-  reuniao: '👥',
-  meeting: '👥',
-  obra: '🏗️',
-  informativo: 'ℹ️',
-  notice: '📢',
-  event: '🎉',
-  warning: '⚠️',
-  info: 'ℹ️',
-  emergency: '🚨',
+const iconByType: Record<string, { name: string; color: string }> = {
+  manutencao: { name: 'wrench.fill', color: '#FF9800' },
+  maintenance: { name: 'wrench.fill', color: '#FF9800' },
+  reuniao: { name: 'person.2.fill', color: '#2196F3' },
+  meeting: { name: 'person.2.fill', color: '#2196F3' },
+  obra: { name: 'building.2.fill', color: '#795548' },
+  informativo: { name: 'info.circle.fill', color: '#2196F3' },
+  notice: { name: 'megaphone.fill', color: '#2196F3' },
+  event: { name: 'party.popper.fill', color: '#9C27B0' },
+  warning: { name: 'exclamationmark.triangle.fill', color: '#FF9800' },
+  info: { name: 'info.circle.fill', color: '#2196F3' },
+  emergency: { name: 'exclamationmark.triangle.fill', color: '#f44336' },
 };
 
 const colorByPriority: Record<string, string> = {
@@ -57,13 +56,15 @@ const formatDateTime = (iso: string) => {
 };
 
 function CommunicationCard({ item }: { item: CommunicationItem }) {
-  const icon = item.type ? iconByType[item.type] ?? '📢' : '📢';
+  const iconConfig = item.type ? iconByType[item.type] ?? iconByType.notice : iconByType.notice;
   const color = item.priority ? colorByPriority[item.priority] ?? '#2196F3' : '#2196F3';
 
   return (
     <View style={flattenStyles([styles.avisoCard, { borderLeftColor: color }])}>
       <View style={styles.avisoHeader}>
-        <Text style={styles.avisoIcon}>{icon}</Text>
+        <View style={styles.avisoIconContainer}>
+          <IconSymbol name={iconConfig.name as any} color={iconConfig.color} size={28} />
+        </View>
         <View style={styles.avisoInfo}>
           <Text style={styles.avisoTitle}>{item.title}</Text>
           {!!item.authorName && <Text style={styles.avisoAuthor}>Por {item.authorName || 'Administração'}</Text>}
@@ -86,7 +87,7 @@ function CommunicationsList({ data, loading, onRefresh, emptyHint = 'Não há co
   if (!loading && data.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📭</Text>
+        <IconSymbol name="envelope" color="#999" size={48} />
         <Text style={styles.emptyTitle}>Nenhum comunicado</Text>
         <Text style={styles.emptySubtitle}>{emptyHint}</Text>
       </View>
@@ -117,7 +118,10 @@ function PorteiroView() {
           <IconSymbol name="chevron.left" color="#fff" size={30} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer} pointerEvents="none">
-          <Text style={styles.title}>📢 Avisos</Text>
+          <View style={styles.titleContainer}>
+            <IconSymbol name="megaphone.fill" color="#fff" size={24} />
+            <Text style={styles.title}>Avisos</Text>
+          </View>
           <Text style={styles.subtitle}>Comunicados do condomínio</Text>
         </View>
       </View>
@@ -167,7 +171,7 @@ function MoradorView() {
   const isSubscribedRef = useRef(false);
 
   const formatDate = useCallback((dateString: string) => formatDateTime(dateString), []);
-  const getTypeIcon = useCallback((type: string) => iconByType[type] ?? '📢', []);
+  const getTypeIcon = useCallback((type: string) => iconByType[type] ?? iconByType.notice, []);
 
   useEffect(() => {
     if (user?.id && isRegularUser(user) && user.building_id) {
@@ -405,7 +409,7 @@ function MoradorView() {
             <Text style={[styles.optionText, isUserVote && styles.userVoteText, !canVote && styles.disabledOptionText]}>
               {option.option_text}
             </Text>
-            {isUserVote && <Ionicons name="checkmark-circle" size={20} color="#10B981" />}
+            {isUserVote && <IconSymbol name="checkmark.circle.fill" color="#10B981" size={20} />}
           </View>
           {poll.user_voted && (
             <View style={styles.voteResults}>
@@ -450,7 +454,7 @@ function MoradorView() {
         <View style={styles.pollOptions}>{poll.options.map((opt) => renderPollOption(poll, opt))}</View>
         {poll.user_voted && (
           <View style={styles.voteInfo}>
-            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+            <IconSymbol name="checkmark.circle.fill" color="#10B981" size={16} />
             <Text style={styles.voteInfoText}>Você já votou nesta enquete. Total de votos: {poll.total_votes}</Text>
           </View>
         )}
@@ -474,7 +478,10 @@ function MoradorView() {
           <IconSymbol name="chevron.left" color="#fff" size={30} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer} pointerEvents="none">
-          <Text style={styles.title}>📢 Avisos</Text>
+          <View style={styles.titleContainer}>
+            <IconSymbol name="megaphone.fill" color="#fff" size={24} />
+            <Text style={styles.title}>Avisos</Text>
+          </View>
           <Text style={styles.subtitle}>Comunicados do condomínio</Text>
         </View>
       </View>
@@ -494,28 +501,38 @@ function MoradorView() {
           </View>
         )}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📢 Avisos do Condomínio</Text>
+          <View style={styles.sectionTitleContainer}>
+            <IconSymbol name="megaphone.fill" color="#333" size={20} />
+            <Text style={styles.sectionTitle}>Avisos do Condomínio</Text>
+          </View>
           {communications.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>📭</Text>
+              <IconSymbol name="envelope" color="#999" size={48} />
               <Text style={styles.emptyStateTitle}>Nenhum comunicado disponível</Text>
               <Text style={styles.emptyStateDescription}>Não há comunicados para o seu prédio no momento.</Text>
             </View>
           ) : (
-            communications.map((communication) => (
-              <View key={communication.id} style={styles.noticeCard}>
-                <Text style={styles.noticeTitle}>
-                  {getTypeIcon(communication.type || '')} {communication.title}
-                </Text>
-                <Text style={styles.noticeDescription}>{communication.content}</Text>
-                <Text style={styles.noticeTime}>Publicado em {formatDate(communication.created_at)}</Text>
-              </View>
-            ))
+            communications.map((communication) => {
+              const iconConfig = getTypeIcon(communication.type || '');
+              return (
+                <View key={communication.id} style={styles.noticeCard}>
+                  <View style={styles.noticeTitleContainer}>
+                    <IconSymbol name={iconConfig.name as any} color={iconConfig.color} size={20} />
+                    <Text style={styles.noticeTitle}>{communication.title}</Text>
+                  </View>
+                  <Text style={styles.noticeDescription}>{communication.content}</Text>
+                  <Text style={styles.noticeTime}>Publicado em {formatDate(communication.created_at)}</Text>
+                </View>
+              );
+            })
           )}
         </View>
         <View style={styles.divider} />
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🗳️ Enquetes Ativas</Text>
+          <View style={styles.sectionTitleContainer}>
+            <IconSymbol name="checkmark.square.fill" color="#333" size={20} />
+            <Text style={styles.sectionTitle}>Enquetes Ativas</Text>
+          </View>
           {pollsLoading ? (
             <View style={styles.pollsLoadingContainer}>
               <ActivityIndicator size="large" color="#3B82F6" />
@@ -523,7 +540,7 @@ function MoradorView() {
             </View>
           ) : pollsError ? (
             <View style={styles.pollsErrorContainer}>
-              <Ionicons name="alert-circle" size={48} color="#EF4444" />
+              <IconSymbol name="exclamationmark.circle.fill" color="#EF4444" size={48} />
               <Text style={styles.errorText}>{pollsError}</Text>
               <TouchableOpacity
                 style={styles.retryButton}
@@ -537,7 +554,7 @@ function MoradorView() {
             </View>
           ) : polls.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>🗳️</Text>
+              <IconSymbol name="checkmark.square.fill" color="#999" size={48} />
               <Text style={styles.emptyStateTitle}>Nenhuma enquete ativa</Text>
               <Text style={styles.emptyStateDescription}>As enquetes criadas pelo administrador aparecerão aqui.</Text>
             </View>
@@ -611,24 +628,24 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 10,
   },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 5 },
-  subtitle: { fontSize: 16, color: '#fff', textAlign: 'center', opacity: 0.9 },
+  titleContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 5 },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#fff', textAlign: 'center' },
+  subtitle: { fontSize: 14, color: '#fff', textAlign: 'center', opacity: 0.9 },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   // FlatList padding to align with Emergency screen and add space from header
   contentContainer: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
-  loadingContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  loadingContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   loadingText: { fontSize: 14, color: '#666' },
-  emptyContainer: { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 40, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyContainer: { backgroundColor: '#fff', borderRadius: 16, paddingVertical: 40, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 4, textAlign: 'center' },
   emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center' },
-  avisoCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, borderLeftWidth: 6, width: '100%' },
+  avisoCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, borderLeftWidth: 6, width: '100%' },
   avisoHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  avisoIcon: { fontSize: 28, marginRight: 16, marginTop: 2 },
+  avisoIconContainer: { marginRight: 16, marginTop: 2, justifyContent: 'center' },
   avisoInfo: { flex: 1 },
   avisoTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   avisoAuthor: { fontSize: 12, color: '#2196F3', fontWeight: 'bold', marginBottom: 2 },
-  avisoDateTime: { fontSize: 11, color: '#999', fontStyle: 'italic' },
+  avisoDateTime: { fontSize: 12, color: '#999', fontStyle: 'italic' },
   avisoDescription: { fontSize: 14, color: '#555', lineHeight: 20, textAlign: 'justify' },
   section: { marginBottom: 10 },
   errorContainer: { backgroundColor: '#ffebee', borderColor: '#f44336', borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -637,18 +654,19 @@ const styles = StyleSheet.create({
   retryButtonText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   centerContent: { justifyContent: 'center', alignItems: 'center' },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyStateText: { fontSize: 48, marginBottom: 16 },
-  emptyStateTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
+  emptyStateTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8, marginTop: 16 },
   emptyStateDescription: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 12, marginTop: 10 },
-  noticeCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  noticeTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 8 },
+  sectionTitleContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  noticeCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12 },
+  noticeTitleContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  noticeTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', flex: 1 },
   noticeDescription: { fontSize: 14, color: '#666', lineHeight: 20, marginBottom: 8 },
   noticeTime: { fontSize: 12, color: '#999' },
   divider: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 20, marginVertical: 10 },
   pollsLoadingContainer: { alignItems: 'center', paddingVertical: 20 },
   pollsErrorContainer: { alignItems: 'center', paddingVertical: 20 },
-  pollCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  pollCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 16 },
   pollHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   pollTitle: { fontSize: 18, fontWeight: '600', color: '#1F2937', flex: 1, marginRight: 12 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },

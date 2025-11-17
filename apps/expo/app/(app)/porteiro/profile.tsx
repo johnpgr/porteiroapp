@@ -15,6 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import type {Database} from "@porteiroapp/common/supabase"
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -670,13 +671,16 @@ export default function PorteiroProfileScreen() {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <Text style={styles.backButtonText}>← Voltar</Text>
+              <IconSymbol name="chevron.left" size={20} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.title}>Meu Perfil</Text>
+            <View style={styles.headerTitleContainer}>
+              <IconSymbol name="person.fill" size={24} color="#fff" />
+              <Text style={styles.title}>Meu Perfil</Text>
+            </View>
             <TouchableOpacity
               style={styles.editButton}
               onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
-              <Text style={styles.editButtonText}>{isEditing ? 'Salvar' : 'Editar'}</Text>
+              <IconSymbol name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#fff" />
             </TouchableOpacity>
           </View>
 
@@ -689,7 +693,7 @@ export default function PorteiroProfileScreen() {
                   <Image source={{ uri: formData.avatar_url }} style={styles.profilePhoto} />
                 ) : (
                   <View style={styles.defaultPhoto}>
-                    <Text style={styles.defaultPhotoText}>👤</Text>
+                    <IconSymbol name="person.fill" size={60} color="#999" />
                   </View>
                 )}
                 {isEditing && (
@@ -896,8 +900,11 @@ export default function PorteiroProfileScreen() {
                 style={styles.actionButton} 
                 onPress={() => setShowPasswordSection(!showPasswordSection)}
               >
-                <Text style={styles.actionButtonText}>Alterar Senha</Text>
-                <Text style={styles.actionButtonArrow}>{showPasswordSection ? '▼' : '›'}</Text>
+                <View style={styles.actionButtonContent}>
+                  <IconSymbol name="lock.fill" size={20} color="#333" />
+                  <Text style={styles.actionButtonText}>Alterar Senha</Text>
+                </View>
+                <IconSymbol name={showPasswordSection ? "chevron.up" : "chevron.down"} size={20} color="#999" />
               </TouchableOpacity>
 
               {showPasswordSection && (
@@ -948,9 +955,11 @@ export default function PorteiroProfileScreen() {
                         'Pelo menos um caractere especial': validatePassword(passwordData.newPassword).hasSpecialChar
                       }).map(([requirement, met]) => (
                         <View key={requirement} style={styles.requirementItem}>
-                          <Text style={[styles.requirementIcon, { color: met ? '#4CAF50' : '#f44336' }]}>
-                            {met ? '✓' : '✗'}
-                          </Text>
+                          <IconSymbol 
+                            name={met ? "checkmark.circle.fill" : "xmark.circle.fill"} 
+                            size={16} 
+                            color={met ? "#4CAF50" : "#f44336"} 
+                          />
                           <Text style={[styles.requirementText, { color: met ? '#4CAF50' : '#f44336' }]}>
                             {requirement}
                           </Text>
@@ -981,8 +990,11 @@ export default function PorteiroProfileScreen() {
               )}
 
               <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionButtonText}>Notificações</Text>
-                <Text style={styles.actionButtonArrow}>›</Text>
+                <View style={styles.actionButtonContent}>
+                  <IconSymbol name="bell.fill" size={20} color="#333" />
+                  <Text style={styles.actionButtonText}>Notificações</Text>
+                </View>
+                <IconSymbol name="chevron.right" size={20} color="#999" />
               </TouchableOpacity>
 
               <View style={styles.divider} />
@@ -991,10 +1003,12 @@ export default function PorteiroProfileScreen() {
                 style={styles.deleteButton}
                 onPress={handleDeleteProfile}
               >
+                <IconSymbol name="trash.fill" size={20} color="#fff" />
                 <Text style={styles.deleteButtonText}>Excluir Perfil</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color="#fff" />
                 <Text style={styles.logoutButtonText}>Sair da Conta</Text>
               </TouchableOpacity>
             </View>
@@ -1027,24 +1041,27 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
   },
   editButton: {
     padding: 8,
-  },
-  editButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
@@ -1055,11 +1072,6 @@ const styles = StyleSheet.create({
     margin: 20,
     borderRadius: 12,
     padding: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   photoContainer: {
     alignItems: 'center',
@@ -1079,9 +1091,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 15,
-  },
-  defaultPhotoText: {
-    fontSize: 48,
   },
   changePhotoButton: {
     backgroundColor: '#f0f0f0',
@@ -1147,14 +1156,9 @@ const styles = StyleSheet.create({
     marginTop: 0,
     borderRadius: 12,
     padding: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   actionsTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 20,
@@ -1169,15 +1173,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
     marginBottom: 10,
   },
+  actionButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
     fontWeight: '500',
-  },
-  actionButtonArrow: {
-    fontSize: 20,
-    color: '#999',
-    fontWeight: 'bold',
   },
   divider: {
     height: 1,
@@ -1188,23 +1193,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
     padding: 15,
     borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   logoutButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   deleteButton: {
     backgroundColor: '#ff5722',
     padding: 15,
     borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     marginBottom: 10,
   },
   deleteButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   passwordSection: {
@@ -1216,7 +1227,7 @@ const styles = StyleSheet.create({
     borderColor: '#e9ecef',
   },
   passwordSectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 16,
@@ -1238,13 +1249,8 @@ const styles = StyleSheet.create({
   requirementItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginBottom: 4,
-  },
-  requirementIcon: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginRight: 8,
-    width: 16,
   },
   requirementText: {
     fontSize: 12,

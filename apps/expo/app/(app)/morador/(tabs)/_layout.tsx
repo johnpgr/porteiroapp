@@ -13,16 +13,6 @@ export default function MoradorTabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: '#4CAF50',
         tabBarInactiveTintColor: '#666666',
-        tabBarStyle: {
-          backgroundColor: '#fff',
-          paddingTop: 8,
-          paddingBottom: 8,
-          height: 100,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
         headerShown: false,
         tabBarHideOnKeyboard: true,
       }}

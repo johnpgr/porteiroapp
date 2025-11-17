@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 import { sendVisitorWhatsApp } from '~/services/whatsappService';
 import { supabase } from '~/utils/supabase';
@@ -388,10 +389,10 @@ export default function VisitantesTab() {
   const getVisitorTypeIcon = (type: string) => {
     switch (type) {
       case 'frequente':
-        return '⭐';
+        return 'star.fill';
       case 'comum':
       default:
-        return '👤';
+        return 'person.fill';
     }
   };
 
@@ -408,10 +409,10 @@ export default function VisitantesTab() {
   const getStatusIcon = (visitor: Visitor) => {
     switch (visitor.status?.toLowerCase()) {
       case 'expirado':
-        return '❌';
+        return 'exclamationmark.circle.fill';
       case 'pendente':
       default:
-        return '⏳';
+        return 'hourglass';
     }
   };
 
@@ -604,21 +605,10 @@ export default function VisitantesTab() {
   };
 
   // Função para obter ícone do tipo de veículo
-  const getVehicleTypeIcon = (type: string | null | undefined) => {
-    switch (type) {
-      case 'car':
-        return '🚗';
-      case 'motorcycle':
-        return '🏍️';
-      case 'truck':
-        return '🚛';
-      case 'van':
-        return '🚐';
-      case 'bus':
-        return '🚌';
-      default:
-        return '🚗';
-    }
+  const getVehicleTypeIcon = (type: string | null | undefined): 'car.fill' => {
+    // For now, all vehicles use the same car icon
+    // Can be extended later with specific icons for each type
+    return 'car.fill';
   };
 
   // Função para obter texto do tipo de veículo
@@ -1567,7 +1557,10 @@ export default function VisitantesTab() {
     <>
       <ScrollView style={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👥 Pré-cadastro de Visitantes</Text>
+          <View style={styles.sectionTitleContainer}>
+            <IconSymbol name="person.2.fill" color="#333" size={18} />
+            <Text style={styles.sectionTitle}>Pré-cadastro de Visitantes</Text>
+          </View>
           <Text style={styles.sectionDescription}>
             Cadastre visitantes esperados para facilitar a entrada
           </Text>
@@ -1575,21 +1568,24 @@ export default function VisitantesTab() {
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => router.push('/morador/visitor-form')}>
-            <Text style={styles.buttonEmoji}>👤</Text>
+            <IconSymbol name="person.fill" color="#fff" size={20} />
             <Text style={styles.primaryButtonText}>Cadastrar Novo Visitante</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.vehicleButton}
             onPress={() => router.push('/morador/vehicle-form')}>
-            <Text style={styles.buttonEmoji}>🚗</Text>
+            <IconSymbol name="car.fill" color="#fff" size={20} />
             <Text style={styles.vehicleButtonText}>Cadastrar Novo Veículo</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>📝 Visitantes Pré-cadastrados</Text>
+            <View style={styles.sectionTitleContainer}>
+              <IconSymbol name="list.bullet.rectangle" color="#333" size={18} />
+              <Text style={styles.sectionTitle}>Visitantes Pré-cadastrados</Text>
+            </View>
             <View style={styles.headerButtons}>
               <TouchableOpacity
                 style={styles.refreshButton}
@@ -1647,26 +1643,38 @@ export default function VisitantesTab() {
                     <View style={styles.cardMainInfo}>
                       <Text style={styles.visitorName}>{vehicle.license_plate}</Text>
                       <View style={styles.visitorTypeContainer}>
-                        <Text style={styles.visitorTypeIcon}>
-                          {getVehicleTypeIcon(vehicle.type)}
-                        </Text>
+                        <IconSymbol
+                          name={getVehicleTypeIcon(vehicle.type)}
+                          color="#666"
+                          size={16}
+                        />
                         <Text style={styles.visitorTypeText}>
                           {getVehicleTypeText(vehicle.type)}
                         </Text>
                       </View>
                       {vehicle.brand && (
-                        <Text style={styles.visitorDocument}>
-                          🏷️ {vehicle.brand} {vehicle.model || ''}
-                        </Text>
+                        <View style={styles.infoRowContainer}>
+                          <IconSymbol name="tag.fill" color="#666" size={14} />
+                          <Text style={styles.visitorDocument}>
+                            {vehicle.brand} {vehicle.model || ''}
+                          </Text>
+                        </View>
                       )}
-                      {vehicle.color && <Text style={styles.visitorPhone}>🎨 {vehicle.color}</Text>}
+                      {vehicle.color && (
+                        <View style={styles.infoRowContainer}>
+                          <IconSymbol name="paintpalette.fill" color="#666" size={14} />
+                          <Text style={styles.visitorPhone}>{vehicle.color}</Text>
+                        </View>
+                      )}
                       <Text style={styles.visitorDate}>
                         Cadastrado: {formatDisplayDate(vehicle.created_at)}
                       </Text>
                       <View style={styles.visitorTypeContainer}>
-                        <Text style={styles.visitorTypeIcon}>
-                          {vehicle.ownership_type === 'visita' ? '👥' : '🏠'}
-                        </Text>
+                        <IconSymbol
+                          name={vehicle.ownership_type === 'visita' ? 'person.2.fill' : 'house.fill'}
+                          color="#666"
+                          size={16}
+                        />
                         <Text style={styles.visitorTypeText}>
                           {vehicle.ownership_type === 'visita'
                             ? 'Veículo de Visita'
@@ -1677,7 +1685,8 @@ export default function VisitantesTab() {
 
                     <View style={styles.cardHeaderActions}>
                       <View style={styles.vehicleBadge}>
-                        <Text style={styles.vehicleBadgeText}>🚗 Veículo</Text>
+                        <IconSymbol name="car.fill" color="#1976d2" size={12} />
+                        <Text style={styles.vehicleBadgeText}>Veículo</Text>
                       </View>
 
                       <TouchableOpacity
@@ -1693,14 +1702,16 @@ export default function VisitantesTab() {
                       <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() => handleEditVehicle(vehicle)}>
-                        <Text style={styles.actionButtonText}>✏️ Editar</Text>
+                        <IconSymbol name="pencil" color="#333" size={14} />
+                        <Text style={styles.actionButtonText}>Editar</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         style={[styles.actionButton, styles.actionButtonDanger]}
                         onPress={() => handleDeleteVehicle(vehicle)}>
+                        <IconSymbol name="trash.fill" color="#f44336" size={14} />
                         <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                          🗑️ Excluir
+                          Excluir
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -1727,13 +1738,23 @@ export default function VisitantesTab() {
                         {visitor.name}
                       </Text>
                       {visitor.document && (
-                        <Text style={styles.visitorDocument}>📄 {visitor.document}</Text>
+                        <View style={styles.infoRowContainer}>
+                          <IconSymbol name="doc.text" color="#666" size={14} />
+                          <Text style={styles.visitorDocument}>{visitor.document}</Text>
+                        </View>
                       )}
-                      {visitor.phone && <Text style={styles.visitorPhone}>📞 {visitor.phone}</Text>}
+                      {visitor.phone && (
+                        <View style={styles.infoRowContainer}>
+                          <IconSymbol name="phone.fill" color="#666" size={14} />
+                          <Text style={styles.visitorPhone}>{visitor.phone}</Text>
+                        </View>
+                      )}
                       <View style={styles.visitorTypeContainer}>
-                        <Text style={styles.visitorTypeIcon}>
-                          {getVisitorTypeIcon(visitor.visitor_type)}
-                        </Text>
+                        <IconSymbol
+                          name={getVisitorTypeIcon(visitor.visitor_type)}
+                          color="#666"
+                          size={16}
+                        />
                         <Text style={styles.visitorTypeText}>
                           {getVisitorTypeText(visitor.visitor_type)}
                         </Text>
@@ -1745,7 +1766,10 @@ export default function VisitantesTab() {
                         visitor.visit_start_time ||
                         visitor.visit_end_time) && (
                         <View style={styles.visitScheduleContainer}>
-                          <Text style={styles.visitScheduleLabel}>🕒 Período de Visita:</Text>
+                          <View style={styles.visitScheduleLabelContainer}>
+                            <IconSymbol name="clock.fill" color="#333" size={12} />
+                            <Text style={styles.visitScheduleLabel}>Período de Visita:</Text>
+                          </View>
                           <Text style={styles.visitScheduleText}>
                             {formatVisitPeriod(
                               visitor.visit_date,
@@ -1763,7 +1787,15 @@ export default function VisitantesTab() {
                           styles.statusBadge,
                           isVisitorDisapproved(visitor) && styles.statusBadgeDisapproved,
                         ]}>
-                        <Text style={styles.statusIcon}>{getStatusIcon(visitor)}</Text>
+                        <IconSymbol
+                          name={getStatusIcon(visitor)}
+                          color={
+                            isVisitorDisapproved(visitor)
+                              ? '#c62828'
+                              : '#2d5a2d'
+                          }
+                          size={14}
+                        />
                         <Text
                           style={[
                             styles.statusText,
@@ -1792,20 +1824,26 @@ export default function VisitantesTab() {
                         ]}
                         onPress={() => handleEditVisitor(visitor)}
                         disabled={hasVisitorFinalStatus(visitor)}>
+                        <IconSymbol
+                          name="pencil"
+                          color={hasVisitorFinalStatus(visitor) ? '#ccc' : '#333'}
+                          size={14}
+                        />
                         <Text
                           style={[
                             styles.actionButtonText,
                             hasVisitorFinalStatus(visitor) && styles.actionButtonTextDisabled,
                           ]}>
-                          ✏️ Editar
+                          Editar
                         </Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         style={[styles.actionButton, styles.actionButtonDanger]}
                         onPress={() => handleDeleteVisitor(visitor)}>
+                        <IconSymbol name="trash.fill" color="#f44336" size={14} />
                         <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                          🗑️ Excluir
+                          Excluir
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -1904,13 +1942,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
   },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginBottom: 20,
   },
@@ -1930,7 +1973,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginLeft: 8,
   },
@@ -1940,7 +1983,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
   },
   errorContainer: {
@@ -1949,7 +1992,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 14,
     color: '#f44336',
     textAlign: 'center',
   },
@@ -1962,7 +2005,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   emptyContainer: {
@@ -1971,13 +2014,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     fontWeight: 'bold',
   },
   emptySubtext: {
     marginTop: 8,
-    fontSize: 14,
+    fontSize: 12,
     color: '#999',
     textAlign: 'center',
   },
@@ -1986,11 +2029,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   visitorCardApproved: {
     backgroundColor: '#f5f5f5',
@@ -2001,7 +2039,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   visitorName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
@@ -2012,29 +2050,30 @@ const styles = StyleSheet.create({
   visitorTypeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
   },
-  visitorTypeIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
   visitorTypeText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     fontWeight: '500',
   },
-  visitorDocument: {
-    fontSize: 14,
-    color: '#666',
+  infoRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
+  },
+  visitorDocument: {
+    fontSize: 12,
+    color: '#666',
   },
   visitorPhone: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    marginBottom: 4,
   },
   visitorDate: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginBottom: 12,
   },
@@ -2066,6 +2105,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    gap: 4,
   },
   statusBadgeDisapproved: {
     flexDirection: 'row',
@@ -2074,15 +2114,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-  },
-  statusIcon: {
-    fontSize: 14,
-    marginRight: 4,
+    gap: 4,
   },
   statusText: {
     color: '#2d5a2d',
     fontSize: 12,
     fontWeight: '500',
+    marginLeft: 4,
   },
   statusTextDisapproved: {
     color: '#c62828',
@@ -2145,6 +2183,9 @@ const styles = StyleSheet.create({
     minWidth: 70,
     alignItems: 'center',
     flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
   },
   actionButtonDanger: {
     backgroundColor: '#fff5f5',
@@ -2192,12 +2233,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderLeftWidth: 3,
     borderLeftColor: '#4CAF50',
+    alignSelf: 'stretch',
+    width: '100%',
+  },
+  visitScheduleLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
   },
   visitScheduleLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 2,
   },
   visitScheduleText: {
     fontSize: 12,
@@ -2215,7 +2263,7 @@ const styles = StyleSheet.create({
   },
   vehicleButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginLeft: 8,
   },
@@ -2231,6 +2279,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#2196F3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   vehicleBadgeText: {
     color: '#1976d2',
@@ -2285,14 +2336,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterModalButtonText: {
-    fontSize: 16,
+    fontSize: 12,
     color: '#333',
     fontWeight: '500',
-  },
-
-  buttonEmoji: {
-    fontSize: 24,
-    color: '#fff',
-    marginRight: 8,
   },
 });

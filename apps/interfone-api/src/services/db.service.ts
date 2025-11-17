@@ -655,7 +655,15 @@ class DatabaseService {
             joined_at,
             left_at,
             created_at,
-            profiles!call_participants_resident_id_fkey(id, full_name, phone, user_type)
+            profiles!call_participants_resident_id_fkey(
+              id, 
+              full_name, 
+              phone, 
+              user_type,
+              push_token,
+              voip_push_token,
+              notification_enabled
+            )
           `,
         )
         .eq("call_id", callId);
@@ -689,6 +697,9 @@ class DatabaseService {
           raw_user_type: rawUserType,
           name: profile.full_name || null,
           phone: profile.phone || null,
+          push_token: profile.push_token || null,
+          voip_push_token: profile.voip_push_token || null,
+          notification_enabled: profile.notification_enabled || false,
         };
       });
 

@@ -18,13 +18,19 @@ const MAPPING = {
   'house.fill': 'home',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
+  'chevron.down': 'keyboard-arrow-down',
   'magnifyingglass': 'search',
 
   // Status / actions
   'checkmark.circle.fill': 'check-circle',
   'exclamationmark.circle.fill': 'error',
+  'exclamationmark.triangle.fill': 'warning',
+  'questionmark.circle.fill': 'help',
+  'info.circle.fill': 'info',
   'bell.fill': 'notifications',
   'trash.fill': 'delete',
+  'pencil': 'edit',
+  'star.fill': 'star',
   'play.circle.fill': 'play-circle-filled',
   'stop.circle.fill': 'stop',
   'rectangle.portrait.and.arrow.right': 'login',
@@ -33,9 +39,12 @@ const MAPPING = {
   'person': 'person',
   'person.fill': 'person',
   'person.2.fill': 'people',
+  'person.badge.key.fill': 'work',
+  'shield.fill': 'security',
 
   // Time / media
   'clock.fill': 'schedule',
+  'hourglass': 'hourglass-empty',
   'mic': 'mic',
   'mic.slash.fill': 'mic-off',
   'speaker.wave.3.fill': 'volume-up',
@@ -47,10 +56,43 @@ const MAPPING = {
   'list.bullet.rectangle': 'assignment',
   'chart.bar.fill': 'insert-chart',
   'checkmark.seal.fill': 'verified',
+  'envelope.fill': 'mail',
+  'envelope': 'mail-outline',
+  'building.2.fill': 'business',
+  'shippingbox.fill': 'inventory',
+  'tag.fill': 'local-offer',
+  'paintpalette.fill': 'palette',
 
   // Phone
   'phone.fill': 'phone',
   'phone.down.fill': 'call-end',
+
+  // Vehicles
+  'car.fill': 'directions-car',
+  'bicycle': 'motorcycle',
+  'truck.box.fill': 'local-shipping',
+  'car.2.fill': 'airport-shuttle',
+  'bus': 'directions-bus',
+  'lightbulb.fill': 'lightbulb',
+  
+  // Tools / maintenance
+  'wrench.fill': 'build',
+  
+  // Communication
+  'megaphone.fill': 'campaign',
+  
+  // Events / celebration
+  'party.popper.fill': 'celebration',
+  
+  // Voting / polls
+  'checkmark.square.fill': 'how-to-vote',
+  
+  // Additional icons
+  'checkmark': 'check',
+  'camera.fill': 'camera-alt',
+  'chevron.up': 'keyboard-arrow-up',
+  'lock.fill': 'lock',
+  'xmark.circle.fill': 'cancel',
 } as IconMapping;
 
 /**

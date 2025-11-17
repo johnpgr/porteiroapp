@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SafeAreaView } from '~/components/SafeAreaView';
 import { ReadOnlyGuard } from '~/components/ReadOnlyGuard';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { SplashScreenController } from '../splash';
@@ -14,6 +13,7 @@ import { CallManagerProvider } from '../providers/CallManagerProvider';
 import { NotificationProvider } from '../providers/NotificationProvider';
 import { initializeNotificationHandler } from '../services/notificationHandler';
 import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
+import { SafeAreaView } from '~/components/SafeAreaView';
 
 function App() {
   const { user } = useAuth();
@@ -83,19 +83,19 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1 }}>
-        <AuthProvider>
-          <SplashScreenController isAppReady={appReady} />
-          <PushTokenProvider />
-          <DeepLinkProvider />
-          <CallManagerProvider />
-          <NotificationProvider />
-          <ReadOnlyGuard>
+      <AuthProvider>
+        <SplashScreenController isAppReady={appReady} />
+        <PushTokenProvider />
+        <DeepLinkProvider />
+        <CallManagerProvider />
+        <NotificationProvider />
+        <ReadOnlyGuard>
+          <SafeAreaView style={{ flex: 1 }}>
             <App />
             <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          </ReadOnlyGuard>
-        </AuthProvider>
-      </SafeAreaView>
+          </SafeAreaView>
+        </ReadOnlyGuard>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

@@ -10,7 +10,6 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -757,13 +756,16 @@ export default function MoradorProfileScreen() {
             <IconSymbol name="chevron.left" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerTextContent}>
-            <Text style={styles.headerTitle}>👤 Meu Perfil</Text>
+            <View style={styles.headerTitleContainer}>
+              <IconSymbol name="person.fill" size={24} color="#fff" />
+              <Text style={styles.headerTitle}>Meu Perfil</Text>
+            </View>
             <Text style={styles.headerSubtitle}>Gerenciar informações pessoais</Text>
           </View>
           <TouchableOpacity
             style={styles.editButton}
             onPress={() => (isEditing ? handleSave() : setIsEditing(true))}>
-            <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#fff" />
+            <IconSymbol name={isEditing ? 'checkmark' : 'pencil'} size={20} color="#fff" />
           </TouchableOpacity>
         </View>
 
@@ -777,13 +779,13 @@ export default function MoradorProfileScreen() {
                   <Image source={{ uri: formData.avatar_url }} style={styles.photo} />
                 ) : (
                   <View style={styles.photoPlaceholder}>
-                    <Ionicons name="person" size={60} color="#ccc" />
+                    <IconSymbol name="person.fill" size={60} color="#ccc" />
                   </View>
                 )}
                 {isEditing && (
                   <View style={styles.photoOverlay}>
-                    <Ionicons 
-                      name={photoUploading ? "hourglass" : "camera"} 
+                    <IconSymbol 
+                      name={photoUploading ? "hourglass" : "camera.fill"} 
                       size={24} 
                       color="#fff" 
                     />
@@ -804,7 +806,10 @@ export default function MoradorProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Informações Pessoais</Text>
+              <View style={styles.sectionTitleContainer}>
+                <IconSymbol name="list.bullet.rectangle" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Informações Pessoais</Text>
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome Completo</Text>
@@ -869,7 +874,10 @@ export default function MoradorProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🏠 Informações do Apartamento</Text>
+              <View style={styles.sectionTitleContainer}>
+                <IconSymbol name="house.fill" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Informações do Apartamento</Text>
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Número do Apartamento</Text>
@@ -883,7 +891,10 @@ export default function MoradorProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🚨 Contato de Emergência</Text>
+              <View style={styles.sectionTitleContainer}>
+                <IconSymbol name="exclamationmark.triangle.fill" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Contato de Emergência</Text>
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Nome do Contato</Text>
@@ -914,16 +925,19 @@ export default function MoradorProfileScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🔐 Configurações da Conta</Text>
+              <View style={styles.sectionTitleContainer}>
+                <IconSymbol name="lock.fill" size={20} color="#333" />
+                <Text style={styles.sectionTitle}>Configurações da Conta</Text>
+              </View>
               
               <TouchableOpacity 
                 style={styles.passwordToggleButton} 
                 onPress={() => setShowPasswordSection(!showPasswordSection)}
               >
-                <Ionicons name="key" size={20} color="#4CAF50" />
+                <IconSymbol name="lock.fill" size={20} color="#4CAF50" />
                 <Text style={styles.passwordToggleText}>Alterar Senha</Text>
-                <Ionicons 
-                  name={showPasswordSection ? "chevron-up" : "chevron-down"} 
+                <IconSymbol 
+                  name={showPasswordSection ? "chevron.up" : "chevron.down"} 
                   size={20} 
                   color="#4CAF50" 
                 />
@@ -977,8 +991,8 @@ export default function MoradorProfileScreen() {
                         'Pelo menos um caractere especial': validatePassword(passwordData.newPassword).hasSpecialChar
                       }).map(([requirement, met]) => (
                         <View key={requirement} style={styles.requirementItem}>
-                          <Ionicons 
-                            name={met ? "checkmark-circle" : "close-circle"} 
+                          <IconSymbol 
+                            name={met ? "checkmark.circle.fill" : "xmark.circle.fill"} 
                             size={16} 
                             color={met ? "#4CAF50" : "#f44336"} 
                           />
@@ -1012,12 +1026,12 @@ export default function MoradorProfileScreen() {
               )}
               
               <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteProfile}>
-                <Ionicons name="trash" size={20} color="#fff" />
+                <IconSymbol name="trash.fill" size={20} color="#fff" />
                 <Text style={styles.deleteButtonText}>Excluir Perfil</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <Ionicons name="log-out" size={20} color="#fff" />
+                <IconSymbol name="rectangle.portrait.and.arrow.right" size={20} color="#fff" />
                 <Text style={styles.logoutButtonText}>Sair da Conta</Text>
               </TouchableOpacity>
             </View>
@@ -1037,7 +1051,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
   },
   header: {
@@ -1061,15 +1075,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 12,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: '#fff',
     textAlign: 'center',
   },
   headerSubtitle: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
     opacity: 0.9,
     textAlign: 'center',
@@ -1126,11 +1146,16 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 10,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 15,
+  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
   },
   field: {
     marginBottom: 15,

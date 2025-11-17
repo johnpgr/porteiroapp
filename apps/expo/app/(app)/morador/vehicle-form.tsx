@@ -266,9 +266,16 @@ export default function VehicleScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>
-            {vehicleId ? '✏️ Editar Veículo' : '🚗 Cadastrar Veículo'}
-          </Text>
+          <View style={styles.headerTitleContainer}>
+            {vehicleId ? (
+              <IconSymbol name="pencil" color="#fff" size={20} />
+            ) : (
+              <IconSymbol name="car.fill" color="#fff" size={20} />
+            )}
+            <Text style={styles.headerTitle}>
+              {vehicleId ? 'Editar Veículo' : 'Cadastrar Veículo'}
+            </Text>
+          </View>
           <Text style={styles.headerSubtitle}>
             {vehicleId ? 'Atualizar dados do veículo' : 'Adicionar novo veículo'}
           </Text>
@@ -379,38 +386,56 @@ export default function VehicleScreen() {
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('car')}>
-            <Text style={styles.sheetOptionText}>🚗 Carro</Text>
-            {form.type === 'car' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="car.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Carro</Text>
+            </View>
+            {form.type === 'car' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('motorcycle')}>
-            <Text style={styles.sheetOptionText}>🏍️ Moto</Text>
-            {form.type === 'motorcycle' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="bicycle" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Moto</Text>
+            </View>
+            {form.type === 'motorcycle' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('truck')}>
-            <Text style={styles.sheetOptionText}>🚛 Caminhão</Text>
-            {form.type === 'truck' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="truck.box.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Caminhão</Text>
+            </View>
+            {form.type === 'truck' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('van')}>
-            <Text style={styles.sheetOptionText}>🚐 Van</Text>
-            {form.type === 'van' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="car.2.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Van</Text>
+            </View>
+            {form.type === 'van' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('bus')}>
-            <Text style={styles.sheetOptionText}>🚌 Ônibus</Text>
-            {form.type === 'bus' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="bus" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Ônibus</Text>
+            </View>
+            {form.type === 'bus' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('other')}>
-            <Text style={styles.sheetOptionText}>🚙 Outro</Text>
-            {form.type === 'other' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="car.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Outro</Text>
+            </View>
+            {form.type === 'other' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
         </ScrollView>
       </BottomSheetModal>
@@ -448,15 +473,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 12,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
     textAlign: 'center',
   },
   headerSubtitle: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
     opacity: 0.9,
     textAlign: 'center',
@@ -470,7 +501,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
@@ -480,7 +511,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 14,
     backgroundColor: '#fff',
   },
   dropdownButton: {
@@ -495,12 +526,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   dropdownText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
     flex: 1,
   },
   placeholderText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#999',
     flex: 1,
   },
@@ -516,7 +547,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -533,7 +564,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   sheetSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6b7280',
     marginTop: 4,
     textAlign: 'center',
@@ -550,13 +581,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  sheetOptionText: {
-    fontSize: 16,
-    color: '#111827',
+  sheetOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  sheetCheckmark: {
-    fontSize: 18,
-    color: '#4CAF50',
-    fontWeight: '700',
+  sheetOptionText: {
+    fontSize: 14,
+    color: '#111827',
   },
 });

@@ -268,7 +268,10 @@ export default function PersonFormScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>👤 Nova Pessoa</Text>
+          <View style={styles.headerTitleContainer}>
+            <IconSymbol name="person.fill" color="#fff" size={20} />
+            <Text style={styles.headerTitle}>Nova Pessoa</Text>
+          </View>
           <Text style={styles.headerSubtitle}>Cadastrar pessoa</Text>
         </View>
         <View style={styles.backButtonPlaceholder} />
@@ -381,20 +384,29 @@ export default function PersonFormScreen() {
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('familiar')}>
-            <Text style={styles.sheetOptionText}>👨‍👩‍👧‍👦 Familiar</Text>
-            {formData.person_type === 'familiar' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="person.2.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Familiar</Text>
+            </View>
+            {formData.person_type === 'familiar' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('funcionario')}>
-            <Text style={styles.sheetOptionText}>👷 Funcionário</Text>
-            {formData.person_type === 'funcionario' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="person.badge.key.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Funcionário</Text>
+            </View>
+            {formData.person_type === 'funcionario' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sheetOption}
             onPress={() => handleSelectType('autorizado')}>
-            <Text style={styles.sheetOptionText}>✅ Autorizado</Text>
-            {formData.person_type === 'autorizado' && <Text style={styles.sheetCheckmark}>✓</Text>}
+            <View style={styles.sheetOptionContent}>
+              <IconSymbol name="checkmark.seal.fill" color="#111827" size={20} />
+              <Text style={styles.sheetOptionText}>Autorizado</Text>
+            </View>
+            {formData.person_type === 'autorizado' && <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={20} />}
           </TouchableOpacity>
         </ScrollView>
       </BottomSheetModal>
@@ -432,15 +444,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 12,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
     textAlign: 'center',
   },
   headerSubtitle: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
     opacity: 0.9,
     textAlign: 'center',
@@ -454,7 +472,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 8,
@@ -464,7 +482,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 14,
     backgroundColor: '#fff',
   },
   dropdownButton: {
@@ -479,7 +497,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   dropdownText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#333',
     flex: 1,
   },
@@ -498,7 +516,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   disabledButton: {
@@ -514,7 +532,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   sheetSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6b7280',
     marginTop: 4,
     textAlign: 'center',
@@ -531,13 +549,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  sheetOptionText: {
-    fontSize: 16,
-    color: '#111827',
+  sheetOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  sheetCheckmark: {
-    fontSize: 18,
-    color: '#4CAF50',
-    fontWeight: '700',
+  sheetOptionText: {
+    fontSize: 14,
+    color: '#111827',
   },
 });

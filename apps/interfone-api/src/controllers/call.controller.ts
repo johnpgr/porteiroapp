@@ -508,16 +508,51 @@ class CallController {
         left_at: new Date()
       });
 
-      // Verificar se todos os moradores recusaram
+      // Verificar status dos moradores após o decline
       const participants = await DatabaseService.getCallParticipants(callId);
       const residents = participants.filter((p: any) => p.user_type === 'resident');
-      const allDeclined = residents.every((r: any) => r.status === 'declined');
-
-      if (allDeclined) {
-        // Se todos recusaram, encerrar a chamada
+      
+      // Filtrar apenas moradores que eram elegíveis para receber notificações push
+      // (tinham push token E notifications habilitadas) - estes são os "target" moradores
+      // Moradores offline/unreachable (sem token ou notifications desabilitadas) não contam
+      const eligibleResidents = residents.filter((r: any) => {
+        const hasPushToken = !!(r.push_token || r.voip_push_token);
+        const notificationsEnabled = r.notification_enabled === true;
+        return hasPushToken && notificationsEnabled;
+      });
+      
+      console.log(`📊 [Decline] Resident analysis for call ${callId}:`);
+      console.log(`   Total residents: ${residents.length}`);
+      console.log(`   Eligible (target) residents: ${eligibleResidents.length}`);
+      console.log(`   Eligible residents statuses:`, eligibleResidents.map((r: any) => ({
+        id: r.resident_id,
+        status: r.status,
+        name: r.name
+      })));
+      
+      const allEligibleDeclined = eligibleResidents.length > 0 && 
+        eligibleResidents.every((r: any) => r.status === 'declined');
+      const hasEligibleAnswered = eligibleResidents.some((r: any) => 
+        r.status === 'answered' || r.status === 'connected'
+      );
+      
+      // Se há apenas um morador elegível e ele recusou, encerrar imediatamente
+      if (eligibleResidents.length === 1) {
         await DatabaseService.updateCallStatus(callId, 'ended');
-        console.log(`📵 Chamada ${callId} encerrada - todos os moradores recusaram`);
+        console.log(`📵 Chamada ${callId} encerrada - único morador elegível recusou`);
+      } 
+      // Se todos os moradores elegíveis recusaram, encerrar a chamada
+      else if (allEligibleDeclined) {
+        await DatabaseService.updateCallStatus(callId, 'ended');
+        console.log(`📵 Chamada ${callId} encerrada - todos os moradores elegíveis recusaram`);
       }
+      // Se não há moradores elegíveis (todos offline/unreachable), encerrar também
+      else if (eligibleResidents.length === 0 && residents.length > 0) {
+        await DatabaseService.updateCallStatus(callId, 'ended');
+        console.log(`📵 Chamada ${callId} encerrada - nenhum morador elegível (todos offline/unreachable)`);
+      }
+      // Se alguém já atendeu, não fazer nada (call já está 'answered')
+      // Caso contrário, call permanece 'calling' aguardando outros moradores elegíveis
 
       res.json({
         success: true,

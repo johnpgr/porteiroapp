@@ -50,20 +50,29 @@ export function IntercomNotificationListeners() {
         return;
       }
 
+      const callId = (payload.callId as string) || 'unknown';
+      
+      // Early deduplication: check if CallCoordinator already has this call
+      if (callCoordinator.hasActiveCall() && callCoordinator.getActiveSession()?.id === callId) {
+        console.log('📞 [MoradorLayout] Call already active, ignoring duplicate notification:', callId);
+        return;
+      }
+
       console.log('📞 [MoradorLayout] Push notification de interfone recebida (foreground)');
       console.log('📞 [MoradorLayout] Delegating to CallCoordinator...');
 
       void callCoordinator
         .handleIncomingPush({
-          callId: (payload.callId as string) || 'unknown',
+          callId,
           from: (payload.from as string) || '',
           callerName: (payload.fromName as string) || (payload.callerName as string) || 'Doorman',
           apartmentNumber: (payload.apartmentNumber as string) || '',
           buildingName: (payload.buildingName as string) || '',
           channelName:
-            (payload.channelName as string) || (payload.channel as string) || `call-${payload.callId}`,
+            (payload.channelName as string) || (payload.channel as string) || `call-${callId}`,
           timestamp: Date.now(),
           source: 'foreground', // Foreground notification listener
+          shouldShowNativeUI: true, // Foreground pushes should show CallKeep UI
         })
         .catch((error) => {
           console.error('❌ [MoradorLayout] CallCoordinator failed to handle push:', error);

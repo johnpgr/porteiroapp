@@ -14,6 +14,7 @@ import { useAuth } from '~/hooks/useAuth';
 import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 type IntercomCallStatus = 'calling' | 'answered' | 'ended' | 'missed';
 type StatusFilter = 'all' | IntercomCallStatus;
@@ -42,7 +43,7 @@ interface CallHistoryItem {
 
 const PAGE_SIZE = 20;
 
-const STATUS_FILTER_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
+const STATUS_FILTER_OPTIONS: { label: string; value: StatusFilter }[] = [
   { label: 'Todas', value: 'all' },
   { label: 'Atendidas', value: 'answered' },
   { label: 'Perdidas', value: 'missed' },
@@ -50,7 +51,7 @@ const STATUS_FILTER_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
   { label: 'Chamando', value: 'calling' },
 ];
 
-const DATE_RANGE_OPTIONS: Array<{ label: string; value: DateRangeFilter }> = [
+const DATE_RANGE_OPTIONS: { label: string; value: DateRangeFilter }[] = [
   { label: 'Hoje', value: 'today' },
   { label: '7 dias', value: '7days' },
   { label: '30 dias', value: '30days' },
@@ -59,12 +60,12 @@ const DATE_RANGE_OPTIONS: Array<{ label: string; value: DateRangeFilter }> = [
 
 const STATUS_META: Record<
   Exclude<StatusFilter, 'all'>,
-  { label: string; icon: string; background: string; text: string; border: string }
+  { label: string; icon: 'phone.fill' | 'checkmark.circle.fill' | 'exclamationmark.circle.fill' | 'stop.circle.fill'; background: string; text: string; border: string }
 > = {
-  calling: { label: 'Chamando', icon: '📞', background: '#e8f1ff', text: '#1b6ef3', border: '#c7dcff' },
-  answered: { label: 'Atendida', icon: '✅', background: '#e5f8ef', text: '#1e8a4f', border: '#b6ebcf' },
-  missed: { label: 'Perdida', icon: '❌', background: '#fdeaea', text: '#c32f2f', border: '#f5bcbc' },
-  ended: { label: 'Encerrada', icon: '🔚', background: '#f0f0f3', text: '#6c6f7d', border: '#d1d2d8' },
+  calling: { label: 'Chamando', icon: 'phone.fill', background: '#e8f1ff', text: '#1b6ef3', border: '#c7dcff' },
+  answered: { label: 'Atendida', icon: 'checkmark.circle.fill', background: '#e5f8ef', text: '#1e8a4f', border: '#b6ebcf' },
+  missed: { label: 'Perdida', icon: 'exclamationmark.circle.fill', background: '#fdeaea', text: '#c32f2f', border: '#f5bcbc' },
+  ended: { label: 'Encerrada', icon: 'stop.circle.fill', background: '#f0f0f3', text: '#6c6f7d', border: '#d1d2d8' },
 };
 
 interface CallFiltersBottomSheetProps {
@@ -171,7 +172,7 @@ const filterSheetStyles = StyleSheet.create({
     borderBottomColor: '#F0F0F5',
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#202124',
   },
@@ -183,7 +184,7 @@ const filterSheetStyles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
     marginBottom: 12,
@@ -208,7 +209,7 @@ const filterSheetStyles = StyleSheet.create({
     borderColor: '#4CAF50',
   },
   chipText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4B5563',
     fontWeight: '600',
   },
@@ -236,7 +237,7 @@ const filterSheetStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#4B5563',
   },
@@ -249,7 +250,7 @@ const filterSheetStyles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   applyButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -579,33 +580,42 @@ export default function CallsTab() {
                 },
               ]}
             >
-              <Text style={[styles.statusBadgeIcon, { color: statusMeta.text }]}>{statusMeta.icon}</Text>
+              <IconSymbol name={statusMeta.icon} color={statusMeta.text} size={14} />
               <Text style={[styles.statusBadgeText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
             </View>
             <Text style={styles.dateText}>{formatCallDate(item.started_at)}</Text>
           </View>
 
           <View style={styles.cardBody}>
-            <Text style={styles.infoRow}>
-              <Text style={styles.infoLabel}>👮 Porteiro: </Text>
-              <Text style={styles.infoValue}>{item.doorman_name || 'Não informado'}</Text>
-            </Text>
+            <View style={styles.infoRowContainer}>
+              <IconSymbol name="shield.fill" color="#666" size={14} />
+              <Text style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Porteiro: </Text>
+                <Text style={styles.infoValue}>{item.doorman_name || 'Não informado'}</Text>
+              </Text>
+            </View>
 
             {(item.building_name || item.apartment_number) && (
-              <Text style={styles.infoRow}>
-                <Text style={styles.infoLabel}>🏢 Local: </Text>
-                <Text style={styles.infoValue}>
-                  {item.building_name ? `${item.building_name} • ` : ''}
-                  Apt {item.apartment_number ?? 'N/A'}
+              <View style={styles.infoRowContainer}>
+                <IconSymbol name="building.2.fill" color="#666" size={14} />
+                <Text style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Local: </Text>
+                  <Text style={styles.infoValue}>
+                    {item.building_name ? `${item.building_name} • ` : ''}
+                    Apt {item.apartment_number ?? 'N/A'}
+                  </Text>
                 </Text>
-              </Text>
+              </View>
             )}
 
             {durationLabel && (
-              <Text style={styles.infoRow}>
-                <Text style={styles.infoLabel}>⏱️ Duração: </Text>
-                <Text style={styles.infoValue}>{durationLabel}</Text>
-              </Text>
+              <View style={styles.infoRowContainer}>
+                <IconSymbol name="clock.fill" color="#666" size={14} />
+                <Text style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Duração: </Text>
+                  <Text style={styles.infoValue}>{durationLabel}</Text>
+                </Text>
+              </View>
             )}
 
             {item.answeredByCurrentUser && (
@@ -704,7 +714,7 @@ export default function CallsTab() {
 
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>📭</Text>
+        <IconSymbol name="envelope" color="#666" size={48} />
         <Text style={styles.emptyTitle}>Nenhuma chamada encontrada</Text>
         <Text style={styles.emptySubtitle}>
           Ajuste os filtros ou puxe para atualizar. Se nenhuma chamada aparecer, pode ser que ainda não houve
@@ -760,7 +770,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '700',
     color: '#333333',
   },
@@ -779,7 +789,7 @@ const styles = StyleSheet.create({
     borderColor: '#4CAF50',
   },
   filterButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#2f7d44',
   },
@@ -799,7 +809,7 @@ const styles = StyleSheet.create({
     minWidth: 145,
   },
   filterSummaryLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#7a7f87',
     textTransform: 'uppercase',
@@ -807,7 +817,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   filterSummaryValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333333',
   },
@@ -816,11 +826,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -835,25 +840,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 16,
     borderWidth: 1,
-  },
-  statusBadgeIcon: {
-    fontSize: 14,
-    marginRight: 6,
+    gap: 6,
   },
   statusBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   dateText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666666',
     fontWeight: '500',
   },
   cardBody: {
     gap: 6,
   },
+  infoRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   infoRow: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#444444',
   },
   infoLabel: {
@@ -893,7 +900,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerEndText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#777777',
     fontWeight: '500',
   },
@@ -907,7 +914,7 @@ const styles = StyleSheet.create({
     marginTop: 48,
   },
   emptyText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#666666',
     textAlign: 'center',
     marginTop: 12,
@@ -921,21 +928,18 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
-  emptyEmoji: {
-    fontSize: 34,
-  },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#444444',
     marginTop: 12,
     marginBottom: 6,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6d6d6d',
     textAlign: 'center',
     lineHeight: 20,

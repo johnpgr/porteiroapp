@@ -170,9 +170,16 @@ export default function VisitanteFormScreen() {
           <IconSymbol name="chevron.left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerTextContent}>
-          <Text style={styles.headerTitle}>
-            {visitorId ? '✏️ Editar Visitante' : '👥 Pré-cadastro'}
-          </Text>
+          <View style={styles.headerTitleContainer}>
+            {visitorId ? (
+              <IconSymbol name="pencil" color="#fff" size={20} />
+            ) : (
+              <IconSymbol name="person.2.fill" color="#fff" size={20} />
+            )}
+            <Text style={styles.headerTitle}>
+              {visitorId ? 'Editar Visitante' : 'Pré-cadastro'}
+            </Text>
+          </View>
           <Text style={styles.headerSubtitle}>
             {visitorId ? 'Atualizar dados do visitante' : 'Cadastrar visitantes'}
           </Text>
@@ -183,10 +190,13 @@ export default function VisitanteFormScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Dica no topo */}
           <View style={styles.infoBox}>
-            <Text style={styles.infoText}>
-              💡 Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
-              entrar a qualquer hora do dia)
-            </Text>
+            <View style={styles.infoBoxContainer}>
+              <IconSymbol name="lightbulb.fill" color="#4CAF50" size={16} />
+              <Text style={styles.infoText}>
+                Dica: Deixe os campos de horário em branco para liberação 24h (visitante pode
+                entrar a qualquer hora do dia)
+              </Text>
+            </View>
           </View>
 
           {/* Toggle para modo de cadastro - only show when not editing */}
@@ -761,15 +771,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 12,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
     textAlign: 'center',
   },
   headerSubtitle: {
     marginTop: 4,
-    fontSize: 14,
+    fontSize: 12,
     color: '#fff',
     opacity: 0.9,
     textAlign: 'center',
@@ -783,7 +799,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
     marginBottom: 8,
@@ -793,7 +809,7 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    fontSize: 16,
+    fontSize: 14,
     backgroundColor: '#fff',
   },
   registrationModeSelector: {
@@ -818,7 +834,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   registrationModeButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#4CAF50',
   },
@@ -841,7 +857,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   addVisitorButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4CAF50',
     fontWeight: '500',
   },
@@ -860,7 +876,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   multipleVisitorTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
   },
@@ -876,7 +892,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   multipleVisitorFieldLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     color: '#333',
   },
@@ -892,7 +908,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   processingText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4CAF50',
     fontWeight: '500',
   },
@@ -930,10 +946,16 @@ const styles = StyleSheet.create({
     borderLeftColor: '#4CAF50',
     marginTop: 20,
   },
+  infoBoxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
   infoText: {
     fontSize: 12,
     color: '#333',
     lineHeight: 18,
+    flex: 1,
   },
   timeInputRow: {
     flexDirection: 'row',
@@ -983,7 +1005,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   submitButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#fff',
   },

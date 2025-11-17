@@ -17,13 +17,21 @@ function ensureCallKeepService(androidManifest) {
   // Existing services array
   application.service = application.service || [];
 
-  const alreadyExists = application.service.some(
+  // Find existing service or create new one
+  const existingServiceIndex = application.service.findIndex(
     (svc) => svc.$ && svc.$['android:name'] === targetServiceName
   );
-  if (alreadyExists) {
-    return androidManifest; // idempotent
+
+  if (existingServiceIndex >= 0) {
+    // Update existing service to ensure foregroundServiceType is set
+    const existingService = application.service[existingServiceIndex];
+    if (existingService.$) {
+      existingService.$['android:foregroundServiceType'] = 'phoneCall';
+    }
+    return androidManifest; // Updated existing service
   }
 
+  // Create new service with foregroundServiceType
   application.service.push({
     $: {
       'android:name': targetServiceName,
@@ -31,6 +39,8 @@ function ensureCallKeepService(androidManifest) {
       'android:exported': 'true',
       // Critical: set permission so only system telecom can bind; app does not "gain" this permission.
       'android:permission': 'android.permission.BIND_TELECOM_CONNECTION_SERVICE',
+      // Required for Android 14+ (API 34+): foreground service type for phone calls
+      'android:foregroundServiceType': 'phoneCall',
     },
     'intent-filter': [
       {

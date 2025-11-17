@@ -23,16 +23,6 @@ export default function PorteiroTabsLayout() {
         screenOptions={{
           tabBarActiveTintColor: '#1E88E5',
           tabBarInactiveTintColor: '#666666',
-          tabBarStyle: {
-            backgroundColor: '#fff',
-            paddingTop: 8,
-            paddingBottom: 8,
-            height: 100,
-          },
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-          },
           headerShown: false,
           tabBarHideOnKeyboard: true,
         }}
@@ -106,7 +96,7 @@ export default function PorteiroTabsLayout() {
 
 const styles = StyleSheet.create({
   centralButton: {
-    top: -15,
+    top: -10,
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,

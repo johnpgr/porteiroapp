@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 import { Stack, usePathname, Redirect } from 'expo-router';
 import { useAuth } from '~/hooks/useAuth';
 import { useFirstLogin } from '~/hooks/useFirstLogin';
@@ -36,7 +35,7 @@ export default function MoradorLayout() {
   }
 
   return (
-    <View style={styles.container}>
+    <>
       <CallSystemInitializer />
       <ActiveCallBootstrapper />
       <IntercomNotificationListeners />
@@ -155,13 +154,6 @@ export default function MoradorLayout() {
           />
         </Stack.Protected>
       </Stack>
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-});

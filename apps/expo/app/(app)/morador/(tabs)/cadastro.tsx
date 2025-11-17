@@ -13,6 +13,7 @@ import {
 import { useAuth } from '~/hooks/useAuth';
 import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 // Database types
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
@@ -385,7 +386,10 @@ export function CadastroTabContent() {
       <View style={styles.container}>
         <ScrollView style={styles.content}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Cadastro de Pessoas e Veículos</Text>
+            <View style={styles.sectionTitleContainer}>
+              <IconSymbol name="person.2.fill" color="#333" size={18} />
+              <Text style={styles.sectionTitle}>Cadastro de Pessoas e Veículos</Text>
+            </View>
             <Text style={styles.sectionDescription}>
               Cadastre familiares, funcionários, pessoas autorizadas e veículos
             </Text>
@@ -394,21 +398,24 @@ export function CadastroTabContent() {
               <TouchableOpacity
                 style={[styles.primaryButton, styles.halfButton]}
                 onPress={() => router.push('/morador/person-form')}>
-                <Text style={styles.buttonEmoji}>👤</Text>
+                <IconSymbol name="person.fill" color="#fff" size={18} />
                 <Text style={styles.primaryButtonText}>Nova Pessoa</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.primaryButton, styles.halfButton]}
                 onPress={() => router.push('/morador/owner-vehicle')}>
-                <Text style={styles.buttonEmoji}>🚗</Text>
+                <IconSymbol name="car.fill" color="#fff" size={18} />
                 <Text style={styles.primaryButtonText}>Novo Veículo</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📋 Pessoas Cadastradas</Text>
+            <View style={styles.sectionTitleContainer}>
+              <IconSymbol name="list.bullet.rectangle" color="#333" size={18} />
+              <Text style={styles.sectionTitle}>Pessoas Cadastradas</Text>
+            </View>
 
             {loadingPeople ? (
               <View style={styles.loadingContainer}>
@@ -435,31 +442,58 @@ export function CadastroTabContent() {
                           {person.full_name}
                           {isCurrentUser && ' (Você)'}
                         </Text>
-                        <Text style={styles.personRelation}>
-                          {person.user_type === 'funcionario'
-                            ? '👷 Funcionário'
-                            : person.is_resident
-                              ? person.is_owner
-                                ? '🏠 Proprietário'
-                                : '👨‍👩‍👧‍👦 Morador'
-                              : '👥 Familiar'}
-                          {person.relation && ` • ${person.relation}`}
-                          {isCurrentUser && ' • Responsável pelo cadastro'}
-                        </Text>
+                        <View style={styles.personRelationContainer}>
+                          <IconSymbol
+                            name={
+                              person.user_type === 'funcionario'
+                                ? 'person.badge.key.fill'
+                                : person.is_resident
+                                  ? person.is_owner
+                                    ? 'house.fill'
+                                    : 'person.2.fill'
+                                  : 'person.2.fill'
+                            }
+                            color="#666"
+                            size={14}
+                          />
+                          <Text style={styles.personRelation}>
+                            {person.user_type === 'funcionario'
+                              ? 'Funcionário'
+                              : person.is_resident
+                                ? person.is_owner
+                                  ? 'Proprietário'
+                                  : 'Morador'
+                                : 'Familiar'}
+                            {person.relation && ` • ${person.relation}`}
+                            {isCurrentUser && ' • Responsável pelo cadastro'}
+                          </Text>
+                        </View>
                         {person.apartment_number && (
-                          <Text style={styles.apartmentInfo}>
-                            🏢 Apartamento {person.apartment_number}
-                            {person.apartment_floor && ` • ${person.apartment_floor}º andar`}
-                          </Text>
+                          <View style={styles.infoRowContainer}>
+                            <IconSymbol name="building.2.fill" color="#4CAF50" size={14} />
+                            <Text style={styles.apartmentInfo}>
+                              Apartamento {person.apartment_number}
+                              {person.apartment_floor && ` • ${person.apartment_floor}º andar`}
+                            </Text>
+                          </View>
                         )}
-                        <Text style={styles.personAccess}>
-                          📧 {person.email}
-                          {person.phone && ` • 📱 ${person.phone}`}
-                        </Text>
+                        <View style={styles.infoRowContainer}>
+                          <IconSymbol name="envelope.fill" color="#666" size={14} />
+                          <Text style={styles.personAccess}>{person.email}</Text>
+                        </View>
+                        {person.phone && (
+                          <View style={styles.infoRowContainer}>
+                            <IconSymbol name="phone.fill" color="#666" size={14} />
+                            <Text style={styles.personAccess}>{person.phone}</Text>
+                          </View>
+                        )}
                         {isCurrentUser && (
-                          <Text style={styles.dateInfo}>
-                            ℹ️ Você tem acesso à aba de cadastro de pessoas
-                          </Text>
+                          <View style={styles.infoRowContainer}>
+                            <IconSymbol name="info.circle.fill" color="#999" size={12} />
+                            <Text style={styles.dateInfo}>
+                              Você tem acesso à aba de cadastro de pessoas
+                            </Text>
+                          </View>
                         )}
 
                         {!isCurrentUser && (
@@ -467,7 +501,8 @@ export function CadastroTabContent() {
                             <TouchableOpacity
                               style={styles.deleteButton}
                               onPress={() => handleDelete(person)}>
-                              <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
+                              <IconSymbol name="trash.fill" color="#fff" size={14} />
+                              <Text style={styles.deleteButtonText}>Excluir</Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -480,7 +515,10 @@ export function CadastroTabContent() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🚙 Veículos Cadastrados</Text>
+            <View style={styles.sectionTitleContainer}>
+              <IconSymbol name="car.fill" color="#333" size={18} />
+              <Text style={styles.sectionTitle}>Veículos Cadastrados</Text>
+            </View>
 
             {loadingVehicles ? (
               <View style={styles.loadingContainer}>
@@ -514,14 +552,18 @@ export function CadastroTabContent() {
                           </View>
                         )}
                         {vehicle.color && (
-                          <Text style={styles.vehicleColor}>🎨Cor: {vehicle.color}</Text>
+                          <View style={styles.infoRowContainer}>
+                            <IconSymbol name="paintpalette.fill" color="#666" size={14} />
+                            <Text style={styles.vehicleColor}>Cor: {vehicle.color}</Text>
+                          </View>
                         )}
                       </View>
                       <View style={styles.actionButtons}>
                         <TouchableOpacity
                           style={styles.deleteButton}
                           onPress={() => handleDeleteVehicle(vehicle)}>
-                          <Text style={styles.deleteButtonText}>🗑️ Excluir</Text>
+                          <IconSymbol name="trash.fill" color="#fff" size={14} />
+                          <Text style={styles.deleteButtonText}>Excluir</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -554,14 +596,19 @@ const styles = StyleSheet.create({
     // backgroundColor: '#fff',
     padding: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 8,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginBottom: 20,
     lineHeight: 20,
@@ -586,6 +633,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
+    fontSize: 14,
     color: '#666',
   },
   emptyContainer: {
@@ -594,18 +642,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 14,
   },
   personCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   currentUserCard: {
     backgroundColor: '#e3f2fd',
@@ -613,31 +656,39 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   personName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
   },
+  personRelationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   personRelation: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
+  },
+  infoRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
   },
   apartmentInfo: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4CAF50',
-    marginBottom: 4,
     fontWeight: '500',
   },
   personAccess: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
-    marginBottom: 4,
   },
   dateInfo: {
     fontSize: 12,
     color: '#999',
-    marginBottom: 12,
     fontStyle: 'italic',
   },
   actionButtons: {
@@ -661,6 +712,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   deleteButtonText: {
     color: '#fff',
@@ -814,20 +869,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   vehiclePlate: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 4,
   },
   vehicleInfo: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     marginBottom: 4,
   },
@@ -837,12 +887,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   vehicleDetails: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#4CAF50',
     fontWeight: '500',
   },
   vehicleColor: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
   },
   // Estilos para modal de veículo
@@ -880,10 +930,5 @@ const styles = StyleSheet.create({
   },
   halfButton: {
     flex: 1,
-  },
-  buttonEmoji: {
-    fontSize: 18,
-    color: '#fff',
-    marginRight: 8,
   },
 });

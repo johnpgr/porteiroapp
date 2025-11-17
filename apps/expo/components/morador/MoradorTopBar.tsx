@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface MoradorData {
   name: string;
@@ -35,7 +36,10 @@ export default function MoradorTopBar({
     return (
       <View style={styles.topMenu}>
         <View style={styles.topMenuLeft}>
-          <Text style={styles.welcomeText}>❌ Erro de Conexão</Text>
+          <View style={styles.errorContainer}>
+            <IconSymbol name="exclamationmark.circle.fill" color="#f44336" size={20} />
+            <Text style={styles.welcomeText}>Erro de Conexão</Text>
+          </View>
           <Text style={styles.apartmentText}>Verifique sua conexão com a internet</Text>
         </View>
       </View>
@@ -91,7 +95,7 @@ export default function MoradorTopBar({
           style={styles.emergencyButton}
           onPress={onEmergencyPress}
         >
-          <Text style={styles.emergencyButtonText}>🚨</Text>
+          <IconSymbol name="exclamationmark.triangle.fill" color="#fff" size={24} />
         </TouchableOpacity>
 
         {/* Botão de Notificações */}
@@ -99,7 +103,7 @@ export default function MoradorTopBar({
           style={styles.notificationButton}
           onPress={onNotificationsPress}
         >
-          <Text style={styles.notificationIcon}>🔔</Text>
+          <IconSymbol name="bell.fill" color="#fff" size={20} />
           {unreadNotifications > 0 && (
             <View style={styles.notificationBadge}>
               <Text style={styles.notificationBadgeText}>
@@ -165,14 +169,11 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
-  emergencyButtonText: {
-    fontSize: 20,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   notificationButton: {
     width: 42,
@@ -181,15 +182,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2196F3',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     position: 'relative',
-  },
-  notificationIcon: {
-    fontSize: 20,
   },
   notificationBadge: {
     position: 'absolute',
@@ -217,11 +210,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   avatarText: {
     fontSize: 14,

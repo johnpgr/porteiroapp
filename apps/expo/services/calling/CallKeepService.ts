@@ -28,6 +28,8 @@ class CallKeepService {
   private isSetup: boolean = false;
   // iOS: Map CallKit UUID to canonical callId
   private uuidToCallId = new Map<string, string>();
+  // Track ended calls to prevent duplicate endCall calls
+  private endedCalls = new Set<string>();
 
   /**
    * Setup CallKeep with platform-specific options
@@ -124,14 +126,38 @@ class CallKeepService {
   /**
    * End call and dismiss native UI
    */
-  endCall(callId: string): void {
+  endCall(callId: string, reason?: number): void {
     if (!this.isAvailable) {
       return;
     }
 
+    // Prevent duplicate endCall calls
+    if (this.endedCalls.has(callId)) {
+      console.log(`[CallKeepService] Call ${callId} already ended, skipping duplicate endCall`);
+      return;
+    }
+
     try {
+      // Mark as ended immediately to prevent duplicates
+      this.endedCalls.add(callId);
+
+      // On Android, use reportEndCallWithUUID with reason code if provided
+      // This ensures the native UI properly clears the "in-call" state
+      if (Platform.OS === 'android') {
+        // Use reason code 1 (REMOTE_ENDED) if not specified
+        const endReason = reason ?? 1;
+        RNCallKeep.reportEndCallWithUUID(callId, endReason);
+        console.log(`[CallKeepService] ✅ Reported end call (Android): ${callId}, reason: ${endReason}`);
+      }
+
+      // Always call endCall to dismiss the UI
       RNCallKeep.endCall(callId);
       console.log(`[CallKeepService] ✅ Call ended: ${callId}`);
+
+      // On Android, clear the current call state to ensure native UI releases "in-call" state
+      if (Platform.OS === 'android') {
+        this.clearCurrentCall();
+      }
       
       // iOS: Clean up UUID mapping if this was the mapped UUID
       if (Platform.OS === 'ios') {
@@ -143,8 +169,15 @@ class CallKeepService {
           }
         }
       }
+
+      // Clean up ended call tracking after a delay (prevent memory leak)
+      setTimeout(() => {
+        this.endedCalls.delete(callId);
+      }, 5000);
     } catch (error) {
       console.error('[CallKeepService] ❌ Failed to end call:', error);
+      // Remove from ended set on error so we can retry
+      this.endedCalls.delete(callId);
     }
   }
 
@@ -195,6 +228,26 @@ class CallKeepService {
       RNCallKeep.setCurrentCallActive(callId);
     } catch (error) {
       console.error('[CallKeep] Failed to set call active:', error);
+    }
+  }
+
+  /**
+   * Clear current call state (Android)
+   * This ensures the native UI properly releases the "in-call" state
+   */
+  clearCurrentCall(): void {
+    if (Platform.OS === 'android' && this.isAvailable) {
+      try {
+        // On Android, temporarily set available to false then back to true
+        // This forces ConnectionService to release the active call state
+        RNCallKeep.setAvailable(false);
+        setTimeout(() => {
+          RNCallKeep.setAvailable(true);
+        }, 100);
+        console.log('[CallKeepService] ✅ Cleared current call state (Android)');
+      } catch (error) {
+        console.error('[CallKeepService] ❌ Failed to clear current call:', error);
+      }
     }
   }
 

@@ -40,19 +40,25 @@ export default function EmergencyScreen() {
           <IconSymbol name="chevron.left" color="#fff" size={30} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer} pointerEvents="none">
-          <Text style={styles.title}>🚨 Emergência</Text>
+          <View style={styles.titleContainer}>
+            <IconSymbol name="exclamationmark.triangle.fill" color="#fff" size={24} />
+            <Text style={styles.title}>Emergência</Text>
+          </View>
           <Text style={styles.subtitle}>Contatos de Emergência</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.warningText}>⚠️ Use apenas em situações de emergência real</Text>
+        <View style={styles.warningContainer}>
+          <IconSymbol name="exclamationmark.triangle.fill" color="#f44336" size={20} />
+          <Text style={styles.warningText}>Use apenas em situações de emergência real</Text>
+        </View>
 
         <View style={styles.emergencyButtons}>
           <TouchableOpacity
             style={flattenStyles([styles.emergencyButton, styles.policeButton])}
             onPress={() => handleEmergencyCall('Polícia', '190')}>
-            <Text style={styles.emergencyIcon}>🚔</Text>
+            <IconSymbol name="shield.fill" color="#1976D2" size={40} />
             <Text style={styles.emergencyTitle}>POLÍCIA</Text>
             <Text style={styles.emergencyNumber}>190</Text>
             <Text style={styles.emergencyDescription}>Crimes, violência, segurança pública</Text>
@@ -61,7 +67,7 @@ export default function EmergencyScreen() {
           <TouchableOpacity
             style={flattenStyles([styles.emergencyButton, styles.fireButton])}
             onPress={() => handleEmergencyCall('Bombeiros', '193')}>
-            <Text style={styles.emergencyIcon}>🚒</Text>
+            <IconSymbol name="exclamationmark.triangle.fill" color="#f44336" size={40} />
             <Text style={styles.emergencyTitle}>BOMBEIROS</Text>
             <Text style={styles.emergencyNumber}>193</Text>
             <Text style={styles.emergencyDescription}>
@@ -72,7 +78,7 @@ export default function EmergencyScreen() {
           <TouchableOpacity
             style={flattenStyles([styles.emergencyButton, styles.civilDefenseButton])}
             onPress={() => handleEmergencyCall('Defesa Civil', '199')}>
-            <Text style={styles.emergencyIcon}>🏛️</Text>
+            <IconSymbol name="building.2.fill" color="#FF9800" size={40} />
             <Text style={styles.emergencyTitle}>DEFESA CIVIL</Text>
             <Text style={styles.emergencyNumber}>199</Text>
             <Text style={styles.emergencyDescription}>
@@ -83,7 +89,7 @@ export default function EmergencyScreen() {
           <TouchableOpacity
             style={flattenStyles([styles.emergencyButton, styles.samuButton])}
             onPress={() => handleEmergencyCall('SAMU', '192')}>
-            <Text style={styles.emergencyIcon}>🚑</Text>
+            <IconSymbol name="checkmark.circle.fill" color="#4CAF50" size={40} />
             <Text style={styles.emergencyTitle}>SAMU</Text>
             <Text style={styles.emergencyNumber}>192</Text>
             <Text style={styles.emergencyDescription}>Emergências médicas, ambulância</Text>
@@ -135,15 +141,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: 10,
   },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 5,
+  },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#fff',
     textAlign: 'center',
     opacity: 0.9,
@@ -153,17 +165,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  warningText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#f44336',
-    textAlign: 'center',
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     marginBottom: 30,
     backgroundColor: '#fff',
     padding: 15,
     borderRadius: 10,
     borderWidth: 2,
     borderColor: '#f44336',
+  },
+  warningText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#f44336',
+    textAlign: 'center',
+    flex: 1,
   },
   emergencyButtons: {
     gap: 15,
@@ -174,11 +193,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 15,
     alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     borderLeftWidth: 6,
   },
   policeButton: {
@@ -193,15 +207,12 @@ const styles = StyleSheet.create({
   samuButton: {
     borderLeftColor: '#4CAF50',
   },
-  emergencyIcon: {
-    fontSize: 40,
-    marginBottom: 10,
-  },
   emergencyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 5,
+    marginTop: 10,
   },
   emergencyNumber: {
     fontSize: 24,
@@ -219,10 +230,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 12,
-    elevation: 2,
   },
   instructionsTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,

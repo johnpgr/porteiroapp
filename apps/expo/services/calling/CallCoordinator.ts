@@ -16,6 +16,7 @@ export interface VoipPushData {
   channelName: string;
   timestamp?: number;
   source?: 'background' | 'foreground' | 'rtm';
+  shouldShowNativeUI?: boolean; // NEW: Explicit flag for whether to show native CallKeep UI
 }
 
 type CoordinatorEvent = 'sessionCreated' | 'sessionEnded' | 'error' | 'ready';
@@ -213,6 +214,13 @@ export class CallCoordinator {
         return;
       }
 
+      // Check if there's already an in-progress creation for this call (from push notification)
+      const existingPromise = this.incomingPushPromises.get(parsed.callId);
+      if (existingPromise) {
+        console.log('[CallCoordinator] Session creation already in progress (likely from push), ignoring RTM invite');
+        return;
+      }
+
       // Auto-decline if already in a call
       if (this.activeSession) {
         console.log('[CallCoordinator] Already in call, auto-declining RTM invite');
@@ -246,6 +254,7 @@ export class CallCoordinator {
         channelName: parsed.channel || `call-${parsed.callId}`,
         timestamp: Date.now(),
         source: 'rtm', // Mark as RTM source (foreground)
+        shouldShowNativeUI: true, // RTM invites (foreground) should show CallKeep UI
       };
 
       console.log('[CallCoordinator] Converting RTM INVITE to session creation');
@@ -270,7 +279,7 @@ export class CallCoordinator {
    * 5. Show CallKeep UI (now RTM is ready for instant answer)
    */
   async handleIncomingPush(data: VoipPushData): Promise<void> {
-    console.log('[CallCoordinator] 📞 Incoming push for call:', data.callId);
+    console.log('[CallCoordinator] 📞 Incoming push for call:', data.callId, 'source:', data.source);
 
     // Check if we already have this call
     if (this.activeSession?.id === data.callId) {
@@ -281,7 +290,7 @@ export class CallCoordinator {
     // Check if there's already an in-progress creation for this call
     const existingPromise = this.incomingPushPromises.get(data.callId);
     if (existingPromise) {
-      console.log('[CallCoordinator] Session creation already in progress, waiting for it');
+      console.log('[CallCoordinator] Session creation already in progress for callId:', data.callId, '- ignoring duplicate');
       return existingPromise;
     }
 
@@ -362,23 +371,46 @@ export class CallCoordinator {
 
       console.log('[CallCoordinator] ✅ RTM ready');
 
-      // Display CallKeep UI AFTER RTM warmup (if not already shown)
+      // Step 2: Fetch call details from API FIRST (to get proper doorman name)
+      console.log('[CallCoordinator] Step 2: Fetching call details...');
+      const callDetails = await this.fetchCallDetails(data.callId);
+
+      // Display CallKeep UI AFTER RTM warmup and fetching call details (if not already shown)
       // Note: iOS AppDelegate already shows CallKit UI, Android background task shows ConnectionService UI
       // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
-      // Only show if CallKeep is available and we haven't created a session yet
-      // Skip if source is 'background' (Android background task already showed UI)
-      if (this.callKeepAvailable && data.source !== 'background') {
-        callKeepService.displayIncomingCall(data.callId, data.from, data.callerName || 'Porteiro');
+      // Use explicit shouldShowNativeUI flag instead of inferring from source
+      const shouldShowUI = !!data.shouldShowNativeUI;
+      
+      if (this.callKeepAvailable && shouldShowUI) {
+        // Extra guard: avoid re-showing UI for same call
+        if (this.activeSession?.id === data.callId) {
+          console.log('[CallCoordinator] Call already active, skipping CallKeep UI');
+        } else {
+          // Use API doormanName if available (more reliable than push data)
+          const displayCallerName = callDetails?.doormanName || data.callerName || 'Porteiro';
+          // Use caller name for handle instead of UUID to ensure consistent display
+          const displayHandle = displayCallerName !== 'Porteiro' 
+            ? displayCallerName 
+            : data.apartmentNumber 
+              ? `Apt ${data.apartmentNumber}`
+              : 'Interfone';
+          
+          callKeepService.displayIncomingCall(data.callId, displayHandle, displayCallerName);
+          if (__DEV__) {
+            console.log(
+              '[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)',
+              { handle: displayHandle, callerName: displayCallerName, showNativeUI: shouldShowUI, source: data.source }
+            );
+          }
+        }
+      } else {
         if (__DEV__) {
           console.log(
-            '[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)'
+            '[CallCoordinator] Skipping CallKeep UI',
+            { callKeepAvailable: this.callKeepAvailable, shouldShowNativeUI: shouldShowUI, source: data.source }
           );
         }
       }
-
-      // Step 2: Fetch call details from API
-      console.log('[CallCoordinator] Step 2: Fetching call details...');
-      const callDetails = await this.fetchCallDetails(data.callId);
 
       if (!callDetails) {
         console.error('[CallCoordinator] Failed to fetch call details');
@@ -388,6 +420,7 @@ export class CallCoordinator {
 
       console.log('[CallCoordinator] Call details received:', {
         channelName: callDetails.channelName,
+        doormanName: callDetails.doormanName,
         participantCount: callDetails.participants?.length || 0,
         participants: callDetails.participants?.map((p) => ({
           userId: p.userId,
@@ -419,8 +452,12 @@ export class CallCoordinator {
       session.on('stateChanged', ({ newState }) => {
         console.log(`[CallCoordinator] Session state: ${newState}`);
 
+        // Only end CallKeep UI if not already ended by endActiveCall
+        // This prevents duplicate endCall calls
         if (this.callKeepAvailable && (newState === 'ending' || newState === 'ended' || newState === 'declined' || newState === 'failed')) {
-          callKeepService.endCall(session.id);
+          // Determine reason code based on final state
+          const reasonCode = newState === 'declined' ? 2 : newState === 'failed' ? 0 : 1;
+          callKeepService.endCall(session.id, reasonCode);
         }
 
         if (newState === 'ended' || newState === 'declined' || newState === 'failed') {
@@ -598,15 +635,25 @@ export class CallCoordinator {
     }
 
     // Before leaving channel, end CallKeep if available
+    // Use reason code: 2 for DECLINED, 1 for REMOTE_ENDED (hangup)
     if (this.callKeepAvailable) {
-      callKeepService.endCall(callId);
+      const reasonCode = reason === 'decline' ? 2 : 1; // 2 = DECLINED, 1 = REMOTE_ENDED
+      callKeepService.endCall(callId, reasonCode);
     }
 
     try {
-      if (reason === 'decline') {
+      // If call was already answered/connected, always use end() not decline()
+      // decline() is only for declining BEFORE answering
+      const isAnswered = sessionState === 'connected' || sessionState === 'connecting' || 
+                         sessionState === 'rtc_joining' || sessionState === 'token_fetching' ||
+                         sessionState === 'native_answered';
+      
+      if (reason === 'decline' && !isAnswered) {
+        // Only decline if call hasn't been answered yet
         await this.activeSession.decline();
       } else {
-        await this.activeSession.end(reason);
+        // Use end() for all other cases (hangup, or decline after answering)
+        await this.activeSession.end(reason === 'decline' ? 'hangup' : reason);
       }
     } catch (error) {
       console.warn('[CallCoordinator] Error during graceful end:', error);

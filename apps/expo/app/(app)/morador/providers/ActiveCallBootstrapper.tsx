@@ -112,6 +112,7 @@ export function ActiveCallBootstrapper() {
             channelName: call.channel_name || `call-${callId}`,
             timestamp: Date.now(),
             source: 'foreground', // Active call recovery on app startup
+            shouldShowNativeUI: false, // Recovery: restore session/UI, don't show new incoming call UI
           });
         }
       } catch (error) {
