@@ -13,7 +13,7 @@ import { IconSymbol } from '~/components/ui/IconSymbol';
 import { supabase } from '~/utils/supabase';
 import { supabaseAdmin } from '~/utils/supabase-admin';
 import { adminAuth } from '~/utils/supabase';
-import type { Tables } from '@porteiroapp/common/supabase';
+import type { Tables } from '@porteiroapp/supabase';
 
 type ProfileRow = Tables<'profiles'>;
 type BuildingRow = Tables<'buildings'>;

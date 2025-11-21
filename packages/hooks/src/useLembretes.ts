@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { TypedSupabaseClient } from "../supabase/core/client.ts";
+import type { TypedSupabaseClient } from "@porteiroapp/supabase";
 // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
 // import { useNotifications } from './useNotifications';
 // import { useReminderScheduler } from './useReminderScheduler';

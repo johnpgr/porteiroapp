@@ -2,7 +2,7 @@ import type { Request, Response, Router, NextFunction } from 'express';
 import express from 'express';
 import TokenController from '../controllers/token.controller.ts';
 import agoraService from '../services/agora.service.ts';
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 
 const router: Router = express.Router();
 

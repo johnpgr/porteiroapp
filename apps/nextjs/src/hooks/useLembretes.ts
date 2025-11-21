@@ -1,4 +1,4 @@
-import { createUseLembretes } from '@porteiroapp/common/hooks';
+import { createUseLembretes } from '@porteiroapp/hooks';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/utils/useAuth';
 
@@ -27,4 +27,4 @@ export type {
   LembreteHistorico,
   CreateLembreteData,
   UpdateLembreteData
-} from '@porteiroapp/common/hooks';
+} from '@porteiroapp/hooks';

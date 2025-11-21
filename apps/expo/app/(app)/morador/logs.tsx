@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { isRegularUser } from '~/types/auth.types';
-import type { Database } from '@porteiroapp/common/supabase';
+import type { Database } from '@porteiroapp/supabase';
 
 type VisitorLogRow = Database['public']['Tables']['visitor_logs']['Row'];
 type CommunicationRow = Database['public']['Tables']['communications']['Row'];

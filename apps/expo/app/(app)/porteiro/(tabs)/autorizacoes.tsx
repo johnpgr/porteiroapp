@@ -1,4 +1,4 @@
-import type { Tables } from '@porteiroapp/common/supabase';
+import type { Tables } from '@porteiroapp/supabase';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,

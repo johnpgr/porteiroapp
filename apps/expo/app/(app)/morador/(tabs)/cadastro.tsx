@@ -1,4 +1,4 @@
-import type { Database } from '@porteiroapp/common/supabase';
+import type { Database } from '@porteiroapp/supabase';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {

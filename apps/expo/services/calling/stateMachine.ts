@@ -1,4 +1,4 @@
-import type { CallLifecycleState as BaseCallLifecycleState, RtmSignalType } from '@porteiroapp/common/calling';
+import type { CallLifecycleState as BaseCallLifecycleState, RtmSignalType } from '~/types/calling';
 
 /**
  * Extended CallLifecycleState with intermediate states for CallKeep integration

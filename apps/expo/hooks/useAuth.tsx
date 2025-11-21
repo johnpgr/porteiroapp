@@ -15,7 +15,7 @@ import { useNetworkState } from '../services/NetworkMonitor';
 import { processQueue } from '../services/OfflineQueue';
 import AnalyticsTracker from '../services/AnalyticsTracker';
 import { registerPushTokenAfterLogin } from '../utils/pushNotifications';
-import type { User } from '@porteiroapp/common/supabase';
+import type { User } from '@porteiroapp/supabase';
 import type { AuthUser, AuthProfile, AuthAdminProfile } from '~/types/auth.types';
 import { isRegularUser, isAdminUser } from '~/types/auth.types';
 

@@ -1,3 +1,0 @@
-- [ ] Callkeep not working in the background service (push notifications)
-- [ ] Fix intercom call modal keeps reappearing after dismissing call (after opening app from background on push notification)
-- [ ] Remove constant fetching of call status while incoming call is ringing, that makes no sense.

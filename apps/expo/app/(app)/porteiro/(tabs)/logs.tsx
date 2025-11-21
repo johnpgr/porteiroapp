@@ -1,4 +1,4 @@
-import type { RealtimeChannel } from "@porteiroapp/common/supabase";
+import type { RealtimeChannel } from "@porteiroapp/supabase";
 import { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Container } from '~/components/Container';

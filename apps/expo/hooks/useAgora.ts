@@ -9,7 +9,7 @@ import type {
   RtmInviteSignal,
   RtmSignal,
   RtmSignalType,
-} from '@porteiroapp/common/calling';
+} from '~/types/calling';
 import { deriveNextStateFromSignal, type CallLifecycleState } from '~/services/calling';
 import agoraAudioService from '~/services/audioService';
 import { supabase } from '~/utils/supabase';

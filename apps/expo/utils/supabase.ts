@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 import { registerPushTokenAfterLogin } from './pushNotifications';
-import type {Database} from '@porteiroapp/common/supabase';
+import type {Database} from '@porteiroapp/supabase';
 
 type AdminProfile = Database['public']['Tables']['admin_profiles']['Row'];
 

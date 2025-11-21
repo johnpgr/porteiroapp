@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { notificationApi } from '../services/notificationApi';
 import * as Notifications from 'expo-notifications';
 import { notifyPorteirosVisitorResponse } from '../services/pushNotificationService';
-import { respondToNotification as respondCore } from '@porteiroapp/common/hooks';
+import { respondToNotification as respondCore } from '@porteiroapp/hooks';
 
 interface PendingNotification {
   id: string;

@@ -1,5 +1,5 @@
 import { supabase } from '../utils/supabase';
-import { RealtimeChannel, Database } from '@porteiroapp/common/supabase'
+import { RealtimeChannel, Database } from '@porteiroapp/supabase'
 
 export type PorteiroShiftStatus = 'active' | 'ended' | 'finished' | 'completed' | 'inactive' | 'closed';
 export type PorteiroShift = Database['public']['Tables']['porteiro_shifts']['Row'];

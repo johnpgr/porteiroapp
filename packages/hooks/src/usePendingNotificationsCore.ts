@@ -1,5 +1,5 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { TypedSupabaseClient } from '../supabase/core/client.ts';
+import type { TypedSupabaseClient } from '@porteiroapp/supabase';
 
 export interface PendingNotification {
   id: string;

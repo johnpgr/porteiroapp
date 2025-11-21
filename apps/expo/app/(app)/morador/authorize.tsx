@@ -20,7 +20,7 @@ import { VisitorCard } from '~/components/VisitorCard';
 import { flattenStyles } from '~/utils/styles';
 import { notifyPorteiroVisitorAuthorized } from '~/utils/pushNotifications';
 import { sendPushNotification } from '~/utils/pushNotifications';
-import type { Tables } from '@porteiroapp/common/supabase';
+import type { Tables } from '@porteiroapp/supabase';
 
 type VisitorRow = Tables<'visitors'>;
 

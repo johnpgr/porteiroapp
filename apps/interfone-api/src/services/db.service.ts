@@ -2,7 +2,7 @@ import {
   SupabaseClientFactory,
   type TypedSupabaseClient,
   UnifiedSupabaseClient,
-} from "@porteiroapp/common/supabase";
+} from "@porteiroapp/supabase";
 
 /**
  * Valid status values for intercom_calls table

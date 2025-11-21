@@ -1,6 +1,6 @@
 import { Audio } from 'expo-av';
 import { agoraService } from '~/services/agora/AgoraService';
-import type { CallParticipantSnapshot, AgoraTokenBundle } from '@porteiroapp/common/calling';
+import type { CallParticipantSnapshot, AgoraTokenBundle } from '~/types/calling';
 import { CALL_STATE_MACHINE, type CallLifecycleState } from './stateMachine';
 import { supabase } from '~/utils/supabase';
 

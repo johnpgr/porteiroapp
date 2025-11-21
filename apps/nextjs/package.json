@@ -9,7 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@porteiroapp/common": "workspace:*",
+    "@porteiroapp/supabase": "workspace:*",
+    "@porteiroapp/hooks": "workspace:*",
     "jsonwebtoken": "catalog:",
     "bcryptjs": "^3.0.2",
     "lucide-react": "^0.542.0",

@@ -11,7 +11,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase, adminAuth } from '~/utils/supabase';
-import type { Tables } from '@porteiroapp/common/supabase';
+import type { Tables } from '@porteiroapp/supabase';
 
 type BuildingRow = Tables<'buildings'>;
 type VehicleRow = Tables<'vehicles'>;

@@ -1,6 +1,6 @@
 import { supabase } from '../utils/supabase';
 import { notifyResidentsVisitorArrival } from './pushNotificationService';
-import type {Database} from '@porteiroapp/common/supabase'
+import type {Database} from '@porteiroapp/supabase'
 
 type LogEntry = Database['public']['Tables']['notification_logs']['Insert'];
 

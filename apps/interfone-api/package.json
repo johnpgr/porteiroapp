@@ -22,7 +22,7 @@
     "nodejs"
   ],
   "dependencies": {
-    "@porteiroapp/common": "workspace:*",
+    "@porteiroapp/supabase": "workspace:*",
     "agora-token": "^2.0.5",
     "cors": "^2.8.5",
     "express": "^5",

@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from './supabase';
 import NetInfo from '@react-native-community/netinfo';
-import type { FileOptions } from '@porteiroapp/common/supabase';
+import type { FileOptions } from '@porteiroapp/supabase';
 
 export interface PhotoUploadResult {
   success: boolean;

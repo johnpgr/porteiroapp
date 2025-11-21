@@ -14,10 +14,10 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY .npmrc ./
 COPY patches ./patches
-COPY packages/common/package.json packages/common/
+COPY packages/supabase/package.json packages/supabase/
 COPY apps/interfone-api/package.json apps/interfone-api/
 
-RUN pnpm install --filter @porteiroapp/common... --filter @porteiroapp/interfone-api... --frozen-lockfile
+RUN pnpm install --filter @porteiroapp/supabase... --filter @porteiroapp/interfone-api... --frozen-lockfile
 
 FROM base AS build
 
@@ -30,7 +30,6 @@ COPY --from=deps /app/patches ./patches
 COPY packages ./packages
 COPY apps/interfone-api ./apps/interfone-api
 
-RUN pnpm --filter @porteiroapp/common build
 RUN pnpm --filter @porteiroapp/interfone-api build || true
 RUN pnpm prune --prod
 

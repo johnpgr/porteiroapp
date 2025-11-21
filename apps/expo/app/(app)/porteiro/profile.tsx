@@ -16,7 +16,7 @@ import { Container } from '~/components/Container';
 import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { IconSymbol } from '~/components/ui/IconSymbol';
-import type {Database} from "@porteiroapp/common/supabase"
+import type {Database} from "@porteiroapp/supabase"
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 

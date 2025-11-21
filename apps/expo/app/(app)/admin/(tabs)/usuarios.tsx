@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Modal } from '~/components/Modal';
 import { adminAuth, supabase } from '~/utils/supabase';
-import type { Tables } from '@porteiroapp/common/supabase';
+import type { Tables } from '@porteiroapp/supabase';
 import * as Crypto from 'expo-crypto';
 import {whatsAppService} from '~/services/whatsappService';
 import { supabaseAdmin } from '~/utils/supabase-admin';

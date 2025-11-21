@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 
 // Importação condicional do AsyncStorage
 let AsyncStorage: any = null;

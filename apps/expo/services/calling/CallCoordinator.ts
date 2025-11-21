@@ -2,7 +2,7 @@ import { Alert, Platform } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
-import type { CallParticipantSnapshot } from '@porteiroapp/common/calling';
+import type { CallParticipantSnapshot } from '~/types/calling';
 import { callKeepService } from './CallKeepService';
 import RNCallKeep from 'react-native-callkeep';
 import type { CallLifecycleState } from './stateMachine';
