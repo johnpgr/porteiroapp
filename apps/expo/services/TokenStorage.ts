@@ -1,21 +1,21 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import FeatureFlags from './FeatureFlags';
+import * as z from 'zod/v4';
 import type { AuthUser } from '~/types/auth.types';
 
 const TOKEN_KEY = '@porteiro_app:jwt_token';
 const USER_DATA_KEY = '@porteiro_app:user_data';
 const EXPIRY_KEY = '@porteiro_app:token_expiry';
-const MIGRATION_KEY = '@porteiro_app:migrated_to_secure';
 const CHUNK_SIZE = 1800;
 const SECURE_STORE_SUPPORTED = Platform.OS !== 'web';
 
 const getChunkCountKey = (key: string) => `${key}_chunk_count`;
 const getChunkKey = (key: string, index: number) => `${key}_chunk_${index}`;
 
-const sanitizeSecureKey = (key: string): string =>
-  key.replace(/[^A-Za-z0-9._-]/g, '_');
+const KeySchema = z.string().transform((key) => key.replace(/[^A-Za-z0-9._-]/g, '_'));
+
+const sanitizeSecureKey = (key: string): string => KeySchema.parse(key);
 
 const setSecureItem = async (key: string, value: string): Promise<void> => {
   const sanitized = sanitizeSecureKey(key);
@@ -120,74 +120,11 @@ export class TokenStorage {
   private static lastSavedToken: string | null = null;
   private static lastSaveTime = 0;
   private static readonly SAVE_DEBOUNCE_MS = 1000;
-  private static migrationPromise: Promise<void> | null = null;
-  private static migrationCompleted = false;
-
-  private static async shouldUseSecureStore(): Promise<boolean> {
-    if (!SECURE_STORE_SUPPORTED) {
-      return false;
-    }
-
-    try {
-      return await FeatureFlags.isEnabled('use_secure_store', true);
-    } catch (error) {
-      console.error('[TokenStorage] Failed to read feature flag use_secure_store:', error);
-      return true;
-    }
-  }
-
-  private static async ensureMigration(): Promise<void> {
-    if (this.migrationCompleted || !SECURE_STORE_SUPPORTED) {
-      if (!SECURE_STORE_SUPPORTED) {
-        this.migrationCompleted = true;
-      }
-      return;
-    }
-
-    if (this.migrationPromise) {
-      await this.migrationPromise;
-      return;
-    }
-
-    this.migrationPromise = (async () => {
-      const alreadyMigrated = await AsyncStorage.getItem(MIGRATION_KEY);
-      if (alreadyMigrated === 'true') {
-        this.migrationCompleted = true;
-        return;
-      }
-
-      const useSecureStore = await this.shouldUseSecureStore();
-      if (!useSecureStore) {
-        return;
-      }
-
-      try {
-        const legacyToken = await AsyncStorage.getItem(TOKEN_KEY);
-        if (legacyToken) {
-          await saveTokenSecurely(TOKEN_KEY, legacyToken);
-          await AsyncStorage.removeItem(TOKEN_KEY);
-          console.log('[TokenStorage] Migrated legacy token to SecureStore');
-        }
-
-        await AsyncStorage.setItem(MIGRATION_KEY, 'true');
-        this.migrationCompleted = true;
-      } catch (error) {
-        console.error('[TokenStorage] Failed to migrate token to SecureStore:', error);
-      }
-    })().finally(() => {
-      this.migrationPromise = null;
-    });
-
-    await this.migrationPromise;
-  }
 
   private static async storeTokenValue(token: string): Promise<void> {
-    const useSecureStore = await this.shouldUseSecureStore();
-
-    if (useSecureStore) {
+    if (SECURE_STORE_SUPPORTED) {
       try {
         await saveTokenSecurely(TOKEN_KEY, token);
-        await AsyncStorage.removeItem(TOKEN_KEY);
         return;
       } catch (error) {
         console.error('[TokenStorage] SecureStore save failed, falling back to AsyncStorage:', error);
@@ -213,7 +150,6 @@ export class TokenStorage {
         return;
       }
 
-      await this.ensureMigration();
       await this.storeTokenValue(token);
 
       if (expiresIn) {
@@ -240,7 +176,6 @@ export class TokenStorage {
 
   static async getToken(): Promise<string | null> {
     try {
-      await this.ensureMigration();
 
       if (SECURE_STORE_SUPPORTED) {
         const secureToken = await getTokenSecurely(TOKEN_KEY);
@@ -342,13 +277,12 @@ export class TokenStorage {
   static async clearAll(): Promise<void> {
     try {
       await Promise.all([
-        AsyncStorage.multiRemove([TOKEN_KEY, EXPIRY_KEY, USER_DATA_KEY, MIGRATION_KEY]),
+        AsyncStorage.multiRemove([TOKEN_KEY, EXPIRY_KEY, USER_DATA_KEY]),
         deleteTokenSecurely(TOKEN_KEY),
       ]);
 
       this.lastSavedToken = null;
       this.lastSaveTime = 0;
-      this.migrationCompleted = false;
     } catch (error) {
       console.error('[TokenStorage] Error while clearing all storage:', error);
       throw error;

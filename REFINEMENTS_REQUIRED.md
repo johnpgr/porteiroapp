@@ -1,0 +1,13 @@
+- [ ] CallCoordinator.ts
+    - Simplify whole code structure for readability *remove the `else` keyword
+    - Clear the logs, remove the __DEV__ check.
+- [ ] backgroundNotificationTask.ts
+    - Simplify the data parsing *use zod schemas
+    - Clear the logs, so many console.log calls in different lines, could be merged into singles.
+- [ ] TokenStorage.ts
+    - Remove feature flags entirely, there is no need for this in this application.
+    - Remove the migration from AsyncStorage, the app is not shipped to real users yet so this is entirely unnecessary
+    - The key sanitizing/parsing Could also be done by a zod schema and some .refine()
+- [ ] CallSession.ts
+    - Aggregate the raw `fetch` calls into a new InterfoneAPI class into a new file. there we can do better type validation agains the interfone-api. Maybe use openapi schemas or zod schemas
+    - Also need to figure out if there is more raw fetch() calls to the interfone-api in other files and refactor them aswell

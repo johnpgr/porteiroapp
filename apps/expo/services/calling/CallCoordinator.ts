@@ -4,8 +4,8 @@ import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '~/types/calling';
 import { callKeepService } from './CallKeepService';
-import RNCallKeep from 'react-native-callkeep';
 import type { CallLifecycleState } from './stateMachine';
+import { InterfoneAPI } from '~/services/api/InterfoneAPI';
 
 export interface VoipPushData {
   callId: string;
@@ -319,32 +319,7 @@ export class CallCoordinator {
   private async handleIncomingPushInternal(data: VoipPushData): Promise<void> {
     try {
       // Step 0: Ensure AgoraService has current user context (needed for RTM warmup)
-      console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
-      const {
-        data: { session: authSession },
-      } = await supabase.auth.getSession();
-      if (authSession?.user) {
-        // Fetch user profile to get morador info
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, full_name, user_type')
-          .eq('user_id', authSession.user.id)
-          .eq('user_type', 'morador')
-          .single();
-
-        if (profile) {
-          agoraService.setCurrentUser({
-            id: profile.id,
-            userType: 'morador',
-            displayName: profile.full_name || authSession.user.email || null,
-          });
-          console.log('[CallCoordinator] ✅ User context set for AgoraService');
-        } else {
-          console.warn('[CallCoordinator] ⚠️ No morador profile found for user');
-        }
-      } else {
-        console.warn('[CallCoordinator] ⚠️ No active session found');
-      }
+      await this.ensureUserContext();
 
       // Step 1: Warm up RTM FIRST (user chose: "warm up first")
       // This ensures RTM is ready when user taps answer in CallKeep UI
@@ -376,40 +351,9 @@ export class CallCoordinator {
       const callDetails = await this.fetchCallDetails(data.callId);
 
       // Display CallKeep UI AFTER RTM warmup and fetching call details (if not already shown)
-      // Note: iOS AppDelegate already shows CallKit UI, Android background task shows ConnectionService UI
-      // This is a fallback for cases where native UI wasn't shown (e.g., foreground RTM invite)
-      // Use explicit shouldShowNativeUI flag instead of inferring from source
       const shouldShowUI = !!data.shouldShowNativeUI;
-      
       if (this.callKeepAvailable && shouldShowUI) {
-        // Extra guard: avoid re-showing UI for same call
-        if (this.activeSession?.id === data.callId) {
-          console.log('[CallCoordinator] Call already active, skipping CallKeep UI');
-        } else {
-          // Use API doormanName if available (more reliable than push data)
-          const displayCallerName = callDetails?.doormanName || data.callerName || 'Porteiro';
-          // Use caller name for handle instead of UUID to ensure consistent display
-          const displayHandle = displayCallerName !== 'Porteiro' 
-            ? displayCallerName 
-            : data.apartmentNumber 
-              ? `Apt ${data.apartmentNumber}`
-              : 'Interfone';
-          
-          callKeepService.displayIncomingCall(data.callId, displayHandle, displayCallerName);
-          if (__DEV__) {
-            console.log(
-              '[CallCoordinator] ✅ CallKeep incoming call UI displayed (after RTM warmup)',
-              { handle: displayHandle, callerName: displayCallerName, showNativeUI: shouldShowUI, source: data.source }
-            );
-          }
-        }
-      } else {
-        if (__DEV__) {
-          console.log(
-            '[CallCoordinator] Skipping CallKeep UI',
-            { callKeepAvailable: this.callKeepAvailable, shouldShowNativeUI: shouldShowUI, source: data.source }
-          );
-        }
+        this.displayIncomingCallUI(data, callDetails);
       }
 
       if (!callDetails) {
@@ -651,10 +595,11 @@ export class CallCoordinator {
       if (reason === 'decline' && !isAnswered) {
         // Only decline if call hasn't been answered yet
         await this.activeSession.decline();
-      } else {
-        // Use end() for all other cases (hangup, or decline after answering)
-        await this.activeSession.end(reason === 'decline' ? 'hangup' : reason);
+        return;
       }
+      
+      // Use end() for all other cases (hangup, or decline after answering)
+      await this.activeSession.end(reason === 'decline' ? 'hangup' : reason);
     } catch (error) {
       console.warn('[CallCoordinator] Error during graceful end:', error);
     } finally {
@@ -676,44 +621,23 @@ export class CallCoordinator {
     doormanName?: string | null;
     apartmentNumber?: string | null;
     buildingId?: string | null;
-    // optional backend fields for end detection
     status?: string | null;
     endedAt?: string | null;
   } | null> {
     try {
-      const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiBaseUrl}/api/calls/${callId}/status`);
+      const details = await InterfoneAPI.getCallDetails(callId);
+      if (!details) return null;
 
-      if (!response.ok) {
-        console.error('[CallCoordinator] API returned:', response.status);
-        return null;
-      }
-
-      const result = await response.json();
-
-      if (!result.success || !result.data) {
-        return null;
-      }
-
-      // Map participants to handle snake_case from API
-      const participants: CallParticipantSnapshot[] = (result.data.participants || [])
-        .map((p: any) => ({
-          userId: p.userId || p.user_id,
-          status: p.status,
-          joinedAt: p.joinedAt || p.joined_at,
-          leftAt: p.leftAt || p.left_at,
-        }))
-        .filter((p: CallParticipantSnapshot) => !!p.userId); // Filter out invalid entries
-
-      const callObj = result.data.call || {};
+      // Map back to the expected format if needed, but InterfoneAPI returns almost the same structure
+      // InterfoneAPI returns CallDetailsSchema which matches what we need
       return {
-        channelName: callObj.channelName || callObj.channel_name || '',
-        participants,
-        doormanName: callObj.doormanName || callObj.doorman_name,
-        apartmentNumber: callObj.apartmentNumber || callObj.apartment_number,
-        buildingId: callObj.buildingId || callObj.building_id,
-        status: callObj.status || null,
-        endedAt: callObj.endedAt || callObj.ended_at || null,
+        channelName: details.channelName,
+        participants: details.participants as CallParticipantSnapshot[],
+        doormanName: details.doormanName,
+        apartmentNumber: details.apartmentNumber,
+        buildingId: details.buildingId,
+        status: details.status,
+        endedAt: details.endedAt,
       };
     } catch (error) {
       console.error('[CallCoordinator] Fetch call details failed:', error);
@@ -726,19 +650,66 @@ export class CallCoordinator {
    */
   private async declineCall(callId: string, reason: string): Promise<void> {
     try {
-      const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      await fetch(`${apiBaseUrl}/api/calls/${callId}/decline`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: agoraService.getCurrentUser()?.id || '',
-          userType: 'resident',
-          reason,
-        }),
-      });
+      await InterfoneAPI.declineCall(callId, agoraService.getCurrentUser()?.id || '', reason);
     } catch (error) {
       console.error('[CallCoordinator] Decline API failed:', error);
     }
+  }
+
+  /**
+   * Ensure user context is set for AgoraService
+   */
+  private async ensureUserContext(): Promise<void> {
+    console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    
+    if (!authSession?.user) {
+      console.warn('[CallCoordinator] ⚠️ No active session found');
+      return;
+    }
+
+    // Fetch user profile to get morador info
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, user_type')
+      .eq('user_id', authSession.user.id)
+      .eq('user_type', 'morador')
+      .single();
+
+    if (!profile) {
+      console.warn('[CallCoordinator] ⚠️ No morador profile found for user');
+      return;
+    }
+
+    agoraService.setCurrentUser({
+      id: profile.id,
+      userType: 'morador',
+      displayName: profile.full_name || authSession.user.email || null,
+    });
+    console.log('[CallCoordinator] ✅ User context set for AgoraService');
+  }
+
+  /**
+   * Display Incoming Call UI via CallKeep
+   */
+  private displayIncomingCallUI(data: VoipPushData, callDetails: any): void {
+    // Extra guard: avoid re-showing UI for same call
+    if (this.activeSession?.id === data.callId) {
+      console.log('[CallCoordinator] Call already active, skipping CallKeep UI');
+      return;
+    }
+
+    // Use API doormanName if available (more reliable than push data)
+    const displayCallerName = callDetails?.doormanName || data.callerName || 'Porteiro';
+    
+    // Use caller name for handle instead of UUID to ensure consistent display
+    const displayHandle = displayCallerName !== 'Porteiro' 
+      ? displayCallerName 
+      : data.apartmentNumber 
+        ? `Apt ${data.apartmentNumber}`
+        : 'Interfone';
+    
+    callKeepService.displayIncomingCall(data.callId, displayHandle, displayCallerName);
   }
 
   /**
@@ -929,7 +900,10 @@ export class CallCoordinator {
         (data.callUUID || data.callId || data.uuid || data.id) ?? undefined;
       if (event.name === 'RNCallKeepPerformAnswerCallAction' && normalizedId) {
         await this.handleCallKeepAnswer(String(normalizedId));
-      } else if (event.name === 'RNCallKeepPerformEndCallAction' && normalizedId) {
+        continue;
+      }
+      
+      if (event.name === 'RNCallKeepPerformEndCallAction' && normalizedId) {
         await this.handleCallKeepEnd(String(normalizedId));
       }
     }

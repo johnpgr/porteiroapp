@@ -4,6 +4,7 @@ import { useUserApartment } from '~/hooks/useUserApartment';
 import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '~/utils/supabase';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
+import { InterfoneAPI } from '~/services/api/InterfoneAPI';
 
 export function ActiveCallBootstrapper() {
   const { user } = useAuth();
@@ -81,11 +82,8 @@ export function ActiveCallBootstrapper() {
           return;
         }
 
-        const apiUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-        const url = `${apiUrl}/api/calls/active?buildingId=${encodeURIComponent(buildingId)}`;
-        console.log('[MoradorLayout] 🔄 Fetching active calls at startup:', url);
-        const response = await fetch(url);
-        const result = await response.json();
+        console.log('[MoradorLayout] 🔄 Fetching active calls at startup for building:', buildingId);
+        const result = await InterfoneAPI.getActiveCalls(buildingId);
 
         const activeCalls = result?.data?.activeCalls;
         if (!result?.success || !Array.isArray(activeCalls) || activeCalls.length === 0) {

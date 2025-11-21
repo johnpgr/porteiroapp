@@ -160,30 +160,7 @@ export type Database = {
           },
         ]
       }
-      app_config: {
-        Row: {
-          description: string | null
-          enabled: boolean
-          feature_key: string
-          metadata: Json | null
-          updated_at: string | null
-        }
-        Insert: {
-          description?: string | null
-          enabled?: boolean
-          feature_key: string
-          metadata?: Json | null
-          updated_at?: string | null
-        }
-        Update: {
-          description?: string | null
-          enabled?: boolean
-          feature_key?: string
-          metadata?: Json | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
+
       building_admins: {
         Row: {
           admin_profile_id: string

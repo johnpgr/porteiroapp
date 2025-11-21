@@ -13,6 +13,73 @@ import * as Notifications from 'expo-notifications';
 import { Platform, AppState } from 'react-native';
 import RNCallKeep from 'react-native-callkeep';
 import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
+import * as z from 'zod/v4';
+
+// Zod schema for the expected notification payload
+const IntercomCallSchema = z.object({
+  type: z.literal('intercom_call'),
+  callId: z.string(),
+  callerName: z.string().optional(),
+  fromName: z.string().optional(),
+  apartmentNumber: z.string().optional(),
+  channelName: z.string().optional(),
+  channel: z.string().optional(),
+  from: z.string(),
+}).loose();
+
+// Helper schema for parsing JSON strings
+const JsonStringSchema = z.string().transform((str, ctx) => {
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    ctx.addIssue({ code: "custom", message: 'Invalid JSON string' });
+    return z.NEVER;
+  }
+});
+
+// Schema to extract the actual payload from various notification shapes
+const NotificationParser = z.union([
+  // 1. Standard Expo notification structure
+  z.object({
+    notification: z.object({
+      request: z.object({
+        content: z.object({
+          data: IntercomCallSchema
+        })
+      })
+    })
+  }).transform(data => data.notification.request.content.data),
+
+  // 2. Direct data object (FCM/Data-only)
+  z.object({
+    data: IntercomCallSchema
+  }).transform(data => data.data),
+
+  // 3. Nested data object (common in some Expo deliveries)
+  z.object({
+    data: z.object({
+      data: IntercomCallSchema
+    })
+  }).transform(data => data.data.data),
+
+  // 4. JSON string in dataString or body
+  z.object({
+    data: z.object({
+      dataString: JsonStringSchema.pipe(IntercomCallSchema)
+    })
+  }).transform(data => data.data.dataString),
+
+  z.object({
+    data: z.object({
+      body: JsonStringSchema.pipe(IntercomCallSchema)
+    })
+  }).transform(data => data.data.body),
+
+  // 5. Fallback: The input itself is the payload
+  IntercomCallSchema
+]);
+
+type IntercomCallPayload = z.infer<typeof IntercomCallSchema>;
 
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
@@ -53,10 +120,7 @@ interface IncomingCallData {
 TaskManager.defineTask(
   BACKGROUND_NOTIFICATION_TASK,
   async ({ data, error }: TaskManager.TaskManagerTaskBody<Record<string, any>>) => {
-    console.log('[BackgroundTask] ========================================');
-    console.log('[BackgroundTask] 🎯 TASK TRIGGERED');
-    console.log('[BackgroundTask] Platform:', Platform.OS);
-    console.log('[BackgroundTask] Timestamp:', new Date().toISOString());
+    console.log(`[BackgroundTask] 🎯 TRIGGERED (${Platform.OS}) at ${new Date().toISOString()}`);
 
     // On Android, skip if app is in foreground (foreground listener will handle it)
     // This prevents duplicate call handling
@@ -77,9 +141,7 @@ TaskManager.defineTask(
       return;
     }
 
-    console.log('[BackgroundTask] 📥 Received notification data:');
-    console.log('[BackgroundTask] Data keys:', Object.keys(data || {}));
-    console.log('[BackgroundTask] Full data:', JSON.stringify(data, null, 2));
+    console.log('[BackgroundTask] 📥 Received data:', { keys: Object.keys(data || {}), data });
 
     try {
       // Distinguish RECEIVED vs RESPONSE by presence of `actionIdentifier`
@@ -90,71 +152,34 @@ TaskManager.defineTask(
 
         // This is a notification that was just received (not user action)
         // Robustly extract payload regardless of Expo/FCM shape
-        const raw = (data as any)?.notification || (data as any);
-        console.log('[BackgroundTask] 🔍 Extracting notification payload...');
-        console.log('[BackgroundTask] Checking raw?.request?.content?.data...');
+        console.log('[BackgroundTask] Notification data extracted');
 
-        let notificationData: any = raw?.request?.content?.data;
+        // Use Zod to robustly parse and extract the payload from any shape
+        const parseResult = NotificationParser.safeParse(data);
+        let notificationData: IntercomCallPayload | null = null;
 
-        // Fallbacks for common Expo delivery shapes
-        if (!notificationData || Object.keys(notificationData).length === 0) {
-          console.log('[BackgroundTask] No data in standard location, trying fallbacks...');
-
-          // Sometimes payload is placed under data
-          const topData = (data as any)?.data || raw?.data;
-          console.log('[BackgroundTask] Checking raw?.data:', !!topData);
-
-          if (topData && typeof topData === 'object') {
-            // If server sent JSON as string, parse it
-            if (!topData.type && typeof topData.dataString === 'string') {
-              console.log('[BackgroundTask] Found dataString, parsing...');
-              try {
-                notificationData = JSON.parse(topData.dataString);
-              } catch (e) {
-                console.error('[BackgroundTask] Failed to parse dataString JSON:', e);
-              }
-            }
-            if (!notificationData && !topData.type && typeof topData.body === 'string') {
-              console.log('[BackgroundTask] Found body string, parsing...');
-              try {
-                notificationData = JSON.parse(topData.body);
-              } catch (e) {
-                console.error('[BackgroundTask] Failed to parse body JSON:', e);
-              }
-            }
-            if (!notificationData) {
-              console.log('[BackgroundTask] Using topData directly as structured payload');
-              // If payload already comes structured
-              notificationData = topData;
-            }
-          }
+        if (parseResult.success) {
+          notificationData = parseResult.data;
+        } else {
+           // Fallback for legacy manual extraction if Zod fails (optional, but good for safety during migration)
+           // For now, we'll rely on Zod's union to catch everything.
+           console.warn('[BackgroundTask] Zod parsing failed:', parseResult.error);
         }
 
-        console.log(
-          '[BackgroundTask] ✅ Notification data extracted:',
-          JSON.stringify(notificationData, null, 2)
-        );
+        console.log('[BackgroundTask] Notification data extracted');
 
-        if (notificationData?.type === 'intercom_call') {
-          console.log('[BackgroundTask] 🎉 INTERCOM CALL DETECTED!');
-          console.log('[BackgroundTask] 📋 Building call data object...');
+        if (notificationData) {
+          const payload = notificationData;
+          console.log('[BackgroundTask] 🎉 INTERCOM CALL DETECTED:', payload.callId);
 
           const callData: IncomingCallData = {
-            callId: notificationData.callId,
-            // Prioritize fromName, then callerName, fallback to 'Porteiro' (not 'Doorman' to match other code)
-            callerName: notificationData.fromName || notificationData.callerName || 'Porteiro',
-            apartmentNumber: notificationData.apartmentNumber || '',
-            channelName: notificationData.channelName || notificationData.channel,
-            from: notificationData.from,
+            callId: payload.callId,
+            callerName: payload.fromName || payload.callerName || 'Porteiro',
+            apartmentNumber: payload.apartmentNumber || '',
+            channelName: payload.channelName || payload.channel || '',
+            from: payload.from,
             timestamp: Date.now(),
           };
-
-          console.log('[BackgroundTask] ✅ Call data processed:');
-          console.log('[BackgroundTask] - callId:', callData.callId);
-          console.log('[BackgroundTask] - callerName:', callData.callerName);
-          console.log('[BackgroundTask] - apartmentNumber:', callData.apartmentNumber);
-          console.log('[BackgroundTask] - channelName:', callData.channelName);
-          console.log('[BackgroundTask] - from:', callData.from);
 
           try {
             // 1. Setup CallKeep (Android only - iOS handled in AppDelegate)
@@ -243,7 +268,7 @@ TaskManager.defineTask(
             );
           }
         } else {
-          console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);
+          console.log('[BackgroundTask] ⚠️ Not an intercom call or parsing failed');
         }
       } else if (isResponseEvent) {
         // User interacted with notification; UI listeners will handle routing
