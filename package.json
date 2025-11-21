@@ -46,6 +46,7 @@
     }
   },
   "devDependencies": {
-    "supabase": "^2.53.6"
+    "supabase": "^2.53.6",
+    "typescript": "^5.9.2"
   }
 }

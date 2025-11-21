@@ -22,7 +22,6 @@
     "@porteiroapp/supabase": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.7.2",
     "@types/node": "catalog:"
   },
   "keywords": [

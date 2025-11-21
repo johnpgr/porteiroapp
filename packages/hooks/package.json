@@ -14,8 +14,7 @@
   },
   "dependencies": {
     "@porteiroapp/supabase": "workspace:*",
-    "react": "catalog:react19",
-    "typescript": "catalog:"
+    "react": "catalog:react19"
   },
   "devDependencies": {
     "@types/node": "catalog:",

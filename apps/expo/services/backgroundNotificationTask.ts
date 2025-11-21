@@ -23,14 +23,14 @@ type CallKeepOptions = Parameters<typeof RNCallKeep.setup>[0];
 const callKeepOptions: CallKeepOptions = {
   ios: { appName: 'James Avisa' },
   android: {
-    alertTitle: 'Permissions required',
-    alertDescription: 'This app needs phone account access',
-    cancelButton: 'Cancel',
+    alertTitle: 'Permissões necessárias',
+    alertDescription: 'Este app precisa de acesso à conta telefônica',
+    cancelButton: 'Cancelar',
     okButton: 'OK',
     foregroundService: {
       channelId: 'com.porteiroapp.callkeep',
-      channelName: 'Incoming Call Service',
-      notificationTitle: 'Incoming call',
+      channelName: 'Serviço de Chamadas',
+      notificationTitle: 'Chamada recebida',
       notificationIcon: 'ic_notification',
     },
     additionalPermissions: [],
@@ -63,7 +63,9 @@ TaskManager.defineTask(
     if (Platform.OS === 'android') {
       const appState = AppState.currentState;
       if (appState === 'active') {
-        console.log('[BackgroundTask] ⏭️ App is in foreground, skipping background task (foreground listener will handle)');
+        console.log(
+          '[BackgroundTask] ⏭️ App is in foreground, skipping background task (foreground listener will handle)'
+        );
         return;
       }
       console.log('[BackgroundTask] App state:', appState, '- proceeding with background handling');
@@ -81,7 +83,8 @@ TaskManager.defineTask(
 
     try {
       // Distinguish RECEIVED vs RESPONSE by presence of `actionIdentifier`
-      const isResponseEvent = data && typeof data === 'object' && 'actionIdentifier' in (data as any);
+      const isResponseEvent =
+        data && typeof data === 'object' && 'actionIdentifier' in (data as any);
       if (!isResponseEvent) {
         console.log('[BackgroundTask] 📨 This is a notification RECEIVED event');
 
@@ -127,7 +130,10 @@ TaskManager.defineTask(
           }
         }
 
-        console.log('[BackgroundTask] ✅ Notification data extracted:', JSON.stringify(notificationData, null, 2));
+        console.log(
+          '[BackgroundTask] ✅ Notification data extracted:',
+          JSON.stringify(notificationData, null, 2)
+        );
 
         if (notificationData?.type === 'intercom_call') {
           console.log('[BackgroundTask] 🎉 INTERCOM CALL DETECTED!');
@@ -161,7 +167,10 @@ TaskManager.defineTask(
                 callKeepAvailable = true;
                 console.log('[BackgroundTask] ✅ CallKeep setup successful');
               } catch (callKeepError) {
-                console.warn('[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:', callKeepError);
+                console.warn(
+                  '[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:',
+                  callKeepError
+                );
                 callKeepAvailable = false;
               }
             }
@@ -170,7 +179,7 @@ TaskManager.defineTask(
             // Check if call is already active before showing UI (prevents duplicate UI)
             const hasActiveCall = callCoordinator.hasActiveCall();
             const activeSession = callCoordinator.getActiveSession();
-            
+
             if (callKeepAvailable && Platform.OS === 'android') {
               if (hasActiveCall && activeSession?.id === callData.callId) {
                 console.log('[BackgroundTask] Call already active, skipping CallKeep UI');
@@ -178,12 +187,13 @@ TaskManager.defineTask(
                 try {
                   // Use caller name for handle (not UUID) to ensure consistent display
                   // If callerName is not available or is the fallback, use a formatted string instead of UUID
-                  const displayHandle = callData.callerName && callData.callerName !== 'Porteiro' 
-                    ? callData.callerName 
-                    : callData.apartmentNumber 
-                      ? `Apt ${callData.apartmentNumber}`
-                      : 'Interfone';
-                  
+                  const displayHandle =
+                    callData.callerName && callData.callerName !== 'Porteiro'
+                      ? callData.callerName
+                      : callData.apartmentNumber
+                        ? `Apt ${callData.apartmentNumber}`
+                        : 'Interfone';
+
                   RNCallKeep.displayIncomingCall(
                     callData.callId,
                     displayHandle, // Use name/apartment instead of UUID
@@ -205,7 +215,7 @@ TaskManager.defineTask(
 
             // 3. CRITICAL: Create session in background via CallCoordinator
             console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
-            
+
             const pushData: VoipPushData = {
               callId: callData.callId,
               callerName: callData.callerName,
@@ -218,11 +228,19 @@ TaskManager.defineTask(
 
             await callCoordinator.handleIncomingPush(pushData);
             console.log('[BackgroundTask] ✅ Call session created');
-
           } catch (notificationError) {
-            console.error('[BackgroundTask] ❌ Failed to process intercom call:', notificationError);
-            console.error('[BackgroundTask] Error stack:', notificationError instanceof Error ? notificationError.stack : 'No stack trace');
-            console.error('[BackgroundTask] Error details:', JSON.stringify(notificationError, Object.getOwnPropertyNames(notificationError)));
+            console.error(
+              '[BackgroundTask] ❌ Failed to process intercom call:',
+              notificationError
+            );
+            console.error(
+              '[BackgroundTask] Error stack:',
+              notificationError instanceof Error ? notificationError.stack : 'No stack trace'
+            );
+            console.error(
+              '[BackgroundTask] Error details:',
+              JSON.stringify(notificationError, Object.getOwnPropertyNames(notificationError))
+            );
           }
         } else {
           console.log('[BackgroundTask] ⚠️ Not an intercom call, type:', notificationData?.type);
@@ -235,8 +253,14 @@ TaskManager.defineTask(
       }
     } catch (error) {
       console.error('[BackgroundTask] ❌ Fatal error processing notification:', error);
-      console.error('[BackgroundTask] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      console.error('[BackgroundTask] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error(
+        '[BackgroundTask] Error stack:',
+        error instanceof Error ? error.stack : 'No stack trace'
+      );
+      console.error(
+        '[BackgroundTask] Error details:',
+        JSON.stringify(error, Object.getOwnPropertyNames(error))
+      );
     }
   }
 );
@@ -247,9 +271,7 @@ TaskManager.defineTask(
  */
 export async function registerBackgroundNotificationTask(): Promise<void> {
   try {
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(
-      BACKGROUND_NOTIFICATION_TASK
-    );
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK);
 
     if (!isRegistered) {
       await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);

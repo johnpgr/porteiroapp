@@ -76,8 +76,7 @@
     "eslint": "catalog:",
     "eslint-config-expo": "~10.0.0",
     "eslint-config-prettier": "^10.1.2",
-    "prettier": "catalog:",
-    "typescript": "catalog:"
+    "prettier": "catalog:"
   },
   "private": true
 }
