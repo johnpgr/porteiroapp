@@ -11,8 +11,8 @@ import { PushTokenProvider } from '../providers/PushTokenProvider';
 import { DeepLinkProvider } from '../providers/DeepLinkProvider';
 import { CallManagerProvider } from '../providers/CallManagerProvider';
 import { NotificationProvider } from '../providers/NotificationProvider';
-import { initializeNotificationHandler } from '../services/notificationHandler';
-import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
+import { initializeNotificationHandler } from '../services/notification/notificationHandler';
+import { registerBackgroundNotificationTask } from '../services/notification/backgroundTask';
 import { SafeAreaView } from '~/components/SafeAreaView';
 
 function App() {

@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { Modal } from '~/components/Modal';
 import { useAuth } from '~/hooks/useAuth';
-import { notifyResidentOfVisitorArrival } from '~/services/notifyResidentService';
-import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
+import { notifyResidentOfVisitorArrival } from '~/services/notification/NotifyResidentService';
+import { notifyResidentsVisitorArrival } from '~/services/notification/pushNotificationService';
 import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '~/utils/supabase';
 

@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 
 const API_BASE_URL = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'https://jamesavisaapi.jamesconcierge.com'}/api`;
 
-interface SendVisitorNotificationRequest {
+export interface SendVisitorNotificationRequest {
   visitorLogId: string;
   visitorName: string;
   residentPhone: string;
@@ -11,14 +11,14 @@ interface SendVisitorNotificationRequest {
   apartment: string;
 }
 
-interface SendVisitorNotificationResponse {
+export interface SendVisitorNotificationResponse {
   success: boolean;
   message: string;
   token?: string;
   authorizationLink?: string;
 }
 
-interface SendRegularizationNotificationRequest {
+export interface SendRegularizationNotificationRequest {
   name: string;
   phone: string;
   building: string;
@@ -27,7 +27,7 @@ interface SendRegularizationNotificationRequest {
   description?: string;
 }
 
-interface SendRegularizationNotificationResponse {
+export interface SendRegularizationNotificationResponse {
   success: boolean;
   whatsappSent: boolean;
   messageId?: string;
@@ -42,7 +42,7 @@ interface SendRegularizationNotificationResponse {
   error?: string;
 }
 
-interface SendVisitorAuthorizationRequest {
+export interface SendVisitorAuthorizationRequest {
   visitorName: string;
   residentName: string;
   residentPhone: string;
@@ -51,7 +51,7 @@ interface SendVisitorAuthorizationRequest {
   apartment: string;
 }
 
-interface SendVisitorAuthorizationResponse {
+export interface SendVisitorAuthorizationResponse {
   success: boolean;
   whatsappSent: boolean;
   messageId?: string;
@@ -68,7 +68,7 @@ interface SendVisitorAuthorizationResponse {
   duration?: string;
 }
 
-class NotificationApiService {
+export class NotificationApiService {
   // 🚫 PROTEÇÃO CRÍTICA: Map para rastrear envios em andamento
   private pendingRequests = new Map<string, Promise<any>>();
 
@@ -394,11 +394,3 @@ class NotificationApiService {
 }
 
 export const notificationApi = new NotificationApiService();
-export type { 
-  SendVisitorNotificationRequest, 
-  SendVisitorNotificationResponse,
-  SendRegularizationNotificationRequest,
-  SendRegularizationNotificationResponse,
-  SendVisitorAuthorizationRequest,
-  SendVisitorAuthorizationResponse
-};

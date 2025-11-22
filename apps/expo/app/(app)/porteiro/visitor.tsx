@@ -16,7 +16,7 @@ import { VisitorCard } from '~/components/VisitorCard';
 import { supabase } from '~/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { MediaTypeOptions } from 'expo-image-picker';
-import { notificationApi } from '~/services/notificationApi';
+import { notificationApi } from '~/services/notification/NotificationApiService';
 
 interface Visitor {
   id: string;

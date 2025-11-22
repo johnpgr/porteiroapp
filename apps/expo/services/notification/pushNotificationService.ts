@@ -218,11 +218,3 @@ export async function notifyEmergency(params: {
     }
   });
 }
-
-export default {
-  sendPushNotification,
-  notifyResidentsVisitorArrival,
-  notifyPorteirosVisitorResponse,
-  notifyPorteirosDelivery,
-  notifyEmergency
-};

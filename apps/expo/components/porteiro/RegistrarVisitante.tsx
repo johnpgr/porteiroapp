@@ -19,8 +19,8 @@ import { supabase } from '~/utils/supabase';
 import { useAuth } from '~/hooks/useAuth';
 import { isRegularUser } from '~/types/auth.types';
 import { uploadVisitorPhoto } from '~/services/photoUploadService';
-import { notificationApi } from '~/services/notificationApi';
-import { notifyResidentsVisitorArrival } from '~/services/pushNotificationService';
+import { notificationApi } from '~/services/notification/NotificationApiService';
+import { notifyResidentsVisitorArrival } from '~/services/notification/pushNotificationService';
 import PreAuthorizedGuestsList from './PreAuthorizedGuestsList';
 import { CameraModal } from '~/components/shared/CameraModal';
 

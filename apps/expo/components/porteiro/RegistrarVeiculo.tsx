@@ -12,8 +12,8 @@ import {
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import { supabase } from '../../utils/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { notificationApi } from '../../services/notificationApi';
-import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import { notificationApi } from '../../services/notification/NotificationApiService';
+import { notifyResidentsVisitorArrival } from '../../services/notification/pushNotificationService';
 
 // Função para gerar UUID compatível com React Native
 const generateUUID = () => {

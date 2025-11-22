@@ -12,7 +12,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import { Platform, AppState } from 'react-native';
 import RNCallKeep from 'react-native-callkeep';
-import { callCoordinator, type VoipPushData } from './calling/CallCoordinator';
+import { callCoordinator, type VoipPushData } from '../calling/CallCoordinator';
 import * as z from 'zod/v4';
 
 // Zod schema for the expected notification payload

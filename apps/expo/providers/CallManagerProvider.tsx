@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import { callKeepService } from '~/services/calling/CallKeepService';
 import type { CallSession } from '~/services/calling/CallSession';
-import { initializeNotificationHandler } from '../services/notificationHandler';
-import { registerBackgroundNotificationTask } from '../services/backgroundNotificationTask';
+import { initializeNotificationHandler } from '../services/notification/notificationHandler';
+import { registerBackgroundNotificationTask } from '../services/notification/backgroundTask';
 import FullScreenCallUI from '~/components/FullScreenCallUI';
 import type { CallLifecycleState } from '~/services/calling/stateMachine';
 

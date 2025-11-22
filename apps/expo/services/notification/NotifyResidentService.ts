@@ -1,10 +1,10 @@
-import { supabase } from '../utils/supabase';
+import { supabase } from '../../utils/supabase';
 import { notifyResidentsVisitorArrival } from './pushNotificationService';
-import type {Database} from '@porteiroapp/supabase'
+import type { Database } from '@porteiroapp/supabase';
 
-type LogEntry = Database['public']['Tables']['notification_logs']['Insert'];
+export type LogEntry = Database['public']['Tables']['notification_logs']['Insert'];
 
-interface VisitorArrivalData {
+export interface VisitorArrivalData {
   visitorName: string;
   apartmentNumber: string;
   buildingId: string;
@@ -14,7 +14,7 @@ interface VisitorArrivalData {
   entry_type?: string;
 }
 
-interface NotificationResult {
+export interface NotificationResult {
   success: boolean;
   message: string;
   notificationId?: string;
@@ -25,29 +25,36 @@ interface NotificationResult {
  * Serviço para notificar moradores sobre chegada de visitantes
  */
 export class NotifyResidentService {
-
   /**
    * Notifica moradores sobre a chegada de um visitante
    * @param visitorData - Dados do visitante que chegou
    * @returns Promise<NotificationResult>
    */
-  static async notifyResidentOfVisitorArrival(visitorData: VisitorArrivalData): Promise<NotificationResult> {
+  static async notifyResidentOfVisitorArrival(
+    visitorData: VisitorArrivalData
+  ): Promise<NotificationResult> {
     try {
       console.log('🔔 [NotifyResidentService] Iniciando notificação de chegada de visitante:', {
         visitorName: visitorData.visitorName,
         apartmentNumber: visitorData.apartmentNumber,
         buildingId: visitorData.buildingId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
 
       // 1. Buscar apartamento ID
-      const apartmentId = await this.getApartmentId(visitorData.buildingId, visitorData.apartmentNumber);
+      const apartmentId = await this.getApartmentId(
+        visitorData.buildingId,
+        visitorData.apartmentNumber
+      );
 
       if (!apartmentId) {
-        console.warn('⚠️ [NotifyResidentService] Apartamento não encontrado:', visitorData.apartmentNumber);
+        console.warn(
+          '⚠️ [NotifyResidentService] Apartamento não encontrado:',
+          visitorData.apartmentNumber
+        );
         return {
           success: false,
-          message: 'Apartamento não encontrado'
+          message: 'Apartamento não encontrado',
         };
       }
 
@@ -61,14 +68,17 @@ export class NotifyResidentService {
       });
 
       if (result.success && result.sent > 0) {
-        console.log('✅ [NotifyResidentService] Push notification enviada:', `${result.sent} morador(es) notificado(s)`);
+        console.log(
+          '✅ [NotifyResidentService] Push notification enviada:',
+          `${result.sent} morador(es) notificado(s)`
+        );
         // 3. Registrar log da notificação
         await this.logNotificationAttempt(visitorData, apartmentId, true);
 
         return {
           success: true,
           message: `Notificação enviada com sucesso para ${result.sent} morador(es)`,
-          notificationId: `visitor_arrival_${Date.now()}`
+          notificationId: `visitor_arrival_${Date.now()}`,
         };
       } else {
         console.warn('⚠️ [NotifyResidentService] Falha ao enviar notificação:', result.message);
@@ -79,13 +89,12 @@ export class NotifyResidentService {
           message: result.message || 'Nenhum morador pôde ser notificado (sem tokens cadastrados)',
         };
       }
-
     } catch (error) {
       console.error('❌ [NotifyResidentService] Erro ao notificar moradores:', error);
       return {
         success: false,
         message: 'Erro interno ao enviar notificação',
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       };
     }
   }
@@ -93,7 +102,10 @@ export class NotifyResidentService {
   /**
    * Busca o ID do apartamento
    */
-  private static async getApartmentId(buildingId: string, apartmentNumber: string): Promise<string | null> {
+  private static async getApartmentId(
+    buildingId: string,
+    apartmentNumber: string
+  ): Promise<string | null> {
     try {
       const { data: apartment, error } = await supabase
         .from('apartments')
@@ -108,7 +120,6 @@ export class NotifyResidentService {
       }
 
       return apartment.id;
-
     } catch (error) {
       console.error('❌ [NotifyResidentService] Erro ao buscar ID do apartamento:', error);
       return null;
@@ -140,12 +151,10 @@ export class NotifyResidentService {
           purpose: visitorData.purpose,
           entry_type: visitorData.entry_type,
           apartment_id: apartmentId,
-        }
+        },
       };
 
-      const { error } = await supabase
-        .from('notification_logs')
-        .insert(logData);
+      const { error } = await supabase.from('notification_logs').insert(logData);
 
       if (error) {
         console.warn('⚠️ [NotifyResidentService] Erro ao registrar log de notificação:', error);
@@ -153,7 +162,6 @@ export class NotifyResidentService {
       } else {
         console.log('📝 [NotifyResidentService] Log de notificação registrado');
       }
-
     } catch (error) {
       console.error('❌ [NotifyResidentService] Erro ao registrar log:', error);
       // Não bloqueia o fluxo se falhar o log
@@ -163,13 +171,16 @@ export class NotifyResidentService {
   /**
    * Método auxiliar para testar o serviço de notificação
    */
-  static async testNotification(buildingId: string, apartmentNumber: string): Promise<NotificationResult> {
+  static async testNotification(
+    buildingId: string,
+    apartmentNumber: string
+  ): Promise<NotificationResult> {
     const testData: VisitorArrivalData = {
       visitorName: 'Visitante Teste',
       apartmentNumber,
       buildingId,
       purpose: 'Teste do sistema de notificações',
-      entry_type: 'test'
+      entry_type: 'test',
     };
 
     return await this.notifyResidentOfVisitorArrival(testData);
@@ -177,8 +188,8 @@ export class NotifyResidentService {
 }
 
 // Função auxiliar para uso direto (compatibilidade)
-export const notifyResidentOfVisitorArrival = (visitorData: VisitorArrivalData): Promise<NotificationResult> => {
+export const notifyResidentOfVisitorArrival = (
+  visitorData: VisitorArrivalData
+): Promise<NotificationResult> => {
   return NotifyResidentService.notifyResidentOfVisitorArrival(visitorData);
 };
-
-export default NotifyResidentService;

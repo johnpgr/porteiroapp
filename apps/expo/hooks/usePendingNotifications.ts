@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
-import { notificationApi } from '../services/notificationApi';
+import { notificationApi } from '../services/notification/NotificationApiService';
 import * as Notifications from 'expo-notifications';
-import { notifyPorteirosVisitorResponse } from '../services/pushNotificationService';
+import { notifyPorteirosVisitorResponse } from '../services/notification/pushNotificationService';
 import { respondToNotification as respondCore } from '@porteiroapp/hooks';
 
 interface PendingNotification {

@@ -15,9 +15,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../utils/supabase';
-import { notificationApi } from '../../services/notificationApi';
+import { notificationApi } from '../../services/notification/NotificationApiService';
 import { uploadDeliveryPhoto } from '../../services/photoUploadService';
-import { notifyResidentsVisitorArrival } from '../../services/pushNotificationService';
+import { notifyResidentsVisitorArrival } from '../../services/notification/pushNotificationService';
 import { CameraModal } from '~/components/shared/CameraModal';
 
 type FlowStep = 'apartamento' | 'empresa' | 'destinatario' | 'descricao' | 'observacoes' | 'foto' | 'confirmacao';

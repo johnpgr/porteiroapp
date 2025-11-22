@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { shiftService } from '../services/shiftService';
 import { Alert, AppState, AppStateStatus } from 'react-native';
-import notificationService from '../services/notificationService';
+import notificationService from '../services/notification/notificationService';
 
 interface PorteiroNotification {
   id: string;

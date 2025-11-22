@@ -9,7 +9,6 @@
 
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
 import { supabase } from '~/utils/supabase';
 
 // NOTE: Notification handler is now configured in services/notificationHandler.ts
