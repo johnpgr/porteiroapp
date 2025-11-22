@@ -16,7 +16,9 @@
       "WebSearch",
       "WebFetch(domain:docs.expo.dev)",
       "WebFetch(domain:supabase.com)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(cat:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

@@ -3,7 +3,7 @@ import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
 import { isRegularUser } from '~/types/auth.types';
 import { useUserApartment } from './useUserApartment';
-import type { Database } from '~/../../packages/common/supabase/types/database';
+import type { Database } from '@porteiroapp/supabase';
 
 type Visitor = Database['public']['Tables']['visitors']['Row'];
 type VisitorInsert = Database['public']['Tables']['visitors']['Insert'];

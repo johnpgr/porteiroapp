@@ -45,6 +45,17 @@ interface VoipPushParams {
   metadata?: Record<string, any>;
 }
 
+interface ExpoPushTicket {
+  status: 'ok' | 'error';
+  id?: string;
+  message?: string;
+  details?: any;
+}
+
+type ExpoPushResponse =
+  | { data: ExpoPushTicket | ExpoPushTicket[] }
+  | ExpoPushTicket;
+
 class PushNotificationService {
   private readonly expoApiUrl = 'https://exp.host/--/api/v2/push/send';
   private readonly enabled: boolean;
@@ -164,13 +175,13 @@ class PushNotificationService {
         };
       }
 
-      const result = await response.json();
+      const result = await response.json() as ExpoPushResponse;
 
       // Expo returns an array of results when you send an array of messages,
       // and an object when you send a single message. Normalize here.
-      const firstResult = Array.isArray(result?.data)
-        ? result.data[0]
-        : result?.data ?? result;
+      const firstResult: ExpoPushTicket | undefined = 'data' in result
+        ? (Array.isArray(result.data) ? result.data[0] : result.data)
+        : result;
 
       if (firstResult?.status === 'error') {
         console.error('❌ Expo push notification error:', firstResult.message, {
@@ -306,10 +317,10 @@ class PushNotificationService {
         };
       }
 
-      const result = await response.json();
-      const firstResult = Array.isArray(result?.data)
-        ? result.data[0]
-        : result?.data ?? result;
+      const result = await response.json() as ExpoPushResponse;
+      const firstResult: ExpoPushTicket | undefined = 'data' in result
+        ? (Array.isArray(result.data) ? result.data[0] : result.data)
+        : result;
 
       if (firstResult?.status === 'error') {
         console.error('❌ VoIP push notification error:', firstResult.message, {

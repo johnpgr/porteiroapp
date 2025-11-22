@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
-import type { Database } from '~/../../packages/common/supabase/types/database';
+import type { Database } from '@porteiroapp/supabase';
 
 type NotificationToken = Database['public']['Tables']['user_notification_tokens']['Row'];
 type NotificationLog = Database['public']['Tables']['notification_logs']['Row'];

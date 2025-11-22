@@ -559,10 +559,10 @@ class CallController {
         data: {
           call: {
             id: callId,
-            status: allDeclined ? 'declined' : call.status,
+            status: allEligibleDeclined ? 'declined' : call.status,
             declinedBy: userId
           },
-          allDeclined
+          allDeclined: allEligibleDeclined
         }
       });
 
