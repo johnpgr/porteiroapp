@@ -133,8 +133,8 @@ class PushNotificationService {
         }
       : {
           ...basePayload,
-          // Android: NO title, NO body, NO sound - data-only for background task
-          channelId: 'intercom_call',
+          // Android: NO title, NO body, NO sound, NO channelId - pure data-only for background task
+          // Including channelId causes a blank notification to be displayed and prevents background task from running
         };
 
     try {

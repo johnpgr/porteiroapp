@@ -1,6 +1,12 @@
 // Setup Android notification channel for CallKeep foreground service
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+// Ensure Expo background notification task is defined at bundle load
+import './services/backgroundNotificationTask';
+// Early call stack init (captures CallKeep events pre-auth)
+import './services/calling/earlyInit';
+// Boot the app via Expo Router
+import 'expo-router/entry';
 
 if (Platform.OS === 'android') {
   // Create notification channel for CallKeep foreground service
@@ -17,11 +23,3 @@ if (Platform.OS === 'android') {
     console.error('[index.js] Failed to create CallKeep notification channel:', err);
   });
 }
-
-// Ensure Expo background notification task is defined at bundle load
-import './services/backgroundNotificationTask';
-// Early call stack init (captures CallKeep events pre-auth)
-import './services/calling/earlyInit';
-
-// Boot the app via Expo Router
-import 'expo-router/entry';
