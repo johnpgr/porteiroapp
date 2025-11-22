@@ -31,7 +31,7 @@ const IntercomCallSchema = z.object({
 const JsonStringSchema = z.string().transform((str, ctx) => {
   try {
     return JSON.parse(str);
-  } catch (e) {
+  } catch {
     ctx.addIssue({ code: "custom", message: 'Invalid JSON string' });
     return z.NEVER;
   }
@@ -79,8 +79,6 @@ const NotificationParser = z.union([
   IntercomCallSchema
 ]);
 
-type IntercomCallPayload = z.infer<typeof IntercomCallSchema>;
-
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
@@ -124,15 +122,11 @@ TaskManager.defineTask(
 
     // On Android, skip if app is in foreground (foreground listener will handle it)
     // This prevents duplicate call handling
-    if (Platform.OS === 'android') {
-      const appState = AppState.currentState;
-      if (appState === 'active') {
-        console.log(
-          '[BackgroundTask] ⏭️ App is in foreground, skipping background task (foreground listener will handle)'
-        );
-        return;
-      }
-      console.log('[BackgroundTask] App state:', appState, '- proceeding with background handling');
+    if (Platform.OS === 'android' && AppState.currentState === 'active') {
+      console.log(
+        '[BackgroundTask] ⏭️ App is in foreground, skipping background task (foreground listener will handle)'
+      );
+      return;
     }
 
     if (error) {
@@ -147,135 +141,38 @@ TaskManager.defineTask(
       // Distinguish RECEIVED vs RESPONSE by presence of `actionIdentifier`
       const isResponseEvent =
         data && typeof data === 'object' && 'actionIdentifier' in (data as any);
-      if (!isResponseEvent) {
-        console.log('[BackgroundTask] 📨 This is a notification RECEIVED event');
 
-        // This is a notification that was just received (not user action)
-        // Robustly extract payload regardless of Expo/FCM shape
-        console.log('[BackgroundTask] Notification data extracted');
-
-        // Use Zod to robustly parse and extract the payload from any shape
-        const parseResult = NotificationParser.safeParse(data);
-        let notificationData: IntercomCallPayload | null = null;
-
-        if (parseResult.success) {
-          notificationData = parseResult.data;
-        } else {
-           // Fallback for legacy manual extraction if Zod fails (optional, but good for safety during migration)
-           // For now, we'll rely on Zod's union to catch everything.
-           console.warn('[BackgroundTask] Zod parsing failed:', parseResult.error);
-        }
-
-        console.log('[BackgroundTask] Notification data extracted');
-
-        if (notificationData) {
-          const payload = notificationData;
-          console.log('[BackgroundTask] 🎉 INTERCOM CALL DETECTED:', payload.callId);
-
-          const callData: IncomingCallData = {
-            callId: payload.callId,
-            callerName: payload.fromName || payload.callerName || 'Porteiro',
-            apartmentNumber: payload.apartmentNumber || '',
-            channelName: payload.channelName || payload.channel || '',
-            from: payload.from,
-            timestamp: Date.now(),
-          };
-
-          try {
-            // 1. Setup CallKeep (Android only - iOS handled in AppDelegate)
-            let callKeepAvailable = false;
-            if (Platform.OS === 'android') {
-              try {
-                console.log('[BackgroundTask] 🔧 Setting up CallKeep for Android...');
-                await RNCallKeep.setup(callKeepOptions);
-                RNCallKeep.setAvailable(true);
-                callKeepAvailable = true;
-                console.log('[BackgroundTask] ✅ CallKeep setup successful');
-              } catch (callKeepError) {
-                console.warn(
-                  '[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:',
-                  callKeepError
-                );
-                callKeepAvailable = false;
-              }
-            }
-
-            // 2. Display CallKeep UI if available (Android)
-            // Check if call is already active before showing UI (prevents duplicate UI)
-            const hasActiveCall = callCoordinator.hasActiveCall();
-            const activeSession = callCoordinator.getActiveSession();
-
-            if (callKeepAvailable && Platform.OS === 'android') {
-              if (hasActiveCall && activeSession?.id === callData.callId) {
-                console.log('[BackgroundTask] Call already active, skipping CallKeep UI');
-              } else {
-                try {
-                  // Use caller name for handle (not UUID) to ensure consistent display
-                  // If callerName is not available or is the fallback, use a formatted string instead of UUID
-                  const displayHandle =
-                    callData.callerName && callData.callerName !== 'Porteiro'
-                      ? callData.callerName
-                      : callData.apartmentNumber
-                        ? `Apt ${callData.apartmentNumber}`
-                        : 'Interfone';
-
-                  RNCallKeep.displayIncomingCall(
-                    callData.callId,
-                    displayHandle, // Use name/apartment instead of UUID
-                    callData.callerName || 'Porteiro', // Ensure we always have a name
-                    'generic',
-                    false
-                  );
-                  console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed:', {
-                    callId: callData.callId,
-                    handle: displayHandle,
-                    callerName: callData.callerName || 'Porteiro',
-                  });
-                } catch (displayError) {
-                  console.error('[BackgroundTask] ❌ Failed to display CallKeep UI:', displayError);
-                  callKeepAvailable = false;
-                }
-              }
-            }
-
-            // 3. CRITICAL: Create session in background via CallCoordinator
-            console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
-
-            const pushData: VoipPushData = {
-              callId: callData.callId,
-              callerName: callData.callerName,
-              apartmentNumber: callData.apartmentNumber,
-              channelName: callData.channelName,
-              from: callData.from,
-              source: 'background', // Mark as background source
-              shouldShowNativeUI: false, // Background task already shows CallKeep UI directly
-            };
-
-            await callCoordinator.handleIncomingPush(pushData);
-            console.log('[BackgroundTask] ✅ Call session created');
-          } catch (notificationError) {
-            console.error(
-              '[BackgroundTask] ❌ Failed to process intercom call:',
-              notificationError
-            );
-            console.error(
-              '[BackgroundTask] Error stack:',
-              notificationError instanceof Error ? notificationError.stack : 'No stack trace'
-            );
-            console.error(
-              '[BackgroundTask] Error details:',
-              JSON.stringify(notificationError, Object.getOwnPropertyNames(notificationError))
-            );
-          }
-        } else {
-          console.log('[BackgroundTask] ⚠️ Not an intercom call or parsing failed');
-        }
-      } else if (isResponseEvent) {
-        // User interacted with notification; UI listeners will handle routing
-        console.log('[BackgroundTask] 👆 Notification RESPONSE event (user action)');
-      } else {
-        console.log('[BackgroundTask] ℹ️ Unknown event type, ignoring');
+      if (isResponseEvent) {
+        console.log('[BackgroundTask] � Notification RESPONSE event (user action)');
+        return;
       }
+
+      console.log('[BackgroundTask] 📨 This is a notification RECEIVED event');
+      console.log('[BackgroundTask] Notification data extracted');
+
+      // Use Zod to robustly parse and extract the payload from any shape
+      const parseResult = NotificationParser.safeParse(data);
+
+      if (!parseResult.success) {
+        console.warn('[BackgroundTask] Zod parsing failed:', parseResult.error);
+        console.log('[BackgroundTask] ⚠️ Not an intercom call or parsing failed');
+        return;
+      }
+
+      const payload = parseResult.data;
+      console.log('[BackgroundTask] Notification data extracted');
+      console.log('[BackgroundTask] 🎉 INTERCOM CALL DETECTED:', payload.callId);
+
+      const callData: IncomingCallData = {
+        callId: payload.callId,
+        callerName: payload.fromName || payload.callerName || 'Porteiro',
+        apartmentNumber: payload.apartmentNumber || '',
+        channelName: payload.channelName || payload.channel || '',
+        from: payload.from,
+        timestamp: Date.now(),
+      };
+
+      await processIncomingCall(callData);
     } catch (error) {
       console.error('[BackgroundTask] ❌ Fatal error processing notification:', error);
       console.error(
@@ -290,6 +187,103 @@ TaskManager.defineTask(
   }
 );
 
+async function processIncomingCall(callData: IncomingCallData) {
+  try {
+    // 1. Setup CallKeep (Android only - iOS handled in AppDelegate)
+    let callKeepAvailable = false;
+    if (Platform.OS === 'android') {
+      callKeepAvailable = await setupCallKeep();
+    }
+
+    // 2. Display CallKeep UI if available (Android)
+    if (callKeepAvailable && Platform.OS === 'android') {
+      displayCallKeepUI(callData);
+    }
+
+    // 3. CRITICAL: Create session in background via CallCoordinator
+    console.log('[BackgroundTask] 🎯 Creating call session via CallCoordinator...');
+
+    const pushData: VoipPushData = {
+      callId: callData.callId,
+      callerName: callData.callerName,
+      apartmentNumber: callData.apartmentNumber,
+      channelName: callData.channelName,
+      from: callData.from,
+      source: 'background', // Mark as background source
+      shouldShowNativeUI: false, // Background task already shows CallKeep UI directly
+    };
+
+    await callCoordinator.handleIncomingPush(pushData);
+    console.log('[BackgroundTask] ✅ Call session created');
+  } catch (notificationError) {
+    console.error(
+      '[BackgroundTask] ❌ Failed to process intercom call:',
+      notificationError
+    );
+    console.error(
+      '[BackgroundTask] Error stack:',
+      notificationError instanceof Error ? notificationError.stack : 'No stack trace'
+    );
+    console.error(
+      '[BackgroundTask] Error details:',
+      JSON.stringify(notificationError, Object.getOwnPropertyNames(notificationError))
+    );
+  }
+}
+
+async function setupCallKeep(): Promise<boolean> {
+  try {
+    console.log('[BackgroundTask] 🔧 Setting up CallKeep for Android...');
+    await RNCallKeep.setup(callKeepOptions);
+    RNCallKeep.setAvailable(true);
+    console.log('[BackgroundTask] ✅ CallKeep setup successful');
+    return true;
+  } catch (callKeepError) {
+    console.warn(
+      '[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:',
+      callKeepError
+    );
+    return false;
+  }
+}
+
+function displayCallKeepUI(callData: IncomingCallData) {
+  // Check if call is already active before showing UI (prevents duplicate UI)
+  const hasActiveCall = callCoordinator.hasActiveCall();
+  const activeSession = callCoordinator.getActiveSession();
+
+  if (hasActiveCall && activeSession?.id === callData.callId) {
+    console.log('[BackgroundTask] Call already active, skipping CallKeep UI');
+    return;
+  }
+
+  try {
+    // Use caller name for handle (not UUID) to ensure consistent display
+    // If callerName is not available or is the fallback, use a formatted string instead of UUID
+    const displayHandle =
+      callData.callerName && callData.callerName !== 'Porteiro'
+        ? callData.callerName
+        : callData.apartmentNumber
+          ? `Apt ${callData.apartmentNumber}`
+          : 'Interfone';
+
+    RNCallKeep.displayIncomingCall(
+      callData.callId,
+      displayHandle, // Use name/apartment instead of UUID
+      callData.callerName || 'Porteiro', // Ensure we always have a name
+      'generic',
+      false
+    );
+    console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed:', {
+      callId: callData.callId,
+      handle: displayHandle,
+      callerName: callData.callerName || 'Porteiro',
+    });
+  } catch (displayError) {
+    console.error('[BackgroundTask] ❌ Failed to display CallKeep UI:', displayError);
+  }
+}
+
 /**
  * Register the background task
  * MUST be called at module level (not inside component)
@@ -298,12 +292,13 @@ export async function registerBackgroundNotificationTask(): Promise<void> {
   try {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK);
 
-    if (!isRegistered) {
-      await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-      console.log('[BackgroundTask] ✅ Registered successfully');
-    } else {
+    if (isRegistered) {
       console.log('[BackgroundTask] Already registered');
+      return;
     }
+
+    await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+    console.log('[BackgroundTask] ✅ Registered successfully');
   } catch (error) {
     console.error('[BackgroundTask] ❌ Failed to register:', error);
   }
