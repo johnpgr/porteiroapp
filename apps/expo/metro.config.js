@@ -31,4 +31,16 @@ config.resolver.nodeModulesPaths = [
 // Support package exports field
 config.resolver.unstable_enablePackageExports = true;
 
+// Custom resolver to handle ~ alias
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith('~/')) {
+    // Replace ~ with the project root path
+    const resolvedPath = path.resolve(projectRoot, moduleName.substring(2));
+    return context.resolveRequest(context, resolvedPath, platform);
+  }
+  
+  // Fall back to default resolution
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;
