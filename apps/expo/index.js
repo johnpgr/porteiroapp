@@ -2,7 +2,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 // Ensure Expo background notification task is defined at bundle load
-import './services/backgroundNotificationTask';
+import './services/notification/backgroundTask';
 // Early call stack init (captures CallKeep events pre-auth)
 import './services/calling/earlyInit';
 // Boot the app via Expo Router
