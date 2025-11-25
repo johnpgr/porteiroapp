@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadingProfileRef = useRef(false);
   const lastLoadedRef = useRef<{ userId: string; at: number } | null>(null);
   const inactivityTimerRef = useRef<number | null>(null);
+  const lastActiveAppStateRef = useRef(0);
   const wasOnlineRef = useRef<boolean | null>(null);
 
   // Constantes para configuração de sessão
@@ -214,19 +215,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [SESSION_DURATION, logError]);
 
-  const isTokenExpiringSoon = useCallback((token: string, thresholdSeconds = 600): boolean => {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (typeof payload.exp !== 'number') {
+  const isTokenExpiringSoon = useCallback(
+    (token: string, thresholdSeconds = 600): boolean => {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (typeof payload.exp !== 'number') {
+          return false;
+        }
+        const secondsUntilExpiry = payload.exp - Math.floor(Date.now() / 1000);
+        return secondsUntilExpiry <= thresholdSeconds;
+      } catch (error) {
+        logError('Erro ao analisar expiração do token:', error);
         return false;
       }
-      const secondsUntilExpiry = payload.exp - Math.floor(Date.now() / 1000);
-      return secondsUntilExpiry <= thresholdSeconds;
-    } catch (error) {
-      logError('Erro ao analisar expiração do token:', error);
-      return false;
-    }
-  }, [logError]);
+    },
+    [logError]
+  );
 
   const ensureFreshToken = useCallback(async (): Promise<string | null> => {
     const token = await TokenStorage.getToken();
@@ -272,12 +276,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [SESSION_DURATION, isTokenExpiringSoon, logError]);
 
   // Helper function to wrap async operations with timeout
-  const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, operationName: string): Promise<T> => {
+  const withTimeout = <T,>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    operationName: string
+  ): Promise<T> => {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`${operationName} timeout after ${timeoutMs}ms`)), timeoutMs)
-      )
+        setTimeout(
+          () => reject(new Error(`${operationName} timeout after ${timeoutMs}ms`)),
+          timeoutMs
+        )
+      ),
     ]);
   };
 
@@ -319,11 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Wrap TokenStorage.clearAll with timeout
       console.log('🔓 [AuthProvider] Clearing TokenStorage...');
       try {
-        await withTimeout(
-          TokenStorage.clearAll(),
-          SIGNOUT_TIMEOUT,
-          'TokenStorage.clearAll'
-        );
+        await withTimeout(TokenStorage.clearAll(), SIGNOUT_TIMEOUT, 'TokenStorage.clearAll');
         console.log('✅ [AuthProvider] TokenStorage cleared');
       } catch (clearError) {
         console.error('❌ [AuthProvider] TokenStorage.clearAll error:', clearError);
@@ -351,7 +358,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await TokenStorage.clearAll();
       } catch (clearError) {
-        console.error('❌ [AuthProvider] Error clearing storage during error recovery:', clearError);
+        console.error(
+          '❌ [AuthProvider] Error clearing storage during error recovery:',
+          clearError
+        );
       }
     } finally {
       setLoading(false);
@@ -374,153 +384,160 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [logError]
   );
 
-  const loadUserProfile = useCallback(async (authUser: User): Promise<AuthUser | null> => {
-    // Guard: evita carregamento concorrente ou muito frequente para o mesmo usuário
-    if (loadingProfileRef.current) return null;
-    const nowGuard = Date.now();
-    if (
-      lastLoadedRef.current &&
-      lastLoadedRef.current.userId === authUser.id &&
-      nowGuard - lastLoadedRef.current.at < 1000
-    ) {
-      return null;
-    }
-    loadingProfileRef.current = true;
-    AnalyticsTracker.startTiming('auth_profile_fetch_duration');
-    AnalyticsTracker.trackEvent('auth_profile_fetch_start', {
-      userId: authUser.id,
-    });
-
-    let profileFetchRole: string | undefined;
-    let profileFetchSuccessful = false;
-    try {
-      // Primeiro tenta carregar da tabela profiles
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        logError('Erro ao carregar perfil:', error);
+  const loadUserProfile = useCallback(
+    async (authUser: User): Promise<AuthUser | null> => {
+      // Guard: evita carregamento concorrente ou muito frequente para o mesmo usuário
+      if (loadingProfileRef.current) return null;
+      const nowGuard = Date.now();
+      if (
+        lastLoadedRef.current &&
+        lastLoadedRef.current.userId === authUser.id &&
+        nowGuard - lastLoadedRef.current.at < 1000
+      ) {
         return null;
       }
-
-      let userData: AuthUser;
-
-      if (!profile) {
-        // Se não encontrou na tabela profiles, verifica se é um admin
-        const { data: adminProfile, error: adminError } = await supabase
-          .from('admin_profiles')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .eq('role', 'admin')
-          .maybeSingle();
-
-        if (adminError) {
-          logError('Erro ao carregar perfil de admin:', adminError);
-          return null;
-        }
-
-        if (adminProfile && adminProfile.is_active) {
-          // Atualiza o updated_at na tabela admin_profiles
-          await supabase
-            .from('admin_profiles')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('user_id', authUser.id);
-
-          userData = {
-            ...adminProfile,
-            user_type: 'admin' as const,
-          };
-        } else {
-          return null;
-        }
-      } else {
-        // Se encontrou perfil na tabela profiles
-        // Só atualiza last_seen se passou mais de 5 minutos desde a última atualização
-        const lastLogin = profile.last_seen ? new Date(profile.last_seen) : null;
-        const now = new Date();
-        const shouldUpdateLogin = !lastLogin || now.getTime() - lastLogin.getTime() > 5 * 60 * 1000;
-
-        if (shouldUpdateLogin) {
-          await supabase
-            .from('profiles')
-            .update({ last_seen: now.toISOString() })
-            .eq('user_id', authUser.id);
-        }
-
-        const profileUserType = (profile.user_type ?? profile.role ?? 'morador') as 'morador' | 'porteiro';
-        userData = {
-          ...profile,
-          user_type: profileUserType,
-        };
-        profileFetchRole = profile.user_type ?? profile.role ?? undefined;
-      }
-
-      // Salva os dados do usuário no TokenStorage
-      await TokenStorage.saveUserData(userData);
-
-      await updateLastAuthTime();
-      setIsOffline(false);
-      setIsReadOnly(false);
-      profileFetchSuccessful = true;
-
-      // Só atualiza o user se os dados realmente mudaram
-      setUser((prevUser) => {
-        if (
-          !prevUser ||
-          prevUser.id !== userData.id ||
-          prevUser.email !== userData.email ||
-          prevUser.user_type !== userData.user_type ||
-          (isRegularUser(prevUser) && isRegularUser(userData) && prevUser.building_id !== userData.building_id) ||
-          prevUser.push_token !== userData.push_token ||
-          (isRegularUser(prevUser) && isRegularUser(userData) && prevUser.last_seen !== userData.last_seen)
-        ) {
-          return userData;
-        }
-        return prevUser;
-      });
-
-      return userData;
-    } catch (error) {
-      // Verifica se é erro JWT expired e trata adequadamente
-      if (handleJWTExpiredError(error, signOut)) {
-        return null;
-      }
-      logError('Erro ao carregar perfil do usuário:', error);
-      return null;
-    } finally {
-      // Atualiza flags de controle mesmo em caso de erro
-      loadingProfileRef.current = false;
-      lastLoadedRef.current = { userId: authUser.id, at: Date.now() };
-      AnalyticsTracker.endTiming('auth_profile_fetch_duration', {
-        success: profileFetchSuccessful,
-        role: profileFetchRole,
+      loadingProfileRef.current = true;
+      AnalyticsTracker.startTiming('auth_profile_fetch_duration');
+      AnalyticsTracker.trackEvent('auth_profile_fetch_start', {
         userId: authUser.id,
       });
-    }
-  }, [handleJWTExpiredError, logError, signOut, updateLastAuthTime]);
 
-  const handleSoftLogout = useCallback(
-    (cachedUser?: AuthUser | null) => {
-      console.log('[Auth] Soft logout - read-only mode ativo');
-      AnalyticsTracker.trackEvent('auth_soft_logout', {
-        hasCachedUser: Boolean(cachedUser),
-      });
-      if (cachedUser) {
-        setUser(cachedUser);
+      let profileFetchRole: string | undefined;
+      let profileFetchSuccessful = false;
+      try {
+        // Primeiro tenta carregar da tabela profiles
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          logError('Erro ao carregar perfil:', error);
+          return null;
+        }
+
+        let userData: AuthUser;
+
+        if (!profile) {
+          // Se não encontrou na tabela profiles, verifica se é um admin
+          const { data: adminProfile, error: adminError } = await supabase
+            .from('admin_profiles')
+            .select('*')
+            .eq('user_id', authUser.id)
+            .eq('role', 'admin')
+            .maybeSingle();
+
+          if (adminError) {
+            logError('Erro ao carregar perfil de admin:', adminError);
+            return null;
+          }
+
+          if (adminProfile && adminProfile.is_active) {
+            // Atualiza o updated_at na tabela admin_profiles
+            await supabase
+              .from('admin_profiles')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('user_id', authUser.id);
+
+            userData = {
+              ...adminProfile,
+              user_type: 'admin' as const,
+            };
+          } else {
+            return null;
+          }
+        } else {
+          // Se encontrou perfil na tabela profiles
+          // Só atualiza last_seen se passou mais de 5 minutos desde a última atualização
+          const lastLogin = profile.last_seen ? new Date(profile.last_seen) : null;
+          const now = new Date();
+          const shouldUpdateLogin =
+            !lastLogin || now.getTime() - lastLogin.getTime() > 5 * 60 * 1000;
+
+          if (shouldUpdateLogin) {
+            await supabase
+              .from('profiles')
+              .update({ last_seen: now.toISOString() })
+              .eq('user_id', authUser.id);
+          }
+
+          const profileUserType = (profile.user_type ?? profile.role ?? 'morador') as
+            | 'morador'
+            | 'porteiro';
+          userData = {
+            ...profile,
+            user_type: profileUserType,
+          };
+          profileFetchRole = profile.user_type ?? profile.role ?? undefined;
+        }
+
+        // Salva os dados do usuário no TokenStorage
+        await TokenStorage.saveUserData(userData);
+
+        await updateLastAuthTime();
+        setIsOffline(false);
+        setIsReadOnly(false);
+        profileFetchSuccessful = true;
+
+        // Só atualiza o user se os dados realmente mudaram
+        setUser((prevUser) => {
+          if (
+            !prevUser ||
+            prevUser.id !== userData.id ||
+            prevUser.email !== userData.email ||
+            prevUser.user_type !== userData.user_type ||
+            (isRegularUser(prevUser) &&
+              isRegularUser(userData) &&
+              prevUser.building_id !== userData.building_id) ||
+            prevUser.push_token !== userData.push_token ||
+            (isRegularUser(prevUser) &&
+              isRegularUser(userData) &&
+              prevUser.last_seen !== userData.last_seen)
+          ) {
+            return userData;
+          }
+          return prevUser;
+        });
+
+        return userData;
+      } catch (error) {
+        // Verifica se é erro JWT expired e trata adequadamente
+        if (handleJWTExpiredError(error, signOut)) {
+          return null;
+        }
+        logError('Erro ao carregar perfil do usuário:', error);
+        return null;
+      } finally {
+        // Atualiza flags de controle mesmo em caso de erro
+        loadingProfileRef.current = false;
+        lastLoadedRef.current = { userId: authUser.id, at: Date.now() };
+        AnalyticsTracker.endTiming('auth_profile_fetch_duration', {
+          success: profileFetchSuccessful,
+          role: profileFetchRole,
+          userId: authUser.id,
+        });
       }
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = null;
-      }
-      setIsReadOnly(true);
-      setIsOffline(true);
-      setLoading(false);
     },
-    []
+    [handleJWTExpiredError, logError, signOut, updateLastAuthTime]
   );
+
+  const handleSoftLogout = useCallback((cachedUser?: AuthUser | null) => {
+    console.log('[Auth] Soft logout - read-only mode ativo');
+    AnalyticsTracker.trackEvent('auth_soft_logout', {
+      hasCachedUser: Boolean(cachedUser),
+    });
+    if (cachedUser) {
+      setUser(cachedUser);
+    }
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    setIsReadOnly(true);
+    setIsOffline(true);
+    setLoading(false);
+  }, []);
 
   const handleOfflineSession = useCallback(async () => {
     try {
@@ -548,7 +565,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_type: 'admin' as const,
         } as AuthAdminProfile;
       } else {
-        const profileUserType = (cachedUser.user_type ?? (cachedUser as unknown as { role?: string }).role ?? 'morador') as 'morador' | 'porteiro';
+        const profileUserType = (cachedUser.user_type ??
+          (cachedUser as unknown as { role?: string }).role ??
+          'morador') as 'morador' | 'porteiro';
         normalizedUser = {
           ...cachedUser,
           user_type: profileUserType,
@@ -612,7 +631,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       AnalyticsTracker.trackEvent('auth_inactivity_timeout', {
         userId: user?.id,
       });
-      signOut().catch((error: unknown) => logError('Erro ao realizar logout por inatividade', error));
+      signOut().catch((error: unknown) =>
+        logError('Erro ao realizar logout por inatividade', error)
+      );
     }, INACTIVITY_TIMEOUT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [INACTIVITY_TIMEOUT, logError, user]);
@@ -706,14 +727,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user_type: 'admin' as const,
           } as AuthAdminProfile;
         } else {
-          const profileUserType = (cachedUser.user_type ?? (cachedUser as any).role ?? 'morador') as 'morador' | 'porteiro';
+          const profileUserType = (cachedUser.user_type ??
+            (cachedUser as any).role ??
+            'morador') as 'morador' | 'porteiro';
           normalizedUser = {
             ...cachedUser,
             user_type: profileUserType,
           } as AuthProfile;
         }
 
-        setUser((prev) => (prev ?? normalizedUser));
+        setUser((prev) => prev ?? normalizedUser);
         AnalyticsTracker.trackEvent('auth_cache_hit', {
           userId: normalizedUser.id,
         });
@@ -820,11 +843,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        resetInactivityTimer();
-        if (user && isOnline) {
-          void checkSession();
-        }
+      if (nextAppState !== 'active') {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastActiveAppStateRef.current < 1000) {
+        // RNCallKeep/backToForeground can fire multiple rapid ACTIVE events; ignore duplicates.
+        return;
+      }
+      lastActiveAppStateRef.current = now;
+
+      resetInactivityTimer();
+      if (user && isOnline) {
+        void checkSession();
       }
     });
 
@@ -987,8 +1019,7 @@ export function usePermissions() {
 
   const canManageCondominium = false; // condominium_id removed, always false
   const canManageBuilding =
-    (user?.user_type === 'admin') ||
-    (user && isRegularUser(user) && user.building_id);
+    user?.user_type === 'admin' || (user && isRegularUser(user) && user.building_id);
   const canAccessCondominium = false; // condominium_id removed, always false
   const canAccessBuilding = user && isRegularUser(user) ? user.building_id : null;
 

@@ -1,4 +1,4 @@
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
 import { agoraService } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
@@ -12,6 +12,7 @@ export interface VoipPushData {
   from: string;
   callerName?: string;
   apartmentNumber?: string;
+  buildingId?: string;
   buildingName?: string;
   channelName: string;
   timestamp?: number;
@@ -154,50 +155,13 @@ export class CallCoordinator {
         .toString()
         .toLowerCase();
 
-      // Handle END/DECLINE signals to close UI when porteiro cancels
-      const isEndLike =
-        type === 'END' ||
-        type === 'DECLINE' ||
-        altTypeRaw === 'end' ||
-        altTypeRaw === 'ended' ||
-        altTypeRaw === 'hangup' ||
-        altTypeRaw === 'cancel' ||
-        altTypeRaw === 'cancelled' ||
-        altTypeRaw === 'intercom_call_end' ||
-        altTypeRaw === 'call_end' ||
-        altTypeRaw === 'end_call';
-
-      if (isEndLike && this.activeSession) {
-        if (this.activeSession.id === parsed.callId) {
-          console.log(`[CallCoordinator] RTM ${type} received for active call ${parsed.callId}`);
-          try {
-            // End CallKeep UI if available
-            if (this.callKeepAvailable) {
-              callKeepService.endCall(parsed.callId);
-            }
-            // Use 'drop' to indicate remote-ended when wrapping end()
-            await this.activeSession.end('drop');
-          } catch (e) {
-            console.warn(
-              '[CallCoordinator] Failed to end session on remote END, forcing cleanup:',
-              e
-            );
-            this.activeSession = null;
-            this.emit('sessionEnded', { session: null, finalState: 'ended' });
-          }
-        }
+      if (this.isEndLikeMessage(type, altTypeRaw)) {
+        await this.handleEndLikeMessage(parsed, type);
         return;
       }
 
-      // Only handle INVITE messages for moradores
       if (type !== 'INVITE') {
-        if (parsed.callId && this.activeSession?.id === parsed.callId) {
-          console.log('[CallCoordinator] RTM non-INVITE message for active call ignored:', {
-            type,
-            altTypeRaw,
-            callId: parsed.callId,
-          });
-        }
+        this.logIgnoredNonInvite(parsed, type, altTypeRaw);
         return;
       }
 
@@ -208,60 +172,107 @@ export class CallCoordinator {
 
       console.log('[CallCoordinator] 📞 RTM INVITE received:', parsed.callId);
 
-      // Check if we already have this call
       if (this.activeSession?.id === parsed.callId) {
         console.log('[CallCoordinator] Call already exists, ignoring duplicate RTM invite');
         return;
       }
 
-      // Check if there's already an in-progress creation for this call (from push notification)
-      const existingPromise = this.incomingPushPromises.get(parsed.callId);
-      if (existingPromise) {
-        console.log('[CallCoordinator] Session creation already in progress (likely from push), ignoring RTM invite');
+      if (this.incomingPushPromises.has(parsed.callId)) {
+        console.log(
+          '[CallCoordinator] Session creation already in progress (likely from push), ignoring RTM invite'
+        );
         return;
       }
 
-      // Auto-decline if already in a call
       if (this.activeSession) {
-        console.log('[CallCoordinator] Already in call, auto-declining RTM invite');
-        // 1) Notify backend about decline (busy)
-        await this.declineCall(parsed.callId, 'busy');
-        // 2) Immediately notify inviter via RTM so their UI stops ringing
-        try {
-          const declineSignal = {
-            t: 'DECLINE' as const,
-            callId: parsed.callId,
-            from: agoraService.getCurrentUser()?.id || '',
-            channel: parsed.channel || parsed.channelName || `call-${parsed.callId}`,
-            timestamp: Date.now(),
-            reason: 'busy',
-          };
-          await agoraService.sendPeerMessage([peerId], declineSignal);
-          console.log('[CallCoordinator] ✅ Sent RTM DECLINE (busy) to inviter');
-        } catch (e) {
-          console.warn('[CallCoordinator] ⚠️ Failed to send RTM DECLINE to inviter:', e);
-        }
+        await this.autoDeclineInvite(parsed, peerId);
         return;
       }
 
-      // Convert RTM INVITE to push data format and handle it
-      const pushData: VoipPushData = {
-        callId: parsed.callId,
-        from: peerId,
-        callerName: parsed.from || 'Doorman',
-        apartmentNumber: parsed.apartmentNumber,
-        buildingName: parsed.buildingName,
-        channelName: parsed.channel || `call-${parsed.callId}`,
-        timestamp: Date.now(),
-        source: 'rtm', // Mark as RTM source (foreground)
-        shouldShowNativeUI: true, // RTM invites (foreground) should show CallKeep UI
-      };
-
-      console.log('[CallCoordinator] Converting RTM INVITE to session creation');
-      await this.handleIncomingPush(pushData);
+      await this.processInvite(parsed, peerId);
     } catch (error) {
       console.error('[CallCoordinator] Error handling RTM message:', error);
     }
+  }
+
+  private isEndLikeMessage(type: string, altTypeRaw: string): boolean {
+    const endTypes = new Set(['END', 'DECLINE']);
+    const endAltTypes = new Set([
+      'end',
+      'ended',
+      'hangup',
+      'cancel',
+      'cancelled',
+      'intercom_call_end',
+      'call_end',
+      'end_call',
+    ]);
+    return endTypes.has(type) || endAltTypes.has(altTypeRaw);
+  }
+
+  private async handleEndLikeMessage(parsed: any, type: string): Promise<void> {
+    if (!this.activeSession || this.activeSession.id !== parsed.callId) {
+      return;
+    }
+
+    console.log(`[CallCoordinator] RTM ${type} received for active call ${parsed.callId}`);
+    try {
+      if (this.callKeepAvailable) {
+        callKeepService.endCall(parsed.callId);
+      }
+      await this.activeSession.end('drop');
+    } catch (e) {
+      console.warn('[CallCoordinator] Failed to end session on remote END, forcing cleanup:', e);
+      this.activeSession = null;
+      this.emit('sessionEnded', { session: null, finalState: 'ended' });
+    }
+  }
+
+  private logIgnoredNonInvite(parsed: any, type: string, altTypeRaw: string): void {
+    if (parsed.callId && this.activeSession?.id === parsed.callId) {
+      console.log('[CallCoordinator] RTM non-INVITE message for active call ignored:', {
+        type,
+        altTypeRaw,
+        callId: parsed.callId,
+      });
+    }
+  }
+
+  private async autoDeclineInvite(parsed: any, peerId: string): Promise<void> {
+    console.log('[CallCoordinator] Already in call, auto-declining RTM invite');
+    await this.declineCall(parsed.callId, 'busy');
+
+    try {
+      const declineSignal = {
+        t: 'DECLINE' as const,
+        callId: parsed.callId,
+        from: agoraService.getCurrentUser()?.id || '',
+        channel: parsed.channel || parsed.channelName || `call-${parsed.callId}`,
+        timestamp: Date.now(),
+        reason: 'busy',
+      };
+      await agoraService.sendPeerMessage([peerId], declineSignal);
+      console.log('[CallCoordinator] ✅ Sent RTM DECLINE (busy) to inviter');
+    } catch (e) {
+      console.warn('[CallCoordinator] ⚠️ Failed to send RTM DECLINE to inviter:', e);
+    }
+  }
+
+  private async processInvite(parsed: any, peerId: string): Promise<void> {
+    const pushData: VoipPushData = {
+      callId: parsed.callId,
+      from: peerId,
+      callerName: parsed.from || 'Doorman',
+      apartmentNumber: parsed.apartmentNumber,
+      buildingName: parsed.buildingName,
+      channelName: parsed.channel || `call-${parsed.callId}`,
+      timestamp: Date.now(),
+      source: 'rtm',
+      shouldShowNativeUI: true,
+    };
+
+    console.log('[CallCoordinator] Converting RTM INVITE to session creation');
+    await this.handleIncomingPush(pushData);
   }
 
   // ========================================
@@ -279,7 +290,12 @@ export class CallCoordinator {
    * 5. Show CallKeep UI (now RTM is ready for instant answer)
    */
   async handleIncomingPush(data: VoipPushData): Promise<void> {
-    console.log('[CallCoordinator] 📞 Incoming push for call:', data.callId, 'source:', data.source);
+    console.log(
+      '[CallCoordinator] 📞 Incoming push for call:',
+      data.callId,
+      'source:',
+      data.source
+    );
 
     // Check if we already have this call
     if (this.activeSession?.id === data.callId) {
@@ -290,7 +306,11 @@ export class CallCoordinator {
     // Check if there's already an in-progress creation for this call
     const existingPromise = this.incomingPushPromises.get(data.callId);
     if (existingPromise) {
-      console.log('[CallCoordinator] Session creation already in progress for callId:', data.callId, '- ignoring duplicate');
+      console.log(
+        '[CallCoordinator] Session creation already in progress for callId:',
+        data.callId,
+        '- ignoring duplicate'
+      );
       return existingPromise;
     }
 
@@ -332,7 +352,9 @@ export class CallCoordinator {
       }
 
       // Step 1: Create lightweight CallSession (defer heavy work)
-      console.log('[CallCoordinator] Creating lightweight session (heavy work deferred to answer)...');
+      console.log(
+        '[CallCoordinator] Creating lightweight session (heavy work deferred to answer)...'
+      );
       const session = new CallSession({
         id: data.callId,
         channelName: data.channelName || `call-${data.callId}`,
@@ -357,7 +379,13 @@ export class CallCoordinator {
 
         // Only end CallKeep UI if not already ended by endActiveCall
         // This prevents duplicate endCall calls
-        if (this.callKeepAvailable && (newState === 'ending' || newState === 'ended' || newState === 'declined' || newState === 'failed')) {
+        if (
+          this.callKeepAvailable &&
+          (newState === 'ending' ||
+            newState === 'ended' ||
+            newState === 'declined' ||
+            newState === 'failed')
+        ) {
           // Determine reason code based on final state
           const reasonCode = newState === 'declined' ? 2 : newState === 'failed' ? 0 : 1;
           callKeepService.endCall(session.id, reasonCode);
@@ -386,122 +414,112 @@ export class CallCoordinator {
   }
 
   private startRemoteHangupPoll(callId: string): void {
-    // Poll only during ringing state before user answers
     this.clearRemoteHangupPoll();
-    let attempts = 0;
+
+    if (this.shouldSkipRemoteHangupPoll()) {
+      return;
+    }
+
     const maxAttempts = 20; // ~40s max
+    let attempts = 0;
 
-    this.remoteHangupPoll = setInterval(async () => {
+    const poll = async () => {
       attempts += 1;
-      try {
-        if (!this.activeSession || this.activeSession.id !== callId) {
-          this.clearRemoteHangupPoll();
-          return;
-        }
 
-        // If user already answered/connected, stop polling
-        const state = this.activeSession.state as any;
-        if (state === 'connected' || state === 'ending' || state === 'ended') {
-          this.clearRemoteHangupPoll();
-          return;
-        }
+      if (this.shouldStopRemoteHangupPoll(callId)) {
+        this.clearRemoteHangupPoll();
+        return;
+      }
 
-        const details = await this.fetchCallDetails(callId);
-        // If call no longer exists or backend marks it as ended, close UI
-        if (!details || (details as any).status === 'ended' || (details as any).endedAt) {
-          console.log('[CallCoordinator] 🔚 Remote hangup detected via polling');
-          if (this.remoteEndInProgress) {
-            this.clearRemoteHangupPoll();
-            return;
-          }
-          this.remoteEndInProgress = true;
-          this.clearRemoteHangupPoll();
-          try {
-            // End CallKeep UI if available
-            if (this.callKeepAvailable && this.activeSession?.id) {
-              callKeepService.endCall(this.activeSession.id);
-            }
-            await this.activeSession.end('drop');
-          } catch (e) {
-            console.warn('[CallCoordinator] Poll end failed, forcing local cleanup:', e);
-            this.activeSession = null;
-            this.emit('sessionEnded', { session: null, finalState: 'ended' });
-          } finally {
-            this.remoteEndInProgress = false;
-          }
-          return;
-        }
-      } catch (err) {
-        console.warn('[CallCoordinator] Remote hangup poll error:', err);
+      if (await this.tryHandleRemoteHangup(callId)) {
+        this.clearRemoteHangupPoll();
+        return;
       }
 
       if (attempts >= maxAttempts) {
         this.clearRemoteHangupPoll();
       }
+    };
+
+    this.remoteHangupPoll = setInterval(() => {
+      if (this.shouldSkipRemoteHangupPoll()) {
+        this.clearRemoteHangupPoll();
+        return;
+      }
+
+      void poll();
     }, 2000);
   }
 
-  /**
-   * Warm up RTM connection with timeout
-   * Based on user decisions: 3 second timeout, pre-connect before UI
-   * PERFORMANCE: Now only used for legacy code paths, deferred to answer() in new flow
-   */
-  private async warmupRTM(): Promise<boolean> {
-    const warmupStartedAt = Date.now();
-    console.log('[CallCoordinator] Warming RTM (timeout: 6s)...');
+  private shouldSkipRemoteHangupPoll(): boolean {
+    const rtmStatus = agoraService.getStatus();
+    const shouldSkip = rtmStatus === 'connected';
 
-    // Check if already connected
-    const currentStatus = agoraService.getStatus();
-    if (currentStatus === 'connected') {
-      console.log(
-        `[CallCoordinator] ✅ RTM already connected (check ${Date.now() - warmupStartedAt}ms)`
-      );
+    if (shouldSkip) {
+      console.log('[CallCoordinator] ⏭️ Skipping remote hangup poll - RTM connected');
+    }
+
+    return shouldSkip;
+  }
+
+  private shouldStopRemoteHangupPoll(callId: string): boolean {
+    const session = this.activeSession;
+
+    if (!session || session.id !== callId) {
       return true;
     }
 
-    // Use AgoraService warmup method
+    const terminalStates = new Set<CallLifecycleState>([
+      'connected',
+      'ending',
+      'ended',
+      'declined',
+      'failed',
+    ]);
+    return terminalStates.has(session.state);
+  }
+
+  private async tryHandleRemoteHangup(callId: string): Promise<boolean> {
     try {
-      const ready = await agoraService.warmupRTM({ timeout: this.RTM_WARMUP_TIMEOUT });
-      console.log(
-        `[CallCoordinator] RTM warmup completed in ${Date.now() - warmupStartedAt}ms`
-      );
-      return ready;
+      const details = await this.fetchCallDetails(callId);
+      const remoteEnded = !details || details.status === 'ended' || Boolean(details.endedAt);
+
+      if (!remoteEnded) {
+        return false;
+      }
+
+      console.log('[CallCoordinator] 🔚 Remote hangup detected via polling');
+      await this.finalizeRemoteHangup(callId);
+      return true;
     } catch (error) {
-      console.log(
-        `[CallCoordinator] RTM warmup failed after ${Date.now() - warmupStartedAt}ms`
-      );
-      console.error('[CallCoordinator] RTM warmup error:', error);
+      console.warn('[CallCoordinator] Remote hangup poll error:', error);
       return false;
     }
   }
 
-  /**
-   * Show retry dialog when RTM fails
-   * Based on user decision: "show error + retry"
-   */
-  private showRetryDialog(data: VoipPushData): void {
-    Alert.alert(
-      'Connection Error',
-      'Unable to connect to the call server. Would you like to retry?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-          onPress: () => {
-            console.log('[CallCoordinator] User cancelled retry');
-            // Optionally decline the call
-            void this.declineCall(data.callId, 'connection_failed');
-          },
-        },
-        {
-          text: 'Retry',
-          onPress: () => {
-            console.log('[CallCoordinator] User requested retry');
-            void this.handleIncomingPush(data);
-          },
-        },
-      ]
-    );
+  private async finalizeRemoteHangup(callId: string): Promise<void> {
+    if (this.remoteEndInProgress) {
+      return;
+    }
+
+    const session = this.activeSession;
+    if (!session || session.id !== callId) {
+      return;
+    }
+
+    this.remoteEndInProgress = true;
+    try {
+      if (this.callKeepAvailable) {
+        callKeepService.endCall(callId);
+      }
+      await session.end('drop');
+    } catch (error) {
+      console.warn('[CallCoordinator] Poll end failed, forcing local cleanup:', error);
+      this.activeSession = null;
+      this.emit('sessionEnded', { session: null, finalState: 'ended' });
+    } finally {
+      this.remoteEndInProgress = false;
+    }
   }
 
   // ========================================
@@ -557,16 +575,19 @@ export class CallCoordinator {
     try {
       // If call was already answered/connected, always use end() not decline()
       // decline() is only for declining BEFORE answering
-      const isAnswered = sessionState === 'connected' || sessionState === 'connecting' || 
-                         sessionState === 'rtc_joining' || sessionState === 'token_fetching' ||
-                         sessionState === 'native_answered';
-      
+      const isAnswered =
+        sessionState === 'connected' ||
+        sessionState === 'connecting' ||
+        sessionState === 'rtc_joining' ||
+        sessionState === 'token_fetching' ||
+        sessionState === 'native_answered';
+
       if (reason === 'decline' && !isAnswered) {
         // Only decline if call hasn't been answered yet
         await this.activeSession.decline();
         return;
       }
-      
+
       // Use end() for all other cases (hangup, or decline after answering)
       await this.activeSession.end(reason === 'decline' ? 'hangup' : reason);
     } catch (error) {
@@ -597,9 +618,7 @@ export class CallCoordinator {
     const fetchStartedAt = Date.now();
     try {
       const details = await InterfoneAPI.getCallDetails(callId);
-      console.log(
-        `[CallCoordinator] Call details fetch took ${Date.now() - fetchStartedAt}ms`
-      );
+      console.log(`[CallCoordinator] Call details fetch took ${Date.now() - fetchStartedAt}ms`);
       if (!details) return null;
 
       // Map back to the expected format if needed, but InterfoneAPI returns almost the same structure
@@ -608,7 +627,7 @@ export class CallCoordinator {
         channelName: details.channelName,
         participants: details.participants as CallParticipantSnapshot[],
         doormanName: details.doormanName,
-        apartmentNumber: details.apartmentName,
+        apartmentNumber: details.apartmentNumber,
         buildingId: details.buildingId,
         status: details.status,
         endedAt: details.endedAt,
@@ -638,8 +657,10 @@ export class CallCoordinator {
    */
   private async ensureUserContext(): Promise<void> {
     console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
-    const { data: { session: authSession } } = await supabase.auth.getSession();
-    
+    const {
+      data: { session: authSession },
+    } = await supabase.auth.getSession();
+
     if (!authSession?.user) {
       console.warn('[CallCoordinator] ⚠️ No active session found');
       return;
@@ -678,14 +699,15 @@ export class CallCoordinator {
 
     // Use API doormanName if available (more reliable than push data)
     const displayCallerName = callDetails?.doormanName || data.callerName || 'Porteiro';
-    
+
     // Use caller name for handle instead of UUID to ensure consistent display
-    const displayHandle = displayCallerName !== 'Porteiro' 
-      ? displayCallerName 
-      : data.apartmentNumber 
-        ? `Apt ${data.apartmentNumber}`
-        : 'Interfone';
-    
+    const displayHandle =
+      displayCallerName !== 'Porteiro'
+        ? displayCallerName
+        : data.apartmentNumber
+          ? `Apt ${data.apartmentNumber}`
+          : 'Interfone';
+
     callKeepService.displayIncomingCall(data.callId, displayHandle, displayCallerName);
   }
 
@@ -880,7 +902,7 @@ export class CallCoordinator {
         await this.handleCallKeepAnswer(String(normalizedId));
         continue;
       }
-      
+
       if (event.name === 'RNCallKeepPerformEndCallAction' && normalizedId) {
         await this.handleCallKeepEnd(String(normalizedId));
       }
