@@ -43,6 +43,7 @@ export class CallSession {
   private _rtmReady: boolean = false;
   private _rtcJoined: boolean = false;
   private _localBundle: AgoraTokenBundle | null = null;
+  private _ending: boolean = false;
 
   // Event emitter
   private eventHandlers = new Map<SessionEvent, Set<EventHandler>>();
@@ -382,6 +383,9 @@ export class CallSession {
     this.setState('dialing');
 
     try {
+      // Listen for RTC events to detect remote join/leave
+      this.setupRtcEventListeners();
+
       await agoraService.ensureRtmEngine();
       await agoraService.loginRtm({
         uid: bundle.uid,
@@ -419,27 +423,38 @@ export class CallSession {
   async end(reason: 'hangup' | 'drop' | 'timeout' = 'hangup'): Promise<void> {
     console.log(`[CallSession] Ending call ${this.id} (${reason})...`);
 
+    if (this._ending || this._state === 'ending' || this._state === 'ended') {
+      console.log('[CallSession] End already in progress/completed, skipping duplicate end');
+      return;
+    }
+
+    this._ending = true;
+
     try {
       this.setState('ending');
 
       // Send RTM END signal to notify other participants (RTM is the source of truth)
       console.log(`[CallSession] Sending END signal to participants...`);
-      try {
-        const endSignal = {
-          t: 'END' as const,
-          callId: this.id,
-          from: this.getCurrentUserId(),
-          channel: this.channelName,
-          timestamp: Date.now(),
-        };
+      if (this._rtmReady) {
+        try {
+          const endSignal = {
+            t: 'END' as const,
+            callId: this.id,
+            from: this.getCurrentUserId(),
+            channel: this.channelName,
+            timestamp: Date.now(),
+          };
 
-        const participantIds = this.participants.map((p) => p.userId);
-        if (participantIds.length > 0) {
-          await agoraService.sendPeerMessage(participantIds, endSignal);
-          console.log(`[CallSession] ✅ END signal sent to ${participantIds.length} participants`);
+          const participantIds = this.participants.map((p) => p.userId);
+          if (participantIds.length > 0) {
+            await agoraService.sendPeerMessage(participantIds, endSignal);
+            console.log(`[CallSession] ✅ END signal sent to ${participantIds.length} participants`);
+          }
+        } catch (signalError) {
+          console.warn(`[CallSession] ⚠️ Failed to send END signal:`, signalError);
         }
-      } catch (signalError) {
-        console.warn(`[CallSession] ⚠️ Failed to send END signal:`, signalError);
+      } else {
+        console.log('[CallSession] ⏭️ Skipping END signal - RTM not ready');
       }
 
       // Leave RTC channel
@@ -466,6 +481,8 @@ export class CallSession {
       console.error(`[CallSession] ❌ End failed:`, error);
       this.emit('error', { error, operation: 'end' });
     } finally {
+      this._rtmReady = false;
+      this._ending = false;
       try {
         await agoraService.cleanup();
       } catch (cleanupError) {
@@ -479,6 +496,13 @@ export class CallSession {
    */
   async decline(reason: string = 'declined'): Promise<void> {
     console.log(`[CallSession] Declining call ${this.id}...`);
+
+    if (this._ending || this._state === 'ending' || this._state === 'ended') {
+      console.log('[CallSession] Decline ignored - call already ending/ended');
+      return;
+    }
+
+    this._ending = true;
 
     try {
       // Transition immediately so UI shows "Encerrando..."
@@ -500,24 +524,28 @@ export class CallSession {
 
       // Send RTM DECLINE signal to notify other participants (RTM is the source of truth)
       console.log(`[CallSession] Sending DECLINE signal to participants...`);
-      try {
-        const declineSignal = {
-          t: 'DECLINE' as const,
-          callId: this.id,
-          from: this.getCurrentUserId(),
-          channel: this.channelName,
-          timestamp: Date.now(),
-        };
+      if (this._rtmReady) {
+        try {
+          const declineSignal = {
+            t: 'DECLINE' as const,
+            callId: this.id,
+            from: this.getCurrentUserId(),
+            channel: this.channelName,
+            timestamp: Date.now(),
+          };
 
-        const participantIds = this.participants.map((p) => p.userId);
-        if (participantIds.length > 0) {
-          await agoraService.sendPeerMessage(participantIds, declineSignal);
-          console.log(
-            `[CallSession] ✅ DECLINE signal sent to ${participantIds.length} participants`
-          );
+          const participantIds = this.participants.map((p) => p.userId);
+          if (participantIds.length > 0) {
+            await agoraService.sendPeerMessage(participantIds, declineSignal);
+            console.log(
+              `[CallSession] ✅ DECLINE signal sent to ${participantIds.length} participants`
+            );
+          }
+        } catch (signalError) {
+          console.warn(`[CallSession] ⚠️ Failed to send DECLINE signal:`, signalError);
         }
-      } catch (signalError) {
-        console.warn(`[CallSession] ⚠️ Failed to send DECLINE signal:`, signalError);
+      } else {
+        console.log('[CallSession] ⏭️ Skipping DECLINE signal - RTM not ready');
       }
 
       // Notify backend
@@ -535,6 +563,8 @@ export class CallSession {
       console.error(`[CallSession] ❌ Decline failed:`, error);
       this.emit('error', { error, operation: 'decline' });
     } finally {
+      this._rtmReady = false;
+      this._ending = false;
       try {
         await agoraService.cleanup();
       } catch (cleanupError) {

@@ -25,7 +25,7 @@ export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]
   native_answered: ['token_fetching', 'rtm_warming', 'failed'], // Added rtm_warming for deferred warmup
   token_fetching: ['rtc_joining', 'failed'],
   rtc_joining: ['connecting', 'failed'],
-  dialing: ['ringing', 'failed', 'ended'],
+  dialing: ['ringing', 'rtc_joining', 'connecting', 'failed', 'ended'],
   ringing: ['connecting', 'declined', 'missed', 'failed', 'ending', 'ended', 'native_answered', 'rtm_warming'], // Added native_answered & rtm_warming for answer flow
   connecting: ['connected', 'failed', 'ended'],
   connected: ['ending', 'ended', 'failed'],

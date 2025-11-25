@@ -533,8 +533,18 @@ class AgoraService {
       throw new Error('RTM não inicializado');
     }
 
+    if (!this.rtmSession) {
+      console.warn('[AgoraService] ⚠️ Ignorando envio RTM - sessão inexistente');
+      return;
+    }
+
     if (this.rtmStatus !== 'connected') {
-      throw new Error(`RTM não está conectado. Estado atual: ${this.rtmStatus}`);
+      console.warn(
+        `[AgoraService] ⚠️ Ignorando envio RTM - estado atual: ${this.rtmStatus} (sessão: ${
+          this.rtmSession ? 'exists' : 'null'
+        })`
+      );
+      return;
     }
 
     const data = JSON.stringify(payload);
