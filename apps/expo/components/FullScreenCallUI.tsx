@@ -71,6 +71,7 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
   // Consider "active/answered flow" only after the user taps Answer
   const answeredFlowStates: CallLifecycleState[] = [
     'native_answered',
+    'rtm_warming',
     'token_fetching',
     'rtc_joining',
     'connecting',
@@ -88,6 +89,7 @@ const FullScreenCallUI: React.FC<FullScreenCallUIProps> = ({ session, onAnswer, 
           <Text style={styles.statusText}>
             {sessionState === 'ringing' && 'Recebendo...'}
             {sessionState === 'rtm_ready' && 'Recebendo...'}
+            {sessionState === 'rtm_warming' && 'Conectando...'}
             {sessionState === 'connecting' && 'Conectando...'}
             {sessionState === 'connected' && 'Conectado'}
             {sessionState === 'native_answered' && 'Atendendo...'}

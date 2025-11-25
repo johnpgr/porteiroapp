@@ -1,8 +1,16 @@
 diff --git a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
-index 025480ac97460cc45775ea11aa43af36522d5df6..2722d74646f4f43d18e9f4ba2983e089720bed05 100644
+index 025480ac97460cc45775ea11aa43af36522d5df6..c7f03ad2f7b309588292419ed4c86aaef18be598 100644
 --- a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
 +++ b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
-@@ -434,10 +434,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+@@ -19,6 +19,7 @@ package io.wazo.callkeep;
+ import com.facebook.react.bridge.LifecycleEventListener;
+ import android.Manifest;
+ import android.app.Activity;
++import android.app.ActivityManager;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentName;
+ import android.content.Context;
+@@ -434,10 +435,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
          this.hasListeners = false;
      }
  
@@ -17,7 +25,7 @@ index 025480ac97460cc45775ea11aa43af36522d5df6..2722d74646f4f43d18e9f4ba2983e089
  
      @ReactMethod
      public void displayIncomingCall(String uuid, String number, String callerName, boolean hasVideo) {
-@@ -483,10 +483,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+@@ -483,10 +484,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
          conn.onAnswer();
      }
  
@@ -32,3 +40,61 @@ index 025480ac97460cc45775ea11aa43af36522d5df6..2722d74646f4f43d18e9f4ba2983e089
  
      @ReactMethod
      public void startCall(String uuid, String number, String callerName, boolean hasVideo) {
+@@ -1293,6 +1294,7 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+                     sendEventToJS("RNCallKeepPerformEndCallAction", args);
+                     break;
+                 case ACTION_ANSWER_CALL:
++                    bringAppToForeground(attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("callUUID", attributeMap.get(EXTRA_CALL_UUID));
+                     args.putBoolean("withVideo", Boolean.valueOf(attributeMap.get(EXTRA_HAS_VIDEO)));
+                     sendEventToJS("RNCallKeepPerformAnswerCallAction", args);
+@@ -1374,4 +1376,49 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+             }
+         }
+     }
++
++    /**
++     * Bring host app to the foreground when user answers from native UI.
++     * Important for OEMs like Xiaomi/MIUI that bounce back to system UI.
++     */
++    private void bringAppToForeground(@Nullable String callUUID) {
++        Context appContext = getAppContext();
++        if (appContext == null) {
++            Log.w(TAG, "[RNCallKeepModule] No app context, cannot foreground");
++            return;
++        }
++
++        try {
++            Intent launchIntent =
++                    appContext.getPackageManager().getLaunchIntentForPackage(appContext.getPackageName());
++
++            if (launchIntent == null) {
++                Log.w(TAG, "[RNCallKeepModule] No launch intent, cannot foreground app");
++                return;
++            }
++
++            launchIntent.addFlags(
++                    Intent.FLAG_ACTIVITY_NEW_TASK
++                            | Intent.FLAG_ACTIVITY_SINGLE_TOP
++                            | Intent.FLAG_ACTIVITY_CLEAR_TOP
++                            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
++
++            if (callUUID != null) {
++                launchIntent.putExtra("callUUID", callUUID);
++            }
++
++            appContext.startActivity(launchIntent);
++
++            ActivityManager activityManager =
++                    (ActivityManager) appContext.getSystemService(Context.ACTIVITY_SERVICE);
++            if (activityManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++                List<ActivityManager.AppTask> tasks = activityManager.getAppTasks();
++                if (tasks != null && !tasks.isEmpty()) {
++                    tasks.get(0).moveToFront();
++                }
++            }
++        } catch (Exception e) {
++            Log.e(TAG, "[RNCallKeepModule] Failed to foreground app", e);
++        }
++    }
+ }

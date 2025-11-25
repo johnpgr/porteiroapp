@@ -29,6 +29,7 @@
       "expo-secure-store",
       "./plugins/withVoipCallKit",
       "./plugins/withAndroidFullScreenIntent.js",
+      "./plugins/withCallKeepForeground",
       "./plugins/withCallKeepConnectionService",
       [
         "expo-build-properties",

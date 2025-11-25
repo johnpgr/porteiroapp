@@ -20,8 +20,8 @@ export type CallLifecycleState =
 
 export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]> = {
   idle: ['rtm_warming', 'dialing', 'ringing'], // Added 'ringing' for lightweight flow
-  rtm_warming: ['rtm_ready', 'failed'],
-  rtm_ready: ['native_answered', 'declined', 'missed', 'ending', 'ended'],
+  rtm_warming: ['rtm_ready', 'token_fetching', 'failed'],
+  rtm_ready: ['native_answered', 'token_fetching', 'declined', 'missed', 'ending', 'ended', 'failed'],
   native_answered: ['token_fetching', 'rtm_warming', 'failed'], // Added rtm_warming for deferred warmup
   token_fetching: ['rtc_joining', 'failed'],
   rtc_joining: ['connecting', 'failed'],

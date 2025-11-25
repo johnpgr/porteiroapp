@@ -18,7 +18,9 @@
       "WebFetch(domain:supabase.com)",
       "WebFetch(domain:www.npmjs.com)",
       "Bash(cat:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(pnpm patch:*)",
+      "Bash(pnpm patch-commit:*)"
     ],
     "deny": [],
     "ask": []

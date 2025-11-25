@@ -203,6 +203,21 @@ export class CallSession {
   async answer(): Promise<void> {
     console.log(`[CallSession] Answering call ${this.id}...`);
 
+    const answerInProgressStates: CallLifecycleState[] = [
+      'native_answered',
+      'rtm_warming',
+      'token_fetching',
+      'rtc_joining',
+      'connecting',
+      'connected',
+    ];
+
+    // Make answer idempotent when multiple CallKeep events fire
+    if (answerInProgressStates.includes(this._state)) {
+      console.log(`[CallSession] Answer already in progress (${this._state}), ignoring duplicate`);
+      return;
+    }
+
     if (!this.canAnswer) {
       throw new Error(`Cannot answer in state: ${this._state}`);
     }
