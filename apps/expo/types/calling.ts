@@ -25,8 +25,8 @@ export interface CallParticipantSnapshot {
   userId: string;
   role: CallParticipantRole;
   status: CallParticipantStatus;
-  rtcUid: string;
-  rtmId: string;
+  rtcUid?: string;
+  rtmId?: string;
   name?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;

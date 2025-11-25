@@ -225,26 +225,15 @@ export class CallSession {
     try {
       this.setState('native_answered');
 
-      // STEP 1: Warm up RTM if not already connected (deferred from init)
-      const warmupStartedAt = Date.now();
-      console.log(`[CallSession] Warming up RTM...`);
+      // STEP 1: Ensure RTM engine is available (login will happen after tokens are fetched)
       this.setState('rtm_warming');
-
-      const rtmStatus = agoraService.getStatus();
-      if (rtmStatus !== 'connected') {
-        // RTM not ready yet, warm it up now
-        const warmupSuccess = await agoraService.warmupRTM({ timeout: 6000 });
-        if (!warmupSuccess) {
-          console.error('[CallSession] RTM warmup failed during answer');
-          this.setState('failed');
-          throw new Error('RTM connection failed');
-        }
+      try {
+        await agoraService.ensureRtmEngine();
+      } catch (engineError) {
+        console.error('[CallSession] RTM engine init failed:', engineError);
+        this.setState('failed');
+        throw engineError;
       }
-
-      this._rtmReady = true;
-      console.log(
-        `[CallSession] ✅ RTM ready (warmup ${Date.now() - warmupStartedAt}ms)`
-      );
 
       // STEP 2: Fetch call details from API (deferred from init)
       const detailsFetchStartedAt = Date.now();
@@ -295,6 +284,21 @@ export class CallSession {
         throw new Error('No tokens in answer response');
       }
 
+      // STEP 4: Log in to RTM using call-scoped token
+      if (!this._localBundle.rtmToken) {
+        throw new Error('RTM token missing in answer response');
+      }
+
+      console.log(`[CallSession] Logging into RTM for call ${this.id}...`);
+      await agoraService.loginRtm({
+        uid: this._localBundle.uid,
+        rtmToken: this._localBundle.rtmToken,
+        expiresAt: this._localBundle.expiresAt,
+      });
+
+      this._rtmReady = true;
+      console.log(`[CallSession] ✅ RTM ready for call signaling`);
+
       console.log(`[CallSession] Token bundle received:`, {
         hasRtcToken: !!this._localBundle.rtcToken,
         hasRtmToken: !!this._localBundle.rtmToken,
@@ -302,7 +306,7 @@ export class CallSession {
         channelName: this._localBundle.channelName,
       });
 
-      // Join RTC channel
+      // STEP 5: Join RTC channel
       console.log(`[CallSession] Joining RTC channel...`);
       this.setState('rtc_joining');
 
@@ -369,6 +373,47 @@ export class CallSession {
   }
 
   /**
+   * Start an outgoing call using a provided token bundle
+   */
+  async startOutgoing(bundle: AgoraTokenBundle): Promise<void> {
+    console.log(`[CallSession] Starting outgoing call ${this.id}...`);
+
+    this._localBundle = bundle;
+    this.setState('dialing');
+
+    try {
+      await agoraService.ensureRtmEngine();
+      await agoraService.loginRtm({
+        uid: bundle.uid,
+        rtmToken: bundle.rtmToken,
+        expiresAt: bundle.expiresAt,
+      });
+      this._rtmReady = true;
+
+      this.setState('rtc_joining');
+
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn(`[CallSession] ⚠️ Microphone permission denied: ${status}`);
+      }
+
+      await agoraService.joinChannelWithUserAccount({
+        token: bundle.rtcToken,
+        channelName: this.channelName,
+        userAccount: bundle.uid,
+      });
+
+      this._rtcJoined = true;
+      this.setState('connecting');
+    } catch (error) {
+      console.error(`[CallSession] ❌ Outgoing start failed:`, error);
+      this.setState('failed');
+      this.emit('error', { error, operation: 'startOutgoing' });
+      throw error;
+    }
+  }
+
+  /**
    * End active call
    */
   async end(reason: 'hangup' | 'drop' | 'timeout' = 'hangup'): Promise<void> {
@@ -420,6 +465,12 @@ export class CallSession {
     } catch (error) {
       console.error(`[CallSession] ❌ End failed:`, error);
       this.emit('error', { error, operation: 'end' });
+    } finally {
+      try {
+        await agoraService.cleanup();
+      } catch (cleanupError) {
+        console.warn('[CallSession] ⚠️ RTM/RTC cleanup failed after end:', cleanupError);
+      }
     }
   }
 
@@ -483,6 +534,12 @@ export class CallSession {
     } catch (error) {
       console.error(`[CallSession] ❌ Decline failed:`, error);
       this.emit('error', { error, operation: 'decline' });
+    } finally {
+      try {
+        await agoraService.cleanup();
+      } catch (cleanupError) {
+        console.warn('[CallSession] ⚠️ RTM/RTC cleanup failed after decline:', cleanupError);
+      }
     }
   }
 
@@ -534,7 +591,7 @@ export class CallSession {
   }
 
   /**
-   * Convert to context format for useAgora compatibility
+   * Convert to context format (legacy consumers)
    */
   toContext(): {
     callId: string;

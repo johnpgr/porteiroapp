@@ -61,6 +61,8 @@ export const CallStartResponseSchema = z.object({
       channelName: z.string().nullable().optional(),
       status: z.string(),
       startedAt: z.string().nullable().optional(),
+      apartmentNumber: z.string().nullable().optional(),
+      buildingId: z.string().nullable().optional(),
     }).loose(),
     participants: z.array(z.any()).optional(),
     tokens: z.any().optional(),

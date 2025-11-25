@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 import { CallSession } from './CallSession';
-import { agoraService } from '~/services/agora/AgoraService';
+import { agoraService, type CurrentUserContext } from '~/services/agora/AgoraService';
 import { supabase } from '~/utils/supabase';
 import type { CallParticipantSnapshot } from '~/types/calling';
 import { callKeepService } from './CallKeepService';
@@ -20,6 +20,12 @@ export interface VoipPushData {
   shouldShowNativeUI?: boolean; // NEW: Explicit flag for whether to show native CallKeep UI
 }
 
+interface CurrentUser {
+  id: string;
+  userType: 'porteiro' | 'morador';
+  displayName?: string | null;
+}
+
 type CoordinatorEvent = 'sessionCreated' | 'sessionEnded' | 'error' | 'ready';
 type EventHandler = (payload: any) => void;
 
@@ -33,6 +39,7 @@ type EventHandler = (payload: any) => void;
  * - Persists sessions for crash recovery
  */
 export class CallCoordinator {
+  private currentUser: CurrentUser | null = null;
   private activeSession: CallSession | null = null;
   private isInitialized: boolean = false;
   private eventHandlers = new Map<CoordinatorEvent, Set<EventHandler>>();
@@ -48,6 +55,15 @@ export class CallCoordinator {
 
   // Track in-progress handleIncomingPush calls to prevent duplicates
   private incomingPushPromises = new Map<string, Promise<void>>();
+
+  setCurrentUser(user: CurrentUser | null) {
+    this.currentUser = user;
+    agoraService.setCurrentUser(user);
+  }
+
+  getCurrentUser(): CurrentUser | null {
+    return this.currentUser;
+  }
 
   private clearRemoteHangupPoll() {
     if (this.remoteHangupPoll) {
@@ -372,45 +388,9 @@ export class CallCoordinator {
 
       // Initialize session WITHOUT RTM warmup (lightweight)
       await session.initializeLightweight();
-      this.activeSession = session;
-
+      this.trackSession(session);
       console.log('[CallCoordinator] ✅ Lightweight session created, ready for answer');
-
       this.emit('sessionCreated', { session });
-
-      // Listen to session events
-      session.on('stateChanged', ({ newState }) => {
-        console.log(`[CallCoordinator] Session state: ${newState}`);
-
-        // Only end CallKeep UI if not already ended by endActiveCall
-        // This prevents duplicate endCall calls
-        if (
-          this.callKeepAvailable &&
-          (newState === 'ending' ||
-            newState === 'ended' ||
-            newState === 'declined' ||
-            newState === 'failed')
-        ) {
-          // Determine reason code based on final state
-          const reasonCode = newState === 'declined' ? 2 : newState === 'failed' ? 0 : 1;
-          callKeepService.endCall(session.id, reasonCode);
-        }
-
-        if (newState === 'ended' || newState === 'declined' || newState === 'failed') {
-          this.activeSession = null;
-          this.clearRemoteHangupPoll();
-          this.remoteEndInProgress = false;
-          this.emit('sessionEnded', { session, finalState: newState });
-        }
-      });
-
-      session.on('error', ({ error, operation }) => {
-        console.error(`[CallCoordinator] Session error in ${operation}:`, error);
-        this.emit('error', { error, operation, session });
-      });
-
-      // Start a short poll to detect remote cancel if RTM END isn't received
-      this.startRemoteHangupPoll(session.id);
     } catch (error) {
       console.error('[CallCoordinator] ❌ Push handling failed:', error);
       Alert.alert('Call Error', 'Unable to process incoming call.');
@@ -662,6 +642,12 @@ export class CallCoordinator {
    */
   private async ensureUserContext(): Promise<void> {
     console.log('[CallCoordinator] Step 0: Ensuring user context for AgoraService...');
+
+    if (this.currentUser) {
+      console.log('[CallCoordinator] ✅ User context already set');
+      return;
+    }
+
     const {
       data: { session: authSession },
     } = await supabase.auth.getSession();
@@ -684,12 +670,104 @@ export class CallCoordinator {
       return;
     }
 
-    agoraService.setCurrentUser({
+    const user: CurrentUserContext = {
       id: profile.id,
       userType: 'morador',
       displayName: profile.full_name || authSession.user.email || null,
-    });
+    };
+
+    this.setCurrentUser(user);
     console.log('[CallCoordinator] ✅ User context set for AgoraService');
+  }
+
+  private mapParticipants(raw: any[] | undefined): CallParticipantSnapshot[] {
+    if (!raw || raw.length === 0) return [];
+
+    const toStringId = (value: unknown): string | null => {
+      if (value === undefined || value === null) return null;
+      try {
+        const normalized = String(value);
+        return normalized.length > 0 ? normalized : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const normalizeParticipant = (participant: any): CallParticipantSnapshot | null => {
+      const userId =
+        toStringId(
+          participant?.user_id ??
+            participant?.resident_id ??
+            participant?.id ??
+            participant?.profile_id ??
+            participant?.uid
+        ) ?? undefined;
+
+      if (!userId) return null;
+
+      const userType =
+        participant?.user_type ??
+        participant?.role ??
+        participant?.userType ??
+        participant?.roleType ??
+        null;
+
+      const role: CallParticipantSnapshot['role'] =
+        participant?.role ??
+        (userType === 'porteiro' || userType === 'doorman' ? 'caller' : 'callee');
+
+      const status: CallParticipantSnapshot['status'] =
+        participant?.status ?? (participant?.joined_at ? 'connected' : 'invited');
+
+      return {
+        userId,
+        role,
+        status,
+        name:
+          participant?.name ??
+          participant?.displayName ??
+          participant?.full_name ??
+          participant?.fullName ??
+          null,
+      };
+    };
+
+    return raw
+      .map((p) => normalizeParticipant(p))
+      .filter(Boolean) as CallParticipantSnapshot[];
+  }
+
+  private trackSession(session: CallSession): void {
+    this.activeSession = session;
+
+    session.on('stateChanged', ({ newState }) => {
+      console.log(`[CallCoordinator] Session state: ${newState}`);
+
+      if (
+        this.callKeepAvailable &&
+        (newState === 'ending' ||
+          newState === 'ended' ||
+          newState === 'declined' ||
+          newState === 'failed')
+      ) {
+        const reasonCode = newState === 'declined' ? 2 : newState === 'failed' ? 0 : 1;
+        callKeepService.endCall(session.id, reasonCode);
+      }
+
+      if (newState === 'ended' || newState === 'declined' || newState === 'failed') {
+        this.activeSession = null;
+        this.clearRemoteHangupPoll();
+        this.remoteEndInProgress = false;
+        this.emit('sessionEnded', { session, finalState: newState });
+      }
+    });
+
+    session.on('error', ({ error, operation }) => {
+      console.error(`[CallCoordinator] Session error in ${operation}:`, error);
+      this.emit('error', { error, operation, session });
+    });
+
+    this.startRemoteHangupPoll(session.id);
   }
 
   /**
@@ -732,6 +810,59 @@ export class CallCoordinator {
    */
   getActiveSession(): CallSession | null {
     return this.activeSession;
+  }
+
+  /**
+   * Start an outgoing call (any user type)
+   */
+  async startOutgoingCall(params: {
+    apartmentNumber: string;
+    buildingId: string;
+    callerName?: string | null;
+  }): Promise<CallSession> {
+    if (!this.currentUser) {
+      throw new Error('Usuário não configurado para iniciar chamadas');
+    }
+
+    console.log('[CallCoordinator] 🚀 Starting outgoing call...', params);
+    const response = await InterfoneAPI.initiateCall({
+      apartmentNumber: params.apartmentNumber,
+      buildingId: params.buildingId,
+      doormanId: this.currentUser.id,
+      doormanName: params.callerName ?? this.currentUser.displayName ?? 'Porteiro',
+    });
+
+    if (!response?.success || !response.data?.tokens?.initiator) {
+      throw new Error(response?.error || 'Falha ao iniciar chamada');
+    }
+
+    const payload = response.data;
+    const bundle = payload.tokens.initiator;
+    const callId = payload.call.id;
+    const channelName = payload.call.channelName || (payload.call as any).channel_name || `call-${callId}`;
+    const participants = this.mapParticipants(payload.participants);
+
+    const session = new CallSession({
+      id: callId,
+      channelName,
+      participants,
+      isOutgoing: true,
+      callerName: params.callerName ?? this.currentUser.displayName ?? 'Porteiro',
+      apartmentNumber: (payload.call.apartmentNumber as string | undefined) ?? params.apartmentNumber,
+      buildingId: (payload.call.buildingId as string | undefined) ?? params.buildingId,
+    });
+
+    this.trackSession(session);
+    this.emit('sessionCreated', { session });
+
+    try {
+      await session.startOutgoing(bundle);
+      return session;
+    } catch (err) {
+      this.clearRemoteHangupPoll();
+      this.activeSession = null;
+      throw err;
+    }
   }
 
   /**

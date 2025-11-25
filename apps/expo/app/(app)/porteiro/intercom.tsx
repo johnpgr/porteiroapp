@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useAgora } from '~/hooks/useAgora';
+import { useIntercomCall } from '~/hooks/useIntercomCall';
 import { useAuth } from '~/hooks/useAuth';
 import { supabase } from '~/utils/supabase';
 import { IconSymbol } from '~/components/ui/IconSymbol';
@@ -18,19 +18,25 @@ export default function PorteiroIntercomScreen() {
   // Refs for call timer
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Initialize useAgora hook
   const {
     callState,
     activeCall,
     isMuted,
     isSpeakerOn,
     error,
-    setCurrentUser,
-    startIntercomCall,
-    endActiveCall,
+    startCall,
+    endCall,
     toggleMute,
     toggleSpeaker,
-  } = useAgora();
+  } = useIntercomCall(
+    user?.id
+      ? {
+          id: user.id,
+          userType: 'porteiro',
+          displayName: doormanName || user.email?.split('@')[0] || 'Porteiro',
+        }
+      : null
+  );
 
   // Listener para mudanças de estado da chamada
   useEffect(() => {
@@ -39,17 +45,6 @@ export default function PorteiroIntercomScreen() {
       startCallTimer();
     }
   }, [callState]);
-
-  // Set current user for Agora hook
-  useEffect(() => {
-    if (user?.id) {
-      setCurrentUser({
-        id: user.id,
-        userType: 'porteiro',
-        displayName: doormanName || user.email?.split('@')[0] || 'Porteiro',
-      });
-    }
-  }, [user?.id, user?.email, doormanName, setCurrentUser]);
 
   // Carregar informações do prédio do porteiro
   const loadBuildingInfo = useCallback(async () => {
@@ -94,7 +89,7 @@ export default function PorteiroIntercomScreen() {
     }
   }, [user?.email, user?.id]);
 
-  // Iniciar chamada utilizando useAgora hook
+  // Iniciar chamada
   const initiateCall = async () => {
     const trimmedApartment = apartmentNumber.trim();
 
@@ -117,8 +112,8 @@ export default function PorteiroIntercomScreen() {
     }
 
     try {
-      // Start the call using the useAgora hook
-      await startIntercomCall({
+      // Start the call
+      await startCall({
         apartmentNumber: trimmedApartment,
         buildingId,
       });
@@ -147,11 +142,10 @@ export default function PorteiroIntercomScreen() {
     }
   };
 
-  // Encerrar chamada usando useAgora hook
+  // Encerrar chamada
   const handleEndCall = async () => {
     try {
-      // End the call using useAgora
-      await endActiveCall('hangup');
+      await endCall('hangup');
 
       // Stop timer
       stopCallTimer();
@@ -314,7 +308,7 @@ export default function PorteiroIntercomScreen() {
           <Text style={styles.callTitle}>
             {callState === 'dialing' && 'Chamando...'}
             {callState === 'ringing' && 'Tocando...'}
-            {callState === 'connecting' && 'Conectando...'}
+            {(callState === 'connecting' || callState === 'rtc_joining') && 'Conectando...'}
             {callState === 'connected' && 'Em chamada'}
             {callState === 'ending' && 'Encerrando...'}
             {callState === 'ended' && 'Chamada encerrada'}
@@ -338,7 +332,10 @@ export default function PorteiroIntercomScreen() {
           )}
         </View>
 
-        {(callState === 'dialing' || callState === 'ringing' || callState === 'connecting') && (
+        {(callState === 'dialing' ||
+          callState === 'ringing' ||
+          callState === 'connecting' ||
+          callState === 'rtc_joining') && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4CAF50" />
           </View>

@@ -37,14 +37,11 @@ export function CallSystemInitializer() {
           userType: 'morador',
           displayName: (user as any)?.user_metadata?.full_name || user.email || null,
         });
-
-        console.log('[MoradorLayout] 🔐 Initializing RTM standby...');
-        try {
-          await agoraService.initializeStandby();
-          console.log('[MoradorLayout] ✅ RTM standby initialized');
-        } catch (rtmError) {
-          console.error('[MoradorLayout] ❌ RTM initialization failed (non-critical):', rtmError);
-        }
+        callCoordinator.setCurrentUser({
+          id: user.id,
+          userType: 'morador',
+          displayName: (user as any)?.user_metadata?.full_name || user.email || null,
+        });
 
         await callKeepService.setup();
         console.log('[MoradorLayout] ✅ CallKeep initialized');

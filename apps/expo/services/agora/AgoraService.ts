@@ -11,7 +11,7 @@ import {
 } from 'react-native-agora';
 import { supabase } from '~/utils/supabase';
 
-// Types mirrored from useAgora for compatibility
+// Types mirrored from legacy calling hook for compatibility
 export type UserType = 'porteiro' | 'morador';
 
 export type RtmStatus = 'disconnected' | 'connecting' | 'connected';
@@ -489,149 +489,43 @@ class AgoraService {
 
   /**
    * Warm up RTM connection with timeout
-   * Used by CallCoordinator before showing CallKeep UI
-   * Returns true if RTM is ready, false on timeout
+   * Previously used to pre-connect RTM; now only ensures the engine
+   * instance exists. Login happens on demand when a call starts/answers.
    */
   async warmupRTM(opts: { timeout: number }): Promise<boolean> {
     console.log(`[AgoraService] warmupRTM called (timeout: ${opts.timeout}ms)`);
 
-    // Already connected
     if (this.rtmStatus === 'connected') {
       console.log('[AgoraService] ✅ RTM already connected');
       return true;
     }
 
-    // Race between warmup and timeout
-    const timeoutPromise = new Promise<boolean>(resolve =>
-      setTimeout(() => {
-        console.log('[AgoraService] ❌ RTM warmup timeout');
-        resolve(false);
-      }, opts.timeout)
-    );
+    // Standby login is disabled; only prime the engine so on-demand
+    // login during call answer/start is faster.
+    try {
+      await this.ensureRtmEngine();
+    } catch (err) {
+      console.error('[AgoraService] ❌ RTM engine init failed during warmup:', err);
+      return false;
+    }
 
-    const warmupPromise = (async () => {
-      try {
-        // Start RTM initialization
-        await this.initializeStandby();
-        
-        // Wait for RTM to actually connect (poll status with timeout)
-        const maxWait = 5000; // 5 second max wait for connection
-        const pollInterval = 100; // Check every 100ms
-        const startTime = Date.now();
-        
-        while (this.rtmStatus !== 'connected') {
-          if (Date.now() - startTime > maxWait) {
-            console.error('[AgoraService] ⏱️ RTM connection timeout after initialization');
-            return false;
-          }
-          
-          // Small delay before checking again
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-        }
-        
-        console.log('[AgoraService] ✅ RTM warmup complete - status is connected');
+    // If a login is already in-flight elsewhere, allow a short wait
+    // for it to finish; otherwise return false to indicate no ready session.
+    const start = Date.now();
+    while (Date.now() - start < opts.timeout) {
+      if (this.getStatus() === 'connected') {
+        console.log('[CallCoordinator] ✅ RTM connected during warmup wait');
         return true;
-      } catch (err) {
-        console.error('[AgoraService] ❌ RTM warmup failed:', err);
-        return false;
       }
-    })();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
-    const result = await Promise.race([warmupPromise, timeoutPromise]);
-    console.log(`[AgoraService] warmupRTM result: ${result}`);
-    return result;
+    console.log('[AgoraService] ⏭️ RTM warmup skipped (on-demand login only)');
+    return false;
   }
 
   async initializeStandby(): Promise<void> {
-    console.log('🔧 [AgoraService] initializeStandby called');
-    console.log(`  - currentUser: ${this.currentUser ? `${this.currentUser.id} (${this.currentUser.userType})` : 'null'}`);
-    console.log(`  - rtmStatus: ${this.rtmStatus}`);
-    console.log(`  - rtmSession: ${this.rtmSession ? 'exists' : 'null'}`);
-    console.log(`  - alreadyInitialized: ${this.currentUser ? standbyInitializedUsers.has(this.currentUser.id) : 'N/A'}`);
-    console.log(`  - initInProgress: ${this.standbyInitInProgress}`);
-
-    if (!this.currentUser || this.currentUser.userType !== 'morador') {
-      console.log('⏭️ [AgoraService] Skipping standby - no morador user');
-      return;
-    }
-    if (this.rtmStatus === 'connected' || this.rtmStatus === 'connecting') {
-      console.log('⏭️ [AgoraService] Skipping standby - RTM already connected/connecting');
-      return;
-    }
-    if (this.rtmSession) {
-      console.log('⏭️ [AgoraService] Skipping standby - RTM session exists');
-      return;
-    }
-    if (standbyInitializedUsers.has(this.currentUser.id)) {
-      console.log('⏭️ [AgoraService] Skipping standby - user already initialized');
-      return;
-    }
-    if (this.standbyInitInProgress) {
-      console.log('⏭️ [AgoraService] Skipping standby - init already in progress');
-      return;
-    }
-
-    this.standbyInitInProgress = true;
-    console.log('🚀 [AgoraService] Starting standby initialization...');
-    console.log(`  - API Base URL: ${this.apiBaseUrl}`);
-    console.log(`  - App ID configured: ${!!this.appId}`);
-
-    const initStartTime = Date.now();
-    try {
-      console.log('🔑 [AgoraService] Fetching Supabase session...');
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      console.log(`🔑 [AgoraService] Access token available: ${!!accessToken}`);
-
-      console.log('📡 [AgoraService] Requesting standby token from API...');
-      const response = await apiRequest<{ appId: string | null; rtmToken: string; uid: string; expiresAt: string; ttlSeconds: number }>(
-        this.apiBaseUrl,
-        '/api/tokens/standby',
-        {
-          method: 'POST',
-          body: JSON.stringify({ uid: this.currentUser.id }),
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } as any : {},
-        }
-      );
-      console.log(`📡 [AgoraService] Token API response: success=${response.success}, hasData=${!!response.data}`);
-      if (!response.success || !response.data) {
-        const duration = Date.now() - initStartTime;
-        const errorMsg = response.error || 'Unknown error';
-        console.error('❌ [AgoraService] Failed to fetch standby token:', errorMsg);
-        this.emitter.emit('error', {
-          message: 'Failed to fetch RTM standby token',
-          cause: new Error(errorMsg)
-        });
-        this.emitter.emit('rtmConnectionFailure', {
-          uid: this.currentUser!.id,
-          error: errorMsg,
-          duration,
-          timestamp: Date.now()
-        });
-        this.standbyInitInProgress = false;
-        return;
-      }
-      const { rtmToken, uid, expiresAt } = response.data;
-      console.log('🔐 [AgoraService] Standby token received, logging into RTM...');
-      await this.loginRtm({ uid, rtmToken, expiresAt });
-      standbyInitializedUsers.add(this.currentUser.id);
-      console.log('✅ [AgoraService] Standby initialization complete');
-    } catch (err) {
-      const duration = Date.now() - initStartTime;
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('❌ [AgoraService] Exception during standby init:', errorMsg);
-      console.error('   Full error:', err);
-      this.emitter.emit('error', { message: 'Failed to initialize RTM standby', cause: err });
-      this.emitter.emit('rtmConnectionFailure', {
-        uid: this.currentUser?.id || 'unknown',
-        error: errorMsg,
-        duration,
-        timestamp: Date.now()
-      });
-    } finally {
-      console.log('🏁 [AgoraService] Standby init finally block reached');
-      this.standbyInitInProgress = false;
-    }
+    console.log('🔧 [AgoraService] initializeStandby called - standby login disabled (RTM is on-demand per call)');
   }
 
   async sendPeerMessage(targets: string[], payload: unknown) {
