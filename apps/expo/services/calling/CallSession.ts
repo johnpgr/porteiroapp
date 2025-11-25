@@ -156,6 +156,7 @@ export class CallSession {
 
   /**
    * Initialize session - verify RTM connection is ready
+   * DEPRECATED: Use initializeLightweight() for deferred heavy work approach
    */
   async initialize(): Promise<void> {
     console.log(`[CallSession] Initializing...`);
@@ -180,7 +181,24 @@ export class CallSession {
   }
 
   /**
+   * Lightweight initialization - defers RTM warmup to answer()
+   * Used for incoming calls to reduce background task load
+   */
+  async initializeLightweight(): Promise<void> {
+    console.log(`[CallSession] Lightweight initialization (defer heavy work to answer)...`);
+
+    // Set initial state (ready to ring, heavy work deferred)
+    this.setState('ringing');
+
+    // Subscribe to RTC events for call state management
+    this.setupRtcEventListeners();
+
+    console.log(`[CallSession] ✅ Lightweight init complete (RTM warmup deferred)`);
+  }
+
+  /**
    * Answer incoming call - joins Agora channel
+   * PERFORMANCE: Heavy work (RTM warmup, API fetch) happens HERE instead of during ringing
    */
   async answer(): Promise<void> {
     console.log(`[CallSession] Answering call ${this.id}...`);
@@ -192,7 +210,47 @@ export class CallSession {
     try {
       this.setState('native_answered');
 
-      // Fetch tokens
+      // STEP 1: Warm up RTM if not already connected (deferred from init)
+      const warmupStartedAt = Date.now();
+      console.log(`[CallSession] Warming up RTM...`);
+      this.setState('rtm_warming');
+
+      const rtmStatus = agoraService.getStatus();
+      if (rtmStatus !== 'connected') {
+        // RTM not ready yet, warm it up now
+        const warmupSuccess = await agoraService.warmupRTM({ timeout: 6000 });
+        if (!warmupSuccess) {
+          console.error('[CallSession] RTM warmup failed during answer');
+          this.setState('failed');
+          throw new Error('RTM connection failed');
+        }
+      }
+
+      this._rtmReady = true;
+      console.log(
+        `[CallSession] ✅ RTM ready (warmup ${Date.now() - warmupStartedAt}ms)`
+      );
+
+      // STEP 2: Fetch call details from API (deferred from init)
+      const detailsFetchStartedAt = Date.now();
+      console.log(`[CallSession] Fetching call details from API...`);
+      const callDetails = await InterfoneAPI.getCallDetails(this.id);
+      console.log(
+        `[CallSession] ✅ Call details fetch took ${Date.now() - detailsFetchStartedAt}ms`
+      );
+
+      if (callDetails) {
+        console.log(`[CallSession] ✅ Call details received:`, {
+          channelName: callDetails.channelName,
+          doormanName: callDetails.doormanName,
+          participantCount: callDetails.participants?.length || 0,
+        });
+        // Update session with fresh data from API
+        // @ts-ignore - updating readonly field with fresh data
+        this.participants = callDetails.participants || [];
+      }
+
+      // STEP 3: Fetch tokens
       console.log(`[CallSession] Fetching tokens...`);
       this.setState('token_fetching');
 

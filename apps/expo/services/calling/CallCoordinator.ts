@@ -315,80 +315,39 @@ export class CallCoordinator {
   /**
    * Internal implementation of handleIncomingPush
    * Separated to allow promise tracking in the public method
+   *
+   * PERFORMANCE: Heavy work (RTM warmup, API fetch) deferred to answer() to reduce
+   * background task load and prevent OS kill on low-end devices
    */
   private async handleIncomingPushInternal(data: VoipPushData): Promise<void> {
     try {
-      // Step 0: Ensure AgoraService has current user context (needed for RTM warmup)
+      // Step 0: Ensure AgoraService has current user context (lightweight, needed for session)
       await this.ensureUserContext();
 
-      // Step 1: Warm up RTM FIRST (user chose: "warm up first")
-      // This ensures RTM is ready when user taps answer in CallKeep UI
-      console.log('[CallCoordinator] Step 1: Warming up RTM...');
-      const rtmReady = await this.warmupRTM();
-
-      if (!rtmReady) {
-        console.error('[CallCoordinator] RTM warmup failed');
-        
-        // In background/headless: decline call and end CallKeep UI (no Alert possible)
-        if (data.source === 'background') {
-          console.log('[CallCoordinator] Background context - declining call without Alert');
-          await this.declineCall(data.callId, 'connection_failed');
-          if (this.callKeepAvailable) {
-            callKeepService.endCall(data.callId);
-          }
-          return;
-        }
-        
-        // In foreground: show error + retry dialog
-        this.showRetryDialog(data);
-        return;
-      }
-
-      console.log('[CallCoordinator] ✅ RTM ready');
-
-      // Step 2: Fetch call details from API FIRST (to get proper doorman name)
-      console.log('[CallCoordinator] Step 2: Fetching call details...');
-      const callDetails = await this.fetchCallDetails(data.callId);
-
-      // Display CallKeep UI AFTER RTM warmup and fetching call details (if not already shown)
+      // Display CallKeep UI IMMEDIATELY (lightweight operation)
+      // Heavy work (RTM warmup, API fetch) will happen when user taps ANSWER
       const shouldShowUI = !!data.shouldShowNativeUI;
       if (this.callKeepAvailable && shouldShowUI) {
-        this.displayIncomingCallUI(data, callDetails);
+        this.displayIncomingCallUI(data, null); // No call details yet, use push data
       }
 
-      if (!callDetails) {
-        console.error('[CallCoordinator] Failed to fetch call details');
-        Alert.alert('Call Error', 'Unable to retrieve call information.');
-        return;
-      }
-
-      console.log('[CallCoordinator] Call details received:', {
-        channelName: callDetails.channelName,
-        doormanName: callDetails.doormanName,
-        participantCount: callDetails.participants?.length || 0,
-        participants: callDetails.participants?.map((p) => ({
-          userId: p.userId,
-          status: p.status,
-        })),
-      });
-
-      // Step 3: Create CallSession
-      console.log('[CallCoordinator] Step 3: Creating session...');
+      // Step 1: Create lightweight CallSession (defer heavy work)
+      console.log('[CallCoordinator] Creating lightweight session (heavy work deferred to answer)...');
       const session = new CallSession({
         id: data.callId,
-        channelName: data.channelName || callDetails.channelName || `call-${data.callId}`,
-        participants: callDetails.participants || [],
+        channelName: data.channelName || `call-${data.callId}`,
+        participants: [], // Will be fetched on answer
         isOutgoing: false,
-        // Prioritize API data over push data (API has proper names, push may have UUIDs)
-        callerName: callDetails.doormanName || data.callerName || 'Porteiro',
-        apartmentNumber: callDetails.apartmentNumber || data.apartmentNumber,
-        buildingId: callDetails.buildingId,
+        callerName: data.callerName || 'Porteiro',
+        apartmentNumber: data.apartmentNumber,
+        buildingId: data.buildingId,
       });
 
-      await session.initialize();
+      // Initialize session WITHOUT RTM warmup (lightweight)
+      await session.initializeLightweight();
       this.activeSession = session;
 
-      console.log('[CallCoordinator] ✅ Call ready for answer');
+      console.log('[CallCoordinator] ✅ Lightweight session created, ready for answer');
 
       this.emit('sessionCreated', { session });
 
@@ -485,22 +444,32 @@ export class CallCoordinator {
   /**
    * Warm up RTM connection with timeout
    * Based on user decisions: 3 second timeout, pre-connect before UI
+   * PERFORMANCE: Now only used for legacy code paths, deferred to answer() in new flow
    */
   private async warmupRTM(): Promise<boolean> {
-    console.log('[CallCoordinator] Warming RTM (timeout: 3s)...');
+    const warmupStartedAt = Date.now();
+    console.log('[CallCoordinator] Warming RTM (timeout: 6s)...');
 
     // Check if already connected
     const currentStatus = agoraService.getStatus();
     if (currentStatus === 'connected') {
-      console.log('[CallCoordinator] ✅ RTM already connected');
+      console.log(
+        `[CallCoordinator] ✅ RTM already connected (check ${Date.now() - warmupStartedAt}ms)`
+      );
       return true;
     }
 
-    // Use AgoraService warmup method (will add this next)
+    // Use AgoraService warmup method
     try {
       const ready = await agoraService.warmupRTM({ timeout: this.RTM_WARMUP_TIMEOUT });
+      console.log(
+        `[CallCoordinator] RTM warmup completed in ${Date.now() - warmupStartedAt}ms`
+      );
       return ready;
     } catch (error) {
+      console.log(
+        `[CallCoordinator] RTM warmup failed after ${Date.now() - warmupStartedAt}ms`
+      );
       console.error('[CallCoordinator] RTM warmup error:', error);
       return false;
     }
@@ -614,6 +583,7 @@ export class CallCoordinator {
 
   /**
    * Fetch call details from API
+   * PERFORMANCE: Now only used for polling, deferred to answer() in new flow
    */
   private async fetchCallDetails(callId: string): Promise<{
     channelName: string;
@@ -624,8 +594,12 @@ export class CallCoordinator {
     status?: string | null;
     endedAt?: string | null;
   } | null> {
+    const fetchStartedAt = Date.now();
     try {
       const details = await InterfoneAPI.getCallDetails(callId);
+      console.log(
+        `[CallCoordinator] Call details fetch took ${Date.now() - fetchStartedAt}ms`
+      );
       if (!details) return null;
 
       // Map back to the expected format if needed, but InterfoneAPI returns almost the same structure
@@ -634,12 +608,15 @@ export class CallCoordinator {
         channelName: details.channelName,
         participants: details.participants as CallParticipantSnapshot[],
         doormanName: details.doormanName,
-        apartmentNumber: details.apartmentNumber,
+        apartmentNumber: details.apartmentName,
         buildingId: details.buildingId,
         status: details.status,
         endedAt: details.endedAt,
       };
     } catch (error) {
+      console.log(
+        `[CallCoordinator] Call details fetch failed after ${Date.now() - fetchStartedAt}ms`
+      );
       console.error('[CallCoordinator] Fetch call details failed:', error);
       return null;
     }
@@ -808,8 +785,9 @@ export class CallCoordinator {
   /**
    * Ensures a session exists for the given callId
    * Returns true if session is ready, false if all attempts failed
+   * PUBLIC: Used by NotificationProvider to handle notification action taps
    */
-  private async ensureSessionExists(callId: string, sessionWaitTimeout = 10000): Promise<boolean> {
+  async ensureSessionExists(callId: string, sessionWaitTimeout = 10000): Promise<boolean> {
     if (this.activeSession?.id === callId) {
       console.log('[CallCoordinator] Session already exists');
       return true;

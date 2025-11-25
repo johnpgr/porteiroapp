@@ -36,11 +36,27 @@ export function NotificationProvider() {
           if (actionId === 'ANSWER_CALL' || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
             console.log('✅ [Click] User wants to answer call');
 
-            // If there's an active call, answer it
-            if (callCoordinator.hasActiveCall()) {
+            // CRITICAL: Wait for session to be created before answering
+            // Prevents race condition where user taps before background task finishes
+            const callId = data.callId as string;
+            if (callId) {
+              console.log('[Click] Waiting for session to be created...');
+              const sessionReady = await callCoordinator.ensureSessionExists(callId, 10000);
+
+              if (!sessionReady) {
+                console.warn('[Click] ⚠️ Session creation timeout - cannot answer');
+                // Navigate anyway, UI might recover
+                router.push('/morador');
+                return;
+              }
+
+              console.log('[Click] ✅ Session ready, answering call');
+              await callCoordinator.answerActiveCall();
+            } else if (callCoordinator.hasActiveCall()) {
+              // Fallback: no callId in data, try active call
               await callCoordinator.answerActiveCall();
             } else {
-              console.log('⚠️ [Click] No active call - will be recovered on morador screen');
+              console.log('⚠️ [Click] No callId in notification data and no active call');
             }
 
             // Navigate to morador home (UI will appear via state subscription or pending call recovery)

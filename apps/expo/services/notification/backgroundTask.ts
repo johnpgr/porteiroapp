@@ -11,8 +11,8 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import { Platform, AppState } from 'react-native';
-import RNCallKeep from 'react-native-callkeep';
 import { callCoordinator, type VoipPushData } from '../calling/CallCoordinator';
+import { callKeepService } from '../calling/CallKeepService';
 import * as z from 'zod/v4';
 
 // Zod schema for the expected notification payload
@@ -81,26 +81,6 @@ const NotificationParser = z.union([
 
 // Use a fixed, non-empty task name as per Expo docs
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
-
-type CallKeepOptions = Parameters<typeof RNCallKeep.setup>[0];
-
-// CallKeep options (defined at module level)
-const callKeepOptions: CallKeepOptions = {
-  ios: { appName: 'James Avisa' },
-  android: {
-    alertTitle: 'Permissões necessárias',
-    alertDescription: 'Este app precisa de acesso à conta telefônica',
-    cancelButton: 'Cancelar',
-    okButton: 'OK',
-    foregroundService: {
-      channelId: 'com.porteiroapp.callkeep',
-      channelName: 'Serviço de Chamadas',
-      notificationTitle: 'Chamada recebida',
-      notificationIcon: 'ic_notification',
-    },
-    additionalPermissions: [],
-  },
-};
 
 interface IncomingCallData {
   callId: string;
@@ -189,15 +169,18 @@ TaskManager.defineTask(
 
 async function processIncomingCall(callData: IncomingCallData) {
   try {
-    // 1. Setup CallKeep (Android only - iOS handled in AppDelegate)
-    let callKeepAvailable = false;
-    if (Platform.OS === 'android') {
-      callKeepAvailable = await setupCallKeep();
-    }
+    // 0. CRITICAL: Initialize CallCoordinator first (ensures CallKeep listeners exist in headless mode)
+    console.log('[BackgroundTask] 🔧 Initializing CallCoordinator...');
+    await callCoordinator.initialize();
+    console.log('[BackgroundTask] ✅ CallCoordinator initialized');
 
-    // 2. Display CallKeep UI if available (Android)
-    if (callKeepAvailable && Platform.OS === 'android') {
-      displayCallKeepUI(callData);
+    // 1. Determine CallKeep availability (CallCoordinator initialization sets it up)
+    const callKeepAvailable = callKeepService.checkAvailability();
+
+    // 2. Provide fallback notification if we cannot show CallKeep
+    if (!callKeepAvailable && Platform.OS === 'android') {
+      console.warn('[BackgroundTask] ⚠️ CallKeep unavailable, showing fallback notification');
+      await showFallbackNotification(callData);
     }
 
     // 3. CRITICAL: Create session in background via CallCoordinator
@@ -210,7 +193,7 @@ async function processIncomingCall(callData: IncomingCallData) {
       channelName: callData.channelName,
       from: callData.from,
       source: 'background', // Mark as background source
-      shouldShowNativeUI: false, // Background task already shows CallKeep UI directly
+      shouldShowNativeUI: callKeepAvailable,
     };
 
     await callCoordinator.handleIncomingPush(pushData);
@@ -231,56 +214,37 @@ async function processIncomingCall(callData: IncomingCallData) {
   }
 }
 
-async function setupCallKeep(): Promise<boolean> {
+/**
+ * Show fallback notification when CallKeep is unavailable
+ * Uses local notification with action buttons (ANSWER/DECLINE)
+ */
+async function showFallbackNotification(callData: IncomingCallData): Promise<void> {
   try {
-    console.log('[BackgroundTask] 🔧 Setting up CallKeep for Android...');
-    await RNCallKeep.setup(callKeepOptions);
-    RNCallKeep.setAvailable(true);
-    console.log('[BackgroundTask] ✅ CallKeep setup successful');
-    return true;
-  } catch (callKeepError) {
-    console.warn(
-      '[BackgroundTask] ⚠️ CallKeep setup failed, will use fallback UI:',
-      callKeepError
-    );
-    return false;
-  }
-}
+    const displayName = callData.callerName || 'Porteiro';
+    const apartment = callData.apartmentNumber ? ` - Apt ${callData.apartmentNumber}` : '';
 
-function displayCallKeepUI(callData: IncomingCallData) {
-  // Check if call is already active before showing UI (prevents duplicate UI)
-  const hasActiveCall = callCoordinator.hasActiveCall();
-  const activeSession = callCoordinator.getActiveSession();
-
-  if (hasActiveCall && activeSession?.id === callData.callId) {
-    console.log('[BackgroundTask] Call already active, skipping CallKeep UI');
-    return;
-  }
-
-  try {
-    // Use caller name for handle (not UUID) to ensure consistent display
-    // If callerName is not available or is the fallback, use a formatted string instead of UUID
-    const displayHandle =
-      callData.callerName && callData.callerName !== 'Porteiro'
-        ? callData.callerName
-        : callData.apartmentNumber
-          ? `Apt ${callData.apartmentNumber}`
-          : 'Interfone';
-
-    RNCallKeep.displayIncomingCall(
-      callData.callId,
-      displayHandle, // Use name/apartment instead of UUID
-      callData.callerName || 'Porteiro', // Ensure we always have a name
-      'generic',
-      false
-    );
-    console.log('[BackgroundTask] ✅ CallKeep incoming call UI displayed:', {
-      callId: callData.callId,
-      handle: displayHandle,
-      callerName: callData.callerName || 'Porteiro',
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🔔 Chamada do Interfone',
+        body: `${displayName}${apartment}`,
+        data: {
+          type: 'intercom_call',
+          callId: callData.callId,
+          from: callData.from,
+          callerName: callData.callerName,
+          apartmentNumber: callData.apartmentNumber,
+          channelName: callData.channelName,
+        },
+        sound: 'telephone_toque_interfone.mp3',
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        categoryIdentifier: 'call', // iOS: enables action buttons
+      },
+      trigger: null, // Show immediately
     });
-  } catch (displayError) {
-    console.error('[BackgroundTask] ❌ Failed to display CallKeep UI:', displayError);
+
+    console.log('[BackgroundTask] ✅ Fallback notification scheduled');
+  } catch (error) {
+    console.error('[BackgroundTask] ❌ Failed to show fallback notification:', error);
   }
 }
 

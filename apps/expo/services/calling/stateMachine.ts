@@ -19,14 +19,14 @@ export type CallLifecycleState =
   | 'rtc_joining';
 
 export const CALL_STATE_MACHINE: Record<CallLifecycleState, CallLifecycleState[]> = {
-  idle: ['rtm_warming', 'dialing'],
+  idle: ['rtm_warming', 'dialing', 'ringing'], // Added 'ringing' for lightweight flow
   rtm_warming: ['rtm_ready', 'failed'],
   rtm_ready: ['native_answered', 'declined', 'missed', 'ending', 'ended'],
-  native_answered: ['token_fetching', 'failed'],
+  native_answered: ['token_fetching', 'rtm_warming', 'failed'], // Added rtm_warming for deferred warmup
   token_fetching: ['rtc_joining', 'failed'],
   rtc_joining: ['connecting', 'failed'],
   dialing: ['ringing', 'failed', 'ended'],
-  ringing: ['connecting', 'declined', 'missed', 'failed', 'ending', 'ended'],
+  ringing: ['connecting', 'declined', 'missed', 'failed', 'ending', 'ended', 'native_answered', 'rtm_warming'], // Added native_answered & rtm_warming for answer flow
   connecting: ['connected', 'failed', 'ended'],
   connected: ['ending', 'ended', 'failed'],
   ending: ['ended', 'declined', 'failed'],
@@ -44,10 +44,10 @@ export const RTM_SIGNAL_TO_STATE: Record<RtmSignalType, CallLifecycleState> = {
   END: 'ended'
 };
 
-export const deriveNextStateFromSignal = (
+export function deriveNextStateFromSignal(
   current: CallLifecycleState,
   signal: RtmSignalType
-): CallLifecycleState => {
+): CallLifecycleState {
   const target = RTM_SIGNAL_TO_STATE[signal];
 
   if (!target) {
