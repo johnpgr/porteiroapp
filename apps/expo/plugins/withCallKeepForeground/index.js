@@ -61,15 +61,15 @@ function ensureOnNewIntent(contents) {
   if (contents.includes('override fun onNewIntent')) {
     if (!contents.includes(helperCall)) {
       contents = contents.replace(
-        /override fun onNewIntent\(intent: Intent\?\) \{\s*super.onNewIntent\(intent\)/,
-        `override fun onNewIntent(intent: Intent?) {\n    super.onNewIntent(intent)\n    setIntent(intent)\n    ${helperCall}`
+        /override fun onNewIntent\(intent: Intent\??\) \{\s*super.onNewIntent\(intent\)/,
+        `override fun onNewIntent(intent: Intent) {\n    super.onNewIntent(intent)\n    setIntent(intent)\n    ${helperCall}`
       );
     }
     return contents;
   }
 
   const block = `
-  override fun onNewIntent(intent: Intent?) {
+  override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
     ${helperCall}

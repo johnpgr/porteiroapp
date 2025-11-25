@@ -344,6 +344,11 @@ export class CallCoordinator {
       // Step 0: Ensure AgoraService has current user context (lightweight, needed for session)
       await this.ensureUserContext();
 
+      // Ensure CallKeep is available; if previous setup failed (e.g., headless), retry now
+      if (!this.callKeepAvailable) {
+        this.callKeepAvailable = await callKeepService.setup();
+      }
+
       // Display CallKeep UI IMMEDIATELY (lightweight operation)
       // Heavy work (RTM warmup, API fetch) will happen when user taps ANSWER
       const shouldShowUI = !!data.shouldShowNativeUI;
@@ -855,7 +860,6 @@ export class CallCoordinator {
   private async handleCallKeepAnswer(callId: string): Promise<void> {
     console.log(`[CallCoordinator] CallKeep answer event: ${callId}`);
 
-    callKeepService.backToForeground();
     callKeepService.setCurrentCall(callId);
 
     try {

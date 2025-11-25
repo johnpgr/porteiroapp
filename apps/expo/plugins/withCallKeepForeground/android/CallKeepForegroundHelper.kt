@@ -3,7 +3,10 @@ package __PACKAGE_NAME__.callkeep
 import android.app.Activity
 import android.content.Intent
 import android.view.WindowManager
-import com.facebook.react.ReactActivity
+import android.os.Handler
+import android.os.Looper
+import android.app.ActivityManager
+import com.facebook.react.ReactApplication
 import com.facebook.react.ReactInstanceManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
@@ -20,9 +23,16 @@ object CallKeepForegroundHelper {
     )
   }
 
-  fun handleIntent(activity: ReactActivity, intent: Intent?) {
+  fun handleIntent(activity: Activity, intent: Intent?) {
     val callUuid = intent?.getStringExtra("callUUID") ?: return
-    emitCallUuid(activity.reactNativeHost.reactInstanceManager, callUuid)
+    val reactInstanceManager = getReactInstanceManager(activity) ?: return
+    emitCallUuid(reactInstanceManager, callUuid)
+    bringTaskToFront(activity)
+  }
+
+  private fun getReactInstanceManager(activity: Activity): ReactInstanceManager? {
+    val reactApp = activity.application as? ReactApplication ?: return null
+    return reactApp.reactNativeHost.reactInstanceManager
   }
 
   private fun emitCallUuid(reactInstanceManager: ReactInstanceManager, callUuid: String) {
@@ -50,5 +60,29 @@ object CallKeepForegroundHelper {
     if (!reactInstanceManager.hasStartedCreatingInitialContext()) {
       reactInstanceManager.createReactContextInBackground()
     }
+  }
+
+  private fun bringTaskToFront(activity: Activity) {
+    val appContext = activity.applicationContext
+    val launchIntent = appContext.packageManager.getLaunchIntentForPackage(appContext.packageName)
+      ?: return
+
+    launchIntent.addFlags(
+      Intent.FLAG_ACTIVITY_NEW_TASK or
+        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+    )
+
+    appContext.startActivity(launchIntent)
+
+    val activityManager = appContext.getSystemService(ActivityManager::class.java)
+    activityManager?.appTasks?.firstOrNull()?.moveToFront()
+
+    // Xiaomi/MIUI sometimes steals focus back; refocus shortly after
+    Handler(Looper.getMainLooper()).postDelayed({
+      appContext.startActivity(launchIntent)
+      activityManager?.appTasks?.firstOrNull()?.moveToFront()
+    }, 800)
   }
 }

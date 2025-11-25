@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
-index 025480ac97460cc45775ea11aa43af36522d5df6..c7f03ad2f7b309588292419ed4c86aaef18be598 100644
+index 025480ac97460cc45775ea11aa43af36522d5df6..100b4e654451fe0686f8eaa5223f7edbeaa16531 100644
 --- a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
 +++ b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
 @@ -19,6 +19,7 @@ package io.wazo.callkeep;
@@ -48,7 +48,15 @@ index 025480ac97460cc45775ea11aa43af36522d5df6..c7f03ad2f7b309588292419ed4c86aae
                      args.putString("callUUID", attributeMap.get(EXTRA_CALL_UUID));
                      args.putBoolean("withVideo", Boolean.valueOf(attributeMap.get(EXTRA_HAS_VIDEO)));
                      sendEventToJS("RNCallKeepPerformAnswerCallAction", args);
-@@ -1374,4 +1376,49 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+@@ -1335,6 +1337,7 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+                     sendEventToJS("RNCallKeepCheckReachability", null);
+                     break;
+                 case ACTION_SHOW_INCOMING_CALL_UI:
++                    bringAppToForeground(attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("handle", attributeMap.get(EXTRA_CALL_NUMBER));
+                     args.putString("callUUID", attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("name", attributeMap.get(EXTRA_CALLER_NAME));
+@@ -1374,4 +1377,49 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
              }
          }
      }

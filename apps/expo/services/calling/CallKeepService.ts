@@ -83,10 +83,18 @@ class CallKeepService {
       console.log('[CallKeepService] ✅ Setup successful');
       return true;
     } catch (error) {
+      const message = (error as Error)?.message || '';
+      const isMissingActivity = message.includes("Activity doesn't exist");
+
       this.isAvailable = false;
-      this.hasAttempted = true;
-      // Don't set isSetup=true on failure - allows retry
+      this.isSetup = false;
+      // If activity is missing (headless/background), allow retry later when foreground
+      this.hasAttempted = isMissingActivity ? false : true;
+
       console.error('[CallKeepService] ❌ Setup failed:', error);
+      if (isMissingActivity) {
+        console.warn('[CallKeepService] CallKeep setup skipped (no Activity yet) - will retry when available');
+      }
       return false;
     }
   }
@@ -204,22 +212,6 @@ class CallKeepService {
     this.isAvailable = available;
     if (Platform.OS === 'android') {
       RNCallKeep.setAvailable(available);
-    }
-  }
-
-  /**
-   * Android only - bring app to foreground
-   */
-  backToForeground(): void {
-    if (Platform.OS === 'android' && this.isAvailable) {
-      try {
-        for (var i = 0; i < 10; i++) {
-          RNCallKeep.backToForeground();
-        }
-        console.log('[CallKeepService] ✅ Brought app to foreground');
-      } catch (error) {
-        console.error('[CallKeepService] ❌ Failed to bring app to foreground:', error);
-      }
     }
   }
 
