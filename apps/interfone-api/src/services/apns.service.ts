@@ -41,8 +41,10 @@ export class ApnsClient {
   private cachedJwt: string | null = null;
   private cachedJwtExpiresAt = 0;
   private readonly hostUrl: URL;
+  private readonly config: ApnsClientConfig;
 
-  constructor(private readonly config: ApnsClientConfig) {
+  constructor(config: ApnsClientConfig) {
+    this.config = config;
     const host = config.environment === 'development' ? APNS_DEVELOPMENT_HOST : APNS_PRODUCTION_HOST;
     this.hostUrl = new URL(host);
   }
