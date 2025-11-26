@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   TextInput,
   Alert,
+  Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { router, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
@@ -246,6 +247,7 @@ export default function PersonFormScreen() {
         if (insertError) throw insertError;
       }
 
+      Keyboard.dismiss();
       Alert.alert('Sucesso', 'Pessoa cadastrada com sucesso!', [
         {
           text: 'OK',
@@ -277,17 +279,19 @@ export default function PersonFormScreen() {
         <View style={styles.backButtonPlaceholder} />
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Nome Completo *</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.full_name}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, full_name: text }))}
-            placeholder="Digite o nome completo"
-            editable={!loading}
-          />
-        </View>
+      <KeyboardAwareScrollView
+        style={styles.content}
+        bottomOffset={40}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Nome Completo *</Text>
+            <TextInput
+              style={styles.input}
+              value={formData.full_name}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, full_name: text }))}
+              placeholder="Digite o nome completo"
+              editable={!loading}
+            />
+          </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Email *</Text>
@@ -369,7 +373,7 @@ export default function PersonFormScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <BottomSheetModal
         ref={typeSheetRef}

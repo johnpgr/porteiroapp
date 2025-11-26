@@ -2,14 +2,13 @@ import { Redirect } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  Keyboard,
   StyleSheet,
   Text,
   View,
   Image,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import AuthForm from '~/components/AuthForm';
 import { useAuth } from '~/hooks/useAuth';
 
@@ -66,6 +65,7 @@ export default function LoginScreen() {
         return { success: false, error: result.error };
       }
 
+      Keyboard.dismiss();
       // The redirect will be done automatically by the useEffect above
       return { success: true };
     } catch (error) {
@@ -86,14 +86,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
+      contentContainerStyle={styles.scrollContainer}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bottomOffset={40}>
         <View style={styles.content}>
           <View style={styles.header}>
             <Image
@@ -106,10 +104,13 @@ export default function LoginScreen() {
             {isLoading && <Text style={styles.loadingIndicator}>⏳ Autenticando...</Text>}
           </View>
 
-          <AuthForm onSubmit={handleLogin} submitText="Entrar" loading={isLoading} />
+          <AuthForm
+            onSubmit={handleLogin}
+            submitText="Entrar"
+            loading={isLoading}
+          />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

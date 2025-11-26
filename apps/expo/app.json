@@ -78,6 +78,7 @@
       "bundleIdentifier": "com.porteiroapp.notifications"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"

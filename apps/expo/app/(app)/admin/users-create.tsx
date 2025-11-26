@@ -3,12 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Modal } from '~/components/Modal';
 import { router } from 'expo-router';
 import { IconSymbol } from '~/components/ui/IconSymbol';
@@ -574,6 +575,8 @@ export default function UsersCreate() {
         }
       }
 
+      Keyboard.dismiss();
+
       // Se sendWhatsApp estiver marcado, enviar automaticamente
       if (sendWhatsApp && newUser.phone) {
         if (newUser.type === 'morador') {
@@ -811,11 +814,12 @@ export default function UsersCreate() {
         <View style={styles.backButtonPlaceholder} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.content}
         contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.roleSelector}>
+        showsVerticalScrollIndicator={false}
+        bottomOffset={40}>
+          <View style={styles.roleSelector}>
           <Text style={styles.roleLabel}>Tipo de usuário:</Text>
           <View style={styles.roleButtons}>
             {['morador', 'porteiro'].map((role) => (
@@ -1115,7 +1119,7 @@ export default function UsersCreate() {
             <Text style={styles.saveButtonText}>✅ Criar Usuário</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Modal de Seleção de Prédios */}
       <Modal visible={showBuildingModal} animationType="slide" presentationStyle="pageSheet">

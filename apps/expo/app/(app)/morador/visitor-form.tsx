@@ -1,13 +1,14 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   TextInput,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -106,7 +107,8 @@ export default function VisitanteFormScreen() {
       // This is where you would call handlePreRegistration or update visitor
       // For editing: use visitorId to update the existing visitor
       // For creating: create a new visitor
-      
+
+      Keyboard.dismiss();
       // Reset form on success
       setPreRegistrationData({
         name: '',
@@ -135,6 +137,7 @@ export default function VisitanteFormScreen() {
     setIsSubmitting(true);
     try {
       // TODO: Submit logic will be handled by parent screen via callback or hook
+      Keyboard.dismiss();
       // Reset form on success
       setPreRegistrationData({
         name: '',
@@ -187,7 +190,10 @@ export default function VisitanteFormScreen() {
         <View style={styles.backButtonPlaceholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        bottomOffset={40}>
           {/* Dica no topo */}
           <View style={styles.infoBox}>
             <View style={styles.infoBoxContainer}>
@@ -736,7 +742,7 @@ export default function VisitanteFormScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

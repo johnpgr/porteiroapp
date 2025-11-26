@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, Keyboard } from 'react-native';
 
 interface AuthFormProps {
   onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -18,6 +18,7 @@ export default function AuthForm({
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
   const submitTimeoutRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     return () => {
@@ -164,15 +165,20 @@ export default function AuthForm({
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordInputRef.current?.focus()}
         editable={!isLoading}
       />
 
       <TextInput
+        ref={passwordInputRef}
         style={[styles.input, isLoading && styles.inputDisabled]}
         placeholder="Senha"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        returnKeyType="done"
+        onSubmitEditing={handleSubmit}
         editable={!isLoading}
       />
 

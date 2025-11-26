@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { ReadOnlyGuard } from '~/components/ReadOnlyGuard';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { SplashScreenController } from '../splash';
@@ -83,19 +84,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <SplashScreenController isAppReady={appReady} />
-        <PushTokenProvider />
-        <DeepLinkProvider />
-        <CallManagerProvider />
-        <NotificationProvider />
-        <ReadOnlyGuard>
-          <SafeAreaView style={{ flex: 1 }}>
-            <App />
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          </SafeAreaView>
-        </ReadOnlyGuard>
-      </AuthProvider>
+      <KeyboardProvider>
+        <AuthProvider>
+          <SplashScreenController isAppReady={appReady} />
+          <PushTokenProvider />
+          <DeepLinkProvider />
+          <CallManagerProvider />
+          <NotificationProvider />
+          <ReadOnlyGuard>
+            <SafeAreaView style={{ flex: 1 }}>
+              <App />
+              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            </SafeAreaView>
+          </ReadOnlyGuard>
+        </AuthProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }
