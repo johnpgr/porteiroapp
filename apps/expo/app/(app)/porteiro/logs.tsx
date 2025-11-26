@@ -1,11 +1,12 @@
 import type { RealtimeChannel } from "@porteiroapp/supabase";
 import { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Container } from '~/components/Container';
+import { useRouter } from 'expo-router';
 import { useAuth } from '~/hooks/useAuth';
 import { useNotifications } from '~/hooks/useNotifications';
 import { flattenStyles } from '~/utils/styles';
 import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface VisitorLog {
   id: string;
@@ -63,6 +64,7 @@ type LogEntry = {
 };
 
 export default function PorteiroLogsScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const { realtimeNotifications, isRealtimeConnected } = useNotifications();
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -603,13 +605,22 @@ export default function PorteiroLogsScreen() {
   };
 
   return (
-    <Container>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>📋 Histórico de Atividades</Text>
-           <Text style={styles.subtitle}>Buscar moradores e veículos cadastrados</Text>
+    <View style={[styles.container]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <View style={styles.titleContainer}>
+            <IconSymbol name="doc.text.fill" color="#fff" size={24} />
+            <Text style={styles.title}>Logs</Text>
+          </View>
+          <Text style={styles.subtitle}>Histórico de Atividades</Text>
         </View>
+      </View>
 
+      <View style={styles.content}>
         <View style={styles.filters}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.filterButtons}>
@@ -737,7 +748,7 @@ export default function PorteiroLogsScreen() {
           )}
         </ScrollView>
       </View>
-    </Container>
+    </View>
   );
 }
 
@@ -747,12 +758,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 5,
     backgroundColor: '#2196F3',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexDirection: 'row',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
+    paddingHorizontal: 20,
+    gap: 50,
+    paddingVertical: 30,
+  },
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 5,
   },
   title: {
     fontSize: 18,
@@ -762,9 +797,12 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    marginVertical: 5,
     color: '#fff',
     textAlign: 'center',
+    opacity: 0.9,
+  },
+  content: {
+    flex: 1,
   },
   filters: {
     paddingVertical: 20,

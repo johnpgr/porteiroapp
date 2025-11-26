@@ -7,6 +7,7 @@ import {
   TextInput,
   Alert,
   Keyboard,
+  ScrollView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { router, useLocalSearchParams } from 'expo-router';

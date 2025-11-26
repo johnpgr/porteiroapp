@@ -11,10 +11,17 @@ const router: Router = express.Router();
 
 /**
  * POST /api/calls/start
- * Inicia uma nova chamada de interfone
+ * Inicia uma nova chamada de interfone (porteiro -> morador)
  * Body: { apartmentNumber, doormanId, buildingId }
  */
 router.post('/start', CallController.startCall);
+
+/**
+ * POST /api/calls/call-doorman
+ * Inicia uma chamada de morador para porteiro
+ * Body: { residentId, doormanId, buildingId }
+ */
+router.post('/call-doorman', CallController.callDoorman);
 
 /**
  * POST /api/calls/:callId/answer

@@ -134,7 +134,7 @@ class DatabaseService {
   }
 
   /**
-   * Cria uma nova chamada de interfone
+   * Cria uma nova chamada de interfone (porteiro -> morador)
    * @param apartmentId - ID do apartamento
    * @param doormanId - ID do porteiro
    * @param options - Opções da chamada
@@ -154,10 +154,11 @@ class DatabaseService {
         .from("intercom_calls")
         .insert({
           apartment_id: apartmentId,
-          doorman_id: doormanId,
+          initiator_id: doormanId,
+          initiator_type: "doorman",
           status: options?.status ?? "calling",
           started_at: options?.startedAt ?? new Date().toISOString(),
-          twilio_conference_sid: options?.channelName ?? null,
+          channel_name: options?.channelName ?? null,
         })
         .select()
         .single();
@@ -175,7 +176,7 @@ class DatabaseService {
   }
 
   /**
-   * Adiciona participantes à chamada
+   * Adiciona participantes à chamada (residents)
    * @param callId - ID da chamada
    * @param residentIds - IDs dos moradores
    * @returns Participantes criados
@@ -192,7 +193,8 @@ class DatabaseService {
           .from("call_participants")
           .insert({
             call_id: callId,
-            resident_id: residentId,
+            participant_id: residentId,
+            participant_type: "resident",
             status: "notified",
           })
           .select()
@@ -239,8 +241,6 @@ class DatabaseService {
 
       return {
         ...data,
-        channel_name:
-          data.twilio_conference_sid ?? data.twilio_call_sid ?? null,
         apartment_number: data.apartments?.number,
         building_id: data.apartments?.building_id,
         building_name: data.apartments?.buildings?.name,
@@ -294,14 +294,14 @@ class DatabaseService {
           joined_at: new Date().toISOString(),
         })
         .eq("call_id", callId)
-        .eq("resident_id", residentId);
+        .eq("participant_id", residentId);
 
       // Marca outros participantes como 'missed'
       await this.supabase
         .from("call_participants")
         .update({ status: "missed" })
         .eq("call_id", callId)
-        .neq("resident_id", residentId)
+        .neq("participant_id", residentId)
         .eq("status", "notified");
 
       return updatedCall;
@@ -314,16 +314,16 @@ class DatabaseService {
   /**
    * Recusa uma chamada
    * @param callId - ID da chamada
-   * @param residentId - ID do morador que recusou
+   * @param participantId - ID do participante que recusou
    * @returns Participante atualizado
    */
-  async declineCall(callId: string, residentId: string): Promise<any> {
+  async declineCall(callId: string, participantId: string): Promise<any> {
     try {
       const { data, error } = await this.supabase
         .from("call_participants")
         .update({ status: "declined" })
         .eq("call_id", callId)
-        .eq("resident_id", residentId)
+        .eq("participant_id", participantId)
         .select()
         .single();
 
@@ -497,7 +497,7 @@ class DatabaseService {
 
       // Filtros opcionais
       if (params.userId) {
-        query = query.eq("doorman_id", params.userId);
+        query = query.eq("initiator_id", params.userId);
       }
 
       if (params.userType) {
@@ -584,7 +584,7 @@ class DatabaseService {
    */
   async updateCallParticipant(
     callId: string,
-    userId: string,
+    participantId: string,
     updateData: any,
   ): Promise<any> {
     try {
@@ -592,7 +592,7 @@ class DatabaseService {
         .from("call_participants")
         .update(updateData)
         .eq("call_id", callId)
-        .eq("resident_id", userId)
+        .eq("participant_id", participantId)
         .select()
         .single();
 
@@ -608,21 +608,21 @@ class DatabaseService {
   }
 
   /**
-   * Marca outros moradores como perderam a chamada
+   * Marca outros participantes como perderam a chamada
    * @param callId - ID da chamada
-   * @param answeredUserId - ID do usuário que atendeu
+   * @param answeredParticipantId - ID do participante que atendeu
    * @returns Participantes atualizados
    */
-  async markOtherResidentsAsMissed(
+  async markOtherParticipantsAsMissed(
     callId: string,
-    answeredUserId: string,
+    answeredParticipantId: string,
   ): Promise<any[]> {
     try {
       const { data, error } = await this.supabase
         .from("call_participants")
         .update({ status: "missed" })
         .eq("call_id", callId)
-        .neq("resident_id", answeredUserId)
+        .neq("participant_id", answeredParticipantId)
         .in("status", ["invited", "ringing", "notified"])
         .select();
 
@@ -650,12 +650,13 @@ class DatabaseService {
           `
             id,
             call_id,
-            resident_id,
+            participant_id,
+            participant_type,
             status,
             joined_at,
             left_at,
             created_at,
-            profiles!call_participants_resident_id_fkey(
+            profiles!call_participants_participant_id_fkey(
               id, 
               full_name, 
               phone, 
@@ -674,27 +675,20 @@ class DatabaseService {
 
       const participants = (data || []).map((participant: any) => {
         const profile = participant.profiles || {};
-        const rawUserType = profile.user_type || null;
-
-        // Normaliza tipos para manter compatibilidade com camadas superiores
-        let normalizedType = rawUserType;
-        if (rawUserType === "morador") {
-          normalizedType = "resident";
-        } else if (rawUserType === "porteiro") {
-          normalizedType = "doorman";
-        }
+        const participantType = participant.participant_type;
 
         return {
           id: participant.id,
           call_id: participant.call_id,
-          resident_id: participant.resident_id,
-          user_id: participant.resident_id,
+          participant_id: participant.participant_id,
+          participant_type: participantType,
+          // Aliases for backwards compatibility
+          user_id: participant.participant_id,
+          user_type: participantType,
           status: participant.status,
           joined_at: participant.joined_at,
           left_at: participant.left_at,
           created_at: participant.created_at,
-          user_type: normalizedType,
-          raw_user_type: rawUserType,
           name: profile.full_name || null,
           phone: profile.phone || null,
           push_token: profile.push_token || null,
@@ -744,7 +738,7 @@ class DatabaseService {
    */
   async disconnectActiveParticipants(
     callId: string,
-    keepUserId: string,
+    keepParticipantId: string,
   ): Promise<any[]> {
     try {
       const { data, error } = await this.supabase
@@ -754,7 +748,7 @@ class DatabaseService {
           left_at: new Date().toISOString(),
         })
         .eq("call_id", callId)
-        .neq("resident_id", keepUserId)
+        .neq("participant_id", keepParticipantId)
         .in("status", ["connected", "ringing"])
         .select();
 
@@ -782,7 +776,7 @@ class DatabaseService {
           `
           *,
           apartments!inner(number, building_id),
-          profiles!inner(full_name)
+          initiator_profile:profiles!intercom_calls_initiator_id_fkey(full_name)
         `,
         )
         .eq("apartments.building_id", buildingId)
@@ -796,7 +790,9 @@ class DatabaseService {
       return data.map((call: any) => ({
         ...call,
         apartment_number: call.apartments?.number,
-        doorman_name: call.profiles?.full_name,
+        // For backwards compatibility, keep doorman_name from initiator if it was a doorman call
+        doorman_name: call.initiator_type === 'doorman' ? call.initiator_profile?.full_name : null,
+        caller_name: call.initiator_profile?.full_name,
       }));
     } catch (error) {
       console.error("🔥 Erro ao buscar chamadas ativas:", error);
@@ -844,7 +840,8 @@ class DatabaseService {
           status,
           started_at,
           apartment_id,
-          doorman_id
+          initiator_id,
+          initiator_type
         `)
         .eq("apartment_id", apartmentId)
         .in("status", ["calling", "connecting"])
@@ -860,6 +857,157 @@ class DatabaseService {
     } catch (error) {
       console.error("🔥 Erro ao buscar chamadas pendentes:", error);
       return [];
+    }
+  }
+
+  /**
+   * Busca porteiros de plantão de um prédio
+   * @param buildingId - ID do prédio
+   * @returns Lista de porteiros de plantão
+   */
+  async getOnDutyDoormen(buildingId: string): Promise<any[]> {
+    try {
+      // Get doormen assigned to this building who are available (is_available = true)
+      const { data, error } = await this.supabase
+        .from("profiles")
+        .select(
+          `
+          id,
+          full_name,
+          email,
+          phone,
+          user_type,
+          building_id,
+          is_available,
+          notification_enabled,
+          push_token,
+          voip_push_token
+        `
+        )
+        .eq("building_id", buildingId)
+        .eq("user_type", "porteiro")
+        .eq("is_available", true);
+
+      if (error) {
+        console.error("🔍 Erro ao buscar porteiros de plantão:", error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error("🔥 Erro ao buscar porteiros de plantão:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Busca perfil de um morador por ID
+   * @param residentId - ID do morador
+   * @returns Dados do morador
+   */
+  async getResidentProfile(residentId: string): Promise<any | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from("profiles")
+        .select("id, full_name, building_id, user_type, email, phone")
+        .eq("id", residentId)
+        .eq("user_type", "morador")
+        .single();
+
+      if (error) {
+        console.error("🔍 Erro ao buscar perfil do morador:", error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error("🔥 Erro ao buscar perfil do morador:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Busca o apartamento de um morador
+   * @param profileId - ID do perfil do morador
+   * @returns Dados do apartamento com prédio
+   */
+  async getResidentApartment(profileId: string): Promise<any | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from("apartment_residents")
+        .select(
+          `
+          apartment_id,
+          apartments!inner(
+            id,
+            number,
+            building_id,
+            buildings!inner(id, name)
+          )
+        `
+        )
+        .eq("profile_id", profileId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("🔍 Erro ao buscar apartamento do morador:", error);
+        return null;
+      }
+
+      if (!data) return null;
+
+      return {
+        id: data.apartments.id,
+        number: data.apartments.number,
+        building_id: data.apartments.building_id,
+        building_name: data.apartments.buildings?.name
+      };
+    } catch (error) {
+      console.error("🔥 Erro ao buscar apartamento do morador:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Cria uma chamada de interfone iniciada por morador
+   * @param apartmentId - ID do apartamento
+   * @param residentId - ID do morador que iniciou
+   * @param options - Opções da chamada
+   * @returns Dados da chamada criada
+   */
+  async createResidentIntercomCall(
+    apartmentId: string,
+    residentId: string,
+    options?: {
+      channelName?: string | null;
+      status?: IntercomCallStatus;
+      startedAt?: string;
+    }
+  ): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .from("intercom_calls")
+        .insert({
+          apartment_id: apartmentId,
+          initiator_id: residentId,
+          initiator_type: "resident",
+          status: options?.status ?? "calling",
+          started_at: options?.startedAt ?? new Date().toISOString(),
+          channel_name: options?.channelName ?? null
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("🔥 Erro ao criar chamada de morador:", error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error("🔥 Erro ao criar chamada de interfone de morador:", error);
+      throw error;
     }
   }
 

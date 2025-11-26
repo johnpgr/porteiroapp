@@ -93,6 +93,11 @@ const MAPPING = {
   'chevron.up': 'keyboard-arrow-up',
   'lock.fill': 'lock',
   'xmark.circle.fill': 'cancel',
+  'slider.horizontal.3': 'tune',
+  'xmark': 'close',
+  'doc.text.fill': 'description',
+  'phone.arrow.up.right': 'phone-forwarded',
+  'phone.arrow.down.left': 'phone-callback',
 } as IconMapping;
 
 /**

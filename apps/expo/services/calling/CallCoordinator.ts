@@ -657,22 +657,23 @@ export class CallCoordinator {
       return;
     }
 
-    // Fetch user profile to get morador info
+    // Fetch profile to determine role (morador or porteiro)
     const { data: profile } = await supabase
       .from('profiles')
       .select('id, full_name, user_type')
       .eq('user_id', authSession.user.id)
-      .eq('user_type', 'morador')
-      .single();
+      .maybeSingle();
 
-    if (!profile) {
-      console.warn('[CallCoordinator] ⚠️ No morador profile found for user');
+    if (!profile || (profile.user_type !== 'morador' && profile.user_type !== 'porteiro')) {
+      console.warn('[CallCoordinator] ⚠️ No compatible profile found for user context');
       return;
     }
 
+    const normalizedType = profile.user_type === 'porteiro' ? 'porteiro' : 'morador';
+
     const user: CurrentUserContext = {
       id: profile.id,
-      userType: 'morador',
+      userType: normalizedType,
       displayName: profile.full_name || authSession.user.email || null,
     };
 
@@ -849,6 +850,63 @@ export class CallCoordinator {
       isOutgoing: true,
       callerName: params.callerName ?? this.currentUser.displayName ?? 'Porteiro',
       apartmentNumber: (payload.call.apartmentNumber as string | undefined) ?? params.apartmentNumber,
+      buildingId: (payload.call.buildingId as string | undefined) ?? params.buildingId,
+    });
+
+    this.trackSession(session);
+    this.emit('sessionCreated', { session });
+
+    try {
+      await session.startOutgoing(bundle);
+      return session;
+    } catch (err) {
+      this.clearRemoteHangupPoll();
+      this.activeSession = null;
+      throw err;
+    }
+  }
+
+  /**
+   * Start an outgoing call from resident to doorman
+   */
+  async startCallToDoorman(params: {
+    doormanId: string;
+    buildingId: string;
+    callerName?: string | null;
+  }): Promise<CallSession> {
+    if (!this.currentUser) {
+      throw new Error('Usuário não configurado para iniciar chamadas');
+    }
+
+    if (this.currentUser.userType !== 'morador') {
+      throw new Error('Apenas moradores podem chamar porteiros');
+    }
+
+    console.log('[CallCoordinator] 🚀 Starting call to doorman...', params);
+
+    const response = await InterfoneAPI.callDoorman({
+      residentId: this.currentUser.id,
+      doormanId: params.doormanId,
+      buildingId: params.buildingId,
+    });
+
+    if (!response?.success || !response.data?.tokens?.initiator) {
+      throw new Error(response?.error || 'Falha ao iniciar chamada');
+    }
+
+    const payload = response.data;
+    const bundle = payload.tokens.initiator;
+    const callId = payload.call.id;
+    const channelName = payload.call.channelName || (payload.call as any).channel_name || `call-${callId}`;
+    const participants = this.mapParticipants(payload.participants);
+
+    const session = new CallSession({
+      id: callId,
+      channelName,
+      participants,
+      isOutgoing: true,
+      callerName: params.callerName ?? this.currentUser.displayName ?? 'Morador',
+      apartmentNumber: (payload.call.apartmentNumber as string | undefined) ?? undefined,
       buildingId: (payload.call.buildingId as string | undefined) ?? params.buildingId,
     });
 

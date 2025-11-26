@@ -1,3 +1,5 @@
+import { createApnsClientFromEnv } from './apns.service.ts';
+
 /**
  * Push Notification Service
  * Handles sending push notifications to mobile devices for call invites
@@ -59,6 +61,7 @@ type ExpoPushResponse =
 class PushNotificationService {
   private readonly expoApiUrl = 'https://exp.host/--/api/v2/push/send';
   private readonly enabled: boolean;
+  private readonly apnsClient = createApnsClientFromEnv();
 
   constructor() {
     // Check if push notifications are enabled
@@ -67,6 +70,10 @@ class PushNotificationService {
 
     if (!this.enabled) {
       console.log('📵 Push notifications are disabled');
+    } else if (this.apnsClient) {
+      console.log('📡 APNs VoIP transport enabled (HTTP/2)');
+    } else {
+      console.warn('⚠️ APNs VoIP credentials missing - falling back to Expo VoIP push transport');
     }
   }
 
@@ -252,7 +259,80 @@ class PushNotificationService {
       };
     }
 
-    // Validate VoIP push token format
+    if (this.apnsClient) {
+      return this.sendVoipPushViaApns(params);
+    }
+
+    return this.sendVoipPushViaExpo(params);
+  }
+
+  private async sendVoipPushViaApns(params: VoipPushParams): Promise<SendPushResult> {
+    if (!this.apnsClient) {
+      return this.sendVoipPushViaExpo(params);
+    }
+
+    const sanitizedToken = this.sanitizeApnsDeviceToken(params.voipToken);
+
+    if (!this.isValidApnsDeviceToken(sanitizedToken)) {
+      console.warn(`⚠️ Invalid APNs VoIP token format: ${params.voipToken}`);
+      return {
+        success: false,
+        pushToken: params.voipToken,
+        error: 'Invalid APNs VoIP token format'
+      };
+    }
+
+    const payload = {
+      aps: {
+        'content-available': 1,
+      },
+      data: this.buildVoipData(params),
+    };
+
+    try {
+      const response = await this.apnsClient.send({
+        deviceToken: sanitizedToken,
+        payload,
+        pushType: 'voip',
+        priority: '10'
+      });
+
+      if (!response.success) {
+        const errorMessage = response.error || `APNs HTTP ${response.status || 0}`;
+        console.error('❌ [push] APNs VoIP push failed:', errorMessage, {
+          status: response.status,
+          apnsId: response.apnsId,
+        });
+        return {
+          success: false,
+          pushToken: sanitizedToken,
+          error: errorMessage
+        };
+      }
+
+      console.log('✅ [push] VoIP push sent via APNs', {
+        token: `${sanitizedToken.slice(0, 10)}...`,
+        apnsId: response.apnsId,
+      });
+
+      return {
+        success: true,
+        pushToken: sanitizedToken,
+        ticketId: response.apnsId
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown APNs error';
+      console.error('❌ [push] Failed to send APNs VoIP push:', errorMessage);
+      return {
+        success: false,
+        pushToken: sanitizedToken,
+        error: errorMessage
+      };
+    }
+  }
+
+  private async sendVoipPushViaExpo(params: VoipPushParams): Promise<SendPushResult> {
+    // Validate Expo push token format (legacy fallback)
     if (!this.isValidExpoPushToken(params.voipToken)) {
       console.warn(`⚠️ Invalid VoIP push token format: ${params.voipToken}`);
       return {
@@ -262,32 +342,18 @@ class PushNotificationService {
       };
     }
 
-    // VoIP push payload (data-only, no notification)
     const payload: PushNotificationPayload = {
       to: params.voipToken,
-      // NO title or body - VoIP pushes are silent/data-only
       contentAvailable: true,
-      _contentAvailable: true, // iOS: deliver as background notification
+      _contentAvailable: true,
       priority: 'high',
       channelId: 'intercom_call',
-      data: {
-        type: 'intercom_call',
-        callId: params.callId,
-        from: params.from,
-        fromName: params.fromName || 'Doorman',
-        apartmentNumber: params.apartmentNumber || '',
-        buildingName: params.buildingName || '',
-        channelName: params.channelName,
-        action: 'incoming_call',
-        timestamp: Date.now().toString(),
-        isVoip: true, // Flag to indicate this is a VoIP push
-        ...params.metadata
-      }
+      data: this.buildVoipData(params),
     };
 
     try {
       const tokenPreview = `${params.voipToken?.slice(0, 12) ?? ''}...`;
-      console.log('📤 [push] Sending iOS VoIP push (high priority)', {
+      console.log('📤 [push] Sending fallback Expo VoIP push (high priority)', {
         to: tokenPreview,
         callId: params.callId,
         from: params.from,
@@ -305,7 +371,7 @@ class PushNotificationService {
         body: JSON.stringify(payload)
       });
 
-      console.log('📡 [push] VoIP push POST status', response.status, response.statusText);
+      console.log('📡 [push] VoIP push POST status (Expo fallback)', response.status, response.statusText);
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
@@ -373,6 +439,33 @@ class PushNotificationService {
     );
 
     return Promise.all(promises);
+  }
+
+  private buildVoipData(params: VoipPushParams): Record<string, any> {
+    return {
+      type: 'intercom_call',
+      callId: params.callId,
+      from: params.from,
+      fromName: params.fromName || 'Doorman',
+      apartmentNumber: params.apartmentNumber || '',
+      buildingName: params.buildingName || '',
+      channelName: params.channelName,
+      action: 'incoming_call',
+      timestamp: Date.now().toString(),
+      isVoip: true,
+      ...params.metadata,
+    };
+  }
+
+  private sanitizeApnsDeviceToken(token: string): string {
+    if (!token) {
+      return '';
+    }
+    return token.replace(/[\s<>]/g, '').toLowerCase();
+  }
+
+  private isValidApnsDeviceToken(token: string): boolean {
+    return /^[0-9a-f]{64,}$/i.test(token);
   }
 
   /**

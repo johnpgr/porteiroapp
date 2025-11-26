@@ -38,6 +38,11 @@ declare global {
       APN_KEY_PATH?: string;
       APN_KEY_ID?: string;
       APN_TEAM_ID?: string;
+      APNS_VOIP_KEY?: string;
+      APNS_VOIP_KEY_ID?: string;
+      APNS_TEAM_ID?: string;
+      APNS_VOIP_TOPIC?: string;
+      APNS_VOIP_ENVIRONMENT?: 'production' | 'development';
 
       // Email Service
       RESEND_API_KEY?: string;

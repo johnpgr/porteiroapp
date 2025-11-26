@@ -191,6 +191,24 @@ export class InterfoneAPI {
     return this.handleResponse(response, CallStartResponseSchema);
   }
 
+  /**
+   * Initiate a call from resident to doorman
+   */
+  static async callDoorman(params: {
+    residentId: string;
+    doormanId: string;
+    buildingId: string;
+  }) {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/calls/call-doorman`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    });
+
+    return this.handleResponse(response, CallStartResponseSchema);
+  }
+
   static async getActiveCalls(buildingId: string) {
     const headers = await this.getHeaders();
     const response = await fetch(`${API_BASE_URL}/api/calls/active?buildingId=${encodeURIComponent(buildingId)}`, {

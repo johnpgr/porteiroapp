@@ -8,6 +8,9 @@ import { useAuth } from '~/hooks/useAuth';
 import { isRegularUser } from '~/types/auth.types';
 import { PorteiroDashboardProvider } from '~/providers/PorteiroDashboardProvider';
 import PorteiroTabsHeader from '~/components/porteiro/PorteiroTabsHeader';
+import { CallSystemInitializer } from './providers/CallSystemInitializer';
+import { ActiveCallBootstrapper } from './providers/ActiveCallBootstrapper';
+import { IntercomNotificationListeners } from './providers/IntercomNotificationListeners';
 
 const NOTIFIED_SIGNATURES_KEY = 'porteiro_notified_signatures';
 
@@ -408,9 +411,13 @@ export default function PorteiroLayout() {
   }, [user, isReady, signOut]); // Dependências: user e isReady
 
   return (
-    <PorteiroDashboardProvider>
-      <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
-        <Stack.Protected guard={user?.user_type === 'porteiro'}>
+    <>
+      <CallSystemInitializer />
+      <ActiveCallBootstrapper />
+      <IntercomNotificationListeners />
+      <PorteiroDashboardProvider>
+        <Stack screenOptions={{ headerShown: false, animation: shouldAnimate ? 'fade' : 'none' }}>
+          <Stack.Protected guard={user?.user_type === 'porteiro'}>
           <Stack.Screen
             name="(tabs)"
             options={{
@@ -420,7 +427,7 @@ export default function PorteiroLayout() {
           />
           <Stack.Screen name="autorizacoes" />
           <Stack.Screen name="delivery" />
-          <Stack.Screen name="logs" />
+            <Stack.Screen name="logs" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="visitor" />
 
@@ -467,8 +474,9 @@ export default function PorteiroLayout() {
               headerShown: false,
             }}
           />
-        </Stack.Protected>
-      </Stack>
-    </PorteiroDashboardProvider>
+          </Stack.Protected>
+        </Stack>
+      </PorteiroDashboardProvider>
+    </>
   );
 }

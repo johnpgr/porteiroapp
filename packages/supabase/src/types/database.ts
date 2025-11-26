@@ -228,7 +228,8 @@ export type Database = {
           id: string
           joined_at: string | null
           left_at: string | null
-          resident_id: string
+          participant_id: string
+          participant_type: string
           status: string | null
         }
         Insert: {
@@ -237,7 +238,8 @@ export type Database = {
           id?: string
           joined_at?: string | null
           left_at?: string | null
-          resident_id: string
+          participant_id: string
+          participant_type: string
           status?: string | null
         }
         Update: {
@@ -246,7 +248,8 @@ export type Database = {
           id?: string
           joined_at?: string | null
           left_at?: string | null
-          resident_id?: string
+          participant_id?: string
+          participant_type?: string
           status?: string | null
         }
         Relationships: [
@@ -258,8 +261,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "call_participants_resident_id_fkey"
-            columns: ["resident_id"]
+            foreignKeyName: "call_participants_participant_id_fkey"
+            columns: ["participant_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -497,43 +500,40 @@ export type Database = {
           answered_at: string | null
           apartment_id: string
           created_at: string | null
-          doorman_id: string
-          duration: number | null
+          initiator_id: string
+          initiator_type: string
           duration_seconds: number | null
           ended_at: string | null
           id: string
           started_at: string | null
           status: string | null
-          twilio_call_sid: string | null
-          twilio_conference_sid: string | null
+          channel_name: string | null
         }
         Insert: {
           answered_at?: string | null
           apartment_id: string
           created_at?: string | null
-          doorman_id: string
-          duration?: number | null
+          initiator_id: string
+          initiator_type: string
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
           started_at?: string | null
           status?: string | null
-          twilio_call_sid?: string | null
-          twilio_conference_sid?: string | null
+          channel_name?: string | null
         }
         Update: {
           answered_at?: string | null
           apartment_id?: string
           created_at?: string | null
-          doorman_id?: string
-          duration?: number | null
+          initiator_id?: string
+          initiator_type?: string
           duration_seconds?: number | null
           ended_at?: string | null
           id?: string
           started_at?: string | null
           status?: string | null
-          twilio_call_sid?: string | null
-          twilio_conference_sid?: string | null
+          channel_name?: string | null
         }
         Relationships: [
           {
@@ -544,8 +544,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "intercom_calls_doorman_id_fkey"
-            columns: ["doorman_id"]
+            foreignKeyName: "intercom_calls_initiator_id_fkey"
+            columns: ["initiator_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

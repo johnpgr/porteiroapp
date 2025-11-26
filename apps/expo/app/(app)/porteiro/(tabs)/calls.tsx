@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '~/hooks/useAuth';
-import { useUserApartment } from '~/hooks/useUserApartment';
 import { supabase } from '~/utils/supabase';
 import BottomSheetModal, { BottomSheetModalRef } from '~/components/BottomSheetModal';
 import { IconSymbol } from '~/components/ui/IconSymbol';
@@ -37,11 +36,10 @@ interface CallHistoryItem {
   answered_at: string | null;
   ended_at: string | null;
   duration_seconds: number | null;
-  doorman_name: string | null;
+  resident_name: string | null;
   building_name: string | null;
   apartment_number: string | null;
   participants: CallParticipant[];
-  answeredByCurrentUser: boolean;
   direction: CallDirection;
   initiator_type: string | null;
 }
@@ -210,8 +208,8 @@ const filterSheetStyles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   chipActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#1E88E5',
+    borderColor: '#1E88E5',
   },
   chipText: {
     fontSize: 12,
@@ -252,7 +250,7 @@ const filterSheetStyles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#1E88E5',
   },
   applyButtonText: {
     fontSize: 12,
@@ -290,10 +288,9 @@ interface FetchOptions {
   dateRange?: DateRangeFilter;
 }
 
-export default function CallsTab() {
+export default function PorteiroCallsTab() {
   const router = useRouter();
   const { user } = useAuth();
-  const { apartment, loading: apartmentLoading } = useUserApartment();
   const [calls, setCalls] = useState<CallHistoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -302,12 +299,15 @@ export default function CallsTab() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>('7days');
   const [hasMore, setHasMore] = useState<boolean>(true);
-  const [noApartmentMessage, setNoApartmentMessage] = useState<string | null>(null);
   const [filterSheetVisible, setFilterSheetVisible] = useState<boolean>(false);
 
   const isFetchingRef = useRef(false);
   const offsetRef = useRef(0);
   const filterSheetRef = useRef<BottomSheetModalRef>(null);
+
+  const handleCallButtonPress = useCallback(() => {
+    router.push('/porteiro/intercom');
+  }, [router]);
 
   const openFilterSheet = useCallback(() => {
     setFilterSheetVisible(true);
@@ -362,14 +362,6 @@ export default function CallsTab() {
         ? call.call_participants
         : [];
 
-      const answeredByCurrentUser = participants.some(
-        (participant) =>
-          participant &&
-          typeof participant.participant_id === 'string' &&
-          participant.participant_id === user?.id &&
-          ['answered', 'connected'].includes((participant.status || '').toLowerCase())
-      );
-
       let durationSeconds: number | null =
         typeof call.duration_seconds === 'number' ? call.duration_seconds : null;
 
@@ -390,26 +382,33 @@ export default function CallsTab() {
         ? (rawStatus as IntercomCallStatus)
         : 'ended';
 
-      // Determine call direction based on initiator_type
-      // If initiator_type is 'resident', it's an outgoing call (resident called doorman)
-      // If initiator_type is 'doorman' or null, it's an incoming call (doorman called resident)
+      // Determine call direction from porteiro's perspective
+      // If initiator_type is 'doorman' and initiator_id matches current user, it's outgoing (porteiro called resident)
+      // If initiator_type is 'resident', it's incoming (resident called porteiro)
       const initiatorType = call.initiator_type || 'doorman';
-      const direction: CallDirection = initiatorType === 'resident' ? 'outgoing' : 'incoming';
-
-      // Get doorman name: for doorman-initiated calls use initiator_profile
-      // For resident-initiated calls, find doorman from participants
-      let doormanName: string | null = null;
-      if (initiatorType === 'doorman') {
-        doormanName = call.initiator_profile?.full_name || null;
+      let direction: CallDirection = 'outgoing';
+      
+      if (initiatorType === 'resident') {
+        // Resident initiated the call - for porteiro this is incoming
+        direction = 'incoming';
       } else {
-        // Find doorman participant for resident-initiated calls
-        const doormanParticipant = participants.find(p => p.participant_type === 'doorman');
-        if (doormanParticipant && (call as any).participant_profiles) {
+        // Doorman initiated the call - for porteiro this is outgoing
+        direction = 'outgoing';
+      }
+
+      // Get resident name from participants if available
+      let residentName: string | null = null;
+      if (call.initiator_type === 'resident' && call.initiator_profile) {
+        residentName = call.initiator_profile.full_name;
+      } else if (participants.length > 0) {
+        // Try to find a participant with profile info
+        const participant = participants.find(p => p.participant_id);
+        if (participant && (call as any).participant_profiles) {
           const profile = (call as any).participant_profiles.find(
-            (p: any) => p.id === doormanParticipant.participant_id
+            (p: any) => p.id === participant.participant_id
           );
           if (profile) {
-            doormanName = profile.full_name;
+            residentName = profile.full_name;
           }
         }
       }
@@ -421,16 +420,15 @@ export default function CallsTab() {
         answered_at: call.answered_at ?? null,
         ended_at: call.ended_at ?? null,
         duration_seconds: durationSeconds ?? null,
-        doorman_name: doormanName ?? null,
+        resident_name: residentName,
         building_name: call.apartment?.building?.name ?? null,
         apartment_number: call.apartment?.number ?? null,
         participants,
-        answeredByCurrentUser,
         direction,
         initiator_type: initiatorType,
       };
     },
-    [user?.id]
+    []
   );
 
   const fetchCallHistory = useCallback(
@@ -471,25 +469,10 @@ export default function CallsTab() {
       }
 
       try {
-        // Wait for apartment data to load if still loading
-        if (apartmentLoading) {
-          return;
-        }
-
-        if (!apartment?.id) {
-          setCalls([]);
-          setHasMore(false);
-          setNoApartmentMessage(
-            'Nenhum apartamento vinculado à sua conta. Solicite ao síndico ou administrador para concluir o cadastro.'
-          );
-          return;
-        }
-
-        setNoApartmentMessage(null);
-
-        // Query calls where:
-        // 1. apartment_id matches the user's apartment (incoming calls from doorman)
-        // 2. OR initiator_id = current user (outgoing calls initiated by this resident)
+        // For porteiro, we query calls where they are a participant
+        // The call_participants table tracks all participants (initiators + callees)
+        // Using !inner join with filter on participant_id = user.id
+        
         let query = supabase
           .from('intercom_calls')
           .select(
@@ -503,12 +486,12 @@ export default function CallsTab() {
             apartment_id,
             initiator_id,
             initiator_type,
-            initiator_profile:profiles!intercom_calls_initiator_id_fkey(full_name),
+            initiator_profile:profiles!intercom_calls_initiator_id_fkey(id, full_name),
             apartment:apartments(number, building:buildings(name)),
-            call_participants(participant_id, participant_type, status, joined_at, left_at)
+            call_participants!inner(participant_id, participant_type, status, joined_at, left_at)
           `
           )
-          .or(`apartment_id.eq.${apartment.id},initiator_id.eq.${user.id}`)
+          .eq('call_participants.participant_id', user.id)
           .order('started_at', { ascending: false })
           .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
 
@@ -556,7 +539,7 @@ export default function CallsTab() {
         setLoadingMore(false);
       }
     },
-    [apartment, apartmentLoading, dateRangeFilter, statusFilter, transformCall, user?.id]
+    [dateRangeFilter, statusFilter, transformCall, user?.id]
   );
 
   const handleApplyFilters = useCallback(
@@ -636,13 +619,15 @@ export default function CallsTab() {
           </View>
 
           <View style={styles.cardBody}>
-            <View style={styles.infoRowContainer}>
-              <IconSymbol name="shield.fill" color="#666" size={14} />
-              <Text style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Porteiro: </Text>
-                <Text style={styles.infoValue}>{item.doorman_name || 'Não informado'}</Text>
-              </Text>
-            </View>
+            {item.resident_name && (
+              <View style={styles.infoRowContainer}>
+                <IconSymbol name="person.fill" color="#666" size={14} />
+                <Text style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Morador: </Text>
+                  <Text style={styles.infoValue}>{item.resident_name}</Text>
+                </Text>
+              </View>
+            )}
 
             {(item.building_name || item.apartment_number) && (
               <View style={styles.infoRowContainer}>
@@ -666,12 +651,6 @@ export default function CallsTab() {
                 </Text>
               </View>
             )}
-
-            {item.answeredByCurrentUser && (
-              <View style={styles.answeredPill}>
-                <Text style={styles.answeredPillText}>Você atendeu esta chamada</Text>
-              </View>
-            )}
           </View>
         </View>
       );
@@ -688,22 +667,20 @@ export default function CallsTab() {
 
       return (
         <View style={styles.listHeader}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Histórico de Chamadas</Text>
+          <View style={styles.filterRow}>
+            <View style={styles.filterSummary}>
+              <View style={styles.filterSummaryPill}>
+                <Text style={styles.filterSummaryLabel}>Status</Text>
+                <Text style={styles.filterSummaryValue}>{statusLabel}</Text>
+              </View>
+              <View style={styles.filterSummaryPill}>
+                <Text style={styles.filterSummaryLabel}>Período</Text>
+                <Text style={styles.filterSummaryValue}>{dateLabel}</Text>
+              </View>
+            </View>
             <TouchableOpacity style={styles.filterButton} onPress={openFilterSheet}>
-              <Text style={styles.filterButtonText}>Filtros</Text>
+              <IconSymbol name="slider.horizontal.3" color="#1565C0" size={24} />
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.filterSummary}>
-            <View style={styles.filterSummaryPill}>
-              <Text style={styles.filterSummaryLabel}>Status</Text>
-              <Text style={styles.filterSummaryValue}>{statusLabel}</Text>
-            </View>
-            <View style={styles.filterSummaryPill}>
-              <Text style={styles.filterSummaryLabel}>Período</Text>
-              <Text style={styles.filterSummaryValue}>{dateLabel}</Text>
-            </View>
           </View>
         </View>
       );
@@ -715,7 +692,7 @@ export default function CallsTab() {
     if (loadingMore) {
       return (
         <View style={styles.footerLoading}>
-          <ActivityIndicator color="#4CAF50" />
+          <ActivityIndicator color="#1E88E5" />
           <Text style={styles.footerLoadingText}>Carregando mais chamadas...</Text>
         </View>
       );
@@ -736,16 +713,8 @@ export default function CallsTab() {
     if (loading) {
       return (
         <View style={styles.emptyContainer}>
-          <ActivityIndicator color="#4CAF50" />
+          <ActivityIndicator color="#1E88E5" />
           <Text style={styles.emptyText}>Carregando histórico...</Text>
-        </View>
-      );
-    }
-
-    if (noApartmentMessage) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>{noApartmentMessage}</Text>
         </View>
       );
     }
@@ -766,55 +735,75 @@ export default function CallsTab() {
         <IconSymbol name="envelope" color="#666" size={48} />
         <Text style={styles.emptyTitle}>Nenhuma chamada encontrada</Text>
         <Text style={styles.emptySubtitle}>
-          Ajuste os filtros ou puxe para atualizar. Se nenhuma chamada aparecer, pode ser que ainda não houve
-          registros para o seu apartamento neste período.
+          Ajuste os filtros ou puxe para atualizar. Use o botão no canto inferior direito para iniciar uma nova chamada.
         </Text>
       </View>
     );
-  }, [error, fetchCallHistory, loading, noApartmentMessage]);
-
-  const handleCallButtonPress = useCallback(() => {
-    router.push('/morador/intercom');
-  }, [router]);
+  }, [error, fetchCallHistory, loading]);
 
   return (
     <>
-        <View style={styles.container}>
-          <FlatList
-            data={calls}
-            keyExtractor={(item) => item.id}
-            renderItem={renderCallItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4CAF50" />
-            }
-            ListHeaderComponent={listHeader}
-            ListFooterComponent={listFooter}
-            ListEmptyComponent={listEmpty}
-            onEndReachedThreshold={0.4}
-            onEndReached={handleLoadMore}
-          />
-          
-          <FloatingCallButton onPress={handleCallButtonPress} color="#4CAF50" />
+      <View style={styles.container}>
+        {/* Styled Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>📞 Chamadas</Text>
+          <Text style={styles.headerSubtitle}>Histórico de chamadas do interfone</Text>
         </View>
 
-        <CallFiltersBottomSheet
-          bottomSheetRef={filterSheetRef}
-          visible={filterSheetVisible}
-          onClose={handleFilterSheetClose}
-          onApply={handleApplyFilters}
-          statusFilter={statusFilter}
-          dateRangeFilter={dateRangeFilter}
+        <FlatList
+          data={calls}
+          keyExtractor={(item) => item.id}
+          renderItem={renderCallItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#1E88E5" />
+          }
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
+          onEndReachedThreshold={0.4}
+          onEndReached={handleLoadMore}
         />
-      </>
-);
+
+        <FloatingCallButton onPress={handleCallButtonPress} color="#1E88E5" />
+      </View>
+
+      <CallFiltersBottomSheet
+        bottomSheetRef={filterSheetRef}
+        visible={filterSheetVisible}
+        onClose={handleFilterSheetClose}
+        onApply={handleApplyFilters}
+        statusFilter={statusFilter}
+        dateRangeFilter={dateRangeFilter}
+      />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#2196F3',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#E3F2FD',
+    textAlign: 'center',
+    marginTop: 4,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -824,44 +813,36 @@ const styles = StyleSheet.create({
   listHeader: {
     marginBottom: 16,
   },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#333333',
-  },
-  headerRow: {
+  filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
   },
   filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-    backgroundColor: '#e7f6ec',
-    borderWidth: 1,
-    borderColor: '#4CAF50',
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2f7d44',
+    color: '#1565C0',
   },
   filterSummary: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 14,
+    gap: 8,
+    flex: 1,
   },
   filterSummaryPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e1e5e9',
-    minWidth: 145,
+    flex: 1,
   },
   filterSummaryLabel: {
     fontSize: 10,
@@ -953,21 +934,6 @@ const styles = StyleSheet.create({
   infoValue: {
     fontWeight: '500',
   },
-  answeredPill: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: '#e7f6ec',
-    borderColor: '#4CAF50',
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  answeredPillText: {
-    color: '#2f7d44',
-    fontWeight: '600',
-    fontSize: 12,
-  },
   footerLoading: {
     paddingVertical: 16,
     flexDirection: 'row',
@@ -1005,7 +971,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 12,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#1E88E5',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 24,

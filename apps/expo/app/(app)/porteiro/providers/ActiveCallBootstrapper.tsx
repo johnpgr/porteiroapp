@@ -1,25 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '~/hooks/useAuth';
-import { useUserApartment } from '~/hooks/useUserApartment';
-import { isRegularUser } from '~/types/auth.types';
-import { supabase } from '~/utils/supabase';
 import { callCoordinator } from '~/services/calling/CallCoordinator';
 import { InterfoneAPI } from '~/services/api/InterfoneAPI';
+import { supabase } from '~/utils/supabase';
 
 export function ActiveCallBootstrapper() {
   const { user } = useAuth();
-  const { apartment } = useUserApartment();
   const [callSystemReady, setCallSystemReady] = useState(() => {
     return callCoordinator.getDebugInfo().isInitialized;
   });
   const hasFetchedActiveCallsRef = useRef(false);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || user.user_type !== 'porteiro') {
       hasFetchedActiveCallsRef.current = false;
       setCallSystemReady(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.user_type]);
 
   useEffect(() => {
     const unsubscribe = callCoordinator.on('ready', () => {
@@ -29,40 +26,35 @@ export function ActiveCallBootstrapper() {
   }, []);
 
   const resolveBuildingId = useCallback(async (): Promise<string | null> => {
-    if (!user?.id) {
+    if (!user?.id || user.user_type !== 'porteiro') {
       return null;
     }
 
-    if (isRegularUser(user) && user.building_id) {
+    if (user.building_id) {
       return user.building_id;
     }
 
-    if (apartment?.id) {
-      try {
-        const { data, error } = await supabase
-          .from('apartments')
-          .select('building_id')
-          .eq('id', apartment.id)
-          .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('id', user.id)
+        .maybeSingle();
 
-        if (error) {
-          console.warn('[MoradorLayout] ⚠️ Unable to resolve building ID from apartment:', error);
-          return null;
-        }
-
-        return data?.building_id ?? null;
-      } catch (err) {
-        console.error('[MoradorLayout] ❌ Failed to resolve building ID from apartment:', err);
+      if (error) {
+        console.warn('[PorteiroLayout] ⚠️ Unable to resolve building ID:', error);
         return null;
       }
-    }
 
-    console.log('[MoradorLayout] ⚠️ Unable to resolve building ID (no user/apartment data)');
-    return null;
-  }, [user, apartment?.id]);
+      return data?.building_id ?? null;
+    } catch (err) {
+      console.error('[PorteiroLayout] ❌ Failed to resolve building ID:', err);
+      return null;
+    }
+  }, [user]);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.id || user.user_type !== 'porteiro') {
       hasFetchedActiveCallsRef.current = false;
       return;
     }
@@ -77,17 +69,17 @@ export function ActiveCallBootstrapper() {
       try {
         const buildingId = await resolveBuildingId();
         if (!buildingId) {
-          console.log('[MoradorLayout] ⚠️ Skipping active calls fetch - missing buildingId');
+          console.log('[PorteiroLayout] ⚠️ Skipping active calls fetch - missing buildingId');
           hasFetchedActiveCallsRef.current = false;
           return;
         }
 
-        console.log('[MoradorLayout] 🔄 Fetching active calls at startup for building:', buildingId);
+        console.log('[PorteiroLayout] 🔄 Fetching active calls at startup for building:', buildingId);
         const result = await InterfoneAPI.getActiveCalls(buildingId);
 
         const activeCalls = result?.data?.activeCalls;
         if (!result?.success || !Array.isArray(activeCalls) || activeCalls.length === 0) {
-          console.log('[MoradorLayout] ℹ️ No active calls to restore');
+          console.log('[PorteiroLayout] ℹ️ No active calls to restore');
           return;
         }
 
@@ -96,12 +88,11 @@ export function ActiveCallBootstrapper() {
           if (!callId) continue;
 
           const callerName =
-            call.doorman_name ||
+            call.resident_name ||
             call.caller_name ||
-            call.initiator_profile?.full_name ||
             call.profiles?.full_name ||
             call.callerName ||
-            'Porteiro';
+            'Morador';
 
           await callCoordinator.handleIncomingPush({
             callId: String(callId),
@@ -111,18 +102,18 @@ export function ActiveCallBootstrapper() {
             buildingName: call.building_name || '',
             channelName: call.channel_name || `call-${callId}`,
             timestamp: Date.now(),
-            source: 'foreground', // Active call recovery on app startup
-            shouldShowNativeUI: false, // Recovery: restore session/UI, don't show new incoming call UI
+            source: 'foreground',
+            shouldShowNativeUI: false,
           });
         }
       } catch (error) {
         hasFetchedActiveCallsRef.current = false;
-        console.error('[MoradorLayout] ❌ Failed to fetch active calls:', error);
+        console.error('[PorteiroLayout] ❌ Failed to fetch active calls:', error);
       }
     };
 
     void fetchActiveCallsOnStartup();
-  }, [user?.id, callSystemReady, resolveBuildingId]);
+  }, [user?.id, user?.user_type, callSystemReady, resolveBuildingId]);
 
   return null;
 }

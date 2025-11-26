@@ -86,6 +86,14 @@ export default function PorteiroTopBar({
       },
     },
     {
+      label: 'Logs',
+      iconName: 'document-text',
+      onPress: () => {
+        setShowUserMenu(false);
+        router.push('/porteiro/logs');
+      },
+    },
+    {
       label: 'Logout',
       iconName: 'log-out',
       iconColor: '#f44336',

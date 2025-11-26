@@ -240,8 +240,8 @@ class TokenController {
 
       const participants = await DatabaseService.getCallParticipants(callId);
       const isParticipant =
-        String(call.doorman_id) === String(uid) ||
-        participants.some((p: any) => String(p.user_id ?? p.resident_id) === String(uid));
+        String(call.initiator_id) === String(uid) ||
+        participants.some((p: any) => String(p.participant_id ?? p.user_id) === String(uid));
 
       if (!isParticipant) {
         res.status(403).json({ success: false, error: 'Usuário não é participante da chamada' });
@@ -249,7 +249,7 @@ class TokenController {
       }
 
       const channelName: string =
-        call.channel_name || call.twilio_conference_sid || `call-${callId}`;
+        call.channel_name || `call-${callId}`;
 
       const tokenBundle = agoraService.generateTokenPair({
         channelName,

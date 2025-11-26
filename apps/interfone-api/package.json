@@ -23,9 +23,11 @@
   ],
   "dependencies": {
     "@porteiroapp/supabase": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.10",
     "agora-token": "^2.0.5",
     "cors": "^2.8.5",
-    "express": "^5"
+    "express": "^5",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

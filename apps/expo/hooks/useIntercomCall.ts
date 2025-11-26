@@ -25,6 +25,11 @@ interface StartCallParams {
   buildingId: string;
 }
 
+interface CallDoormanParams {
+  doormanId: string;
+  buildingId: string;
+}
+
 interface UseIntercomCallReturn {
   callState: CallLifecycleState | 'idle';
   activeCall: ActiveCallContext | null;
@@ -32,6 +37,7 @@ interface UseIntercomCallReturn {
   isSpeakerOn: boolean;
   error: string | null;
   startCall: (params: StartCallParams) => Promise<void>;
+  callDoorman: (params: CallDoormanParams) => Promise<void>;
   endCall: (reason?: 'decline' | 'hangup') => Promise<void>;
   toggleMute: () => Promise<void>;
   toggleSpeaker: () => Promise<void>;
@@ -126,6 +132,18 @@ export function useIntercomCall(user?: IntercomUser | null): UseIntercomCallRetu
     [user?.displayName]
   );
 
+  const callDoorman = useCallback(
+    async (params: CallDoormanParams): Promise<void> => {
+      setError(null);
+      await callCoordinator.startCallToDoorman({
+        doormanId: params.doormanId,
+        buildingId: params.buildingId,
+        callerName: user?.displayName ?? null,
+      });
+    },
+    [user?.displayName]
+  );
+
   const endCall = useCallback(
     async (reason: 'decline' | 'hangup' = 'hangup'): Promise<void> => {
       await callCoordinator.endActiveCall(reason);
@@ -163,6 +181,7 @@ export function useIntercomCall(user?: IntercomUser | null): UseIntercomCallRetu
     isSpeakerOn,
     error,
     startCall,
+    callDoorman,
     endCall,
     toggleMute,
     toggleSpeaker,

@@ -501,9 +501,9 @@ if (callKeepService.checkAvailability()) {
 
 ### 12.2 Backend Configuration
 **Apps/interfone-api:**
-- Configure APNs with VoIP certificate
-- Expo push API should use VoIP cert for iOS pushes
-- Test with apns-push-type: voip header
+- Defina `APNS_VOIP_KEY`, `APNS_VOIP_KEY_ID`, `APNS_TEAM_ID` (ou `APN_TEAM_ID`), `APNS_VOIP_TOPIC` e `APNS_VOIP_ENVIRONMENT` no `.env`.
+- O serviço `push.service.ts` agora usa HTTP/2 + JWT (ES256) para enviar VoIP pushes diretamente ao APNs; Expo só é usado como fallback legado.
+- Teste com `apns-push-type: voip` e verifique o `apns-id` retornado para debugar falhas.
 
 ---
 

@@ -91,9 +91,11 @@ class CallKeepService {
       // If activity is missing (headless/background), allow retry later when foreground
       this.hasAttempted = isMissingActivity ? false : true;
 
-      console.error('[CallKeepService] ❌ Setup failed:', error);
       if (isMissingActivity) {
+        // This is expected during early init before Activity is ready - log as warning, not error
         console.warn('[CallKeepService] CallKeep setup skipped (no Activity yet) - will retry when available');
+      } else {
+        console.error('[CallKeepService] ❌ Setup failed:', error);
       }
       return false;
     }

@@ -80,17 +80,16 @@ class CallController {
 
       let channelName =
         call.channel_name ??
-        call.twilio_conference_sid ??
         `call-${callId}`;
 
-      if (!call.twilio_conference_sid) {
+      if (!call.channel_name) {
         try {
           const updatedCall = await DatabaseService.updateCall(callId, {
-            twilio_conference_sid: channelName
+            channel_name: channelName
           });
 
-          if (updatedCall?.twilio_conference_sid) {
-            channelName = updatedCall.twilio_conference_sid;
+          if (updatedCall?.channel_name) {
+            channelName = updatedCall.channel_name;
           }
         } catch (channelError) {
           console.warn('⚠️ Não foi possível persistir o channelName da chamada', channelError);
@@ -123,7 +122,8 @@ class CallController {
       // Adicionar porteiro como participante
       await DatabaseService.addCallParticipant({
         call_id: callId,
-        resident_id: effectiveDoormanId,
+        participant_id: effectiveDoormanId,
+        participant_type: 'doorman',
         status: 'answered',
         joined_at: new Date()
       });
@@ -142,8 +142,9 @@ class CallController {
       for (const resident of residents) {
         await DatabaseService.addCallParticipant({
           call_id: callId,
-          resident_id: resident.id,
-          status: 'invited'
+          participant_id: resident.id,
+          participant_type: 'resident',
+          status: 'notified'
         });
 
         participants.push({
@@ -417,9 +418,9 @@ class CallController {
         joined_at: new Date()
       });
 
-      // Marcar outros moradores como 'missed' (apenas se for morador atendendo)
+      // Marcar outros participantes como 'missed' (apenas se for morador atendendo)
       if (userType === 'resident') {
-        await DatabaseService.markOtherResidentsAsMissed(callId, userId);
+        await DatabaseService.markOtherParticipantsAsMissed(callId, userId);
       }
 
       // Buscar dados atualizados da chamada
@@ -674,7 +675,8 @@ class CallController {
             apartmentNumber: call.apartment_number,
             buildingId: call.building_id,
             buildingName: call.building_name,
-            doormanId: call.doorman_id,
+            initiatorId: call.initiator_id,
+            initiatorType: call.initiator_type,
             doormanName: call.doorman_name
           },
           participants
@@ -763,6 +765,356 @@ class CallController {
 
     } catch (error) {
       console.error('🔥 Erro ao buscar chamadas ativas:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Inicia uma chamada de morador para porteiro
+   * POST /api/calls/call-doorman
+   */
+  static async callDoorman(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        residentId,
+        doormanId,
+        buildingId,
+        context,
+        clientVersion,
+        schemaVersion
+      } = req.body;
+
+      // Validação dos parâmetros obrigatórios
+      if (!residentId || !doormanId || !buildingId) {
+        res.status(400).json({
+          success: false,
+          error: 'residentId, doormanId e buildingId são obrigatórios'
+        });
+        return;
+      }
+
+      console.log(
+        `🔔 Morador ${residentId} iniciando chamada para porteiro ${doormanId} no prédio ${buildingId}`
+      );
+
+      // Buscar dados do morador
+      const resident = await DatabaseService.getResidentProfile(residentId);
+      if (!resident) {
+        res.status(404).json({
+          success: false,
+          error: 'Morador não encontrado'
+        });
+        return;
+      }
+
+      // Buscar apartamento do morador
+      const apartment = await DatabaseService.getResidentApartment(residentId);
+      if (!apartment) {
+        res.status(404).json({
+          success: false,
+          error: 'Apartamento do morador não encontrado'
+        });
+        return;
+      }
+
+      // Buscar dados do porteiro
+      const doorman = await DatabaseService.getDoormanProfile(doormanId);
+      if (!doorman) {
+        res.status(404).json({
+          success: false,
+          error: 'Porteiro não encontrado'
+        });
+        return;
+      }
+
+      // Verificar se o porteiro pertence ao mesmo prédio
+      if (doorman.building_id !== buildingId) {
+        res.status(400).json({
+          success: false,
+          error: 'Porteiro não pertence a este prédio'
+        });
+        return;
+      }
+
+      // Criar chamada no banco de dados
+      const call = await DatabaseService.createResidentIntercomCall(
+        apartment.id,
+        residentId,
+        { status: 'calling' }
+      );
+
+      if (!call || !call.id) {
+        console.error('🔥 Erro: Chamada não foi criada corretamente');
+        res.status(500).json({
+          success: false,
+          error: 'Erro ao criar chamada no banco de dados'
+        });
+        return;
+      }
+
+      const callId = call.id;
+      let channelName = call.channel_name ?? `call-${callId}`;
+
+      if (!call.channel_name) {
+        try {
+          const updatedCall = await DatabaseService.updateCall(callId, {
+            channel_name: channelName
+          });
+          if (updatedCall?.channel_name) {
+            channelName = updatedCall.channel_name;
+          }
+        } catch (channelError) {
+          console.warn('⚠️ Não foi possível persistir o channelName da chamada', channelError);
+        }
+      }
+
+      console.log(`✅ Chamada ${callId} criada com canal ${channelName}`);
+
+      const participants: any[] = [];
+
+      // Gera tokens para o iniciador (morador)
+      const initiatorTokenBundle = agoraService.generateTokenPair({
+        channelName,
+        uid: String(residentId),
+        role: 'publisher'
+      });
+
+      // Adicionar morador como participante (caller)
+      await DatabaseService.addCallParticipant({
+        call_id: callId,
+        participant_id: residentId,
+        participant_type: 'resident',
+        status: 'answered',
+        joined_at: new Date()
+      });
+
+      participants.push({
+        user_id: String(residentId),
+        user_type: 'resident',
+        role: 'caller',
+        name: resident.full_name,
+        status: 'connected',
+        rtcUid: String(residentId),
+        rtmId: String(residentId)
+      });
+
+      // Adicionar porteiro como participante (callee)
+      await DatabaseService.addCallParticipant({
+        call_id: callId,
+        participant_id: doormanId,
+        participant_type: 'doorman',
+        status: 'notified'
+      });
+
+      participants.push({
+        user_id: doormanId,
+        user_type: 'doorman',
+        role: 'callee',
+        name: doorman.full_name,
+        status: 'ringing',
+        rtcUid: String(doormanId),
+        rtmId: String(doormanId),
+        pushToken: doorman.push_token ?? null,
+        voipPushToken: doorman.voip_push_token ?? null,
+        notification_enabled: doorman.notification_enabled ?? false
+      });
+
+      console.log(`✅ Chamada ${callId} criada com ${participants.length} participantes`);
+
+      const timestamp = Date.now();
+      const parsedSchemaVersion =
+        typeof schemaVersion === 'number'
+          ? schemaVersion
+          : typeof schemaVersion === 'string'
+            ? Number.parseInt(schemaVersion, 10)
+            : undefined;
+
+      const payloadVersion =
+        typeof parsedSchemaVersion === 'number' && Number.isFinite(parsedSchemaVersion)
+          ? parsedSchemaVersion
+          : 1;
+
+      const invitePayload: Record<string, unknown> = {
+        t: 'INVITE',
+        v: payloadVersion,
+        callId,
+        from: String(residentId),
+        channel: channelName,
+        ts: timestamp
+      };
+
+      if (clientVersion) {
+        invitePayload.clientVersion = clientVersion;
+      }
+
+      if (context) {
+        invitePayload.context = context;
+      }
+
+      // Send push notification to doorman
+      let pushNotificationsSent = 0;
+      let voipPushNotificationsSent = 0;
+
+      const doormanParticipant = participants.find((p: any) => p.user_type === 'doorman');
+      const canSendPush = doormanParticipant && 
+        (doormanParticipant.pushToken || doormanParticipant.voipPushToken) && 
+        doormanParticipant.notification_enabled;
+
+      if (pushService.isEnabled() && canSendPush) {
+        const baseCallData = {
+          callId,
+          from: String(residentId),
+          fromName: resident.full_name || 'Morador',
+          apartmentNumber: apartment.number,
+          buildingName: apartment.building_name,
+          channelName,
+          metadata: {
+            schemaVersion: payloadVersion,
+            clientVersion: clientVersion ?? null,
+            callDirection: 'resident_to_doorman'
+          }
+        };
+
+        // Prefer VoIP push for iOS, regular push for Android
+        if (doormanParticipant.voipPushToken) {
+          console.log(`📱 [iOS] Sending VoIP push notification to doorman...`);
+
+          const voipResult = await pushService.sendVoipPush({
+            ...baseCallData,
+            voipToken: doormanParticipant.voipPushToken
+          });
+
+          if (voipResult.success) {
+            voipPushNotificationsSent = 1;
+          } else {
+            console.warn(`⚠️ [iOS] VoIP push failed:`, voipResult.error);
+          }
+        } else if (doormanParticipant.pushToken) {
+          console.log(`📱 [Android] Sending regular push notification to doorman...`);
+
+          const pushResult = await pushService.sendCallInvite({
+            ...baseCallData,
+            pushToken: doormanParticipant.pushToken,
+            metadata: {
+              ...baseCallData.metadata,
+              platform: 'android'
+            }
+          });
+
+          if (pushResult.success) {
+            pushNotificationsSent = 1;
+          } else {
+            console.warn(`⚠️ [Android] Push failed:`, pushResult.error);
+          }
+        }
+      }
+
+      const totalPushNotificationsSent = pushNotificationsSent + voipPushNotificationsSent;
+
+      // Remove sensitive data from response
+      const serializedParticipants = participants.map((participant: any) => {
+        const { pushToken, voipPushToken, notification_enabled, ...rest } = participant;
+        return rest;
+      });
+
+      res.status(201).json({
+        success: true,
+        data: {
+          call: {
+            id: callId,
+            channelName,
+            apartmentNumber: apartment.number,
+            buildingId,
+            status: call.status ?? 'calling',
+            startedAt: call.started_at,
+            initiatorId: String(residentId),
+            initiatorType: 'resident',
+            targetDoormanId: doormanId,
+            context: context ?? null
+          },
+          participants: serializedParticipants,
+          tokens: {
+            initiator: initiatorTokenBundle
+          },
+          signaling: {
+            invite: invitePayload,
+            targets: [doormanId]
+          },
+          apartment: {
+            id: apartment.id,
+            number: apartment.number
+          },
+          resident: {
+            id: resident.id,
+            name: resident.full_name
+          },
+          doorman: {
+            id: doorman.id,
+            name: doorman.full_name
+          },
+          notificationsSent: totalPushNotificationsSent,
+          metadata: {
+            schemaVersion: payloadVersion,
+            clientVersion: clientVersion ?? null,
+            pushNotificationsSent: totalPushNotificationsSent,
+            iosPushNotificationsSent: voipPushNotificationsSent,
+            androidPushNotificationsSent: pushNotificationsSent
+          }
+        },
+        message: totalPushNotificationsSent > 0
+          ? `Chamada iniciada. Notificação enviada ao porteiro.`
+          : 'Chamada iniciada.'
+      });
+
+    } catch (error) {
+      console.error('🔥 Erro ao iniciar chamada para porteiro:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+  }
+
+  /**
+   * Lista porteiros de plantão de um prédio
+   * GET /api/calls/on-duty-doormen?buildingId=xxx
+   */
+  static async getOnDutyDoormen(req: Request, res: Response): Promise<void> {
+    try {
+      const { buildingId } = req.query;
+
+      if (!buildingId || typeof buildingId !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: 'buildingId é obrigatório'
+        });
+        return;
+      }
+
+      const doormen = await DatabaseService.getOnDutyDoormen(buildingId);
+
+      // Remove sensitive data
+      const sanitizedDoormen = doormen.map((d: any) => ({
+        id: d.id,
+        name: d.full_name,
+        email: d.email,
+        phone: d.phone,
+        shiftStatus: d.shift_status
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          doormen: sanitizedDoormen,
+          count: sanitizedDoormen.length
+        }
+      });
+
+    } catch (error) {
+      console.error('🔥 Erro ao buscar porteiros de plantão:', error);
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
