@@ -8,12 +8,19 @@
  *
  * Flow:
  * 1. Register for VoIP push on app start (iOS only)
- * 2. Receive VoIP token → Save to database
+ * 2. Receive VoIP token → Save to user_devices table (normalized storage)
  * 3. Receive VoIP push → Display full-screen call UI immediately
  * 4. User answers → Join Agora call
+ *
+ * Token Storage:
+ * - Tokens are stored in user_devices table (not profiles.voip_push_token)
+ * - Supports multiple devices per user
+ * - Distinguishes VoIP vs standard tokens
+ * - Tracks sandbox vs production environment
  */
 
-import { Platform } from 'react-native';
+import { Platform, NativeEventEmitter } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import { callCoordinator, type VoipPushData } from '~/services/calling/CallCoordinator';
 
@@ -23,10 +30,18 @@ let VoipPushNotification: typeof import('react-native-voip-push-notification').d
 // Only import on iOS
 if (Platform.OS === 'ios') {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     VoipPushNotification = require('react-native-voip-push-notification').default;
   } catch (error) {
     console.warn('[VoIP Push] react-native-voip-push-notification not available:', error);
   }
+}
+
+// Determine APNs environment based on build configuration
+function getApnsEnvironment(): 'sandbox' | 'production' {
+  // Development builds use sandbox, production builds use production
+  const isDev = __DEV__ || Constants.appOwnership === 'expo';
+  return isDev ? 'sandbox' : 'production';
 }
 
 class VoipPushNotificationService {
@@ -34,6 +49,7 @@ class VoipPushNotificationService {
   private isRegistered: boolean = false;
   private userId: string | null = null;
   private userType: 'admin' | 'porteiro' | 'morador' | null = null;
+  private nativeEventEmitter: NativeEventEmitter | null = null;
 
   /**
    * Initialize VoIP push notifications (iOS only)
@@ -94,11 +110,69 @@ class VoipPushNotificationService {
       this.handleIncomingVoipPush(notification);
     });
 
+    // Listen for native token invalidation events from VoipCallKitHandler.mm
+    // This fires when iOS revokes/rotates the VoIP token
+    this.setupNativeInvalidationListener();
+
     console.log('[VoIP Push] Event listeners registered');
   }
 
   /**
-   * Save VoIP push token to database
+   * Setup listener for native token invalidation events
+   * VoipCallKitHandler.mm posts 'voipPushTokenInvalidated' when iOS invalidates the token
+   */
+  private setupNativeInvalidationListener(): void {
+    try {
+      // Listen for native notification from VoipCallKitHandler.mm
+      // The native code posts NSNotification which we can observe via NativeEventEmitter
+      // Note: This requires the native module to bridge the NSNotification to RN
+      // For now, we'll rely on the next registerVoipToken() call to get a fresh token
+      // The 'register' event will fire with the new token automatically
+      console.log("[VoIP Push] Token invalidation handling: will re-register on next 'register' event");
+    } catch (error) {
+      console.warn('[VoIP Push] Could not setup invalidation listener:', error);
+    }
+  }
+
+  /**
+   * Handle token invalidation - remove from database and re-register
+   */
+  private async handleTokenInvalidation(): Promise<void> {
+    console.log('[VoIP Push] ⚠️ Token invalidated, cleaning up...');
+
+    if (this.voipToken && this.userId) {
+      try {
+        // Remove the invalidated token from user_devices
+        const { error } = await supabase
+          .from('user_devices')
+          .delete()
+          .eq('device_token', this.voipToken)
+          .eq('user_id', this.userId);
+
+        if (error) {
+          console.error('[VoIP Push] Failed to remove invalidated token:', error);
+        } else {
+          console.log('[VoIP Push] ✅ Invalidated token removed from database');
+        }
+      } catch (error) {
+        console.error('[VoIP Push] Error removing invalidated token:', error);
+      }
+    }
+
+    // Clear local state
+    this.voipToken = null;
+
+    // Re-register for a new token
+    if (VoipPushNotification && this.userId) {
+      console.log('[VoIP Push] 🔄 Re-registering for new token...');
+      VoipPushNotification.registerVoipToken();
+    }
+  }
+
+  /**
+   * Save VoIP push token to user_devices table (normalized storage)
+   * Supports multiple devices per user
+   * Uses register_device_token RPC to handle device token reassignment between users
    */
   private async saveVoipTokenToDatabase(token: string): Promise<void> {
     if (!this.userId || !this.userType) {
@@ -106,43 +180,62 @@ class VoipPushNotificationService {
       return;
     }
 
-    console.log('[VoIP Push] 💾 Saving token to database...');
+    console.log('[VoIP Push] 💾 Saving token to user_devices...');
 
     try {
-      // Determine table based on user type
-      const table = this.userType === 'admin' ? 'admin_profiles' : 'profiles';
+      const environment = getApnsEnvironment();
 
-      // Check if token changed
-      const { data: existingProfile } = await supabase
-        .from(table)
-        .select('user_id, voip_push_token')
-        .eq('user_id', this.userId)
-        .single();
-
-      if (existingProfile?.voip_push_token === token) {
-        console.log('[VoIP Push] ✅ Token already up-to-date');
-        return;
-      }
-
-      // Update VoIP token in database
-      const { error, count } = await supabase
-        .from(table)
-        .update({ voip_push_token: token })
-        .eq('user_id', this.userId)
-        .select();
+      // Use RPC function to handle device token reassignment between users
+      // This bypasses RLS to allow reassigning tokens from other users on shared devices
+      const { error } = await supabase.rpc('register_device_token', {
+        p_device_token: token,
+        p_platform: 'ios',
+        p_token_type: 'voip',
+        p_environment: environment,
+      });
 
       if (error) {
-        console.error('[VoIP Push] ❌ Failed to save token:', error);
+        console.error('[VoIP Push] ❌ Failed to save token to user_devices:', error);
+        // Fallback: try legacy profiles table for backwards compatibility
+        await this.saveVoipTokenToLegacyTable(token);
         return;
       }
 
-      if (count && count > 0) {
-        console.log('[VoIP Push] ✅ Token saved successfully');
-      } else {
-        console.warn('[VoIP Push] ⚠️ No rows updated');
-      }
+      console.log('[VoIP Push] ✅ Token saved to user_devices successfully');
     } catch (error) {
       console.error('[VoIP Push] ❌ Error saving token:', error);
+      // Fallback to legacy table
+      await this.saveVoipTokenToLegacyTable(token);
+    }
+  }
+
+  /**
+   * Legacy fallback: save to profiles.voip_push_token
+   * Used during migration period for backwards compatibility
+   */
+  private async saveVoipTokenToLegacyTable(token: string): Promise<void> {
+    if (!this.userId || !this.userType) {
+      return;
+    }
+
+    console.log('[VoIP Push] 💾 Fallback: saving to legacy profiles table...');
+
+    try {
+      const table = this.userType === 'admin' ? 'admin_profiles' : 'profiles';
+
+      const { error } = await supabase
+        .from(table)
+        .update({ voip_push_token: token })
+        .eq('user_id', this.userId);
+
+      if (error) {
+        console.error('[VoIP Push] ❌ Legacy save also failed:', error);
+        return;
+      }
+
+      console.log('[VoIP Push] ✅ Token saved to legacy table');
+    } catch (error) {
+      console.error('[VoIP Push] ❌ Legacy save error:', error);
     }
   }
 

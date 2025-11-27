@@ -1866,6 +1866,47 @@ export type Database = {
           },
         ]
       }
+      user_devices: {
+        Row: {
+          id: string
+          user_id: string
+          device_token: string
+          platform: 'ios' | 'android'
+          token_type: 'voip' | 'standard'
+          environment: 'sandbox' | 'production'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_token: string
+          platform: 'ios' | 'android'
+          token_type: 'voip' | 'standard'
+          environment?: 'sandbox' | 'production'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_token?: string
+          platform?: 'ios' | 'android'
+          token_type?: 'voip' | 'standard'
+          environment?: 'sandbox' | 'production'
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       poll_options_with_vote_counts: {
@@ -1964,6 +2005,15 @@ export type Database = {
       expire_old_notifications: { Args: never; Returns: number }
       generate_random_password: { Args: never; Returns: string }
       get_active_porteiro: { Args: { building_uuid: string }; Returns: string }
+      register_device_token: {
+        Args: {
+          p_device_token: string
+          p_platform: string
+          p_token_type: string
+          p_environment?: string
+        }
+        Returns: string
+      }
       get_apartment_residents: {
         Args: { apartment_number: string; building_id: string }
         Returns: {

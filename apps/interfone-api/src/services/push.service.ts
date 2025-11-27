@@ -1,9 +1,15 @@
-import { createApnsClientFromEnv } from './apns.service.ts';
+import { createApnsClientFromEnv, type ApnsSendResult } from './apns.service.ts';
+import dbService from './db.service.ts';
 
 /**
  * Push Notification Service
  * Handles sending push notifications to mobile devices for call invites
- * Supports Expo Push Notifications
+ * Supports Expo Push Notifications and native APNs for VoIP
+ *
+ * Per VoIP integration documentation:
+ * - APNs is REQUIRED for iOS VoIP pushes (Expo cannot wake killed apps)
+ * - Invalid tokens should be pruned from user_devices table
+ * - Expo fallback is a degraded mode that won't reliably wake iOS apps
  */
 
 interface PushNotificationPayload {
@@ -62,18 +68,25 @@ class PushNotificationService {
   private readonly expoApiUrl = 'https://exp.host/--/api/v2/push/send';
   private readonly enabled: boolean;
   private readonly apnsClient = createApnsClientFromEnv();
+  private readonly apnsConfigured: boolean;
 
   constructor() {
     // Check if push notifications are enabled
     // In production, you might want to require an access token
     this.enabled = process.env.PUSH_NOTIFICATIONS_ENABLED !== 'false';
+    this.apnsConfigured = this.apnsClient !== null;
 
     if (!this.enabled) {
       console.log('📵 Push notifications are disabled');
     } else if (this.apnsClient) {
       console.log('📡 APNs VoIP transport enabled (HTTP/2)');
     } else {
-      console.warn('⚠️ APNs VoIP credentials missing - falling back to Expo VoIP push transport');
+      // CRITICAL: APNs is required for reliable iOS VoIP pushes
+      // Expo push cannot wake killed apps or satisfy CallKit requirements
+      console.error('🚨 [CRITICAL] APNs VoIP credentials missing!');
+      console.error('   iOS VoIP calls will NOT work reliably without APNs configuration.');
+      console.error('   Required env vars: APNS_VOIP_KEY, APNS_VOIP_KEY_ID, APNS_TEAM_ID, APNS_VOIP_TOPIC');
+      console.error('   Expo push fallback is a DEGRADED mode that cannot wake killed iOS apps.');
     }
   }
 
@@ -263,6 +276,9 @@ class PushNotificationService {
       return this.sendVoipPushViaApns(params);
     }
 
+    // DEGRADED MODE: Expo push cannot reliably wake killed iOS apps
+    console.warn('⚠️ [push] Using Expo fallback for VoIP - this is a DEGRADED mode!');
+    console.warn('   iOS calls may not wake killed apps. Configure APNs for reliable delivery.');
     return this.sendVoipPushViaExpo(params);
   }
 
@@ -297,12 +313,17 @@ class PushNotificationService {
         priority: '10'
       });
 
+      // Handle APNs error responses - prune invalid tokens per documentation Section 5.2
       if (!response.success) {
         const errorMessage = response.error || `APNs HTTP ${response.status || 0}`;
         console.error('❌ [push] APNs VoIP push failed:', errorMessage, {
           status: response.status,
           apnsId: response.apnsId,
         });
+
+        // Prune invalid tokens (410 = token no longer valid, BadDeviceToken, Unregistered)
+        await this.handleApnsError(response, sanitizedToken);
+
         return {
           success: false,
           pushToken: sanitizedToken,
@@ -508,6 +529,46 @@ class PushNotificationService {
   isEnabled(): boolean {
     return this.enabled;
   }
-}
 
+  /**
+   * Check if APNs is properly configured for VoIP
+   */
+  isApnsConfigured(): boolean {
+    return this.apnsConfigured;
+  }
+
+  /**
+   * Handle APNs error responses and prune invalid tokens
+   * Per VoIP integration documentation Section 5.2:
+   * - 410 status = token no longer valid (app uninstalled)
+   * - BadDeviceToken = invalid token format
+   * - Unregistered = device unregistered
+   *
+   * NOTE: ExpiredProviderToken is NOT included - that indicates the JWT used to
+   * authenticate with APNs has expired, NOT that the device token is invalid.
+   * Pruning on ExpiredProviderToken would wipe all users' tokens on JWT expiry.
+   */
+  private async handleApnsError(response: ApnsSendResult, deviceToken: string): Promise<void> {
+    // List of error reasons that indicate the DEVICE TOKEN should be pruned
+    // Do NOT include auth-related errors like ExpiredProviderToken
+    const prunableErrors = [
+      'BadDeviceToken',
+      'Unregistered',
+      'DeviceTokenNotForTopic',
+    ];
+
+    const shouldPrune =
+      response.status === 410 ||
+      (response.error && prunableErrors.includes(response.error));
+
+    if (!shouldPrune) {
+      return;
+    }
+
+    console.log(`🗑️ [push] Pruning invalid APNs token: ${deviceToken.slice(0, 10)}...`);
+    console.log(`   Reason: ${response.error || `HTTP ${response.status}`}`);
+
+    await dbService.pruneInvalidDeviceToken(deviceToken);
+  }
+}
 export default new PushNotificationService();

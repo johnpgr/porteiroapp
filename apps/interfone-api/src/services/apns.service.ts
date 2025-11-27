@@ -258,6 +258,7 @@ export function normalizePrivateKey(raw: string): string {
     }
   }
 
+
   if (!normalized.includes('BEGIN PRIVATE KEY')) {
     normalized = `-----BEGIN PRIVATE KEY-----\n${normalized}\n-----END PRIVATE KEY-----`;
   }
@@ -265,11 +266,44 @@ export function normalizePrivateKey(raw: string): string {
   return normalized;
 }
 
+/**
+ * Validate that the APNs topic is correctly formatted for VoIP
+ * Per VoIP integration documentation Section 5.1:
+ * VoIP topic MUST be the bundle ID suffixed with .voip
+ */
+function validateVoipTopic(topic: string): boolean {
+  if (!topic) {
+    return false;
+  }
+
+  if (!topic.endsWith('.voip')) {
+    console.warn(`[APNs] ⚠️ VoIP topic "${topic}" should end with ".voip" suffix`);
+    console.warn(`   Example: if bundle ID is "com.acme.app", topic should be "com.acme.app.voip"`);
+    return false;
+  }
+
+  return true;
+}
+
 export function createApnsClientFromEnv(): ApnsClient | null {
+  // Try multiple sources for the private key
   let key = process.env.APNS_VOIP_KEY;
+
+  // Support APNS_VOIP_KEY_PATH for file-based key (useful for mounted secrets)
+  if (!key && process.env.APNS_VOIP_KEY_PATH) {
+    try {
+      key = readFileSync(process.env.APNS_VOIP_KEY_PATH, 'utf8');
+      console.log('[APNs] Loaded key from APNS_VOIP_KEY_PATH');
+    } catch (error) {
+      console.warn('[APNs] Failed to read key from APNS_VOIP_KEY_PATH:', error);
+    }
+  }
+
+  // Legacy fallback: APN_KEY_PATH
   if (!key && process.env.APN_KEY_PATH) {
     try {
       key = readFileSync(process.env.APN_KEY_PATH, 'utf8');
+      console.log('[APNs] Loaded key from legacy APN_KEY_PATH');
     } catch (error) {
       console.warn('[APNs] Failed to read key from APN_KEY_PATH:', error);
     }
@@ -279,13 +313,29 @@ export function createApnsClientFromEnv(): ApnsClient | null {
   const teamId = process.env.APNS_TEAM_ID || process.env.APN_TEAM_ID;
   const topic = process.env.APNS_VOIP_TOPIC;
 
+  // Log which credentials are missing for easier debugging
   if (!key || !keyId || !teamId || !topic) {
+    const missing: string[] = [];
+    if (!key) missing.push('APNS_VOIP_KEY (or APNS_VOIP_KEY_PATH)');
+    if (!keyId) missing.push('APNS_VOIP_KEY_ID');
+    if (!teamId) missing.push('APNS_TEAM_ID');
+    if (!topic) missing.push('APNS_VOIP_TOPIC');
+
+    console.warn(`[APNs] Missing required credentials: ${missing.join(', ')}`);
     return null;
   }
+
+  // Validate topic format
+  validateVoipTopic(topic);
 
   const environment: ApnsEnvironment = process.env.APNS_VOIP_ENVIRONMENT === 'development'
     ? 'development'
     : 'production';
+
+  console.log(`[APNs] Initializing client for ${environment} environment`);
+  console.log(`[APNs] Topic: ${topic}`);
+  console.log(`[APNs] Key ID: ${keyId}`);
+  console.log(`[APNs] Team ID: ${teamId}`);
 
   const privateKey = normalizePrivateKey(key);
   return new ApnsClient({ keyId, teamId, topic, privateKey, environment });

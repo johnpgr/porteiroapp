@@ -414,6 +414,7 @@ class DatabaseService {
 
   /**
    * Busca moradores de um apartamento
+   * Fetches VoIP tokens from user_devices table (normalized storage) with fallback to profiles.voip_push_token
    * @param apartmentId - ID do apartamento
    * @returns Lista de moradores do apartamento
    */
@@ -450,19 +451,73 @@ class DatabaseService {
         JSON.stringify(data, null, 2),
       );
 
+      // Get user IDs for fetching VoIP tokens from user_devices
+      const userIds = data.map((resident: any) => resident.profiles.id);
+
+      // Fetch VoIP tokens from user_devices table (normalized storage)
+      // Guard: Supabase .in() fails with empty array (Postgres syntax error on IN ())
+      let deviceTokens: Array<{ user_id: string; device_token: string; environment: string }> | null = null;
+      let deviceError: any = null;
+
+      if (userIds.length > 0) {
+        const result = await this.supabase
+          .from("user_devices")
+          .select("user_id, device_token, environment")
+          .in("user_id", userIds)
+          .eq("platform", "ios")
+          .eq("token_type", "voip");
+
+        deviceTokens = result.data;
+        deviceError = result.error;
+
+        if (deviceError) {
+          console.warn("⚠️ Error fetching device tokens (falling back to profiles):", deviceError);
+        }
+      }
+
+      // Create a map of user_id -> voip_tokens (can have multiple devices per user)
+      const voipTokensByUser = new Map<string, Array<{ token: string; environment: string }>>();
+      if (deviceTokens) {
+        for (const device of deviceTokens) {
+          if (!voipTokensByUser.has(device.user_id)) {
+            voipTokensByUser.set(device.user_id, []);
+          }
+          voipTokensByUser.get(device.user_id)!.push({
+            token: device.device_token,
+            environment: device.environment,
+          });
+        }
+      }
+
       // Mapear dados para formato mais limpo
-      return data.map((resident: any) => ({
-        id: resident.profiles.id,
-        name: resident.profiles.full_name,
-        email: resident.profiles.email,
-        phone: resident.profiles.phone,
-        user_type: resident.profiles.user_type,
-        relationship: resident.relationship,
-        is_primary: resident.is_primary,
-        notification_enabled: resident.profiles.notification_enabled,
-        push_token: resident.profiles.push_token,
-        voip_push_token: resident.profiles.voip_push_token,
-      }));
+      return data.map((resident: any) => {
+        const userId = resident.profiles.id;
+        const deviceVoipTokens = voipTokensByUser.get(userId);
+
+        // Prefer user_devices tokens, fallback to profiles.voip_push_token for migration
+        let voipPushToken = resident.profiles.voip_push_token;
+        let voipTokens: Array<{ token: string; environment: string }> | null = null;
+
+        if (deviceVoipTokens && deviceVoipTokens.length > 0) {
+          // Use first token for backwards compatibility, but also provide all tokens
+          voipPushToken = deviceVoipTokens[0].token;
+          voipTokens = deviceVoipTokens;
+        }
+
+        return {
+          id: userId,
+          name: resident.profiles.full_name,
+          email: resident.profiles.email,
+          phone: resident.profiles.phone,
+          user_type: resident.profiles.user_type,
+          relationship: resident.relationship,
+          is_primary: resident.is_primary,
+          notification_enabled: resident.profiles.notification_enabled,
+          push_token: resident.profiles.push_token,
+          voip_push_token: voipPushToken,
+          voip_tokens: voipTokens, // All VoIP tokens for multi-device support
+        };
+      });
     } catch (error) {
       console.error("🔥 Erro ao buscar moradores do apartamento:", error);
       throw error;
@@ -1008,6 +1063,32 @@ class DatabaseService {
     } catch (error) {
       console.error("🔥 Erro ao criar chamada de interfone de morador:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Prune an invalid device token from user_devices table
+   * Called when APNs returns an error indicating the token is no longer valid
+   * @param deviceToken - The device token to remove
+   * @returns Number of deleted records or null on error
+   */
+  async pruneInvalidDeviceToken(deviceToken: string): Promise<number | null> {
+    try {
+      const { error, count } = await this.supabase
+        .from('user_devices')
+        .delete()
+        .eq('device_token', deviceToken);
+
+      if (error) {
+        console.error('❌ [db] Failed to prune invalid token from user_devices:', error);
+        return null;
+      }
+
+      console.log(`✅ [db] Pruned ${count ?? 'unknown number of'} invalid token(s) from user_devices`);
+      return count ?? 0;
+    } catch (error) {
+      console.error('❌ [db] Error pruning invalid token:', error);
+      return null;
     }
   }
 

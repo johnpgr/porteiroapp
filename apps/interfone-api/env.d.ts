@@ -34,11 +34,13 @@ declare global {
       TWILIO_API_KEY_SECRET?: string;
 
       // Push Notifications
+      PUSH_NOTIFICATIONS_ENABLED?: string;
       FIREBASE_SERVICE_ACCOUNT_PATH?: string;
       APN_KEY_PATH?: string;
       APN_KEY_ID?: string;
       APN_TEAM_ID?: string;
       APNS_VOIP_KEY?: string;
+      APNS_VOIP_KEY_PATH?: string; // Alternative: path to .p8 file
       APNS_VOIP_KEY_ID?: string;
       APNS_TEAM_ID?: string;
       APNS_VOIP_TOPIC?: string;

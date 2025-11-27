@@ -158,6 +158,7 @@ class CallController {
           rtmId: String(resident.id),
           pushToken: resident.push_token ?? null,
           voipPushToken: resident.voip_push_token ?? null,
+          voip_tokens: resident.voip_tokens ?? null, // Multi-device VoIP tokens from user_devices
           notification_enabled: resident.notification_enabled ?? false
         });
 
@@ -202,6 +203,7 @@ class CallController {
       const withNotificationsEnabled = residentParticipants.filter((p: any) => p.notification_enabled);
 
       // Separate iOS (VoIP) and Android (regular) recipients
+      // Note: voip_tokens contains all devices for multi-device support
       const iosRecipients = residentParticipants.filter((p: any) => p.voipPushToken && p.notification_enabled);
       const androidRecipients = residentParticipants.filter((p: any) => p.pushToken && p.notification_enabled && !p.voipPushToken);
       const eligibleForNotifications = [...iosRecipients, ...androidRecipients];
@@ -214,11 +216,27 @@ class CallController {
       console.log(`   Eligible Android (regular): ${androidRecipients.length}`);
       console.log(`   Total eligible: ${eligibleForNotifications.length}`);
 
-      const voipPushTargets = iosRecipients.map((participant: any) => ({
-        userId: participant.user_id,
-        voipToken: participant.voipPushToken,
-        name: participant.name
-      }));
+      // Build VoIP push targets - support multiple devices per user
+      const voipPushTargets: Array<{ userId: string; voipToken: string; name: string }> = [];
+      for (const participant of iosRecipients) {
+        // If voip_tokens array exists (multi-device), create a target for each device
+        if (participant.voip_tokens && Array.isArray(participant.voip_tokens)) {
+          for (const tokenInfo of participant.voip_tokens) {
+            voipPushTargets.push({
+              userId: participant.user_id,
+              voipToken: tokenInfo.token,
+              name: participant.name
+            });
+          }
+        } else if (participant.voipPushToken) {
+          // Fallback to single token for backwards compatibility
+          voipPushTargets.push({
+            userId: participant.user_id,
+            voipToken: participant.voipPushToken,
+            name: participant.name
+          });
+        }
+      }
 
       const pushFallbackTargets = androidRecipients.map((participant: any) => ({
         userId: participant.user_id,
@@ -228,7 +246,7 @@ class CallController {
 
       const serializedParticipants = participants.map((participant: any) => {
         // Remover dados sensíveis (push tokens, voip tokens, notification settings) do payload público
-        const { pushToken, voipPushToken, notification_enabled, ...rest } = participant;
+        const { pushToken, voipPushToken, voip_tokens, notification_enabled, ...rest } = participant;
         return rest;
       });
 
