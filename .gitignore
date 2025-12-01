@@ -15,10 +15,9 @@ expo-env.d.ts
 # firebase/supabase/vexo
 .env
 
-ios
-android
-
-# Exception: Allow plugin iOS directories (these are source files, not generated)
+# Generated native directories (exclude but allow plugin source files)
+/apps/*/ios/
+/apps/*/android/
 !apps/expo/plugins/**/ios/
 !apps/expo/plugins/**/android/
 
