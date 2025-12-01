@@ -2,7 +2,7 @@
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "2.0.6",
+    "version": "2.1.0",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
