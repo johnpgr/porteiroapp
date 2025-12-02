@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, Text, ActivityIndicator, Image, ImageBackground } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ActivityIndicator, Image, Text, View } from 'react-native';
 
 interface SplashScreenProps {
   progress?: string;

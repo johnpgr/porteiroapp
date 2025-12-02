@@ -1,4 +1,4 @@
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 
 // Cliente admin com service role key para operações privilegiadas
 export const { client: supabaseAdmin, unified: unifiedAdmin } = SupabaseClientFactory.createServerClient({

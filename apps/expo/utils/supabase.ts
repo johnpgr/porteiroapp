@@ -1,5 +1,9 @@
 import { Platform } from 'react-native';
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
+import { registerPushTokenAfterLogin } from './pushNotifications';
+import type {Database} from '@porteiroapp/supabase';
+
+type AdminProfile = Database['public']['Tables']['admin_profiles']['Row'];
 
 // Importação condicional do AsyncStorage
 let AsyncStorage: any = null;
@@ -18,18 +22,6 @@ export const { client: supabase, unified } = SupabaseClientFactory.createReactNa
     logLevel: __DEV__ ? 'info' : 'error',
   }
 );
-
-// Tipos para autenticação de administrador
-export interface AdminProfile {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  role: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface Building {
   id: string;
@@ -86,6 +78,12 @@ export const adminAuth = {
           role: adminProfile.role,
           platform: Platform.OS,
         });
+
+        // Register push token immediately after successful admin login
+        registerPushTokenAfterLogin(data.user.id, 'admin').catch((error) => {
+          console.error('🔔 Failed to register push token after admin login:', error);
+        });
+
         return { user: data.user, adminProfile };
       }
 
@@ -202,7 +200,7 @@ export const adminAuth = {
   // Criar novo perfil de administrador
   async createAdminProfile(userData: {
     user_id: string;
-    name: string;
+    full_name: string;
     email: string;
     role?: string;
   }): Promise<AdminProfile | null> {
@@ -211,7 +209,7 @@ export const adminAuth = {
         .from('admin_profiles')
         .insert({
           user_id: userData.user_id,
-          name: userData.name,
+          full_name: userData.full_name,
           email: userData.email,
           role: userData.role || 'admin',
         })
@@ -255,7 +253,7 @@ export const adminAuth = {
   async updateAdminProfile(
     adminId: string,
     updateData: {
-      name?: string;
+      full_name?: string;
       email?: string;
       role?: string;
     }

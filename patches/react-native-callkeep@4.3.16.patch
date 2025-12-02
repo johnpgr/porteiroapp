@@ -1,0 +1,108 @@
+diff --git a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
+index 025480ac97460cc45775ea11aa43af36522d5df6..100b4e654451fe0686f8eaa5223f7edbeaa16531 100644
+--- a/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
++++ b/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java
+@@ -19,6 +19,7 @@ package io.wazo.callkeep;
+ import com.facebook.react.bridge.LifecycleEventListener;
+ import android.Manifest;
+ import android.app.Activity;
++import android.app.ActivityManager;
+ import android.content.BroadcastReceiver;
+ import android.content.ComponentName;
+ import android.content.Context;
+@@ -434,10 +435,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+         this.hasListeners = false;
+     }
+ 
+-    @ReactMethod
+-    public void displayIncomingCall(String uuid, String number, String callerName) {
+-        this.displayIncomingCall(uuid, number, callerName, false, null);
+-    }
++    // @ReactMethod
++    // public void displayIncomingCall(String uuid, String number, String callerName) {
++    //     this.displayIncomingCall(uuid, number, callerName, false, null);
++    // }
+ 
+     @ReactMethod
+     public void displayIncomingCall(String uuid, String number, String callerName, boolean hasVideo) {
+@@ -483,10 +484,10 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+         conn.onAnswer();
+     }
+ 
+-    @ReactMethod
+-    public void startCall(String uuid, String number, String callerName) {
+-        this.startCall(uuid, number, callerName, false, null);
+-    }
++    // @ReactMethod
++    // public void startCall(String uuid, String number, String callerName) {
++    //     this.startCall(uuid, number, callerName, false, null);
++    // }
+ 
+     @ReactMethod
+     public void startCall(String uuid, String number, String callerName, boolean hasVideo) {
+@@ -1293,6 +1294,7 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+                     sendEventToJS("RNCallKeepPerformEndCallAction", args);
+                     break;
+                 case ACTION_ANSWER_CALL:
++                    bringAppToForeground(attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("callUUID", attributeMap.get(EXTRA_CALL_UUID));
+                     args.putBoolean("withVideo", Boolean.valueOf(attributeMap.get(EXTRA_HAS_VIDEO)));
+                     sendEventToJS("RNCallKeepPerformAnswerCallAction", args);
+@@ -1335,6 +1337,7 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+                     sendEventToJS("RNCallKeepCheckReachability", null);
+                     break;
+                 case ACTION_SHOW_INCOMING_CALL_UI:
++                    bringAppToForeground(attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("handle", attributeMap.get(EXTRA_CALL_NUMBER));
+                     args.putString("callUUID", attributeMap.get(EXTRA_CALL_UUID));
+                     args.putString("name", attributeMap.get(EXTRA_CALLER_NAME));
+@@ -1374,4 +1377,49 @@ public class RNCallKeepModule extends ReactContextBaseJavaModule implements Life
+             }
+         }
+     }
++
++    /**
++     * Bring host app to the foreground when user answers from native UI.
++     * Important for OEMs like Xiaomi/MIUI that bounce back to system UI.
++     */
++    private void bringAppToForeground(@Nullable String callUUID) {
++        Context appContext = getAppContext();
++        if (appContext == null) {
++            Log.w(TAG, "[RNCallKeepModule] No app context, cannot foreground");
++            return;
++        }
++
++        try {
++            Intent launchIntent =
++                    appContext.getPackageManager().getLaunchIntentForPackage(appContext.getPackageName());
++
++            if (launchIntent == null) {
++                Log.w(TAG, "[RNCallKeepModule] No launch intent, cannot foreground app");
++                return;
++            }
++
++            launchIntent.addFlags(
++                    Intent.FLAG_ACTIVITY_NEW_TASK
++                            | Intent.FLAG_ACTIVITY_SINGLE_TOP
++                            | Intent.FLAG_ACTIVITY_CLEAR_TOP
++                            | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
++
++            if (callUUID != null) {
++                launchIntent.putExtra("callUUID", callUUID);
++            }
++
++            appContext.startActivity(launchIntent);
++
++            ActivityManager activityManager =
++                    (ActivityManager) appContext.getSystemService(Context.ACTIVITY_SERVICE);
++            if (activityManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++                List<ActivityManager.AppTask> tasks = activityManager.getAppTasks();
++                if (tasks != null && !tasks.isEmpty()) {
++                    tasks.get(0).moveToFront();
++                }
++            }
++        } catch (Exception e) {
++            Log.e(TAG, "[RNCallKeepModule] Failed to foreground app", e);
++        }
++    }
+ }

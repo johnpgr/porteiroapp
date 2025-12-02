@@ -1,7 +1,8 @@
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from './supabase';
 import NetInfo from '@react-native-community/netinfo';
+import type { FileOptions } from '@porteiroapp/supabase';
 
 export interface PhotoUploadResult {
   success: boolean;
@@ -192,7 +193,7 @@ export class PhotoUploadService {
         }
 
         // Gerar nome do arquivo
-        const fileName = this.generateFileName(userId, imageAsset.fileName);
+        const fileName = this.generateFileName(userId, imageAsset.fileName ?? undefined);
         console.log('📝 [PhotoUpload] Nome do arquivo gerado:', fileName);
 
         // Converter URI para Blob
@@ -200,11 +201,11 @@ export class PhotoUploadService {
         console.log('🔄 [PhotoUpload] Imagem convertida para blob, tamanho:', blob.size);
 
         // Configurações de upload mais robustas
-        const uploadOptions = {
+        const uploadOptions: FileOptions = {
           cacheControl: '3600',
           upsert: false,
           contentType: imageAsset.mimeType || 'image/jpeg',
-          duplex: 'half' as RequestDuplex
+          duplex: 'half'
         };
 
         // Fazer upload para o Supabase Storage
@@ -219,7 +220,7 @@ export class PhotoUploadService {
           // Tratar erro de arquivo já existente
           if (error.message.includes('already exists')) {
             console.log('🔄 [PhotoUpload] Arquivo já existe, tentando com novo nome...');
-            const newFileName = this.generateFileName(userId, imageAsset.fileName);
+            const newFileName = this.generateFileName(userId, imageAsset.fileName ?? undefined);
             const retryResult = await supabase.storage
               .from(this.BUCKET_NAME)
               .upload(newFileName, blob, uploadOptions);
@@ -228,10 +229,28 @@ export class PhotoUploadService {
               throw retryResult.error;
             }
 
-            data.path = retryResult.data.path;
+            if (!retryResult.data) {
+              throw new Error('Upload retornado sem dados');
+            }
+
+            // Obter URL pública da imagem com o novo caminho
+            const { data: urlData } = supabase.storage
+              .from(this.BUCKET_NAME)
+              .getPublicUrl(retryResult.data.path);
+
+            console.log('✅ [PhotoUpload] Upload concluído com sucesso:', urlData.publicUrl);
+            
+            return {
+              success: true,
+              url: urlData.publicUrl
+            };
           } else {
             throw error;
           }
+        }
+
+        if (!data) {
+          throw new Error('Upload retornado sem dados');
         }
 
         // Obter URL pública da imagem

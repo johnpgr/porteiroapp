@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { Clock, User, CheckCircle, LogIn, LogOut, Play, Square } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 import { useShiftControl } from '../hooks/useShiftControl';
 import { useAuth } from '../hooks/useAuth';
 
@@ -20,7 +20,7 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
     startShift,
     endShift,
     refreshShiftStatus
-  } = useShiftControl(user?.id, buildingId);
+  } = useShiftControl({ porteiroId: user?.id || '', buildingId });
 
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
@@ -127,7 +127,7 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
       <View className="flex-row items-center justify-between mb-3">
         <View className="flex-row items-center">
           <View className="bg-white/20 rounded-full p-2 mr-3">
-            <Clock size={20} color="white" />
+            <IconSymbol name="clock.fill" size={20} color="white" />
           </View>
           <View>
             <Text className="text-white font-bold text-base">
@@ -152,23 +152,23 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
             <View className="bg-white/10 rounded-lg p-3">
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center">
-                  <CheckCircle size={16} color="#10B981" />
+                  <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />
                   <Text className="ml-2 text-white font-medium text-sm">
                     Turno Ativo
                   </Text>
                 </View>
                 <Text className="text-white/80 text-xs">
-                  {formatDuration(currentShift.start_time)}
+                  {formatDuration(currentShift.shift_start)}
                 </Text>
               </View>
               <Text className="text-white/70 text-xs mt-1">
-                Iniciado às {formatTime(currentShift.start_time)}
+                Iniciado às {formatTime(currentShift.shift_start)}
               </Text>
             </View>
           ) : (
             <View className="bg-white/10 rounded-lg p-3">
               <View className="flex-row items-center">
-                <User size={16} color="#E5E7EB" />
+                <IconSymbol name="person" size={16} color="#E5E7EB" />
                 <Text className="ml-2 text-white/90 font-medium text-sm">
                   Fora de Turno
                 </Text>
@@ -202,7 +202,7 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
               <ActivityIndicator size="small" color="white" />
             ) : (
               <>
-                <LogOut size={16} color="#FCA5A5" />
+                <IconSymbol name="stop.circle.fill" size={16} color="#FCA5A5" />
                 <Text className="ml-2 text-red-100 font-medium text-sm">
                   Finalizar Turno
                 </Text>
@@ -221,7 +221,7 @@ export default function ShiftControl({ buildingId }: ShiftControlProps) {
               <ActivityIndicator size="small" color="white" />
             ) : (
               <>
-                <LogIn size={16} color="white" />
+                <IconSymbol name="play.circle.fill" size={16} color="white" />
                 <Text className="ml-2 text-white font-medium text-sm">
                   Iniciar Turno
                 </Text>

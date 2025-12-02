@@ -1,84 +1,58 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as Device from 'expo-device';
 import { useFonts } from 'expo-font';
-import * as Notifications from 'expo-notifications';
-import { Stack, useRouter } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SafeAreaView } from '~/components/SafeAreaView';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { ReadOnlyGuard } from '~/components/ReadOnlyGuard';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
-// Removed old notification service - using Edge Functions for push notifications
-// import { audioService } from '../services/audioService'; // Temporariamente comentado devido a problemas com expo-av na web
+import { SplashScreenController } from '../splash';
+import { PushTokenProvider } from '../providers/PushTokenProvider';
+import { DeepLinkProvider } from '../providers/DeepLinkProvider';
+import { CallManagerProvider } from '../providers/CallManagerProvider';
+import { NotificationProvider } from '../providers/NotificationProvider';
+import { initializeNotificationHandler } from '../services/notification/notificationHandler';
+import { registerBackgroundNotificationTask } from '../services/notification/backgroundTask';
+import { SafeAreaView } from '~/components/SafeAreaView';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync().catch((error) => {
-  console.error('❌ Erro ao prevenir auto-hide da splash screen:', error);
-});
+function App() {
+  const { user } = useAuth();
 
-// Componente interno para gerenciar push tokens
-function PushTokenManager() {
-  const { user, updatePushToken } = useAuth();
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="visitante" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" />
+      <Stack.Screen
+        name="emergency"
+        options={{
+          headerShown: false,
+        }}
+      />
 
-  useEffect(() => {
-    const registerPushToken = async () => {
-      // Só registra em dispositivos físicos
-      if (!Device.isDevice) {
-        console.log('🔔 Push notifications não são suportadas em simulador/emulador');
-        return;
-      }
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(app)" options={{ headerShown: false }} />
+        <Stack.Screen name="avisos" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="camera"
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+          }}
+        />
+      </Stack.Protected>
 
-      // Só registra se o usuário estiver autenticado
-      if (!user?.id) {
-        return;
-      }
-
-      try {
-        // Solicitar permissão
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-
-        if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
-        }
-
-        if (finalStatus !== 'granted') {
-          console.log('🚨 Permissão de notificação negada');
-          return;
-        }
-
-        // Obter push token
-        const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: '74e123bc-f565-44ba-92f0-86fc00cbe0b1',
-        });
-
-        const token = tokenData.data;
-
-        // Só atualiza se o token mudou ou não existe
-        if (token && token !== user.push_token) {
-          console.log('🔔 Push token obtido:', token);
-          await updatePushToken(token);
-          console.log('✅ Push token registrado no banco de dados');
-        }
-      } catch (error) {
-        console.error('❌ Erro ao registrar push token:', error);
-      }
-    };
-
-    registerPushToken();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, updatePushToken]); // Exclude user.push_token to avoid infinite loops
-
-  return null;
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
+  );
 }
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({});
-  const router = useRouter();
+  const [loaded, error] = useFonts({});
   const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
@@ -86,20 +60,16 @@ export default function RootLayout() {
       try {
         console.log('🚀 Iniciando preparação do app...');
 
-        // Aguarda um pouco para garantir que tudo está pronto
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Initialize notification handler and background task (must happen before any push is received)
+        await initializeNotificationHandler();
+        await registerBackgroundNotificationTask();
 
-        console.log('✅ App pronto, escondendo splash screen');
+        console.log('✅ App pronto, assets carregados');
         setAppReady(true);
-
-        // Esconde a splash screen
-        await SplashScreen.hideAsync();
-        console.log('✅ Splash screen escondida');
       } catch (error) {
         console.error('❌ Erro ao preparar app:', error);
-        // Mesmo com erro, esconde a splash screen
+        // Mesmo com erro, marcamos appReady para não travar a splash
         setAppReady(true);
-        SplashScreen.hideAsync().catch((e) => console.error('❌ Erro ao esconder splash:', e));
       }
     }
 
@@ -108,71 +78,27 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Configurar handler de notificações
-  useEffect(() => {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
-      }),
-    });
-
-    // Listener para notificações recebidas enquanto app está em foreground
-    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('🔔 [Foreground] Notificação recebida:', notification);
-      // A notificação será exibida automaticamente devido ao handler acima
-    });
-
-    // Listener para quando usuário clica na notificação
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        console.log('👆 [Click] Usuário clicou na notificação:', response);
-        const data = response.notification.request.content.data;
-
-        // Navegação baseada no tipo de notificação
-        if (data?.type === 'visitor_arrival') {
-          // Navegar para tela de autorizações do morador
-          router.push('/morador/authorize');
-        } else if (data?.type === 'visitor_approved' || data?.type === 'visitor_rejected') {
-          // Navegar para tela do porteiro
-          router.push('/porteiro');
-        }
-      }
-    );
-
-    // Cleanup
-    return () => {
-      foregroundSubscription.remove();
-      responseSubscription.remove();
-    };
-  }, [router]);
-
   if (!loaded || !appReady) {
     return null;
   }
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1 }}>
+      <KeyboardProvider>
         <AuthProvider>
-          <PushTokenManager />
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="admin" options={{ headerShown: false }} />
-              <Stack.Screen name="porteiro" options={{ headerShown: false }} />
-              <Stack.Screen name="morador" options={{ headerShown: false }} />
-              <Stack.Screen name="visitante" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
+          <SplashScreenController isAppReady={appReady} />
+          <PushTokenProvider />
+          <DeepLinkProvider />
+          <CallManagerProvider />
+          <NotificationProvider />
+          <ReadOnlyGuard>
+            <SafeAreaView style={{ flex: 1 }}>
+              <App />
+              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            </SafeAreaView>
+          </ReadOnlyGuard>
         </AuthProvider>
-      </SafeAreaView>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

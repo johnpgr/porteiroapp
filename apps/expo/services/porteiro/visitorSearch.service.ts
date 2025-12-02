@@ -16,7 +16,7 @@ export interface PorteiroResidentProfile {
     name: string | null;
     id: string;
   } | null;
-  type: 'morador';
+  type: 'morador' | 'visitante_aprovado';
 }
 
 export interface PorteiroVehicleProfile {
@@ -39,6 +39,7 @@ export interface PorteiroVehicleProfile {
 export async function searchResidentByCPF(rawCpf: string): Promise<PorteiroResidentProfile | null> {
   const cleanCPF = rawCpf.replace(/[^0-9]/g, '');
 
+  // First try to find in profiles (morador)
   const { data: profileData, error: profileError } = await supabase
     .from('profiles')
     .select(`*`)
@@ -49,13 +50,56 @@ export async function searchResidentByCPF(rawCpf: string): Promise<PorteiroResid
     throw profileError;
   }
 
-  if (!profileData) {
-    return null;
+  if (profileData) {
+    const { data: residentData, error: residentError } = await supabase
+      .from('apartment_residents')
+      .select(`
+        apartment_id,
+        apartments!inner(
+          id,
+          number,
+          building_id,
+          buildings!inner(
+            id,
+            name
+          )
+        )
+      `)
+      .eq('profile_id', profileData.id)
+      .maybeSingle();
+
+    if (residentError && residentError.code !== 'PGRST116') {
+      throw residentError;
+    }
+
+    return {
+      ...profileData,
+      apartment: residentData?.apartments
+        ? {
+            number: residentData.apartments.number,
+            id: residentData.apartments.id,
+          }
+        : null,
+      building: residentData?.apartments?.buildings
+        ? {
+            name: residentData.apartments.buildings.name,
+            id: residentData.apartments.buildings.id,
+          }
+        : null,
+      type: 'morador',
+    };
   }
 
-  const { data: residentData, error: residentError } = await supabase
-    .from('apartment_residents')
+  // If not found in profiles, try visitors table (visitante_aprovado)
+  const { data: visitorData, error: visitorError } = await supabase
+    .from('visitors')
     .select(`
+      id,
+      name,
+      document,
+      phone,
+      photo_url,
+      status,
       apartment_id,
       apartments!inner(
         id,
@@ -67,28 +111,39 @@ export async function searchResidentByCPF(rawCpf: string): Promise<PorteiroResid
         )
       )
     `)
-    .eq('profile_id', profileData.id)
+    .eq('document', cleanCPF)
+    .eq('status', 'aprovado')
     .maybeSingle();
 
-  if (residentError && residentError.code !== 'PGRST116') {
-    throw residentError;
+  if (visitorError) {
+    throw visitorError;
+  }
+
+  if (!visitorData) {
+    return null;
   }
 
   return {
-    ...profileData,
-    apartment: residentData?.apartments
+    id: visitorData.id,
+    name: visitorData.name,
+    full_name: visitorData.name,
+    cpf: visitorData.document,
+    email: null,
+    phone: visitorData.phone,
+    avatar_url: visitorData.photo_url,
+    apartment: visitorData.apartments
       ? {
-          number: residentData.apartments.number,
-          id: residentData.apartments.id,
+          number: visitorData.apartments.number,
+          id: visitorData.apartments.id,
         }
       : null,
-    building: residentData?.apartments?.buildings
+    building: visitorData.apartments?.buildings
       ? {
-          name: residentData.apartments.buildings.name,
-          id: residentData.apartments.buildings.id,
+          name: visitorData.apartments.buildings.name,
+          id: visitorData.apartments.buildings.id,
         }
       : null,
-    type: 'morador',
+    type: 'visitante_aprovado',
   };
 }
 

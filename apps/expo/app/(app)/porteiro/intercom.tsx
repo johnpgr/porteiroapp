@@ -1,0 +1,646 @@
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useIntercomCall } from '~/hooks/useIntercomCall';
+import { useAuth } from '~/hooks/useAuth';
+import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
+
+export default function PorteiroIntercomScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [apartmentNumber, setApartmentNumber] = useState('');
+  const [buildingName, setBuildingName] = useState('');
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [doormanName, setDoormanName] = useState<string>('Porteiro');
+  const [callDuration, setCallDuration] = useState(0);
+
+  // Refs for call timer
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const {
+    callState,
+    activeCall,
+    isMuted,
+    isSpeakerOn,
+    error,
+    startCall,
+    endCall,
+    toggleMute,
+    toggleSpeaker,
+  } = useIntercomCall(
+    user?.id
+      ? {
+          id: user.id,
+          userType: 'porteiro',
+          displayName: doormanName || user.email?.split('@')[0] || 'Porteiro',
+        }
+      : null
+  );
+
+  // Listener para mudanças de estado da chamada
+  useEffect(() => {
+    if (callState === 'connected') {
+      // Iniciar timer quando conectar
+      startCallTimer();
+    }
+  }, [callState]);
+
+  // Carregar informações do prédio do porteiro
+  const loadBuildingInfo = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      // Buscar informações do prédio do porteiro
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select(
+          `
+          full_name,
+          building_id,
+          buildings!inner(
+            name,
+            address
+          )
+        `
+        )
+        .eq('user_id', user.id)
+        .eq('user_type', 'porteiro')
+        .single();
+
+      if (profileError || !profile?.building_id) {
+        console.error('Erro ao buscar informações do prédio:', profileError);
+        setBuildingName('Prédio');
+        setBuildingId(null);
+        return;
+      }
+
+      setBuildingName(profile.buildings?.name || 'Prédio');
+      setBuildingId(profile.building_id);
+      if (profile.full_name) {
+        setDoormanName(profile.full_name);
+      } else if (user?.email) {
+        setDoormanName(user.email.split('@')[0]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar informações do prédio:', error);
+      setBuildingName('Prédio');
+      setBuildingId(null);
+    }
+  }, [user?.email, user?.id]);
+
+  // Iniciar chamada
+  const initiateCall = async () => {
+    const trimmedApartment = apartmentNumber.trim();
+
+    if (!user?.id) {
+      Alert.alert('Erro', 'Usuário não autenticado. Faça login novamente.');
+      return;
+    }
+
+    if (!trimmedApartment) {
+      Alert.alert('Erro', 'Digite o número do apartamento');
+      return;
+    }
+
+    if (!buildingId) {
+      Alert.alert(
+        'Aguardando dados',
+        'Ainda estamos carregando as informações do prédio. Tente novamente em instantes.'
+      );
+      return;
+    }
+
+    try {
+      // Start the call
+      await startCall({
+        apartmentNumber: trimmedApartment,
+        buildingId,
+      });
+    } catch (error) {
+      const err = error as Error;
+      const message = err?.message || 'Erro inesperado ao iniciar a chamada';
+
+      console.warn('❌ Falha ao iniciar chamada:', message);
+      Alert.alert('Erro', message);
+    }
+  };
+
+  // Iniciar timer da chamada
+  const startCallTimer = () => {
+    setCallDuration(0);
+    callTimerRef.current = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+  };
+
+  // Parar timer da chamada
+  const stopCallTimer = () => {
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
+    }
+  };
+
+  // Encerrar chamada
+  const handleEndCall = async () => {
+    try {
+      await endCall('hangup');
+
+      // Stop timer
+      stopCallTimer();
+      setCallDuration(0);
+
+      // Reset UI state after a short delay
+      setTimeout(() => {
+        setApartmentNumber('');
+        router.back();
+      }, 2000);
+    } catch (error) {
+      console.error('Erro ao encerrar chamada:', error);
+
+      // Even if there's an error, clean up
+      stopCallTimer();
+      setCallDuration(0);
+      setApartmentNumber('');
+      router.back();
+    }
+  };
+
+  // Handle close button
+  const handleClose = () => {
+    if (callState === 'idle') {
+      router.back();
+    } else {
+      Alert.alert('Encerrar chamada?', 'Deseja encerrar a chamada e fechar o interfone?', [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Encerrar',
+          style: 'destructive',
+          onPress: handleEndCall,
+        },
+      ]);
+    }
+  };
+
+  // Handle mute toggle
+  const handleToggleMute = async () => {
+    try {
+      await toggleMute();
+    } catch (error) {
+      console.error('Erro ao alternar microfone:', error);
+      Alert.alert('Erro', 'Não foi possível alternar o microfone');
+    }
+  };
+
+  // Handle speaker toggle
+  const handleToggleSpeaker = async () => {
+    try {
+      await toggleSpeaker();
+    } catch (error) {
+      console.error('Erro ao alternar alto-falante:', error);
+      Alert.alert('Erro', 'Não foi possível alternar o alto-falante');
+    }
+  };
+
+  // Formatar duração da chamada
+  const formatCallDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Adicionar dígito ao número do apartamento
+  const addDigit = (digit: string) => {
+    if (apartmentNumber.length < 10) {
+      setApartmentNumber((prev) => prev + digit);
+    }
+  };
+
+  // Remover último dígito
+  const removeLastDigit = () => {
+    setApartmentNumber((prev) => prev.slice(0, -1));
+  };
+
+  // Renderizar botão do teclado numérico
+  const renderKeypadButton = (digit: string) => (
+    <TouchableOpacity
+      key={digit}
+      style={styles.keypadButton}
+      onPress={() => addDigit(digit)}
+      activeOpacity={0.7}>
+      <Text style={styles.keypadButtonText}>{digit}</Text>
+    </TouchableOpacity>
+  );
+
+  // Renderizar teclado numérico
+  const renderKeypad = () => (
+    <View style={styles.keypadContainer}>
+      {/* Primeira linha: 1, 2, 3 */}
+      <View style={styles.keypadRow}>
+        {renderKeypadButton('1')}
+        {renderKeypadButton('2')}
+        {renderKeypadButton('3')}
+      </View>
+
+      {/* Segunda linha: 4, 5, 6 */}
+      <View style={styles.keypadRow}>
+        {renderKeypadButton('4')}
+        {renderKeypadButton('5')}
+        {renderKeypadButton('6')}
+      </View>
+
+      {/* Terceira linha: 7, 8, 9 */}
+      <View style={styles.keypadRow}>
+        {renderKeypadButton('7')}
+        {renderKeypadButton('8')}
+        {renderKeypadButton('9')}
+      </View>
+
+      {/* Quarta linha: 0 centralizado */}
+      <View style={styles.keypadRow}>
+        <View style={styles.keypadSpacer} />
+        {renderKeypadButton('0')}
+        <TouchableOpacity
+          style={styles.backspaceButton}
+          onPress={removeLastDigit}
+          activeOpacity={0.7}>
+          <Text style={styles.backspaceButtonText}>⌫</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Renderizar interface de entrada do apartamento
+  const renderApartmentInput = () => (
+    <View style={styles.inputContainer}>
+      <Text style={styles.buildingTitle}>{buildingName}</Text>
+
+      <View style={styles.apartmentInputSection}>
+        <View style={styles.apartmentDisplay}>
+          {apartmentNumber ? (
+            <Text style={styles.apartmentDisplayNumber}>{apartmentNumber}</Text>
+          ) : (
+            <Text style={styles.apartmentDisplayText}>Digite o número do apto...</Text>
+          )}
+        </View>
+      </View>
+
+      {renderKeypad()}
+
+      <TouchableOpacity
+        style={[styles.callButton, !apartmentNumber.trim() && styles.callButtonDisabled]}
+        onPress={initiateCall}
+        disabled={!apartmentNumber.trim()}>
+        <Text style={styles.callButtonText}>📞 Chamar</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Renderizar interface da chamada
+  const renderCallInterface = () => {
+    const participants = activeCall?.participants || [];
+    const participantCount = participants.length;
+
+    return (
+      <View style={styles.callContainer}>
+        <View style={styles.callHeader}>
+          <Text style={styles.callTitle}>
+            {callState === 'dialing' && 'Chamando...'}
+            {callState === 'ringing' && 'Tocando...'}
+            {(callState === 'connecting' || callState === 'rtc_joining') && 'Conectando...'}
+            {callState === 'connected' && 'Em chamada'}
+            {callState === 'ending' && 'Encerrando...'}
+            {callState === 'ended' && 'Chamada encerrada'}
+          </Text>
+          <Text style={styles.callSubtitle}>
+            Apartamento {apartmentNumber} - {buildingName}
+          </Text>
+
+          {/* Show participant count */}
+          {participantCount > 0 && (
+            <Text style={styles.notificationFeedback}>
+              👥 {participantCount} participante{participantCount > 1 ? 's' : ''}
+            </Text>
+          )}
+
+          {/* Show error if any */}
+          {error && <Text style={styles.errorMessage}>⚠️ {error}</Text>}
+
+          {callState === 'connected' && (
+            <Text style={styles.callDuration}>{formatCallDuration(callDuration)}</Text>
+          )}
+        </View>
+
+        {(callState === 'dialing' ||
+          callState === 'ringing' ||
+          callState === 'connecting' ||
+          callState === 'rtc_joining') && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4CAF50" />
+          </View>
+        )}
+
+        {callState === 'connected' && (
+          <View style={styles.callControls}>
+            <TouchableOpacity
+              style={[styles.controlButton, isMuted && styles.controlButtonActive]}
+              onPress={handleToggleMute}>
+              <Text style={styles.controlButtonText}>{isMuted ? '🔇' : '🎤'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.controlButton, isSpeakerOn && styles.controlButtonActive]}
+              onPress={handleToggleSpeaker}>
+              <Text style={styles.controlButtonText}>{isSpeakerOn ? '🔊' : '🔈'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.endCallButton}
+          onPress={handleEndCall}
+          disabled={callState === 'ending' || callState === 'ended'}>
+          <Text style={styles.endCallButtonText}>
+            {callState === 'ended'
+              ? '✓ Encerrada'
+              : callState === 'ending'
+                ? 'Encerrando...'
+                : '📞 Encerrar'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Effect para carregar informações quando screen mounts
+  useEffect(() => {
+    if (callState === 'idle') {
+      loadBuildingInfo();
+    }
+  }, [callState, loadBuildingInfo]);
+
+  // Effect para limpeza quando screen unmounts
+  useEffect(() => {
+    return () => {
+      // Limpar timers
+      stopCallTimer();
+    };
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleClose}>
+          <IconSymbol name="chevron.left" color="#fff" size={30} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.title}>📞 Interfone</Text>
+          <Text style={styles.subtitle}>Sistema de Chamadas</Text>
+        </View>
+      </View>
+
+      <View style={styles.content}>
+        {callState === 'idle' ? renderApartmentInput() : renderCallInterface()}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    backgroundColor: '#2196F3',
+    display: 'flex',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    flexDirection: 'row',
+    borderBottomEndRadius: 20,
+    borderBottomStartRadius: 20,
+    paddingHorizontal: 20,
+    gap: 50,
+    paddingVertical: 30,
+    marginBottom: 10,
+  },
+  headerTitleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+
+  // Estilos para entrada do apartamento
+  inputContainer: {
+    alignItems: 'center',
+  },
+  buildingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 18,
+    textAlign: 'center',
+  },
+  apartmentInputSection: {
+    width: '100%',
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  apartmentDisplay: {
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  apartmentDisplayNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  apartmentDisplayText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  callButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    minWidth: 200,
+  },
+  callButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  callButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  // Estilos para interface da chamada
+  callContainer: {
+    alignItems: 'center',
+  },
+  callHeader: {
+    alignItems: 'center',
+    marginBottom: 48,
+  },
+  callTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  callSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  notificationFeedback: {
+    fontSize: 14,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  callMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#f44336',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  callDuration: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginTop: 16,
+  },
+  loadingContainer: {
+    marginVertical: 48,
+  },
+  callControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 48,
+    gap: 24,
+  },
+  controlButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  controlButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  controlButtonText: {
+    fontSize: 24,
+  },
+  endCallButton: {
+    backgroundColor: '#f44336',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    minWidth: 200,
+  },
+  endCallButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
+  // Estilos para o teclado numérico
+  keypadContainer: {
+    marginVertical: 24,
+    alignItems: 'center',
+  },
+  keypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 20,
+  },
+  keypadButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  keypadButtonText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  keypadSpacer: {
+    width: 70,
+  },
+  backspaceButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+  },
+  backspaceButtonText: {
+    fontSize: 24,
+    color: '#666',
+  },
+});

@@ -26,7 +26,7 @@ export const useReminderScheduler = () => {
   //   stats,
   //   generateDebugReport 
   // } = useNotificationLogger();
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scheduledReminders = useRef<Map<string, ScheduledReminder>>(new Map());
   const lastCheck = useRef<Date>(new Date());
 
@@ -278,7 +278,8 @@ export const useReminderScheduler = () => {
     stopRealTimeMonitoring,
     getSchedulerStats,
     checkPendingReminders,
-    loggerStats: stats,
-    generateDebugReport
+    // PUSH NOTIFICATIONS TEMPORARIAMENTE DESATIVADAS
+    // loggerStats: stats,
+    // generateDebugReport
   };
 };

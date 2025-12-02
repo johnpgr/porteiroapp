@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 // Removed old notification services - using Edge Functions for push notifications
 import { AvisoNotificationData } from './useEnhancedAvisosNotifications';
 import { supabase } from '../utils/supabase';
@@ -15,7 +16,7 @@ interface AvisoNotification {
   building_name?: string;
   priority?: string;
   created_at: string;
-  expires_at?: string;
+  // expires_at removed - doesn't exist in communications table
   notification_status?: string;
 }
 
@@ -37,8 +38,8 @@ export const useAvisosNotifications = () => {
     if (!user?.id) return;
     
     try {
-      // Primeiro tentar pelo building_id direto no perfil
-      if (user.building_id) {
+      // Primeiro tentar pelo building_id direto no perfil (only for regular users)
+      if (isRegularUser(user) && user.building_id) {
         setUserBuildingId(user.building_id);
         return;
       }
@@ -47,7 +48,7 @@ export const useAvisosNotifications = () => {
       const { data, error } = await supabase
         .from('apartment_residents')
         .select('apartment_id, apartments!inner(building_id)')
-        .eq('profile_id', user.id as any)
+        .eq('profile_id', user.id)
         .maybeSingle();
       
       if (error) throw error;
@@ -61,7 +62,7 @@ export const useAvisosNotifications = () => {
       console.error('Erro ao buscar building_id:', err);
       setError('Erro ao identificar prédio do usuário');
     }
-  }, [user?.id, user?.building_id]);
+  }, [user?.id]);
 
   // Carregar notificações do banco de dados
   const loadNotifications = useCallback(async () => {
@@ -100,18 +101,18 @@ export const useAvisosNotifications = () => {
           building_id: comm.building_id,
           priority: comm.priority || 'normal',
           created_at: comm.created_at,
-          expires_at: comm.expires_at,
+          // expires_at removed - doesn't exist in communications table
           notification_status: 'delivered'
         })),
         ...(polls || []).map(poll => ({
           id: poll.id,
           type: 'poll' as const,
           title: poll.title,
-          description: poll.description,
-          building_id: poll.building_id,
-          priority: poll.priority || 'normal',
-          created_at: poll.created_at,
-          expires_at: poll.expires_at,
+          description: poll.description ?? undefined,
+          building_id: poll.building_id ?? '',
+          priority: 'normal', // priority doesn't exist in polls table
+          created_at: poll.created_at ?? new Date().toISOString(),
+          // expires_at exists in polls
           notification_status: 'delivered'
         }))
       ];

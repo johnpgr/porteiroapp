@@ -49,7 +49,7 @@ export const useShiftControl = ({
   
   // Refs para controle
   const isInitialized = useRef(false);
-  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const validationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Estado derivado
   const isOnDuty = currentShift?.status === 'active';

@@ -390,8 +390,8 @@ export function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitantePro
         
         // Verificar conexão com Supabase
         console.log('🔍 DEBUG: Verificando conexão com Supabase...');
-        console.log('🔍 DEBUG: Supabase URL:', supabase.supabaseUrl);
-        console.log('🔍 DEBUG: Supabase Key (primeiros 10 chars):', supabase.supabaseKey?.substring(0, 10));
+        // console.log('🔍 DEBUG: Supabase URL:', supabase.supabaseUrl); // Protected property
+        // console.log('🔍 DEBUG: Supabase Key (primeiros 10 chars):', supabase.supabaseKey?.substring(0, 10)); // Protected property
         
         // Verificar sessão atual do usuário
         const { data: session, error: sessionError } = await supabase.auth.getSession();
@@ -500,7 +500,7 @@ export function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitantePro
             name: nomeVisitante,
             document: cleanCPF(cpfVisitante), // Salva apenas números no banco
             phone: null,
-            photo_url: fotoTirada || null
+            photo_url: null // photo_url will be updated if needed
           };
           console.log('🔍 DEBUG: Dados do novo visitante:', visitorData);
           
@@ -534,7 +534,7 @@ export function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitantePro
         console.log('🔍 DEBUG: Visit session ID gerado:', visitSessionId);
 
         // Determinar o propósito baseado no tipo de visita
-        let purpose = tipoVisita;
+        let purpose: string | null = tipoVisita;
         if (tipoVisita === 'prestador' && empresaPrestador) {
           purpose = `prestador - ${empresaPrestador.replace('_', ' ')}`;
         } else if (tipoVisita === 'entrega' && empresaEntrega) {
@@ -613,8 +613,8 @@ export function CadastrarVisitante({ onClose, onConfirm }: CadastrarVisitantePro
       } catch (error) {
         console.error('❌ DEBUG: Erro geral ao cadastrar visitante:', {
           error,
-          message: error?.message,
-          stack: error?.stack
+          message: error instanceof Error ? error.message : 'Unknown',
+          stack: error instanceof Error ? error.stack : undefined
         });
         Alert.alert('Erro', 'Falha inesperada ao cadastrar visitante. Verifique sua conexão e tente novamente.');
       }

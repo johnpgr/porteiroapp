@@ -141,7 +141,7 @@ const TestNotificationButton: React.FC<TestNotificationButtonProps> = ({ style }
 
       // 6. Chamar endpoint WhatsApp
       addLog('📞 Chamando endpoint WhatsApp...');
-      const apiUrl = `${env.EXPO_PUBLIC_NOTIFICATION_API_URL}/api/send-visitor-waiting-notification`;
+      const apiUrl = `${process.env.EXPO_PUBLIC_NOTIFICATION_API_URL || 'http://localhost:3000'}/api/send-visitor-waiting-notification`;
       const whatsappResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -183,11 +183,11 @@ const TestNotificationButton: React.FC<TestNotificationButtonProps> = ({ style }
       );
     } catch (error) {
       console.error('❌ Erro no teste:', error);
-      addLog('❌ ERRO: ' + error.message);
+      addLog('❌ ERRO: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
       setLastTestResult('error');
       Alert.alert(
         'Erro no Teste ❌',
-        `Falha durante o teste:\n\n${error.message}\n\nVerifique o console para mais detalhes.`
+        `Falha durante o teste:\n\n${error instanceof Error ? error.message : 'Erro desconhecido'}\n\nVerifique o console para mais detalhes.`
       );
     } finally {
       setIsLoading(false);

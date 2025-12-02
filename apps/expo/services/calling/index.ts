@@ -1,5 +1,4 @@
 export type {
-  CallLifecycleState,
   CallParticipantSnapshot,
   CallStartPayload,
   CallStartResponse,
@@ -10,6 +9,7 @@ export type {
   RtmInviteSignal,
   AgoraTokenBundle,
   PushFallbackTarget
-} from '@porteiroapp/common/calling';
+} from '~/types/calling';
 
+export type { CallLifecycleState } from './stateMachine';
 export { CALL_STATE_MACHINE, deriveNextStateFromSignal, RTM_SIGNAL_TO_STATE } from './stateMachine';

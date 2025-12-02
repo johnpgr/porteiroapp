@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ProfileMenu, { ProfileMenuItem } from '~/components/ProfileMenu';
 import { flattenStyles } from '~/utils/styles';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface PorteiroData {
   name: string;
@@ -43,7 +44,10 @@ export default function PorteiroTopBar({
     return (
       <View style={styles.topMenu}>
         <View style={styles.topMenuLeft}>
-          <Text style={styles.welcomeText}>❌ Erro de Conexão</Text>
+          <View style={styles.errorContainer}>
+            <IconSymbol name="exclamationmark.circle.fill" color="#f44336" size={20} />
+            <Text style={styles.welcomeText}>Erro de Conexão</Text>
+          </View>
           <Text style={styles.shiftText}>Verifique sua conexão com a internet</Text>
         </View>
       </View>
@@ -82,6 +86,14 @@ export default function PorteiroTopBar({
       },
     },
     {
+      label: 'Logs',
+      iconName: 'document-text',
+      onPress: () => {
+        setShowUserMenu(false);
+        router.push('/porteiro/logs');
+      },
+    },
+    {
       label: 'Logout',
       iconName: 'log-out',
       iconColor: '#f44336',
@@ -108,7 +120,7 @@ export default function PorteiroTopBar({
           style={styles.panicButton}
           onPress={() => checkShiftBeforeAction(onPanicPress, 'acionar emergência')}
         >
-          <Text style={styles.panicButtonText}>🚨</Text>
+          <IconSymbol name="exclamationmark.triangle.fill" color="#fff" size={24} />
         </TouchableOpacity>
 
         {/* Botão de Notificações */}
@@ -116,7 +128,7 @@ export default function PorteiroTopBar({
           style={styles.notificationButton}
           onPress={onNotificationsPress}
         >
-          <Text style={styles.notificationIcon}>🔔</Text>
+          <IconSymbol name="bell.fill" color="#fff" size={20} />
           {unreadNotifications > 0 && (
             <View style={styles.notificationBadge}>
               <Text style={styles.notificationBadgeText}>
@@ -135,7 +147,7 @@ export default function PorteiroTopBar({
           onPress={onShiftControlPress}
           disabled={isInitializing}
         >
-          <Text style={styles.shiftControlIcon}>⏰</Text>
+          <IconSymbol name="clock.fill" color="#fff" size={20} />
         </TouchableOpacity>
 
         {/* Avatar do Usuário */}
@@ -167,11 +179,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     zIndex: 100,
   },
   topMenuLeft: {
@@ -199,14 +206,11 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
-  panicButtonText: {
-    fontSize: 20,
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   notificationButton: {
     width: 42,
@@ -215,15 +219,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E88E5',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     position: 'relative',
-  },
-  notificationIcon: {
-    fontSize: 20,
   },
   notificationBadge: {
     position: 'absolute',
@@ -251,19 +247,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   shiftControlButtonDisabled: {
     backgroundColor: '#9CCC9C',
     opacity: 0.6,
-  },
-  shiftControlIcon: {
-    fontSize: 20,
-    color: '#fff',
   },
   userAvatar: {
     backgroundColor: '#2196F3',
@@ -272,11 +259,6 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   avatarText: {
     color: '#fff',

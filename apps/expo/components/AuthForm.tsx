@@ -1,25 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, Keyboard } from 'react-native';
 
 interface AuthFormProps {
   onSubmit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loading?: boolean;
   submitText?: string;
-  userType?: 'admin' | 'porteiro' | 'morador';
 }
 
 export default function AuthForm({
   onSubmit,
   loading = false,
   submitText = 'Entrar',
-  userType,
 }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
-  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const submitTimeoutRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     return () => {
@@ -124,7 +123,11 @@ export default function AuthForm({
       
       // Tratamento específico para iOS
       if (Platform.OS === 'ios') {
-        const errorMessage = error?.message?.toLowerCase() || '';
+        // O tipo de 'error' pode não ter a propriedade 'message'
+        const errorMessage =
+          typeof error === 'object' && error !== null && 'message' in error && typeof (error as any).message === 'string'
+            ? ((error as any).message as string).toLowerCase()
+            : '';
         if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
           Alert.alert(
             'Erro de Conexão', 
@@ -162,15 +165,20 @@ export default function AuthForm({
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordInputRef.current?.focus()}
         editable={!isLoading}
       />
 
       <TextInput
+        ref={passwordInputRef}
         style={[styles.input, isLoading && styles.inputDisabled]}
         placeholder="Senha"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
+        returnKeyType="done"
+        onSubmitEditing={handleSubmit}
         editable={!isLoading}
       />
 

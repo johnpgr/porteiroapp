@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 // Removed old notification service - using Edge Functions for push notifications
 import { useAuth } from '../hooks/useAuth';
+import { isRegularUser } from '~/types/auth.types';
 import { supabase } from '../utils/supabase';
 
 // Interfaces moved here since service was removed
@@ -15,7 +16,7 @@ export interface AvisoNotificationData {
   building_name?: string;
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   created_at: string;
-  expires_at?: string;
+  // expires_at removed - doesn't exist in communications table
   notification_status?: 'sent' | 'delivered' | 'read' | 'failed';
   delivery_attempts?: number;
   last_attempt_at?: string;
@@ -40,7 +41,7 @@ export interface UseEnhancedAvisosNotificationsReturn {
  * Agora usa apenas Edge Functions para push notifications
  */
 const useEnhancedAvisosNotifications = () => {
-  const { user, selectedBuilding } = useAuth();
+  const { user } = useAuth();
   
   // Estados
   const [notifications, setNotifications] = useState<AvisoNotificationData[]>([]);
@@ -53,7 +54,27 @@ const useEnhancedAvisosNotifications = () => {
    * Carrega notificações do banco de dados
    */
   const refreshNotifications = useCallback(async () => {
-    if (!user?.id || !selectedBuilding?.id) return;
+    if (!user?.id) return;
+    
+    // Get building_id from user profile or apartment_residents
+    let buildingId: string | null = null;
+    
+    if (isRegularUser(user) && user.building_id) {
+      buildingId = user.building_id;
+    } else {
+      // Try to get from apartment_residents
+      const { data } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id, apartments!inner(building_id)')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+      
+      if (data && (data as any)?.apartments?.building_id) {
+        buildingId = (data as any).apartments.building_id;
+      }
+    }
+    
+    if (!buildingId) return;
 
     try {
       setIsLoading(true);
@@ -63,7 +84,7 @@ const useEnhancedAvisosNotifications = () => {
       const { data: communications, error: commError } = await supabase
         .from('communications')
         .select('*')
-        .eq('building_id', selectedBuilding.id)
+        .eq('building_id', buildingId)
         .order('created_at', { ascending: false })
         .limit(25);
 
@@ -71,7 +92,7 @@ const useEnhancedAvisosNotifications = () => {
       const { data: polls, error: pollError } = await supabase
         .from('polls')
         .select('*')
-        .eq('building_id', selectedBuilding.id)
+        .eq('building_id', buildingId)
         .order('created_at', { ascending: false })
         .limit(25);
 
@@ -86,19 +107,19 @@ const useEnhancedAvisosNotifications = () => {
           title: comm.title,
           content: comm.content,
           building_id: comm.building_id,
-          priority: comm.priority || 'normal',
+          priority: (comm.priority as 'low' | 'normal' | 'high' | 'urgent' | undefined) || 'normal',
           created_at: comm.created_at,
-          expires_at: comm.expires_at,
+          // expires_at removed - doesn't exist in communications table
         })),
         ...(polls || []).map(poll => ({
           id: poll.id,
           type: 'poll' as const,
           title: poll.title,
-          description: poll.description,
-          building_id: poll.building_id,
-          priority: poll.priority || 'normal',
-          created_at: poll.created_at,
-          expires_at: poll.expires_at,
+          description: poll.description ?? undefined,
+          building_id: poll.building_id ?? '',
+          priority: 'normal' as const, // priority doesn't exist in polls table
+          created_at: poll.created_at ?? new Date().toISOString(),
+          // expires_at exists in polls
         }))
       ];
 
@@ -123,7 +144,7 @@ const useEnhancedAvisosNotifications = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, selectedBuilding?.id]);
+  }, [user?.id]);
 
   /**
    * Marca notificação como lida
@@ -166,7 +187,27 @@ const useEnhancedAvisosNotifications = () => {
    * Obtém estatísticas de notificações
    */
   const getNotificationStats = useCallback(async (daysBack: number = 30) => {
-    if (!selectedBuilding?.id) return null;
+    if (!user?.id) return null;
+    
+    // Get building_id from user profile or apartment_residents
+    let buildingId: string | null = null;
+    
+    if (isRegularUser(user) && user.building_id) {
+      buildingId = user.building_id;
+    } else {
+      // Try to get from apartment_residents
+      const { data } = await supabase
+        .from('apartment_residents')
+        .select('apartment_id, apartments!inner(building_id)')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+      
+      if (data && (data as any)?.apartments?.building_id) {
+        buildingId = (data as any).apartments.building_id;
+      }
+    }
+    
+    if (!buildingId) return null;
 
     try {
       const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
@@ -174,13 +215,13 @@ const useEnhancedAvisosNotifications = () => {
       const { data: communications } = await supabase
         .from('communications')
         .select('id')
-        .eq('building_id', selectedBuilding.id)
+        .eq('building_id', buildingId)
         .gte('created_at', since);
 
       const { data: polls } = await supabase
         .from('polls')
         .select('id')
-        .eq('building_id', selectedBuilding.id)
+        .eq('building_id', buildingId)
         .gte('created_at', since);
 
       return {
@@ -192,14 +233,14 @@ const useEnhancedAvisosNotifications = () => {
       console.error('❌ Erro ao obter estatísticas:', err);
       return null;
     }
-  }, [selectedBuilding?.id]);
+  }, [user?.id]);
 
   // Efeito para inicialização
   useEffect(() => {
-    if (user?.id && selectedBuilding?.id) {
+    if (user?.id) {
       refreshNotifications();
     }
-  }, [user?.id, selectedBuilding?.id, refreshNotifications]);
+  }, [user?.id, refreshNotifications]);
 
   return {
     notifications,

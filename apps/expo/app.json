@@ -1,9 +1,8 @@
 {
-  "$schema": "https://www.schemastore.org/expo-53.0.0.json",
   "expo": {
     "name": "James Avisa",
     "slug": "porteiro-app",
-    "version": "2.0.6",
+    "version": "2.1.0",
     "scheme": "porteiro-app",
     "web": {
       "bundler": "metro",
@@ -23,7 +22,28 @@
           "sounds": [
             "./assets/audio/doorbell_push.mp3",
             "./assets/audio/telephone_toque_interfone.mp3"
-          ]
+          ],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "expo-secure-store",
+      "./plugins/withVoipCallKit",
+      "./plugins/withAndroidFullScreenIntent.js",
+      "./plugins/withCallKeepForeground",
+      "./plugins/withCallKeepConnectionService",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "manifest": {
+              "service": {
+                "$": {
+                  "android:foregroundServiceType": "camera|microphone"
+                },
+                "rule": "..."
+              }
+            }
+          }
         }
       ]
     ],
@@ -48,7 +68,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification",
-          "remote-notification"
+          "voip",
+          "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera for video calls",
@@ -57,6 +78,7 @@
       "bundleIdentifier": "com.porteiroapp.notifications"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
@@ -70,8 +92,16 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.BLUETOOTH",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.CALL_PHONE",
+        "android.permission.READ_PHONE_STATE"
       ],
+      "foregroundService": {
+        "type": ["camera", "microphone", "phoneCall"]
+      },
       "useNextNotificationsApi": true,
       "googleServicesFile": "./google-services.json",
       "package": "com.porteiroapp.notifications"

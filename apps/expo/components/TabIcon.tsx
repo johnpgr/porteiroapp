@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Bell, ClipboardList, FileText, Home, Users, LogIn, BadgeCheck, Search, List, ScrollText, Phone } from 'lucide-react-native';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 export interface TabIconProps {
   name: string;
@@ -8,23 +8,23 @@ export interface TabIconProps {
   size?: number;
 }
 
-const iconMap: Record<string, any> = {
-  home: Home,
-  users: Users,
-  clipboard: ClipboardList,
-  bell: Bell,
-  dashboard: BarChart3,
-  logs: FileText,
-  file: FileText,
-  'log-in': LogIn,
-  'badge-check': BadgeCheck,
-  search: Search,
-  list: List,
-  'scroll-text': ScrollText,
-  phone: Phone,
+const iconMap: Record<string, Parameters<typeof IconSymbol>[0]['name']> = {
+  home: 'house.fill',
+  users: 'person.2.fill',
+  clipboard: 'list.bullet.rectangle',
+  bell: 'bell.fill',
+  dashboard: 'chart.bar.fill',
+  logs: 'doc.text',
+  file: 'doc.text',
+  'log-in': 'rectangle.portrait.and.arrow.right',
+  'badge-check': 'checkmark.seal.fill',
+  search: 'magnifyingglass',
+  list: 'list.bullet',
+  'scroll-text': 'doc.text',
+  phone: 'phone.fill',
 };
 
 export default function TabIcon({ name, color, focused, size = 24 }: TabIconProps) {
-  const Icon = iconMap[name] || FileText;
-  return <Icon color={color} size={size} strokeWidth={focused ? 2.5 : 2} />;
+  const mapped = iconMap[name] || 'doc.text';
+  return <IconSymbol name={mapped} color={color} size={size} weight={focused ? 'bold' : 'regular'} />;
 }

@@ -9,19 +9,14 @@
     "pnpm": ">=9.15.0"
   },
   "scripts": {
-    "dev": "pnpm build:common && pnpm --parallel --filter \"./apps/**\" dev",
-    "dev:mobile": "pnpm build:common && pnpm --filter @porteiroapp/porteiro-mobile start",
-    "dev:web": "pnpm build:common && pnpm --filter @porteiroapp/porteiro-site dev",
-    "dev:api": "pnpm build:common && pnpm --filter @porteiroapp/interfone-api dev",
-    "build": "pnpm --recursive --filter \"./apps/**\" --filter \"./packages/**\" build",
-    "build:mobile": "pnpm --filter @porteiroapp/porteiro-mobile build",
-    "build:web": "pnpm --filter @porteiroapp/porteiro-site build",
-    "build:api": "pnpm --filter @porteiroapp/interfone-api build",
-    "build:common": "pnpm --filter @porteiroapp/common build",
-    "start:web": "pnpm build:common && pnpm --filter @porteiroapp/porteiro-site start",
-    "start:api": "pnpm build:common && pnpm --filter @porteiroapp/interfone-api start",
-    "start:android": "pnpm build:common && pnpm --filter @porteiroapp/porteiro-mobile android",
-    "start:ios": "pnpm build:common && pnpm --filter @porteiroapp/porteiro-mobile ios",
+    "dev": "pnpm --parallel --filter \"./apps/**\" dev",
+    "dev:mobile": "pnpm --filter @porteiroapp/porteiro-mobile start",
+    "dev:web": "pnpm --filter @porteiroapp/porteiro-site dev",
+    "dev:api": "pnpm --filter @porteiroapp/interfone-api dev",
+    "start:web": "pnpm --filter @porteiroapp/porteiro-site start",
+    "start:api": "pnpm --filter @porteiroapp/interfone-api start",
+    "start:android": "pnpm --filter @porteiroapp/porteiro-mobile android",
+    "start:ios": "pnpm --filter @porteiroapp/porteiro-mobile ios",
     "test": "pnpm --filter @porteiroapp/tests test:all",
     "test:unit": "pnpm --filter @porteiroapp/tests test",
     "test:advanced": "pnpm --filter @porteiroapp/tests test:advanced",
@@ -41,10 +36,12 @@
   "pnpm": {
     "patchedDependencies": {
       "react-native@0.81.5": "patches/react-native@0.81.5.patch",
-      "agora-react-native-rtm@1.5.1": "patches/agora-react-native-rtm@1.5.1.patch"
+      "agora-react-native-rtm@1.5.1": "patches/agora-react-native-rtm@1.5.1.patch",
+      "react-native-callkeep@4.3.16": "patches/react-native-callkeep@4.3.16.patch"
     }
   },
   "devDependencies": {
-    "supabase": "^2.53.6"
+    "supabase": "^2.53.6",
+    "typescript": "^5.9.2"
   }
 }

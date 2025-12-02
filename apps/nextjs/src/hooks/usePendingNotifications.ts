@@ -6,7 +6,7 @@ import {
   subscribeToPendingNotifications,
   type PendingNotification,
   type NotificationResponse
-} from '@porteiroapp/common/hooks';
+} from '@porteiroapp/hooks';
 
 interface UsePendingNotificationsReturn {
   notifications: PendingNotification[];

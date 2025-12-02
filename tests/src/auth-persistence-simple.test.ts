@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 
 // Configuração do Supabase
 const supabaseUrl = 'https://rnqhqjqjqjqjqjqjqjqj.supabase.co';

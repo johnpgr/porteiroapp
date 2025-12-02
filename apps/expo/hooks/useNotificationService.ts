@@ -1,28 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
+import type { Database } from '@porteiroapp/supabase';
 
-interface NotificationToken {
-  id: string;
-  user_id: string;
-  notification_token: string;
-  device_type: 'ios' | 'android' | 'web';
-  device_info?: any;
-  is_active: boolean;
-  created_at: string;
-  last_updated: string;
-}
-
-interface NotificationLog {
-  id: string;
-  notification_type: string;
-  title: string;
-  body: string;
-  user_id: string;
-  status: 'sent' | 'delivered' | 'failed' | 'read';
-  created_at: string;
-  metadata?: any;
-}
+type NotificationToken = Database['public']['Tables']['user_notification_tokens']['Row'];
+type NotificationLog = Database['public']['Tables']['notification_logs']['Row'];
 
 interface UseNotificationServiceReturn {
   // Token management
@@ -279,9 +261,12 @@ export const useNotificationService = (): UseNotificationServiceReturn => {
     try {
       const { data, error } = await supabase
         .from('notification_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .select(`
+          *,
+          notifications!inner(recipient_id)
+        `)
+        .eq('notifications.recipient_id', user.id)
+        .order('attempted_at', { ascending: false })
         .limit(limit);
 
       if (error) {

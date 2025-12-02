@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { supabase } from '../../utils/supabaseUnified';
-import { Bell, Users, AlertCircle, CheckCircle, Clock, Trash2 } from 'lucide-react-native';
+import { supabase } from '~/utils/supabase';
+import { IconSymbol } from '~/components/ui/IconSymbol';
 
 interface NotificationStats {
   total: number;
@@ -50,7 +50,8 @@ export default function NotificationDashboard() {
         unsubscribe();
       }
     };
-  }, [loadDashboardData, setupRealtimeSubscription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -90,9 +91,9 @@ export default function NotificationDashboard() {
     }
 
     const total = notifications?.length || 0;
-    const pending = notifications?.filter(n => n.status === 'pending').length || 0;
-    const sent = notifications?.filter(n => n.status === 'sent').length || 0;
-    const failed = notifications?.filter(n => n.status === 'failed').length || 0;
+    const pending = notifications?.filter((n: any) => n.status === 'pending').length || 0;
+    const sent = notifications?.filter((n: any) => n.status === 'sent').length || 0;
+    const failed = notifications?.filter((n: any) => n.status === 'failed').length || 0;
     const activeTokens = tokens?.length || 0;
 
     setStats({ total, pending, sent, failed, activeTokens });
@@ -115,7 +116,11 @@ export default function NotificationDashboard() {
         ),
         profiles!inner (
           full_name,
-          apartment_number
+          apartment_residents (
+            apartments (
+              number
+            )
+          )
         )
       `)
       .order('sent_at', { ascending: false })
@@ -126,7 +131,7 @@ export default function NotificationDashboard() {
       return;
     }
 
-    const formattedLogs = data?.map(log => ({
+    const formattedLogs = data?.map((log: any) => ({
       id: log.id,
       notification_id: log.notification_id,
       user_id: log.user_id,
@@ -140,7 +145,7 @@ export default function NotificationDashboard() {
       },
       user: {
         name: log.profiles.full_name,
-        apartment_number: log.profiles.apartment_number
+        apartment_number: (log.profiles.apartment_residents as any)?.[0]?.apartments?.number || 'N/A'
       }
     })) || [];
 
@@ -217,13 +222,13 @@ export default function NotificationDashboard() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
-        return <CheckCircle size={16} color="#10B981" />;
+        return <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />;
       case 'failed':
-        return <AlertCircle size={16} color="#EF4444" />;
+        return <IconSymbol name="exclamationmark.circle.fill" size={16} color="#EF4444" />;
       case 'pending':
-        return <Clock size={16} color="#F59E0B" />;
+        return <IconSymbol name="clock.fill" size={16} color="#F59E0B" />;
       default:
-        return <Clock size={16} color="#6B7280" />;
+        return <IconSymbol name="clock.fill" size={16} color="#6B7280" />;
     }
   };
 
@@ -262,7 +267,7 @@ export default function NotificationDashboard() {
       <View style={styles.header}>
         <Text style={styles.title}>Dashboard de Notificações</Text>
         <TouchableOpacity onPress={clearOldLogs} style={styles.clearButton}>
-          <Trash2 size={20} color="#EF4444" />
+          <IconSymbol name="trash.fill" size={20} color="#EF4444" />
           <Text style={styles.clearButtonText}>Limpar Logs</Text>
         </TouchableOpacity>
       </View>
@@ -270,31 +275,31 @@ export default function NotificationDashboard() {
       {/* Estatísticas */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Bell size={24} color="#3B82F6" />
+          <IconSymbol name="bell.fill" size={24} color="#3B82F6" />
           <Text style={styles.statNumber}>{stats.total}</Text>
           <Text style={styles.statLabel}>Total</Text>
         </View>
         
         <View style={styles.statCard}>
-          <Clock size={24} color="#F59E0B" />
+          <IconSymbol name="clock.fill" size={24} color="#F59E0B" />
           <Text style={styles.statNumber}>{stats.pending}</Text>
           <Text style={styles.statLabel}>Pendentes</Text>
         </View>
         
         <View style={styles.statCard}>
-          <CheckCircle size={24} color="#10B981" />
+          <IconSymbol name="checkmark.circle.fill" size={24} color="#10B981" />
           <Text style={styles.statNumber}>{stats.sent}</Text>
           <Text style={styles.statLabel}>Enviadas</Text>
         </View>
         
         <View style={styles.statCard}>
-          <AlertCircle size={24} color="#EF4444" />
+          <IconSymbol name="exclamationmark.circle.fill" size={24} color="#EF4444" />
           <Text style={styles.statNumber}>{stats.failed}</Text>
           <Text style={styles.statLabel}>Falharam</Text>
         </View>
         
         <View style={styles.statCard}>
-          <Users size={24} color="#8B5CF6" />
+          <IconSymbol name="person.2.fill" size={24} color="#8B5CF6" />
           <Text style={styles.statNumber}>{stats.activeTokens}</Text>
           <Text style={styles.statLabel}>Dispositivos</Text>
         </View>
@@ -358,7 +363,7 @@ export default function NotificationDashboard() {
         
         {filteredLogs.length === 0 && (
           <View style={styles.emptyState}>
-            <Bell size={48} color="#9CA3AF" />
+            <IconSymbol name='bell.fill' size={48} color="#9CA3AF" />
             <Text style={styles.emptyStateText}>Nenhum log encontrado</Text>
           </View>
         )}

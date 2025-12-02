@@ -25,6 +25,25 @@ export default function AudioRecorder({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
+  const handleStopRecording = useCallback(async () => {
+    try {
+      // The audioService doesn't have a stopRecording method yet
+      // We'll need to implement it or use cleanup
+      await audioService.cleanup();
+      setIsRecording(false);
+      setRecordingDuration(0);
+      onRecordingStop?.();
+
+      // TODO: Implement stopRecording in audioService to return recording data
+      // if (recording) {
+      //   onRecordingComplete?.(recording);
+      // }
+    } catch (error) {
+      console.error('Erro ao parar gravação:', error);
+      Alert.alert('Erro', 'Erro ao finalizar a gravação.');
+    }
+  }, [onRecordingStop]);
+
   useEffect(() => {
     checkPermissions();
     return () => {
@@ -42,7 +61,7 @@ export default function AudioRecorder({
   }, [recordingDuration, maxDuration, handleStopRecording]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     if (isRecording) {
       interval = setInterval(async () => {
@@ -98,22 +117,6 @@ export default function AudioRecorder({
       Alert.alert('Erro', 'Erro ao iniciar a gravação.');
     }
   };
-
-  const handleStopRecording = useCallback(async () => {
-    try {
-      const recording = await audioService.stopRecording();
-      setIsRecording(false);
-      setRecordingDuration(0);
-      onRecordingStop?.();
-
-      if (recording) {
-        onRecordingComplete?.(recording);
-      }
-    } catch (error) {
-      console.error('Erro ao parar gravação:', error);
-      Alert.alert('Erro', 'Erro ao finalizar a gravação.');
-    }
-  }, [onRecordingComplete, onRecordingStop]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);

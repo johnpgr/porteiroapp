@@ -2,7 +2,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import PorteiroTopBar from './PorteiroTopBar';
-import { ShiftModal } from './ShiftModal';
 import { useAuth } from '~/hooks/useAuth';
 import { usePorteiroDashboard } from '~/providers/PorteiroDashboardProvider';
 import { supabase } from '~/utils/supabase';
@@ -23,8 +22,6 @@ export default function PorteiroTabsHeader() {
   const [loadingPorteiro, setLoadingPorteiro] = useState(true);
   const [connectionError, setConnectionError] = useState(false);
 
-  const [showShiftModal, setShowShiftModal] = useState(false);
-  const [isModalMandatory, setIsModalMandatory] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initialShiftCheckDone, setInitialShiftCheckDone] = useState(false);
 
@@ -113,12 +110,12 @@ export default function PorteiroTabsHeader() {
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('full_name, email, work_schedule, building_id')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .eq('user_type', 'porteiro')
         .single();
 
       if (profileError) {
-        const nameParts = user.email.split('@')[0].split('.');
+        const nameParts = (user.email || 'user@porteiro.app').split('@')[0].split('.');
         const name = nameParts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
         const initials = nameParts.map((part) => part.charAt(0).toUpperCase()).join('');
         const schedule = parseWorkSchedule(null);
@@ -130,12 +127,12 @@ export default function PorteiroTabsHeader() {
           shift_end: schedule.end,
         });
       } else {
-        const nameParts = (profile.full_name || user.email.split('@')[0]).split(' ');
+        const nameParts = (profile.full_name || user.email || 'Porteiro').split(' ');
         const initials = nameParts.map((part) => part.charAt(0).toUpperCase()).join('').slice(0, 2);
         const schedule = parseWorkSchedule(profile.work_schedule);
 
         setPorteiroData({
-          name: profile.full_name || user.email,
+          name: profile.full_name || user.email || 'Porteiro',
           initials,
           shift_start: schedule.start,
           shift_end: schedule.end,
@@ -211,32 +208,14 @@ export default function PorteiroTabsHeader() {
 
   useEffect(() => {
     if (isInitializing || !shiftReady || shiftLoading) {
-      if (showShiftModal) {
-        setShowShiftModal(false);
-      }
-      if (isModalMandatory) {
-        setIsModalMandatory(false);
-      }
       return;
     }
 
     if (!currentShift) {
-      if (!showShiftModal) {
-        setShowShiftModal(true);
-      }
-      if (!isModalMandatory) {
-        setIsModalMandatory(true);
-      }
-      return;
+      // Navigate to mandatory shift modal
+      router.push('/porteiro/shift?mandatory=true');
     }
-
-    if (isModalMandatory) {
-      setIsModalMandatory(false);
-      if (showShiftModal) {
-        setShowShiftModal(false);
-      }
-    }
-  }, [currentShift, isInitializing, isModalMandatory, shiftReady, shiftLoading, showShiftModal]);
+  }, [currentShift, isInitializing, shiftReady, shiftLoading, router]);
 
   const checkShiftBeforeAction = (action: () => void, actionName: string = 'esta ação') => {
     if (isInitializing) {
@@ -255,8 +234,7 @@ export default function PorteiroTabsHeader() {
           {
             text: 'OK',
             onPress: () => {
-              setIsModalMandatory(true);
-              setShowShiftModal(true);
+              router.push('/porteiro/shift?mandatory=true');
             },
           },
         ]
@@ -268,11 +246,11 @@ export default function PorteiroTabsHeader() {
   };
 
   const handlePanicButton = () => {
-    router.push('/porteiro/emergency');
+    router.push('/emergency');
   };
 
   const handleNotifications = () => {
-    router.push('/porteiro/avisos');
+    router.push('/avisos');
   };
 
   const handleLogout = async () => {
@@ -286,13 +264,11 @@ export default function PorteiroTabsHeader() {
         style: 'destructive',
         onPress: async () => {
           try {
-            setShowShiftModal(false);
-            setIsModalMandatory(false);
             setInitialShiftCheckDone(false);
             setIsInitializing(true);
             hasCompletedInitialLoadRef.current = false;
             await signOut();
-            router.replace('/porteiro/login');
+            router.replace('/login');
           } catch (error) {
             console.error('Erro ao fazer logout:', error);
             Alert.alert('Erro', 'Não foi possível fazer logout. Tente novamente.');
@@ -302,33 +278,6 @@ export default function PorteiroTabsHeader() {
     ]);
   };
 
-  const handleStartShift = () => {
-    Alert.alert('Iniciar Turno', 'Deseja iniciar seu turno de trabalho agora?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Iniciar',
-        onPress: async () => {
-          try {
-            await startShiftAction();
-            await refreshShiftAction();
-          } catch (error) {
-            console.error('Erro ao iniciar turno:', error);
-            Alert.alert('Erro', 'Falha ao iniciar turno. Tente novamente.');
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleEndShift = async () => {
-    if (!currentShift) {
-      Alert.alert('Erro', 'Nenhum turno ativo encontrado.');
-      return;
-    }
-
-    await endShiftAction();
-    await refreshShiftAction();
-  };
 
   return (
     <>
@@ -340,24 +289,13 @@ export default function PorteiroTabsHeader() {
         onLogout={handleLogout}
         onShiftControlPress={() => {
           if (!isInitializing) {
-            setShowShiftModal(true);
+            router.push('/porteiro/shift');
           }
         }}
         onPanicPress={handlePanicButton}
         onNotificationsPress={handleNotifications}
         unreadNotifications={unreadCount}
         checkShiftBeforeAction={checkShiftBeforeAction}
-      />
-
-      <ShiftModal
-        visible={!isInitializing && showShiftModal}
-        mandatory={isModalMandatory}
-        isLoading={shiftLoading}
-        currentShift={currentShift}
-        onStartShift={handleStartShift}
-        onEndShift={handleEndShift}
-        onLogout={handleLogout}
-        onClose={() => setShowShiftModal(false)}
       />
     </>
   );

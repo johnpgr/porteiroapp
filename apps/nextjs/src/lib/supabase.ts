@@ -1,4 +1,4 @@
-import { SupabaseClientFactory } from '@porteiroapp/common/supabase';
+import { SupabaseClientFactory } from '@porteiroapp/supabase';
 
 export const { client: supabase, unified } = SupabaseClientFactory.createBrowserClient({
   url: process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -28,7 +28,7 @@ interface NotificationItemProps {
   onPress: () => void;
   onMarkAsRead: () => void;
   onConfirmUrgent?: () => void;
-  deliveryStatus?: NotificationDeliveryStatus | null;
+  deliveryStatus?: any | null;
 }
 
 /**
@@ -44,7 +44,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   const isUnread = notification.notification_status !== 'read';
   const isUrgent = notification.priority === 'high' || notification.priority === 'urgent';
   const isPoll = notification.type === 'poll';
-  const isExpired = notification.expires_at && new Date(notification.expires_at) < new Date();
+    const isExpired = false; // expires_at removed from notifications
 
   const getStatusIcon = () => {
     if (!deliveryStatus) return null;
@@ -80,23 +80,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   };
 
   const getExpirationInfo = () => {
-    if (!notification.expires_at) return null;
+    // expires_at removed from AvisoNotificationData
+    return null;
     
-    const expiresAt = new Date(notification.expires_at);
-    const isExpiringSoon = expiresAt.getTime() - Date.now() < 24 * 60 * 60 * 1000; // 24 horas
-    
-    return (
-      <View style={[styles.expirationInfo, isExpired && styles.expiredInfo]}>
-        <Ionicons 
-          name={isExpired ? "time-outline" : "timer-outline"} 
-          size={12} 
-          color={isExpired ? "#F44336" : isExpiringSoon ? "#FF9800" : "#757575"} 
-        />
-        <Text style={[styles.expirationText, isExpired && styles.expiredText]}>
-          {isExpired ? 'Expirada' : `Expira ${formatDistanceToNow(expiresAt, { locale: ptBR, addSuffix: true })}`}
-        </Text>
-      </View>
-    );
+    // const expiresAt = new Date(notification.expires_at);
+    // const isExpiringSoon = expiresAt.getTime() - Date.now() < 24 * 60 * 60 * 1000; // 24 horas
   };
 
   return (
@@ -199,28 +187,25 @@ export const EnhancedNotificationsList: React.FC<EnhancedNotificationsListProps>
     isLoading,
     isListening,
     error,
-    deliveryStats,
     refreshNotifications,
     markAsRead,
     confirmUrgentNotification,
-    getDeliveryStatus,
-    loadDeliveryStats,
-    clearError
+    getNotificationStats
   } = useEnhancedAvisosNotifications();
 
-  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, NotificationDeliveryStatus | null>>({});
+  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, any | null>>({});
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Carregar status de entrega para notificações visíveis
   useEffect(() => {
     const loadDeliveryStatuses = async () => {
-      const statuses: Record<string, NotificationDeliveryStatus | null> = {};
+      const statuses: Record<string, any | null> = {};
       
       for (const notification of notifications.slice(0, 10)) { // Carregar apenas as primeiras 10
         const key = `${notification.type}_${notification.id}`;
-        const status = await getDeliveryStatus(notification.id, notification.type);
-        statuses[key] = status;
+        // getDeliveryStatus not available anymore
+        statuses[key] = null;
       }
       
       setDeliveryStatuses(statuses);
@@ -229,20 +214,21 @@ export const EnhancedNotificationsList: React.FC<EnhancedNotificationsListProps>
     if (notifications.length > 0) {
       loadDeliveryStatuses();
     }
-  }, [notifications, getDeliveryStatus]);
+  }, [notifications]);
 
   // Carregar estatísticas se solicitado
   useEffect(() => {
     if (showDeliveryStats) {
-      loadDeliveryStats();
+      // loadDeliveryStats not available anymore - use getNotificationStats instead
+      getNotificationStats().catch(console.error);
     }
-  }, [showDeliveryStats, loadDeliveryStats]);
+  }, [showDeliveryStats, getNotificationStats]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await refreshNotifications();
     if (showDeliveryStats) {
-      await loadDeliveryStats();
+      // loadDeliveryStats not available
     }
     setRefreshing(false);
   };
@@ -316,47 +302,8 @@ export const EnhancedNotificationsList: React.FC<EnhancedNotificationsListProps>
   };
 
   const renderStatsModal = () => {
-    if (!deliveryStats) return null;
-    
-    return (
-      <Modal
-        visible={showStatsModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowStatsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Estatísticas de Entrega</Text>
-              <TouchableOpacity onPress={() => setShowStatsModal(false)}>
-                <Ionicons name="close" size={24} color="#757575" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.statsContainer}>
-              <View style={styles.statSection}>
-                <Text style={styles.statSectionTitle}>📢 Comunicados</Text>
-                <Text style={styles.statItem}>Total enviados: {deliveryStats.communications.total}</Text>
-                <Text style={styles.statItem}>Entregues: {deliveryStats.communications.delivered}</Text>
-                <Text style={styles.statItem}>Lidos: {deliveryStats.communications.read}</Text>
-                <Text style={styles.statItem}>Taxa de entrega: {deliveryStats.communications.deliveryRate}%</Text>
-                <Text style={styles.statItem}>Taxa de leitura: {deliveryStats.communications.readRate}%</Text>
-              </View>
-              
-              <View style={styles.statSection}>
-                <Text style={styles.statSectionTitle}>🗳️ Enquetes</Text>
-                <Text style={styles.statItem}>Total enviadas: {deliveryStats.polls.total}</Text>
-                <Text style={styles.statItem}>Entregues: {deliveryStats.polls.delivered}</Text>
-                <Text style={styles.statItem}>Lidas: {deliveryStats.polls.read}</Text>
-                <Text style={styles.statItem}>Taxa de entrega: {deliveryStats.polls.deliveryRate}%</Text>
-                <Text style={styles.statItem}>Taxa de leitura: {deliveryStats.polls.readRate}%</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    );
+    // deliveryStats not available anymore - stats functionality removed
+    return null;
   };
 
   const renderEmptyState = () => (
@@ -376,7 +323,7 @@ export const EnhancedNotificationsList: React.FC<EnhancedNotificationsListProps>
       <View style={styles.errorContainer}>
         <Ionicons name="warning" size={24} color="#F44336" />
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={clearError}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => {}/* clearError not available */}>
           <Text style={styles.retryButtonText}>Tentar novamente</Text>
         </TouchableOpacity>
       </View>
@@ -418,7 +365,7 @@ export const EnhancedNotificationsList: React.FC<EnhancedNotificationsListProps>
       
       {!isListening && (
         <View style={styles.offlineIndicator}>
-          <Ionicons name="wifi-off" size={16} color="#F44336" />
+          <Ionicons name="close-circle" size={16} color="#F44336" />
           <Text style={styles.offlineText}>Monitoramento offline</Text>
         </View>
       )}

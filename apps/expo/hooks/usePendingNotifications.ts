@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabase';
 import { useAuth } from './useAuth';
-import { notificationApi } from '../services/notificationApi';
+import { notificationApi } from '../services/notification/NotificationApiService';
 import * as Notifications from 'expo-notifications';
-import { notifyPorteirosVisitorResponse } from '../services/pushNotificationService';
-import { respondToNotification as respondCore } from '@porteiroapp/common/hooks';
+import { notifyPorteirosVisitorResponse } from '../services/notification/pushNotificationService';
+import { respondToNotification as respondCore } from '@porteiroapp/hooks';
 
 interface PendingNotification {
   id: string;
@@ -60,7 +60,7 @@ export const usePendingNotifications = () => {
 
   // Buscar apartment_id do usuário
   const fetchApartmentId = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user) return;
     
     try {
       const { data, error } = await supabase
@@ -80,7 +80,7 @@ export const usePendingNotifications = () => {
       console.error('Erro ao buscar apartment_id:', err);
       setError('Erro ao identificar apartamento');
     }
-  }, [user?.id]);
+  }, [user]);
 
   // Buscar notificações pendentes
   const fetchPendingNotifications = useCallback(async () => {
@@ -142,10 +142,43 @@ export const usePendingNotifications = () => {
         }))
       });
       
-      const mappedNotifications = data.map(item => ({
-        ...item,
-        guest_name: item.guest_name || item.visitors?.name || 'Visitante não identificado'
-      }));
+      // Filter and map notifications, ensuring type safety
+      const mappedNotifications: PendingNotification[] = data
+        .filter((item): item is typeof item & { entry_type: 'visitor' | 'delivery' | 'vehicle'; notification_status: 'pending' } => {
+          // Filter out items with invalid entry_type or notification_status
+          return (
+            item.entry_type !== null &&
+            ['visitor', 'delivery', 'vehicle'].includes(item.entry_type) &&
+            item.notification_status === 'pending'
+          );
+        })
+        .map(item => ({
+          id: item.id,
+          entry_type: item.entry_type as 'visitor' | 'delivery' | 'vehicle',
+          notification_status: item.notification_status as 'pending',
+          notification_sent_at: item.notification_sent_at || '',
+          expires_at: item.expires_at || '',
+          apartment_id: item.apartment_id,
+          guest_name: item.guest_name || item.visitors?.name || 'Visitante não identificado',
+          purpose: item.purpose || undefined,
+          visitor_id: item.visitor_id || undefined,
+          photo_url: item.photo_url || undefined,
+          delivery_sender: item.delivery_sender || undefined,
+          delivery_description: item.delivery_description || undefined,
+          delivery_tracking_code: item.delivery_tracking_code || undefined,
+          license_plate: item.license_plate || undefined,
+          vehicle_model: item.vehicle_model || undefined,
+          vehicle_color: item.vehicle_color || undefined,
+          vehicle_brand: item.vehicle_brand || undefined,
+          building_id: item.building_id,
+          created_at: item.created_at,
+          log_time: item.log_time,
+          visitors: item.visitors && item.visitors.document ? {
+            name: item.visitors.name,
+            document: item.visitors.document,
+            phone: item.visitors.phone || undefined
+          } : undefined
+        }));
       
       console.log('🔍 [usePendingNotifications] Notificações mapeadas:', {
         count: mappedNotifications.length,
@@ -168,7 +201,14 @@ export const usePendingNotifications = () => {
   }, [apartmentId]);
 
   // Função para disparar notificações automáticas
-  const triggerAutomaticNotifications = useCallback(async (newLog: any) => {
+  const triggerAutomaticNotifications = useCallback(async (newLog: {
+    id: string;
+    guest_name?: string | null;
+    apartment_id: string;
+    building_id: string;
+    notification_status?: string | null;
+    requires_resident_approval?: boolean | null;
+  }) => {
     try {
       // Buscar dados completos do visitante e morador
       const { data: logData, error: logError } = await supabase
@@ -271,17 +311,25 @@ export const usePendingNotifications = () => {
           filter: `apartment_id=eq.${apartmentId}`
         },
         (payload) => {
-
-          
           if (payload.eventType === 'INSERT') {
-            const newLog = payload.new as any;
+            const newLog = payload.new as {
+              id: string;
+              guest_name?: string | null;
+              apartment_id: string;
+              building_id: string;
+              notification_status?: string | null;
+              requires_resident_approval?: boolean | null;
+            };
             if (newLog.notification_status === 'pending' && 
                 newLog.requires_resident_approval) {
               triggerAutomaticNotifications(newLog);
               fetchPendingNotifications();
             }
           } else if (payload.eventType === 'UPDATE') {
-            const updatedLog = payload.new as any;
+            const updatedLog = payload.new as {
+              id: string;
+              notification_status?: string | null;
+            };
             if (updatedLog.notification_status !== 'pending') {
               setNotifications(prev => 
                 prev.filter(n => n.id !== updatedLog.id)
@@ -329,12 +377,18 @@ export const usePendingNotifications = () => {
 
       console.log('📱 [notifyDoorkeepers] Enviando push notification para porteiros via Edge Function...');
 
+      // Map delivery_destination: 'apartamento' is not valid for notifyPorteirosVisitorResponse
+      // Only 'portaria' and 'elevador' are valid, so filter out 'apartamento'
+      const deliveryDestination = response.delivery_destination === 'apartamento' 
+        ? undefined 
+        : response.delivery_destination;
+
       const pushResult = await notifyPorteirosVisitorResponse({
         buildingId,
         visitorName,
         apartmentNumber,
         status: response.action === 'approve' ? 'approved' : 'rejected',
-        deliveryDestination: response.delivery_destination,
+        deliveryDestination,
         reason: response.reason
       });
 
@@ -378,9 +432,10 @@ export const usePendingNotifications = () => {
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('Erro ao responder notificação:', err);
-      return { success: false, error: err.message };
+      return { success: false, error: errorMessage };
     }
   }, [apartmentId, notifyDoorkeepers, user?.id]);
 
